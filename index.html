@@ -173,6 +173,7 @@
   }
   .sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
   .sidebar-nav[hidden]{ display:none; }
+  .nav-item[hidden]{ display:none; }
   .nav-item{
     display:flex; align-items:center; gap:11px; width:100%; text-align:left;
     background:none; border:none; color:rgba(255,255,255,0.82);
@@ -569,7 +570,7 @@
       <span class="logo-word">CREST</span>
     </div>
 
-    <nav class="sidebar-nav" id="nav-group-choose">
+    <nav class="sidebar-nav" id="nav-group-choose" data-roles="admin staff">
       <button class="nav-item active" data-panel="panel-company-picker">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <span class="nav-label">Choose Company</span>
@@ -608,22 +609,22 @@
       </button>
     </nav>
 
-    <div class="nav-group-label" id="nav-group-tools-label" style="margin-top:20px;">Tools</div>
-    <nav class="sidebar-nav" id="nav-group-tools">
-      <button class="nav-item" data-panel="panel-queue">
+    <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff" style="margin-top:20px;">Tools</div>
+    <nav class="sidebar-nav" id="nav-group-tools" data-roles="admin staff">
+      <button class="nav-item" data-panel="panel-queue" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="nav-label">Customer Queue</span>
       </button>
-      <button class="nav-item" data-panel="panel-approvals">
+      <button class="nav-item" data-panel="panel-approvals" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="nav-label">Staff Approvals</span>
         <span class="nav-badge" id="approvals-nav-badge" hidden>0</span>
       </button>
-      <button class="nav-item" data-panel="panel-recon">
+      <button class="nav-item" data-panel="panel-recon" data-roles="admin staff">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
         <span class="nav-label">Reconciliation</span>
       </button>
-      <button class="nav-item" data-panel="panel-activity">
+      <button class="nav-item" data-panel="panel-activity" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 8 4-16 2 8h6"/></svg>
         <span class="nav-label">Activity Log</span>
       </button>
@@ -641,7 +642,7 @@
         <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
-        <div class="company-search-wrap" id="topbar-search-wrap">
+        <div class="company-search-wrap" id="topbar-search-wrap" data-roles="admin staff">
           <svg class="company-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="text" id="topbar-search-input" class="company-search-input" placeholder="Search company…" autocomplete="off" aria-label="Search company" />
           <div class="company-search-results" id="topbar-search-results" hidden></div>
@@ -1000,21 +1001,19 @@
 
         <div id="recon-results" hidden>
 
-          <div class="recon-flag-note">
+          <div class="recon-flag-note" id="recon-flag-note" hidden>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
-            <div>
-              <b>1 settlement needs review.</b> 08 Aug 2026 — RM 512.30 doesn't cleanly sum to a prefix of the oldest unpaid invoices (closest running total: RM 500.00, gap RM 12.30). FIFO matching stops here, so every later settlement is waiting on this one too. Possible causes: a transaction missing or miscoded in the export, a cancelled/failed attempt whose fee wasn't accounted for, a manual gateway adjustment, or a genuinely partial settlement. Confirm which invoice(s) it covers before this is forced to match.
-            </div>
+            <div id="recon-flag-note-text"></div>
           </div>
 
           <div class="kpi-row">
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
-              <div><div class="kpi-label">Settlements Matched</div><div class="kpi-value num">8</div></div>
+              <div><div class="kpi-label">Settlements Matched</div><div class="kpi-value num" id="recon-kpi-matched">—</div></div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
-              <div><div class="kpi-label">Unresolved</div><div class="kpi-value num">1</div></div>
+              <div><div class="kpi-label">Unresolved</div><div class="kpi-value num" id="recon-kpi-unresolved">—</div></div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
@@ -1022,20 +1021,16 @@
             </div>
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/></svg></div>
-              <div><div class="kpi-label">Invoices Issued</div><div class="kpi-value num">23</div></div>
+              <div><div class="kpi-label">Invoices Issued</div><div class="kpi-value num" id="recon-kpi-invoices">—</div></div>
             </div>
           </div>
 
           <div class="section-title">Daily summary (Aug 2026)</div>
-          <p class="recon-caption">Invoices numbered FTD-2608-DD · receipts numbered RFTD-2608-NN, FIFO-matched against the oldest unpaid invoices</p>
+          <p class="recon-caption" id="recon-caption">FIFO-matched against the oldest unpaid invoices</p>
           <div class="table-card">
             <table>
               <thead><tr><th>Date</th><th>Invoice No.</th><th>Bill Amt</th><th>Txn Fee</th><th>Failed/Cancelled</th><th>Actual Amt</th><th>Settlement</th><th>Receipt No.</th><th>Status</th></tr></thead>
-              <tbody>
-                <tr><td>06 Aug 2026</td><td class="num">FTD-2608-06</td><td class="num">RM 1,240.80</td><td class="num">RM 12.40</td><td class="num">RM 38.00</td><td class="num">RM 1,228.40</td><td class="num">RM 1,228.40</td><td class="num">RFTD-2608-03</td><td><span class="badge matched">Matched</span></td></tr>
-                <tr><td>07 Aug 2026</td><td class="num">FTD-2608-07</td><td class="num">RM 909.80</td><td class="num">RM 8.00</td><td class="num">RM 0.00</td><td class="num">RM 901.80</td><td class="num">RM 905.00</td><td class="num">RFTD-2608-04</td><td><span class="badge matched">Matched</span></td></tr>
-                <tr><td>08 Aug 2026</td><td class="num">FTD-2608-08</td><td class="num">RM 1,246.70</td><td class="num">RM 12.30</td><td class="num">RM 24.00</td><td class="num">RM 1,234.40</td><td class="num">RM 512.30</td><td class="num">—</td><td><span class="badge review">Needs Review</span></td></tr>
-              </tbody>
+              <tbody id="recon-lines-tbody"></tbody>
             </table>
           </div>
 
@@ -1050,27 +1045,27 @@
             <div class="file-list">
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-                <div class="file-meta"><div class="file-name" id="output-summary-filename">SUMMARY.xlsx</div><div class="file-desc">24 daily rows · Aug 2026</div></div>
+                <div class="file-meta"><div class="file-name" id="output-summary-filename">SUMMARY.xlsx</div><div class="file-desc" id="output-summary-desc">—</div></div>
                 <button class="btn-ghost" type="button">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-                <div class="file-meta"><div class="file-name">BUKKU-SALES.xlsx</div><div class="file-desc">23 credit invoices ready to import</div></div>
+                <div class="file-meta"><div class="file-name">BUKKU-SALES.xlsx</div><div class="file-desc" id="output-sales-desc">—</div></div>
                 <button class="btn-ghost" type="button">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-                <div class="file-meta"><div class="file-name">BUKKU-PAYMENT.xlsx</div><div class="file-desc">8 receipts ready to import</div></div>
+                <div class="file-meta"><div class="file-name">BUKKU-PAYMENT.xlsx</div><div class="file-desc" id="output-payment-desc">—</div></div>
                 <button class="btn-ghost" type="button">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-                <div class="file-meta"><div class="file-name">carryover_next.json</div><div class="file-desc">2 invoices still open into next month</div></div>
+                <div class="file-meta"><div class="file-name">carryover_next.json</div><div class="file-desc">Unpaid invoices carried into next month</div></div>
                 <button class="btn-ghost" type="button">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon warn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div>
-                <div class="file-meta"><div class="file-name">flags.json</div><div class="file-desc">1 item needs review</div></div>
+                <div class="file-meta"><div class="file-name">flags.json</div><div class="file-desc" id="output-flags-desc">—</div></div>
                 <button class="btn-ghost" type="button">Download</button>
               </div>
             </div>
@@ -1109,64 +1104,81 @@
 </div>
 
 <script>
-  // ============ ROLE-BASED ACCESS (Admin vs Client) ============
-  var CURRENT_ROLE = 'admin';
+  // ============ ROLE-BASED ACCESS (Admin / Staff / Client) ============
+  var CURRENT_ROLE = null;
+  var CURRENT_USER = null;
 
-  function companySlug(name){
-    return name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-  }
-
-  // Client login = the company's own slug as the User ID (e.g. "td-senai" for "TD - Senai")
-  function applyRole(role, companyName){
+  // Elements tagged data-roles="admin staff" etc. are shown only to those roles;
+  // elements with no data-roles attribute are visible to everyone signed in.
+  function applyRole(role, profile){
     CURRENT_ROLE = role;
-    var isClient = role === 'client';
+    CURRENT_USER = profile;
 
-    document.getElementById('nav-group-choose').hidden = isClient;
-    document.getElementById('nav-group-tools-label').hidden = isClient;
-    document.getElementById('nav-group-tools').hidden = isClient;
-    document.getElementById('topbar-search-wrap').hidden = isClient;
+    document.querySelectorAll('[data-roles]').forEach(function(el){
+      var allowed = el.dataset.roles.split(' ');
+      el.hidden = allowed.indexOf(role) === -1;
+    });
 
-    if(isClient){
-      document.getElementById('topbar-avatar').textContent = initials(companyName);
-      document.getElementById('topbar-user-name').textContent = companyName;
+    if(role === 'client'){
+      document.getElementById('topbar-avatar').textContent = initials(profile.companyName);
+      document.getElementById('topbar-user-name').textContent = profile.companyName;
       document.getElementById('topbar-user-role').textContent = 'Client';
-      currentCompany = companyName;
+      currentCompany = profile.companyName;
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
       if(homeNav) homeNav.click();
     } else {
-      document.getElementById('topbar-avatar').textContent = 'SA';
-      document.getElementById('topbar-user-name').textContent = 'Siti Aminah';
-      document.getElementById('topbar-user-role').textContent = 'Admin';
+      document.getElementById('topbar-avatar').textContent = initials(profile.displayName);
+      document.getElementById('topbar-user-name').textContent = profile.displayName;
+      document.getElementById('topbar-user-role').textContent = role === 'admin' ? 'Admin' : 'Staff';
       var pickerNav = document.querySelector('.nav-item[data-panel="panel-company-picker"]');
       if(pickerNav) pickerNav.click();
     }
   }
 
+  async function api(path, options){
+    var res = await fetch('/api' + path, Object.assign({
+      headers: { 'Content-Type': 'application/json' }
+    }, options || {}));
+    if(!res.ok){
+      var body = await res.json().catch(function(){ return {}; });
+      throw new Error(body.error || ('Request failed (' + res.status + ')'));
+    }
+    if(res.status === 204) return null;
+    return res.json();
+  }
+
+  function formatDate(iso){
+    if(!iso) return '—';
+    var d = new Date(iso);
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    // UTC getters: date-only strings ('YYYY-MM-DD') parse as UTC midnight per spec,
+    // and timestamps are already UTC — using UTC here keeps the calendar day stable
+    // regardless of the viewer's local timezone.
+    return String(d.getUTCDate()).padStart(2,'0') + ' ' + months[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+  }
+
   // Login -> dashboard
   document.getElementById('login-form').addEventListener('submit', function(e){
     e.preventDefault();
-    var id = document.getElementById('userid').value.trim().toLowerCase();
+    var loginId = document.getElementById('userid').value.trim();
+    var password = document.getElementById('password').value;
     var errEl = document.getElementById('login-error');
-    var role = null, matchedCompany = null;
+    var submitBtn = e.target.querySelector('button[type="submit"]');
 
-    if(id === 'admin01' || id === 'admin'){
-      role = 'admin';
-    } else if(typeof CUSTOMERS !== 'undefined'){
-      var match = CUSTOMERS.find(function(c){ return companySlug(c.name) === id; });
-      if(match){ role = 'client'; matchedCompany = match.name; }
-    }
-
-    if(!role){
-      errEl.textContent = 'Unrecognized ID. Staff should sign in with their admin ID; clients sign in with their company code (e.g. "' + (typeof CUSTOMERS !== 'undefined' ? companySlug(CUSTOMERS[0].name) : 'td-senai') + '").';
-      errEl.hidden = false;
-      return;
-    }
-    errEl.hidden = true;
-
-    document.getElementById('login-screen').hidden = true;
-    document.getElementById('app-shell').hidden = false;
-    applyRole(role, matchedCompany);
+    submitBtn.disabled = true;
+    api('/login', { method:'POST', body: JSON.stringify({ loginId: loginId, password: password }) })
+      .then(function(profile){
+        errEl.hidden = true;
+        document.getElementById('login-screen').hidden = true;
+        document.getElementById('app-shell').hidden = false;
+        return onAuthenticated(profile);
+      })
+      .catch(function(err){
+        errEl.textContent = err.message + ' — staff/admin use your assigned login ID; clients use their company code.';
+        errEl.hidden = false;
+      })
+      .finally(function(){ submitBtn.disabled = false; });
   });
 
   // Password show/hide
@@ -1208,13 +1220,18 @@
 
   // Logout -> back to login
   document.getElementById('logout-btn').addEventListener('click', function(){
-    document.getElementById('app-shell').hidden = true;
-    document.getElementById('login-screen').hidden = false;
-    userMenu.classList.remove('open');
-    document.getElementById('login-form').reset();
-    document.getElementById('login-error').hidden = true;
-    if(typeof currentCompany !== 'undefined') currentCompany = '';
-    applyRole('admin', null);
+    api('/logout', { method:'POST' }).catch(function(){}).finally(function(){
+      document.getElementById('app-shell').hidden = true;
+      document.getElementById('login-screen').hidden = false;
+      userMenu.classList.remove('open');
+      document.getElementById('login-form').reset();
+      document.getElementById('login-error').hidden = true;
+      CURRENT_ROLE = null;
+      CURRENT_USER = null;
+      currentCompany = '';
+      queuePage = 1;
+      document.querySelectorAll('[data-roles]').forEach(function(el){ el.hidden = true; });
+    });
   });
 
   // Dark / light mode
@@ -1282,108 +1299,150 @@
   });
 
   // Reconciliation: run button
+  function renderReconResults(recon){
+    var gate = document.getElementById('generate-gate');
+    var genBtn = document.getElementById('generate-bukku-btn');
+    var bukkuOutput = document.getElementById('bukku-output');
+    var flagNote = document.getElementById('recon-flag-note');
+
+    if(!recon){
+      document.getElementById('recon-lines-tbody').innerHTML = emptyRowSafe(9, 'No reconciliation batch for this period yet.');
+      flagNote.hidden = true;
+      return;
+    }
+    var batch = recon.batch, lines = recon.lines;
+    var flagged = lines.filter(function(l){ return l.status === 'Needs Review'; });
+    var matchedCount = lines.length - flagged.length;
+
+    document.getElementById('recon-kpi-matched').textContent = matchedCount;
+    document.getElementById('recon-kpi-unresolved').textContent = flagged.length;
+    document.getElementById('recon-kpi-invoices').textContent = batch.invoices_count;
+    document.getElementById('bank-verified-kpi').textContent = batch.bank_verified || (bankStatementProvided ? 'Verifying…' : 'Not provided');
+
+    if(flagged.length > 0){
+      var f = flagged[0];
+      document.getElementById('recon-flag-note-text').innerHTML =
+        '<b>' + flagged.length + ' settlement' + (flagged.length > 1 ? 's' : '') + ' need' + (flagged.length > 1 ? '' : 's') + ' review.</b> ' +
+        formatDate(f.date) + ' — ' + money(Number(f.settlement)) + ' doesn\'t cleanly match the expected amount for ' + f.invoice_no + '. FIFO matching stops here, so later settlements are waiting on this one too. Confirm which invoice(s) it covers before this is forced to match.';
+      flagNote.hidden = false;
+    } else {
+      flagNote.hidden = true;
+    }
+
+    document.getElementById('recon-lines-tbody').innerHTML = lines.map(function(l){
+      return '<tr><td>' + formatDate(l.date) + '</td><td class="num">' + l.invoice_no + '</td><td class="num">' + money(Number(l.bill_amt)) + '</td><td class="num">' + money(Number(l.txn_fee)) + '</td><td class="num">' + money(Number(l.failed_cancelled)) + '</td><td class="num">' + money(Number(l.actual_amt)) + '</td><td class="num">' + money(Number(l.settlement)) + '</td><td class="num">' + (l.receipt_no || '—') + '</td><td><span class="badge ' + (l.status === 'Matched' ? 'matched' : 'review') + '">' + l.status + '</span></td></tr>';
+    }).join('');
+
+    var allReady = batch.output_summary_ready && batch.output_sales_ready && batch.output_payment_ready;
+    if(allReady){
+      gate.classList.add('done');
+      gate.querySelector('.generate-gate-text').textContent = flagged.length > 0
+        ? 'Bukku Sales and Payment templates generated. The flagged item still needs manual confirmation before import.'
+        : 'Bukku Sales and Payment templates generated.';
+      genBtn.disabled = true;
+      genBtn.textContent = 'Generated ✓';
+      bukkuOutput.hidden = false;
+      document.getElementById('output-summary-filename').textContent = currentCompany ? salesSummaryFileName(currentCompany) + '.xlsx' : 'SUMMARY.xlsx';
+      document.getElementById('output-summary-desc').textContent = batch.invoices_count + ' daily rows · Aug 2026';
+      document.getElementById('output-sales-desc').textContent = matchedCount + ' credit invoices ready to import';
+      document.getElementById('output-payment-desc').textContent = matchedCount + ' receipts ready to import';
+      document.getElementById('output-flags-desc').textContent = flagged.length + ' item' + (flagged.length === 1 ? '' : 's') + ' need review';
+    } else {
+      gate.classList.remove('done');
+      gate.querySelector('.generate-gate-text').textContent = flagged.length > 0
+        ? 'Review the daily summary above — the flagged item needs a decision before the Bukku files are generated.'
+        : 'Review the daily summary above, then generate the Bukku import files.';
+      genBtn.disabled = false;
+      genBtn.textContent = 'Generate Bukku Templates →';
+      bukkuOutput.hidden = true;
+    }
+  }
+
   var runBtn = document.getElementById('run-recon');
   var reconResults = document.getElementById('recon-results');
   runBtn.addEventListener('click', function(){
-    if(runBtn.classList.contains('loading')) return;
+    if(runBtn.classList.contains('loading') || !currentCompany) return;
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
     runBtn.classList.add('loading');
-    setTimeout(function(){
-      runBtn.classList.remove('loading');
+    api('/companies/' + companyId + '/reconciliation-batches').then(function(recon){
+      renderReconResults(recon);
       reconResults.hidden = false;
-      document.getElementById('bukku-output').hidden = true;
-      document.getElementById('bank-verified-kpi').textContent = bankStatementProvided ? '8 / 9' : 'Not provided';
-      if(currentCompany){
-        document.getElementById('output-summary-filename').textContent = salesSummaryFileName(currentCompany) + '.xlsx';
-      }
-      var gate = document.getElementById('generate-gate');
-      gate.classList.remove('done');
-      gate.querySelector('.generate-gate-text').textContent = 'Review the daily summary above — the flagged item on 08 Aug needs a decision before the Bukku files are generated.';
-      var genBtn = document.getElementById('generate-bukku-btn');
-      genBtn.disabled = false;
-      genBtn.textContent = 'Generate Bukku Templates →';
       reconResults.scrollIntoView({ behavior:'smooth', block:'start' });
-    }, 900);
+    }).catch(function(err){ alert(err.message); }).finally(function(){
+      runBtn.classList.remove('loading');
+    });
   });
 
   document.getElementById('generate-bukku-btn').addEventListener('click', function(){
-    document.getElementById('bukku-output').hidden = false;
-    var gate = document.getElementById('generate-gate');
-    gate.classList.add('done');
-    gate.querySelector('.generate-gate-text').textContent = 'Bukku Sales and Payment templates generated. The flagged item still needs manual confirmation before import.';
-    this.disabled = true;
-    this.textContent = 'Generated ✓';
-    document.getElementById('bukku-output').scrollIntoView({ behavior:'smooth', block:'start' });
+    if(!currentCompany) return;
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + companyId + '/reconciliation-batches/generate-bukku', { method:'POST' })
+      .then(function(){ return api('/companies/' + companyId + '/reconciliation-batches'); })
+      .then(function(recon){
+        renderReconResults(recon);
+        renderActivityLog();
+        document.getElementById('bukku-output').scrollIntoView({ behavior:'smooth', block:'start' });
+      })
+      .catch(function(err){ alert(err.message); btn.disabled = false; });
   });
 
   // ============ CUSTOMER QUEUE ============
-  var CUSTOMERS = [{"name":"Larkin Print Solutions","type":"Print & Design","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-46.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"07 Aug 2026"},{"name":"Restoran Mount Austin","type":"Restaurant","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-12.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"07 Aug 2026"},{"name":"Salon Cantik Taman Sentosa","type":"Hair Salon","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-05.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"Taman Pelangi Auto Works","type":"Motor Workshop","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-40.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"Century Garden Bakery & Confectionery","type":"Bakery","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-19.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Gelang Patah Print Solutions","type":"Print & Design","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-10.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"05 Aug 2026"},{"name":"Pasir Gudang Learning Centre","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-06.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Restoran Adda Heights","type":"Restaurant","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-24.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Restoran Senai","type":"Restaurant","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-36.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"07 Aug 2026"},{"name":"Salon Cantik Pasir Gudang","type":"Hair Salon","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-29.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Setia Tropika Pet Care","type":"Pet Grooming","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-09.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"08 Aug 2026"},{"name":"Skudai Print Solutions","type":"Print & Design","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-34.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"07 Aug 2026"},{"name":"Stulang Coffee House","type":"Caf\u00e9","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-50.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"08 Aug 2026"},{"name":"TD - Senai","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-13.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"04 Aug 2026"},{"name":"TD - Ulu Tiram","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-01.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Taman Perling Coffee House","type":"Caf\u00e9","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-26.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"04 Aug 2026"},{"name":"Austin Heights Bakery & Confectionery","type":"Bakery","staff":["Priya Suresh"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"Bukit Indah Coffee House","type":"Caf\u00e9","staff":["Nurul Huda"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"Iskandar Puteri Bakery & Confectionery","type":"Bakery","staff":["Ahmad Faiz"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"02 Aug 2026"},{"name":"Adda Heights Convenience Store","type":"Convenience Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-47.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Austin Heights Hardware Sdn Bhd","type":"Hardware Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-20.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Century Garden Learning Centre","type":"Tuition Centre","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-42.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"05 Aug 2026"},{"name":"Gelang Patah Pet Care","type":"Pet Grooming","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-33.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Iskandar Puteri Learning Centre","type":"Tuition Centre","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-30.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Kulai Bakery & Confectionery","type":"Bakery","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-31.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Kulai Hardware Sdn Bhd","type":"Hardware Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-08.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Larkin Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-23.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"05 Aug 2026"},{"name":"Mount Austin Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-35.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Nusa Bestari Coffee House","type":"Caf\u00e9","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-14.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Permas Jaya Learning Centre","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-18.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Restoran Ulu Tiram","type":"Restaurant","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-48.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Salon Cantik Permas Jaya","type":"Hair Salon","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-41.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Salon Cantik Taman Pelangi","type":"Hair Salon","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-17.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Setia Tropika Hardware Sdn Bhd","type":"Hardware Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-32.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Skudai Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-11.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Stulang Auto Works","type":"Motor Workshop","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-04.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Stulang Mini Mart","type":"Mini Market","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-27.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"TD - Bukit Indah","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-25.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"TD - Nusa Bestari","type":"Self-Service Laundry","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-37.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"TD - Taman Perling","type":"Self-Service Laundry","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-49.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Daya Pet Care","type":"Pet Grooming","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-45.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Taman Daya Print Solutions","type":"Print & Design","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-22.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Molek Hardware Sdn Bhd","type":"Hardware Store","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-44.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Taman Molek Pet Care","type":"Pet Grooming","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-21.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Taman Perling Mini Mart","type":"Mini Market","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-03.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Sentosa Auto Works","type":"Motor Workshop","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-28.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tampoi Coffee House","type":"Caf\u00e9","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-38.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tampoi Mini Mart","type":"Mini Market","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-15.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Tebrau Auto Works","type":"Motor Workshop","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-16.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tebrau Mini Mart","type":"Mini Market","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-39.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"MINIFISH SDN BHD","type":"Trading & Supply","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-58.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"INVIRO CLEANING SDN BHD","type":"Cleaning Service","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-59.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"OWN LAUNDRY SDN BHD","type":"Self-Service Laundry (HQ)","staff":["Nurul Huda","Ahmad Faiz"],"input":"TRANSACTION-JUL2026-60.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"OWN MARKET SDN BHD","type":"Market / Retail","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-61.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"DIDIK MULIA SDN BHD","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-62.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"05 Aug 2026"},{"name":"WEALTHY CC HOUSE (M) SDN  BHD","type":"Clubhouse / Recreation","staff":["Chen Wei Ming"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"SK AUTO DETAILING (M) SDN BHD","type":"Auto Detailing","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-63.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"SK AUTO DETAILING PERMAS SDN BHD","type":"Auto Detailing","staff":["Priya Suresh","Chen Wei Ming"],"input":"TRANSACTION-JUL2026-64.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"}];
+  var COMPANIES = [];
 
   // ============ ACTIVITY LOG ============
-  var ACTIVITY_LOG = [
-    { time:'03 Aug 2026, 10:02 AM', actor:'Siti Aminah (Admin)', action:'Rejected assignment', target:'Kulai Hardware Sdn Bhd', details:'Requested staff: Chen Wei Ming, Ahmad Faiz' },
-    { time:'01 Aug 2026, 8:41 AM', actor:'Siti Aminah (Admin)', action:'Set client limit', target:'Ahmad Faiz', details:'limit set to 20' }
-  ];
-
-  function logActivity(actor, action, target, details){
-    ACTIVITY_LOG.unshift({
-      time: new Date().toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' }),
-      actor: actor, action: action, target: target, details: details || ''
-    });
-    renderActivityLog();
-  }
-
   function renderActivityLog(){
     var tbody = document.getElementById('activity-tbody');
-    if(!tbody) return;
-    if(ACTIVITY_LOG.length === 0){ tbody.innerHTML = emptyRowSafe(5, 'No activity recorded yet.'); return; }
-    tbody.innerHTML = ACTIVITY_LOG.map(function(e){
-      return '<tr><td class="num">' + e.time + '</td><td>' + e.actor + '</td><td>' + e.action + '</td><td>' + e.target + '</td><td style="color:var(--primary-soft);">' + e.details + '</td></tr>';
-    }).join('');
+    if(!tbody || CURRENT_ROLE !== 'admin') return;
+    api('/activity-log').then(function(rows){
+      if(rows.length === 0){ tbody.innerHTML = emptyRowSafe(5, 'No activity recorded yet.'); return; }
+      tbody.innerHTML = rows.map(function(e){
+        return '<tr><td class="num">' + formatDate(e.created_at) + '</td><td>' + e.actor + '</td><td>' + e.action + '</td><td>' + e.target + '</td><td style="color:var(--primary-soft);">' + (e.details || '') + '</td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRowSafe(5, 'Could not load activity log.'); });
   }
 
   // ============ STAFF ACCESS LIMITS ============
-  var STAFF_LIMITS = {
-    "Nurul Huda": { limit:20, active:true },
-    "Chen Wei Ming": { limit:20, active:true },
-    "Ahmad Faiz": { limit:20, active:true },
-    "Priya Suresh": { limit:20, active:true }
-  };
+  var STAFF_LIST = []; // last-fetched roster: {id, name, client_limit, active, assigned_count}
 
-  function assignedCountFor(name){
-    return CUSTOMERS.filter(function(c){ return c.staff.indexOf(name) !== -1; }).length;
+  function loadStaffList(){
+    return api('/staff').then(function(rows){ STAFF_LIST = rows; return rows; });
+  }
+
+  function staffIdByName(name){
+    var s = STAFF_LIST.find(function(x){ return x.name === name; });
+    return s ? s.id : null;
   }
 
   function renderStaffLimits(){
     var tbody = document.getElementById('staff-limits-tbody');
-    if(!tbody) return;
-    tbody.innerHTML = Object.keys(STAFF_LIMITS).sort().map(function(name){
-      var info = STAFF_LIMITS[name];
-      var count = assignedCountFor(name);
-      var atCap = count >= info.limit;
-      return '<tr>' +
-        '<td>' + name + '</td>' +
-        '<td class="num">' + count + (atCap ? ' <span class="badge review" style="margin-left:6px;">At limit</span>' : '') + '</td>' +
-        '<td class="num"><input type="number" min="1" value="' + info.limit + '" data-limit-for="' + name + '" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--surface-alt);font-family:var(--font-data);color:inherit;" /></td>' +
-        '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);"><input type="checkbox" data-active-for="' + name + '" ' + (info.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (info.active ? 'Active' : 'Suspended') + '</label></td>' +
-        '<td><button type="button" class="btn-row" data-save-limit="' + name + '">Save</button></td>' +
-      '</tr>';
-    }).join('');
+    if(!tbody || CURRENT_ROLE !== 'admin') return;
+    loadStaffList().then(function(rows){
+      tbody.innerHTML = rows.map(function(s){
+        var atCap = s.assigned_count >= s.client_limit;
+        return '<tr>' +
+          '<td>' + s.name + '</td>' +
+          '<td class="num">' + s.assigned_count + (atCap ? ' <span class="badge review" style="margin-left:6px;">At limit</span>' : '') + '</td>' +
+          '<td class="num"><input type="number" min="1" value="' + s.client_limit + '" data-limit-for="' + s.id + '" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--surface-alt);font-family:var(--font-data);color:inherit;" /></td>' +
+          '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);"><input type="checkbox" data-active-for="' + s.id + '" ' + (s.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (s.active ? 'Active' : 'Suspended') + '</label></td>' +
+          '<td><button type="button" class="btn-row" data-save-limit="' + s.id + '">Save</button></td>' +
+        '</tr>';
+      }).join('');
 
-    tbody.querySelectorAll('[data-save-limit]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var name = btn.dataset.saveLimit;
-        var row = btn.closest('tr');
-        var newLimit = Math.max(1, Number(row.querySelector('[data-limit-for="' + name + '"]').value) || 1);
-        var newActive = row.querySelector('[data-active-for="' + name + '"]').checked;
-        var old = STAFF_LIMITS[name];
-        var changes = [];
-        if(old.limit !== newLimit) changes.push('limit ' + old.limit + ' → ' + newLimit);
-        if(old.active !== newActive) changes.push(newActive ? 'access re-enabled' : 'access suspended');
-        STAFF_LIMITS[name] = { limit:newLimit, active:newActive };
-        if(changes.length){
-          logActivity('Siti Aminah (Admin)', 'Updated staff access', name, changes.join('; '));
-        }
-        renderStaffLimits();
+      tbody.querySelectorAll('[data-save-limit]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var id = btn.dataset.saveLimit;
+          var row = btn.closest('tr');
+          var newLimit = Math.max(1, Number(row.querySelector('[data-limit-for="' + id + '"]').value) || 1);
+          var newActive = row.querySelector('[data-active-for="' + id + '"]').checked;
+          btn.disabled = true;
+          api('/staff/' + id, { method:'PATCH', body: JSON.stringify({ clientLimit:newLimit, active:newActive }) })
+            .then(function(){ renderStaffLimits(); renderActivityLog(); loadCompanies(); })
+            .catch(function(err){ alert(err.message); btn.disabled = false; });
+        });
       });
     });
   }
@@ -1402,12 +1461,14 @@
   }
 
   // ============ STAFF ASSIGNMENT + APPROVAL WORKFLOW ============
-  var ASSIGNMENT_REQUESTS = [
-    { id:1, company:"TD - Senai", currentStaff:["Nurul Huda"], requestedStaff:["Nurul Huda","Chen Wei Ming"], requestedBy:"Siti Aminah (Admin)", date:"07 Aug 2026", status:"Pending" },
-    { id:2, company:"Restoran Senai", currentStaff:["Priya Suresh"], requestedStaff:["Ahmad Faiz"], requestedBy:"Siti Aminah (Admin)", date:"06 Aug 2026", status:"Pending" },
-    { id:3, company:"Kulai Hardware Sdn Bhd", currentStaff:["Chen Wei Ming"], requestedStaff:["Chen Wei Ming","Ahmad Faiz"], requestedBy:"Siti Aminah (Admin)", date:"03 Aug 2026", status:"Rejected" }
-  ];
-  var requestIdCounter = 4;
+  var ASSIGNMENT_REQUESTS = []; // last-fetched, admin only
+
+  function loadAssignmentRequests(){
+    return api('/assignment-requests').then(function(rows){
+      ASSIGNMENT_REQUESTS = rows;
+      return rows;
+    });
+  }
 
   function pendingRequestFor(company){
     return ASSIGNMENT_REQUESTS.find(function(r){ return r.company === company && r.status === 'Pending'; }) || null;
@@ -1421,45 +1482,48 @@
   }
 
   function renderApprovals(){
-    var pending = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Pending'; }).length;
-    var approved = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Approved'; }).length;
-    var rejected = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Rejected'; }).length;
-    document.getElementById('approvals-kpi-row').innerHTML =
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Pending Requests</div><div class="kpi-value num">' + pending + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Approved</div><div class="kpi-value num">' + approved + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div><div><div class="kpi-label">Rejected</div><div class="kpi-value num">' + rejected + '</div></div></div>';
-
     var tbody = document.getElementById('approvals-tbody');
-    var sorted = ASSIGNMENT_REQUESTS.slice().sort(function(a,b){
-      var order = { "Pending":0, "Approved":1, "Rejected":1 };
-      return order[a.status] - order[b.status] || (b.id - a.id);
+    if(!tbody || CURRENT_ROLE !== 'admin') return;
+    loadAssignmentRequests().then(function(){
+      var pending = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Pending'; }).length;
+      var approved = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Approved'; }).length;
+      var rejected = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Rejected'; }).length;
+      document.getElementById('approvals-kpi-row').innerHTML =
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Pending Requests</div><div class="kpi-value num">' + pending + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Approved</div><div class="kpi-value num">' + approved + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div><div><div class="kpi-label">Rejected</div><div class="kpi-value num">' + rejected + '</div></div></div>';
+
+      var sorted = ASSIGNMENT_REQUESTS.slice().sort(function(a,b){
+        var order = { "Pending":0, "Approved":1, "Rejected":1 };
+        return order[a.status] - order[b.status] || (b.id - a.id);
+      });
+      if(sorted.length === 0){
+        tbody.innerHTML = emptyRowSafe(7, 'No assignment requests yet.');
+      } else {
+        tbody.innerHTML = sorted.map(function(r){
+          var badgeClass = r.status === 'Pending' ? 'inprogress' : (r.status === 'Approved' ? 'approved' : 'rejected');
+          var actions = r.status === 'Pending'
+            ? '<div class="approval-actions"><button type="button" class="approval-approve" data-approve="' + r.id + '">Approve</button><button type="button" class="approval-reject" data-reject="' + r.id + '">Reject</button></div>'
+            : '';
+          return '<tr>' +
+            '<td>' + r.company + '</td>' +
+            '<td class="num">' + r.currentStaff.join(', ') + '</td>' +
+            '<td class="num">' + r.requestedStaff.join(', ') + '</td>' +
+            '<td>' + r.requestedBy + '</td>' +
+            '<td class="num">' + formatDate(r.date) + '</td>' +
+            '<td><span class="badge ' + badgeClass + '">' + r.status + '</span></td>' +
+            '<td>' + actions + '</td>' +
+          '</tr>';
+        }).join('');
+      }
+      tbody.querySelectorAll('[data-approve]').forEach(function(btn){
+        btn.addEventListener('click', function(){ resolveRequest(Number(btn.dataset.approve), 'Approved'); });
+      });
+      tbody.querySelectorAll('[data-reject]').forEach(function(btn){
+        btn.addEventListener('click', function(){ resolveRequest(Number(btn.dataset.reject), 'Rejected'); });
+      });
+      renderNavBadge();
     });
-    if(sorted.length === 0){
-      tbody.innerHTML = emptyRowSafe(7, 'No assignment requests yet.');
-    } else {
-      tbody.innerHTML = sorted.map(function(r){
-        var badgeClass = r.status === 'Pending' ? 'inprogress' : (r.status === 'Approved' ? 'approved' : 'rejected');
-        var actions = r.status === 'Pending'
-          ? '<div class="approval-actions"><button type="button" class="approval-approve" data-approve="' + r.id + '">Approve</button><button type="button" class="approval-reject" data-reject="' + r.id + '">Reject</button></div>'
-          : '';
-        return '<tr>' +
-          '<td>' + r.company + '</td>' +
-          '<td class="num">' + r.currentStaff.join(', ') + '</td>' +
-          '<td class="num">' + r.requestedStaff.join(', ') + '</td>' +
-          '<td>' + r.requestedBy + '</td>' +
-          '<td class="num">' + r.date + '</td>' +
-          '<td><span class="badge ' + badgeClass + '">' + r.status + '</span></td>' +
-          '<td>' + actions + '</td>' +
-        '</tr>';
-      }).join('');
-    }
-    tbody.querySelectorAll('[data-approve]').forEach(function(btn){
-      btn.addEventListener('click', function(){ resolveRequest(Number(btn.dataset.approve), 'Approved'); });
-    });
-    tbody.querySelectorAll('[data-reject]').forEach(function(btn){
-      btn.addEventListener('click', function(){ resolveRequest(Number(btn.dataset.reject), 'Rejected'); });
-    });
-    renderNavBadge();
   }
 
   function emptyRowSafe(colspan, msg){
@@ -1467,68 +1531,68 @@
   }
 
   function resolveRequest(id, outcome){
-    var req = ASSIGNMENT_REQUESTS.find(function(r){ return r.id === id; });
-    if(!req) return;
-    req.status = outcome;
-    if(outcome === 'Approved'){
-      var cust = CUSTOMERS.find(function(c){ return c.name === req.company; });
-      if(cust) cust.staff = req.requestedStaff.slice();
-    }
-    logActivity('Siti Aminah (Admin)', outcome + ' assignment', req.company,
-      'Staff: ' + req.requestedStaff.join(', ') + (outcome === 'Approved' ? ' — locked, requester can no longer edit' : ''));
-    renderApprovals();
-    renderQueueTable();
-    renderStaffRow();
-    renderStaffLimits();
-    renderCompanyGridSafe();
+    api('/assignment-requests/' + id, { method:'PATCH', body: JSON.stringify({ status: outcome }) })
+      .then(function(){
+        renderApprovals();
+        renderStaffLimits();
+        renderActivityLog();
+        loadCompanies().then(function(){
+          renderQueueTable();
+          renderStaffRow();
+          renderCompanyGridSafe();
+        });
+      })
+      .catch(function(err){ alert(err.message); });
   }
 
   function renderCompanyGridSafe(){
     if(typeof renderCompanyGrid === 'function' && document.getElementById('company-grid')){ renderCompanyGrid(); }
   }
 
-  var assignModalCompany = null;
-  var assignModalSelected = [];
+  var assignModalCompany = null; // full company object, needs .id
+  var assignModalSelected = []; // staff ids
 
-  function openAssignModal(company){
-    var cust = CUSTOMERS.find(function(c){ return c.name === company; });
+  function openAssignModal(companyName){
+    var cust = COMPANIES.find(function(c){ return c.name === companyName; });
     if(!cust) return;
-    assignModalCompany = company;
-    assignModalSelected = cust.staff.slice();
+    assignModalCompany = cust;
 
-    document.getElementById('assign-modal-company').textContent = 'Assign Staff — ' + company;
+    document.getElementById('assign-modal-company').textContent = 'Assign Staff — ' + cust.name;
     document.getElementById('assign-current-staff').innerHTML = cust.staff.map(function(s){
       return '<span class="assign-current-chip">Currently: ' + s + '</span>';
     }).join('');
 
-    renderAssignStaffList();
-    document.getElementById('assign-modal-backdrop').hidden = false;
+    loadStaffList().then(function(){
+      assignModalSelected = cust.staff.map(staffIdByName).filter(function(id){ return id !== null; });
+      renderAssignStaffList();
+      document.getElementById('assign-modal-backdrop').hidden = false;
+    });
   }
 
   function renderAssignStaffList(){
     var list = document.getElementById('assign-staff-list');
     var atLimit = assignModalSelected.length >= 2;
-    list.innerHTML = STAFF_ROSTER.map(function(name){
-      var checked = assignModalSelected.indexOf(name) !== -1;
-      var info = STAFF_LIMITS[name] || { limit:Infinity, active:true };
-      var overCapacity = !checked && (assignedCountFor(name) >= info.limit);
-      var suspended = !checked && !info.active;
+    list.innerHTML = STAFF_LIST.map(function(s){
+      var checked = assignModalSelected.indexOf(s.id) !== -1;
+      var overCapacity = !checked && (s.assigned_count >= s.client_limit);
+      var suspended = !checked && !s.active;
       var disabled = (atLimit && !checked) || overCapacity || suspended;
-      var color = staffColor(name);
+      var color = staffColor(s.name);
       var note = suspended ? ' <span style="color:var(--danger);font-size:11px;">(access suspended)</span>'
         : overCapacity ? ' <span style="color:var(--warning);font-size:11px;">(at client limit)</span>' : '';
       return '<label class="assign-staff-row' + (disabled ? ' disabled' : '') + '">' +
-        '<input type="checkbox" value="' + name + '" ' + (checked ? 'checked' : '') + (disabled ? ' disabled' : '') + ' />' +
-        '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(name) + '</div>' +
-        '<span class="assign-staff-row-name">' + name + note + '</span>' +
+        '<input type="checkbox" value="' + s.id + '" ' + (checked ? 'checked' : '') + (disabled ? ' disabled' : '') + ' />' +
+        '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(s.name) + '</div>' +
+        '<span class="assign-staff-row-name">' + s.name + note + '</span>' +
       '</label>';
     }).join('');
     list.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
       cb.addEventListener('change', function(){
+        var id = Number(cb.value);
         if(cb.checked){
-          if(assignModalSelected.length < 2) assignModalSelected.push(cb.value);
+          if(assignModalSelected.length < 2) assignModalSelected.push(id);
         } else {
-          assignModalSelected = assignModalSelected.filter(function(n){ return n !== cb.value; });
+          assignModalSelected = assignModalSelected.filter(function(n){ return n !== id; });
         }
         renderAssignStaffList();
       });
@@ -1548,34 +1612,25 @@
   document.getElementById('assign-modal-backdrop').addEventListener('click', function(e){
     if(e.target === this) closeAssignModal();
   });
-  document.getElementById('assign-submit').addEventListener('click', function(){
+  document.getElementById('assign-submit').addEventListener('click', function(e){
     if(!assignModalCompany || assignModalSelected.length === 0) return;
-    var cust = CUSTOMERS.find(function(c){ return c.name === assignModalCompany; });
-    ASSIGNMENT_REQUESTS.push({
-      id: requestIdCounter++,
-      company: assignModalCompany,
-      currentStaff: cust ? cust.staff.slice() : [],
-      requestedStaff: assignModalSelected.slice(),
-      requestedBy: "Siti Aminah (Admin)",
-      date: "08 Aug 2026",
-      status: "Pending"
-    });
-    logActivity('Siti Aminah (Admin)', 'Requested assignment change', assignModalCompany,
-      'Requested staff: ' + assignModalSelected.join(', ') + ' — awaiting admin approval');
-    closeAssignModal();
-    renderApprovals();
-    renderQueueTable();
-    renderNavBadge();
+    var btn = e.currentTarget;
+    btn.disabled = true;
+    api('/assignment-requests', { method:'POST', body: JSON.stringify({ companyId: assignModalCompany.id, requestedStaffIds: assignModalSelected }) })
+      .then(function(){
+        closeAssignModal();
+        renderApprovals();
+        renderQueueTable();
+        renderNavBadge();
+      })
+      .catch(function(err){ alert(err.message); })
+      .finally(function(){ btn.disabled = false; });
   });
 
-  renderApprovals();
-  renderStaffLimits();
-  renderActivityLog();
-
   function renderKpiRow(){
-    var total = CUSTOMERS.length;
+    var total = COMPANIES.length;
     var counts = { "Completed":0, "In Progress":0, "Needs Review":0, "Not Started":0 };
-    CUSTOMERS.forEach(function(c){ counts[c.status]++; });
+    COMPANIES.forEach(function(c){ counts[c.status]++; });
     var el = document.getElementById('queue-kpi-row');
     el.innerHTML =
       '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="kpi-label">Total Customers</div><div class="kpi-value num">' + total + '</div></div></div>' +
@@ -1586,7 +1641,7 @@
 
   function renderStaffRow(){
     var byStaff = {};
-    CUSTOMERS.forEach(function(c){
+    COMPANIES.forEach(function(c){
       c.staff.forEach(function(name){
         byStaff[name] = byStaff[name] || { total:0, Completed:0, "In Progress":0, "Needs Review":0, "Not Started":0 };
         byStaff[name].total++;
@@ -1620,7 +1675,8 @@
 
   function populateStaffFilter(){
     var sel = document.getElementById('queue-staff-filter');
-    var all = CUSTOMERS.reduce(function(acc, c){ return acc.concat(c.staff); }, []);
+    while(sel.options.length > 1){ sel.remove(1); }
+    var all = COMPANIES.reduce(function(acc, c){ return acc.concat(c.staff); }, []);
     var names = Array.from(new Set(all)).sort();
     names.forEach(function(n){
       var opt = document.createElement('option');
@@ -1636,7 +1692,7 @@
     var q = document.getElementById('queue-search').value.trim().toLowerCase();
     var staff = document.getElementById('queue-staff-filter').value;
     var status = document.getElementById('queue-status-filter').value;
-    return CUSTOMERS.filter(function(c){
+    return COMPANIES.filter(function(c){
       if(q && c.name.toLowerCase().indexOf(q) === -1) return false;
       if(staff && c.staff.indexOf(staff) === -1) return false;
       if(status && c.status !== status) return false;
@@ -1680,7 +1736,7 @@
       }).join('');
     }
 
-    document.getElementById('queue-filter-count').textContent = filtered.length + ' of ' + CUSTOMERS.length + ' customers';
+    document.getElementById('queue-filter-count').textContent = filtered.length + ' of ' + COMPANIES.length + ' customers';
     document.getElementById('queue-page-label').textContent =
       filtered.length === 0 ? 'No results' :
       ('Showing ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, filtered.length) + ' of ' + filtered.length);
@@ -1689,7 +1745,7 @@
 
     tbody.querySelectorAll('[data-view]').forEach(function(btn){
       btn.addEventListener('click', function(){
-        var cust = CUSTOMERS.find(function(c){ return c.name === btn.dataset.view; });
+        var cust = COMPANIES.find(function(c){ return c.name === btn.dataset.view; });
         if(!cust) return;
         document.getElementById('recon-context-name').textContent = cust.name;
         document.getElementById('recon-context-staff').textContent = cust.staff.join(', ');
@@ -1716,13 +1772,28 @@
     document.getElementById('recon-context').classList.remove('visible');
   });
 
-  renderKpiRow();
-  renderStaffRow();
-  populateStaffFilter();
-  renderQueueTable();
-
   // ============ MASTER COMPANY FILTER (Bookkeeping Service panels) ============
   var currentCompany = "";
+
+  function loadCompanies(){
+    return api('/companies').then(function(rows){
+      COMPANIES = rows.map(function(c){
+        var ready = [c.output_summary_ready, c.output_sales_ready, c.output_payment_ready].filter(Boolean).length;
+        return {
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          staff: c.staff,
+          input: c.input_file_name,
+          outReady: ready,
+          outTotal: 3,
+          status: c.status || 'Not Started',
+          updated: formatDate(c.updated_at)
+        };
+      });
+      return COMPANIES;
+    });
+  }
 
   function money(n){
     var sign = n < 0 ? '-' : '';
@@ -1732,27 +1803,16 @@
   function emptyRow(colspan, msg){
     return '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--primary-soft);padding:26px;">' + msg + '</td></tr>';
   }
-  function hashStr(str){
-    var h = 0;
-    for(var i=0;i<str.length;i++){ h = (Math.imul(31,h) + str.charCodeAt(i)) | 0; }
-    return h;
-  }
-  function mulberry32(seed){
-    var a = seed;
-    return function(){
-      a |= 0; a = a + 0x6D2B79F5 | 0;
-      var t = Math.imul(a ^ a >>> 15, 1 | a);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-  }
-  function rngFor(company, panel){ return mulberry32(hashStr(company + '::' + panel)); }
   function invoicePrefix(company){
     var letters = company.replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).map(function(w){ return w[0]; }).join('').toUpperCase();
     return (letters.slice(0,3) || 'INV');
   }
   function customerRecord(company){
-    return CUSTOMERS.find(function(c){ return c.name === company; });
+    return COMPANIES.find(function(c){ return c.name === company; });
+  }
+  function customerRecordId(company){
+    var rec = customerRecord(company);
+    return rec ? rec.id : null;
   }
 
   // Master company short-name list, uploaded by the user (MASTER_COMPANY_SHORT_NAME.xlsx)
@@ -1790,26 +1850,6 @@
     });
   });
 
-  var DATE_POOL = ['04 Aug 2026','05 Aug 2026','06 Aug 2026','07 Aug 2026','08 Aug 2026'];
-
-  function genSales(company){
-    var rng = rngFor(company, 'sales');
-    var base = 150 + rng() * 420;
-    var prefix = invoicePrefix(company);
-    var rows = DATE_POOL.map(function(d, i){
-      var gross = round2(base * (0.65 + rng() * 0.7));
-      var isToday = i === DATE_POOL.length - 1;
-      var synced = rng() > (isToday ? 0.55 : 0.12);
-      var settled = synced ? round2(gross - rng() * 4) : (rng() > 0.5 ? round2(gross * rng() * 0.5) : 0);
-      var pettyOut = round2(rng() * 15);
-      return { date:d, invoice: prefix + '-' + (1000 + i*7 + Math.floor(rng()*80)), gross:gross, settled:settled, pettyOut:pettyOut, status: synced ? 'Synced' : 'Pending' };
-    });
-    var today = rows[rows.length - 1];
-    var unsettled = rows.filter(function(r){ return r.status === 'Pending'; }).length;
-    var syncedPct = Math.round((rows.length - unsettled) / rows.length * 100);
-    return { todayGross: today.gross, settledToday: today.settled, unsettled: unsettled, syncedPct: syncedPct, rows: rows };
-  }
-
   function renderSales(){
     var sub = document.getElementById('sales-sub');
     var tbody = document.getElementById('sales-tbody');
@@ -1825,36 +1865,24 @@
     }
     sub.textContent = currentCompany + ' · Aug 2026';
     filenameEl.textContent = salesSummaryFileName(currentCompany) + '.' + salesExportFormat;
-    var d = genSales(currentCompany);
-    document.getElementById('sales-kpi-today').textContent = money(d.todayGross);
-    document.getElementById('sales-kpi-settled').textContent = money(d.settledToday);
-    document.getElementById('sales-kpi-pending').textContent = d.unsettled;
-    document.getElementById('sales-kpi-ring-text').textContent = d.syncedPct + '%';
-    document.getElementById('sales-ring-pct').textContent = d.syncedPct + '%';
-    var circumference = 144.5;
-    ring.setAttribute('stroke-dasharray', (d.syncedPct/100*circumference).toFixed(1) + ' ' + circumference);
-    tbody.innerHTML = d.rows.map(function(r){
-      return '<tr><td>' + r.date + '</td><td class="num">' + r.invoice + '</td><td class="num">' + money(r.gross) + '</td><td class="num">' + money(r.settled) + '</td><td class="num">' + money(r.pettyOut) + '</td><td><span class="badge ' + (r.status === 'Synced' ? 'synced' : 'pending') + '">' + r.status + '</span></td></tr>';
-    }).join('');
-  }
-
-  function genBank(company){
-    var rng = rngFor(company, 'bank');
-    var balance = 8000 + rng() * 22000;
-    var rows = [];
-    DATE_POOL.slice(1).forEach(function(d){
-      if(rng() > 0.3){
-        var credit = round2(300 + rng() * 1800);
-        balance = round2(balance + credit);
-        rows.push({ date:d, desc:'DuitNow Settlement — FIUU', debit:null, credit:credit, balance:balance, status: rng() > 0.15 ? 'Matched' : 'Unmatched' });
-      }
-      if(rng() > 0.55){
-        var debit = round2(20 + rng() * 550);
-        balance = round2(balance - debit);
-        rows.push({ date:d, desc: rng() > 0.5 ? 'Supplier Payment' : 'Bank Charges', debit:debit, credit:null, balance:balance, status:'Matched' });
-      }
-    });
-    return { rows: rows };
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api('/companies/' + companyId + '/sales').then(function(rows){
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No sales records for this period.'); return; }
+      var today = rows[rows.length - 1];
+      var unsettled = rows.filter(function(r){ return r.status === 'Pending'; }).length;
+      var syncedPct = Math.round((rows.length - unsettled) / rows.length * 100);
+      document.getElementById('sales-kpi-today').textContent = money(Number(today.gross));
+      document.getElementById('sales-kpi-settled').textContent = money(Number(today.settled));
+      document.getElementById('sales-kpi-pending').textContent = unsettled;
+      document.getElementById('sales-kpi-ring-text').textContent = syncedPct + '%';
+      document.getElementById('sales-ring-pct').textContent = syncedPct + '%';
+      var circumference = 144.5;
+      ring.setAttribute('stroke-dasharray', (syncedPct/100*circumference).toFixed(1) + ' ' + circumference);
+      tbody.innerHTML = rows.map(function(r){
+        return '<tr><td>' + formatDate(r.date) + '</td><td class="num">' + r.invoice_no + '</td><td class="num">' + money(Number(r.gross)) + '</td><td class="num">' + money(Number(r.settled)) + '</td><td class="num">' + money(Number(r.petty_out)) + '</td><td><span class="badge ' + (r.status === 'Synced' ? 'synced' : 'pending') + '">' + r.status + '</span></td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load sales records.'); });
   }
 
   function renderBank(){
@@ -1866,29 +1894,14 @@
       return;
     }
     sub.textContent = currentCompany + ' · current account';
-    var d = genBank(currentCompany);
-    if(d.rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No bank activity this period.'); return; }
-    tbody.innerHTML = d.rows.map(function(r){
-      return '<tr><td>' + r.date + '</td><td>' + r.desc + '</td><td class="num">' + (r.debit ? money(r.debit) : '—') + '</td><td class="num">' + (r.credit ? money(r.credit) : '—') + '</td><td class="num">' + money(r.balance) + '</td><td><span class="badge ' + (r.status === 'Matched' ? 'matched' : 'unmatched') + '">' + r.status + '</span></td></tr>';
-    }).join('');
-  }
-
-  var SUPPLIERS = ['ABC Supplies Sdn Bhd','JB Trading Co','Prime Distributors','Sinar Wholesale Sdn Bhd','Delta Packaging'];
-
-  function genPurchases(company){
-    var rng = rngFor(company, 'purchases');
-    var count = 3 + Math.floor(rng() * 3);
-    var rows = [];
-    for(var i=0;i<count;i++){
-      rows.push({
-        inv: 'INV-' + (4000 + Math.floor(rng()*900)),
-        supplier: SUPPLIERS[Math.floor(rng()*SUPPLIERS.length)],
-        amount: round2(80 + rng()*900),
-        date: DATE_POOL[Math.floor(rng()*DATE_POOL.length)],
-        status: rng() > 0.4 ? 'Paid' : 'Unpaid'
-      });
-    }
-    return { rows: rows };
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api('/companies/' + companyId + '/bank').then(function(rows){
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No bank activity this period.'); return; }
+      tbody.innerHTML = rows.map(function(r){
+        return '<tr><td>' + formatDate(r.date) + '</td><td>' + r.description + '</td><td class="num">' + (r.debit ? money(Number(r.debit)) : '—') + '</td><td class="num">' + (r.credit ? money(Number(r.credit)) : '—') + '</td><td class="num">' + money(Number(r.balance)) + '</td><td><span class="badge ' + (r.status === 'Matched' ? 'matched' : 'unmatched') + '">' + r.status + '</span></td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load bank statement.'); });
   }
 
   function renderPurchases(){
@@ -1900,32 +1913,14 @@
       return;
     }
     sub.textContent = currentCompany + ' · supplier invoices';
-    var d = genPurchases(currentCompany);
-    tbody.innerHTML = d.rows.map(function(r){
-      return '<tr><td class="num">' + r.inv + '</td><td>' + r.supplier + '</td><td class="num">' + money(r.amount) + '</td><td>' + r.date + '</td><td><span class="badge ' + (r.status === 'Paid' ? 'paid' : 'unpaid') + '">' + r.status + '</span></td></tr>';
-    }).join('');
-  }
-
-  var CLAIM_CATEGORIES = ['Transport','Equipment Repair','Utilities','Cleaning Supplies','Stationery','Meals'];
-  var STAFF_ROSTER = ['Nurul Huda','Chen Wei Ming','Ahmad Faiz','Priya Suresh'];
-
-  function genClaim(company){
-    var rng = rngFor(company, 'claim');
-    var rec = customerRecord(company);
-    var staffName = rec ? rec.staff[Math.floor(rng()*rec.staff.length)] : STAFF_ROSTER[Math.floor(rng()*STAFF_ROSTER.length)];
-    var count = 2 + Math.floor(rng() * 3);
-    var rows = [];
-    for(var i=0;i<count;i++){
-      rows.push({
-        claimNo: 'CLM-' + (5000 + Math.floor(rng()*900)),
-        staff: staffName,
-        category: CLAIM_CATEGORIES[Math.floor(rng()*CLAIM_CATEGORIES.length)],
-        amount: round2(20 + rng()*220),
-        date: DATE_POOL[Math.floor(rng()*DATE_POOL.length)],
-        status: rng() > 0.35 ? 'Approved' : 'Pending'
-      });
-    }
-    return { rows: rows, staff: staffName };
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api('/companies/' + companyId + '/purchases').then(function(rows){
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(5, 'No purchase bills this period.'); return; }
+      tbody.innerHTML = rows.map(function(r){
+        return '<tr><td class="num">' + r.invoice_no + '</td><td>' + r.supplier + '</td><td class="num">' + money(Number(r.amount)) + '</td><td>' + formatDate(r.date) + '</td><td><span class="badge ' + (r.status === 'Paid' ? 'paid' : 'unpaid') + '">' + r.status + '</span></td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRow(5, 'Could not load purchase bills.'); });
   }
 
   function renderClaim(){
@@ -1936,28 +1931,15 @@
       tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its claim bills.');
       return;
     }
-    var d = genClaim(currentCompany);
-    sub.textContent = currentCompany + ' · handled by ' + d.staff;
-    tbody.innerHTML = d.rows.map(function(r){
-      return '<tr><td class="num">' + r.claimNo + '</td><td>' + r.staff + '</td><td>' + r.category + '</td><td class="num">' + money(r.amount) + '</td><td>' + r.date + '</td><td><span class="badge ' + (r.status === 'Approved' ? 'approved' : 'pending') + '">' + r.status + '</span></td></tr>';
-    }).join('');
-  }
-
-  var PETTY_DESC = ['Float top-up','Cleaning supplies','Minor repair','Postage & courier','Parking / toll','Stationery'];
-
-  function genPetty(company){
-    var rng = rngFor(company, 'petty');
-    var balance = round2(50 + rng() * 150);
-    var rows = [];
-    DATE_POOL.forEach(function(d){
-      if(rng() > 0.4){
-        var isIn = rng() > 0.7;
-        var amt = round2(isIn ? (50 + rng()*100) : (5 + rng()*40));
-        balance = round2(isIn ? balance + amt : balance - amt);
-        rows.push({ date:d, desc: isIn ? 'Float top-up' : PETTY_DESC[1 + Math.floor(rng()*(PETTY_DESC.length-1))], amtIn: isIn ? amt : null, amtOut: isIn ? null : amt, balance: balance });
-      }
-    });
-    return { rows: rows };
+    sub.textContent = currentCompany + ' · staff reimbursement claims';
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api('/companies/' + companyId + '/claims').then(function(rows){
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No claim bills this period.'); return; }
+      tbody.innerHTML = rows.map(function(r){
+        return '<tr><td class="num">' + r.claim_no + '</td><td>' + (r.staff_name || '—') + '</td><td>' + r.category + '</td><td class="num">' + money(Number(r.amount)) + '</td><td>' + formatDate(r.date) + '</td><td><span class="badge ' + (r.status === 'Approved' ? 'approved' : 'pending') + '">' + r.status + '</span></td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load claim bills.'); });
   }
 
   function renderPetty(){
@@ -1969,27 +1951,14 @@
       return;
     }
     sub.textContent = currentCompany + ' · float log';
-    var d = genPetty(currentCompany);
-    if(d.rows.length === 0){ tbody.innerHTML = emptyRow(5, 'No petty cash movement this period.'); return; }
-    tbody.innerHTML = d.rows.map(function(r){
-      return '<tr><td>' + r.date + '</td><td>' + r.desc + '</td><td class="num">' + (r.amtIn ? money(r.amtIn) : '—') + '</td><td class="num">' + (r.amtOut ? money(r.amtOut) : '—') + '</td><td class="num">' + money(r.balance) + '</td></tr>';
-    }).join('');
-  }
-
-  function genMerchant(company){
-    var rng = rngFor(company, 'merchant');
-    var rows = [];
-    var totalTxns=0, totalApproved=0, totalFees=0, totalNet=0;
-    DATE_POOL.forEach(function(d){
-      var txns = 5 + Math.floor(rng()*40);
-      var approved = round2(txns * (15 + rng()*25));
-      var failed = round2(rng()*40);
-      var fee = round2(approved * 0.0086);
-      var net = round2(approved - fee);
-      totalTxns += txns; totalApproved += approved; totalFees += fee; totalNet += net;
-      rows.push({ date:d, txns:txns, approved:approved, failed:failed, fee:fee, net:net });
-    });
-    return { rows:rows, totalTxns:totalTxns, totalApproved:round2(totalApproved), totalFees:round2(totalFees), totalNet:round2(totalNet) };
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api('/companies/' + companyId + '/petty').then(function(rows){
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(5, 'No petty cash movement this period.'); return; }
+      tbody.innerHTML = rows.map(function(r){
+        return '<tr><td>' + formatDate(r.date) + '</td><td>' + r.description + '</td><td class="num">' + (r.amount_in ? money(Number(r.amount_in)) : '—') + '</td><td class="num">' + (r.amount_out ? money(Number(r.amount_out)) : '—') + '</td><td class="num">' + money(Number(r.balance)) + '</td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRow(5, 'Could not load petty cash record.'); });
   }
 
   function renderMerchant(){
@@ -2002,32 +1971,19 @@
       return;
     }
     sub.textContent = currentCompany + ' · DuitNow / FIUU settlement';
-    var d = genMerchant(currentCompany);
-    document.getElementById('merchant-kpi-txns').textContent = d.totalTxns;
-    document.getElementById('merchant-kpi-approved').textContent = money(d.totalApproved);
-    document.getElementById('merchant-kpi-fees').textContent = money(d.totalFees);
-    document.getElementById('merchant-kpi-net').textContent = money(d.totalNet);
-    tbody.innerHTML = d.rows.map(function(r){
-      return '<tr><td>' + r.date + '</td><td class="num">' + r.txns + '</td><td class="num">' + money(r.approved) + '</td><td class="num">' + money(r.failed) + '</td><td class="num">' + money(r.fee) + '</td><td class="num">' + money(r.net) + '</td></tr>';
-    }).join('');
-  }
-
-  var MONTH_POOL = ['May 2026','Jun 2026','Jul 2026'];
-
-  function genCompanyHome(company){
-    var rng = rngFor(company, 'home');
-    var sales = genSales(company);
-    var monthlyRevenue = round2(sales.rows.reduce(function(s,r){ return s + r.gross; }, 0) * 6);
-    var settled = round2(sales.rows.reduce(function(s,r){ return s + r.settled; }, 0) * 6);
-    var unsettled = round2(Math.max(0, monthlyRevenue - settled));
-    var exceptions = sales.unsettled;
-    var history = MONTH_POOL.map(function(m){
-      var invoices = 18 + Math.floor(rng()*14);
-      var exc = rng() > 0.7 ? 1 + Math.floor(rng()*2) : 0;
-      var status = exc > 0 && m === MONTH_POOL[MONTH_POOL.length-1] ? 'Needs Review' : 'Completed';
-      return { month:m, invoices:invoices, exceptions:exc, status:status };
-    });
-    return { monthlyRevenue:monthlyRevenue, settled:settled, unsettled:unsettled, exceptions:exceptions, history:history };
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api('/companies/' + companyId + '/merchant').then(function(rows){
+      var totalTxns=0, totalApproved=0, totalFees=0, totalNet=0;
+      rows.forEach(function(r){ totalTxns += r.txns; totalApproved += Number(r.approved_amt); totalFees += Number(r.fee); totalNet += Number(r.net); });
+      document.getElementById('merchant-kpi-txns').textContent = totalTxns;
+      document.getElementById('merchant-kpi-approved').textContent = money(totalApproved);
+      document.getElementById('merchant-kpi-fees').textContent = money(totalFees);
+      document.getElementById('merchant-kpi-net').textContent = money(totalNet);
+      tbody.innerHTML = rows.map(function(r){
+        return '<tr><td>' + formatDate(r.date) + '</td><td class="num">' + r.txns + '</td><td class="num">' + money(Number(r.approved_amt)) + '</td><td class="num">' + money(Number(r.failed_amt)) + '</td><td class="num">' + money(Number(r.fee)) + '</td><td class="num">' + money(Number(r.net)) + '</td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load merchant report.'); });
   }
 
   function renderCompanyHome(){
@@ -2042,18 +1998,33 @@
       historyBody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its dashboard.');
       return;
     }
-    var d = genCompanyHome(currentCompany);
     nameEl.textContent = currentCompany;
     subEl.textContent = 'Monthly overview · Aug 2026';
-    kpiRow.innerHTML =
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><div><div class="kpi-label">Monthly Revenue</div><div class="kpi-value num">' + money(d.monthlyRevenue) + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Settled</div><div class="kpi-value num">' + money(d.settled) + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Unsettled</div><div class="kpi-value num">' + money(d.unsettled) + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">Exceptions</div><div class="kpi-value num">' + d.exceptions + '</div></div></div>';
-    historyBody.innerHTML = d.history.map(function(h){
-      var badgeClass = h.status === 'Completed' ? 'completed' : 'needsreview';
-      return '<tr><td>' + h.month + '</td><td class="num">' + h.invoices + '</td><td class="num">' + h.exceptions + '</td><td><span class="badge ' + badgeClass + '">' + h.status + '</span></td><td><button type="button" class="history-download">Download</button></td></tr>';
-    }).join('');
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    Promise.all([
+      api('/companies/' + companyId + '/sales'),
+      api('/companies/' + companyId + '/reconciliation-batches')
+    ]).then(function(results){
+      var salesRows = results[0];
+      var recon = results[1];
+      var revenue = salesRows.reduce(function(s,r){ return s + Number(r.gross); }, 0);
+      var settled = salesRows.reduce(function(s,r){ return s + Number(r.settled); }, 0);
+      var unsettled = Math.max(0, round2(revenue - settled));
+      var exceptions = salesRows.filter(function(r){ return r.status === 'Pending'; }).length;
+      kpiRow.innerHTML =
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><div><div class="kpi-label">Period Revenue</div><div class="kpi-value num">' + money(round2(revenue)) + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Settled</div><div class="kpi-value num">' + money(round2(settled)) + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Unsettled</div><div class="kpi-value num">' + money(unsettled) + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">Exceptions</div><div class="kpi-value num">' + exceptions + '</div></div></div>';
+
+      if(!recon){
+        historyBody.innerHTML = emptyRow(5, 'No reconciliation batches yet for this company.');
+        return;
+      }
+      var badgeClass = recon.batch.status === 'Completed' ? 'completed' : (recon.batch.status === 'Needs Review' ? 'needsreview' : (recon.batch.status === 'In Progress' ? 'inprogress' : 'notstarted'));
+      historyBody.innerHTML = '<tr><td>Aug 2026</td><td class="num">' + recon.batch.invoices_count + '</td><td class="num">' + recon.batch.exceptions_count + '</td><td><span class="badge ' + badgeClass + '">' + recon.batch.status + '</span></td><td><button type="button" class="history-download">Download</button></td></tr>';
+    }).catch(function(){ historyBody.innerHTML = emptyRow(5, 'Could not load company dashboard.'); });
   }
 
   document.getElementById('home-upload-btn').addEventListener('click', function(){
@@ -2070,6 +2041,7 @@
     renderPetty();
     renderMerchant();
   }
+
 
   // ============ COMPANY SEARCH (typeahead) + LANDING GRID ============
   function matchesQuery(name, q){
@@ -2114,14 +2086,14 @@
     input.addEventListener('input', function(){
       var q = input.value.trim().toLowerCase();
       if(q.length === 0){ closeResults(); return; }
-      var matches = CUSTOMERS.filter(function(c){ return matchesQuery(c.name, q); }).slice(0, 8);
+      var matches = COMPANIES.filter(function(c){ return matchesQuery(c.name, q); }).slice(0, 8);
       openResults(matches);
     });
 
     input.addEventListener('focus', function(){
       if(input.value.trim().length > 0){
         var q = input.value.trim().toLowerCase();
-        var matches = CUSTOMERS.filter(function(c){ return matchesQuery(c.name, q); }).slice(0, 8);
+        var matches = COMPANIES.filter(function(c){ return matchesQuery(c.name, q); }).slice(0, 8);
         openResults(matches);
       }
     });
@@ -2162,7 +2134,7 @@
 
   function renderCompanyGrid(){
     var grid = document.getElementById('company-grid');
-    grid.innerHTML = CUSTOMERS.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).map(function(c){
+    grid.innerHTML = COMPANIES.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).map(function(c){
       var color = staffColor(c.staff[0]);
       return '<div class="company-card" data-company="' + c.name.replace(/"/g,'&quot;') + '">' +
         '<div class="company-card-name">' + c.name + '</div>' +
@@ -2196,8 +2168,31 @@
 
   topbarTypeahead = setupTypeahead('topbar-search-input', 'topbar-search-results');
   landingTypeahead = setupTypeahead('landing-search-input', 'landing-search-results');
-  renderCompanyGrid();
-  renderAllCompanyPanels();
+
+  // ============ AUTH BOOTSTRAP ============
+  function onAuthenticated(profile){
+    queuePage = 1;
+    return loadCompanies().then(function(){
+      renderCompanyGrid();
+      renderKpiRow();
+      renderStaffRow();
+      populateStaffFilter();
+      renderQueueTable();
+      applyRole(profile.role, profile);
+      if(profile.role === 'admin'){
+        renderApprovals();
+        renderStaffLimits();
+        renderActivityLog();
+      }
+    });
+  }
+
+  // Resume an existing session on page load/refresh instead of always showing the login screen.
+  api('/me').then(function(profile){
+    document.getElementById('login-screen').hidden = true;
+    document.getElementById('app-shell').hidden = false;
+    return onAuthenticated(profile);
+  }).catch(function(){ /* not signed in — login screen stays visible */ });
 </script>
 </body>
 </html>

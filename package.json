@@ -3,9 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "serve -s . -l $PORT"
+    "start": "node server/index.js",
+    "migrate": "node server/migrate.js",
+    "seed": "node server/seed.js"
   },
   "dependencies": {
-    "serve": "^14.2.3"
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.12.0"
   }
 }

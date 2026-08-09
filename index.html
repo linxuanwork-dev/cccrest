@@ -172,6 +172,7 @@
     color:rgba(255,255,255,0.55); padding:0 12px; margin-bottom:8px;
   }
   .sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
+  .sidebar-nav[hidden]{ display:none; }
   .nav-item{
     display:flex; align-items:center; gap:11px; width:100%; text-align:left;
     background:none; border:none; color:rgba(255,255,255,0.82);
@@ -535,7 +536,7 @@
     <form class="login-form" id="login-form">
       <div class="field">
         <label for="userid">User ID</label>
-        <input type="text" id="userid" placeholder="e.g. admin01" autocomplete="username" />
+        <input type="text" id="userid" placeholder="e.g. admin01, or your company code" autocomplete="username" />
       </div>
       <div class="field">
         <label for="password">Password</label>
@@ -546,6 +547,7 @@
           </button>
         </div>
       </div>
+      <div id="login-error" hidden style="color:var(--danger);font-size:12.5px;margin:-8px 0 16px;line-height:1.5;"></div>
       <div class="row-between">
         <label class="remember"><input type="checkbox" checked /> Remember me</label>
         <a href="#" class="forgot-link" onclick="return false;">Forgot password?</a>
@@ -567,7 +569,7 @@
       <span class="logo-word">CREST</span>
     </div>
 
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" id="nav-group-choose">
       <button class="nav-item active" data-panel="panel-company-picker">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <span class="nav-label">Choose Company</span>
@@ -606,8 +608,8 @@
       </button>
     </nav>
 
-    <div class="nav-group-label" style="margin-top:20px;">Tools</div>
-    <nav class="sidebar-nav">
+    <div class="nav-group-label" id="nav-group-tools-label" style="margin-top:20px;">Tools</div>
+    <nav class="sidebar-nav" id="nav-group-tools">
       <button class="nav-item" data-panel="panel-queue">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="nav-label">Customer Queue</span>
@@ -620,6 +622,10 @@
       <button class="nav-item" data-panel="panel-recon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
         <span class="nav-label">Reconciliation</span>
+      </button>
+      <button class="nav-item" data-panel="panel-activity">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 8 4-16 2 8h6"/></svg>
+        <span class="nav-label">Activity Log</span>
       </button>
     </nav>
 
@@ -654,10 +660,10 @@
         <div class="divider-v"></div>
         <div class="user-menu-wrap">
           <button class="user-trigger" id="user-trigger">
-            <div class="avatar">SA</div>
+            <div class="avatar" id="topbar-avatar">SA</div>
             <div class="user-info">
-              <div class="user-name">Siti Aminah</div>
-              <div class="user-role">Admin</div>
+              <div class="user-name" id="topbar-user-name">Siti Aminah</div>
+              <div class="user-role" id="topbar-user-role">Admin</div>
             </div>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
           </button>
@@ -900,10 +906,34 @@
 
         <div class="kpi-row" id="approvals-kpi-row"></div>
 
-        <div class="table-card">
+        <div class="section-title" style="margin-top:0;">Staff access limits</div>
+        <p class="recon-caption" style="margin-top:-2px;">Max clients each staff member can be assigned, and whether they can currently receive new assignments. Admin-only.</p>
+        <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
+          <table>
+            <thead><tr><th>Staff</th><th>Assigned Clients</th><th>Client Limit</th><th>Access</th><th></th></tr></thead>
+            <tbody id="staff-limits-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="section-title" style="margin-top:0;">Assignment requests</div>
+        <div class="table-card" style="overflow-x:auto;">
           <table>
             <thead><tr><th>Company</th><th>Current Staff</th><th>Requested Staff</th><th>Requested By</th><th>Date</th><th>Status</th><th></th></tr></thead>
             <tbody id="approvals-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- ACTIVITY LOG ---- -->
+      <section class="panel" id="panel-activity" hidden>
+        <div class="content-header">
+          <h2>Activity Log</h2>
+          <span class="sub">Audit trail of staff, access, and assignment changes</span>
+        </div>
+        <div class="table-card" style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+            <tbody id="activity-tbody"></tbody>
           </table>
         </div>
       </section>
@@ -1079,11 +1109,64 @@
 </div>
 
 <script>
+  // ============ ROLE-BASED ACCESS (Admin vs Client) ============
+  var CURRENT_ROLE = 'admin';
+
+  function companySlug(name){
+    return name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  }
+
+  // Client login = the company's own slug as the User ID (e.g. "td-senai" for "TD - Senai")
+  function applyRole(role, companyName){
+    CURRENT_ROLE = role;
+    var isClient = role === 'client';
+
+    document.getElementById('nav-group-choose').hidden = isClient;
+    document.getElementById('nav-group-tools-label').hidden = isClient;
+    document.getElementById('nav-group-tools').hidden = isClient;
+    document.getElementById('topbar-search-wrap').hidden = isClient;
+
+    if(isClient){
+      document.getElementById('topbar-avatar').textContent = initials(companyName);
+      document.getElementById('topbar-user-name').textContent = companyName;
+      document.getElementById('topbar-user-role').textContent = 'Client';
+      currentCompany = companyName;
+      if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
+      var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
+      if(homeNav) homeNav.click();
+    } else {
+      document.getElementById('topbar-avatar').textContent = 'SA';
+      document.getElementById('topbar-user-name').textContent = 'Siti Aminah';
+      document.getElementById('topbar-user-role').textContent = 'Admin';
+      var pickerNav = document.querySelector('.nav-item[data-panel="panel-company-picker"]');
+      if(pickerNav) pickerNav.click();
+    }
+  }
+
   // Login -> dashboard
   document.getElementById('login-form').addEventListener('submit', function(e){
     e.preventDefault();
+    var id = document.getElementById('userid').value.trim().toLowerCase();
+    var errEl = document.getElementById('login-error');
+    var role = null, matchedCompany = null;
+
+    if(id === 'admin01' || id === 'admin'){
+      role = 'admin';
+    } else if(typeof CUSTOMERS !== 'undefined'){
+      var match = CUSTOMERS.find(function(c){ return companySlug(c.name) === id; });
+      if(match){ role = 'client'; matchedCompany = match.name; }
+    }
+
+    if(!role){
+      errEl.textContent = 'Unrecognized ID. Staff should sign in with their admin ID; clients sign in with their company code (e.g. "' + (typeof CUSTOMERS !== 'undefined' ? companySlug(CUSTOMERS[0].name) : 'td-senai') + '").';
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
+
     document.getElementById('login-screen').hidden = true;
     document.getElementById('app-shell').hidden = false;
+    applyRole(role, matchedCompany);
   });
 
   // Password show/hide
@@ -1129,6 +1212,9 @@
     document.getElementById('login-screen').hidden = false;
     userMenu.classList.remove('open');
     document.getElementById('login-form').reset();
+    document.getElementById('login-error').hidden = true;
+    if(typeof currentCompany !== 'undefined') currentCompany = '';
+    applyRole('admin', null);
   });
 
   // Dark / light mode
@@ -1232,6 +1318,76 @@
   // ============ CUSTOMER QUEUE ============
   var CUSTOMERS = [{"name":"Larkin Print Solutions","type":"Print & Design","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-46.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"07 Aug 2026"},{"name":"Restoran Mount Austin","type":"Restaurant","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-12.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"07 Aug 2026"},{"name":"Salon Cantik Taman Sentosa","type":"Hair Salon","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-05.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"Taman Pelangi Auto Works","type":"Motor Workshop","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-40.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"Century Garden Bakery & Confectionery","type":"Bakery","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-19.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Gelang Patah Print Solutions","type":"Print & Design","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-10.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"05 Aug 2026"},{"name":"Pasir Gudang Learning Centre","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-06.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Restoran Adda Heights","type":"Restaurant","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-24.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Restoran Senai","type":"Restaurant","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-36.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"07 Aug 2026"},{"name":"Salon Cantik Pasir Gudang","type":"Hair Salon","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-29.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Setia Tropika Pet Care","type":"Pet Grooming","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-09.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"08 Aug 2026"},{"name":"Skudai Print Solutions","type":"Print & Design","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-34.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"07 Aug 2026"},{"name":"Stulang Coffee House","type":"Caf\u00e9","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-50.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"08 Aug 2026"},{"name":"TD - Senai","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-13.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"04 Aug 2026"},{"name":"TD - Ulu Tiram","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-01.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Taman Perling Coffee House","type":"Caf\u00e9","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-26.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"04 Aug 2026"},{"name":"Austin Heights Bakery & Confectionery","type":"Bakery","staff":["Priya Suresh"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"Bukit Indah Coffee House","type":"Caf\u00e9","staff":["Nurul Huda"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"Iskandar Puteri Bakery & Confectionery","type":"Bakery","staff":["Ahmad Faiz"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"02 Aug 2026"},{"name":"Adda Heights Convenience Store","type":"Convenience Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-47.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Austin Heights Hardware Sdn Bhd","type":"Hardware Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-20.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Century Garden Learning Centre","type":"Tuition Centre","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-42.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"05 Aug 2026"},{"name":"Gelang Patah Pet Care","type":"Pet Grooming","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-33.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Iskandar Puteri Learning Centre","type":"Tuition Centre","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-30.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Kulai Bakery & Confectionery","type":"Bakery","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-31.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Kulai Hardware Sdn Bhd","type":"Hardware Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-08.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Larkin Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-23.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"05 Aug 2026"},{"name":"Mount Austin Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-35.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Nusa Bestari Coffee House","type":"Caf\u00e9","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-14.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Permas Jaya Learning Centre","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-18.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Restoran Ulu Tiram","type":"Restaurant","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-48.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Salon Cantik Permas Jaya","type":"Hair Salon","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-41.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Salon Cantik Taman Pelangi","type":"Hair Salon","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-17.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Setia Tropika Hardware Sdn Bhd","type":"Hardware Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-32.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Skudai Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-11.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Stulang Auto Works","type":"Motor Workshop","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-04.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Stulang Mini Mart","type":"Mini Market","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-27.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"TD - Bukit Indah","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-25.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"TD - Nusa Bestari","type":"Self-Service Laundry","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-37.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"TD - Taman Perling","type":"Self-Service Laundry","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-49.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Daya Pet Care","type":"Pet Grooming","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-45.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Taman Daya Print Solutions","type":"Print & Design","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-22.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Molek Hardware Sdn Bhd","type":"Hardware Store","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-44.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Taman Molek Pet Care","type":"Pet Grooming","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-21.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Taman Perling Mini Mart","type":"Mini Market","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-03.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Sentosa Auto Works","type":"Motor Workshop","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-28.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tampoi Coffee House","type":"Caf\u00e9","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-38.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tampoi Mini Mart","type":"Mini Market","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-15.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Tebrau Auto Works","type":"Motor Workshop","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-16.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tebrau Mini Mart","type":"Mini Market","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-39.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"MINIFISH SDN BHD","type":"Trading & Supply","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-58.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"INVIRO CLEANING SDN BHD","type":"Cleaning Service","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-59.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"OWN LAUNDRY SDN BHD","type":"Self-Service Laundry (HQ)","staff":["Nurul Huda","Ahmad Faiz"],"input":"TRANSACTION-JUL2026-60.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"OWN MARKET SDN BHD","type":"Market / Retail","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-61.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"DIDIK MULIA SDN BHD","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-62.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"05 Aug 2026"},{"name":"WEALTHY CC HOUSE (M) SDN  BHD","type":"Clubhouse / Recreation","staff":["Chen Wei Ming"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"SK AUTO DETAILING (M) SDN BHD","type":"Auto Detailing","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-63.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"SK AUTO DETAILING PERMAS SDN BHD","type":"Auto Detailing","staff":["Priya Suresh","Chen Wei Ming"],"input":"TRANSACTION-JUL2026-64.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"}];
 
+  // ============ ACTIVITY LOG ============
+  var ACTIVITY_LOG = [
+    { time:'03 Aug 2026, 10:02 AM', actor:'Siti Aminah (Admin)', action:'Rejected assignment', target:'Kulai Hardware Sdn Bhd', details:'Requested staff: Chen Wei Ming, Ahmad Faiz' },
+    { time:'01 Aug 2026, 8:41 AM', actor:'Siti Aminah (Admin)', action:'Set client limit', target:'Ahmad Faiz', details:'limit set to 20' }
+  ];
+
+  function logActivity(actor, action, target, details){
+    ACTIVITY_LOG.unshift({
+      time: new Date().toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' }),
+      actor: actor, action: action, target: target, details: details || ''
+    });
+    renderActivityLog();
+  }
+
+  function renderActivityLog(){
+    var tbody = document.getElementById('activity-tbody');
+    if(!tbody) return;
+    if(ACTIVITY_LOG.length === 0){ tbody.innerHTML = emptyRowSafe(5, 'No activity recorded yet.'); return; }
+    tbody.innerHTML = ACTIVITY_LOG.map(function(e){
+      return '<tr><td class="num">' + e.time + '</td><td>' + e.actor + '</td><td>' + e.action + '</td><td>' + e.target + '</td><td style="color:var(--primary-soft);">' + e.details + '</td></tr>';
+    }).join('');
+  }
+
+  // ============ STAFF ACCESS LIMITS ============
+  var STAFF_LIMITS = {
+    "Nurul Huda": { limit:20, active:true },
+    "Chen Wei Ming": { limit:20, active:true },
+    "Ahmad Faiz": { limit:20, active:true },
+    "Priya Suresh": { limit:20, active:true }
+  };
+
+  function assignedCountFor(name){
+    return CUSTOMERS.filter(function(c){ return c.staff.indexOf(name) !== -1; }).length;
+  }
+
+  function renderStaffLimits(){
+    var tbody = document.getElementById('staff-limits-tbody');
+    if(!tbody) return;
+    tbody.innerHTML = Object.keys(STAFF_LIMITS).sort().map(function(name){
+      var info = STAFF_LIMITS[name];
+      var count = assignedCountFor(name);
+      var atCap = count >= info.limit;
+      return '<tr>' +
+        '<td>' + name + '</td>' +
+        '<td class="num">' + count + (atCap ? ' <span class="badge review" style="margin-left:6px;">At limit</span>' : '') + '</td>' +
+        '<td class="num"><input type="number" min="1" value="' + info.limit + '" data-limit-for="' + name + '" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--surface-alt);font-family:var(--font-data);color:inherit;" /></td>' +
+        '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);"><input type="checkbox" data-active-for="' + name + '" ' + (info.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (info.active ? 'Active' : 'Suspended') + '</label></td>' +
+        '<td><button type="button" class="btn-row" data-save-limit="' + name + '">Save</button></td>' +
+      '</tr>';
+    }).join('');
+
+    tbody.querySelectorAll('[data-save-limit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var name = btn.dataset.saveLimit;
+        var row = btn.closest('tr');
+        var newLimit = Math.max(1, Number(row.querySelector('[data-limit-for="' + name + '"]').value) || 1);
+        var newActive = row.querySelector('[data-active-for="' + name + '"]').checked;
+        var old = STAFF_LIMITS[name];
+        var changes = [];
+        if(old.limit !== newLimit) changes.push('limit ' + old.limit + ' → ' + newLimit);
+        if(old.active !== newActive) changes.push(newActive ? 'access re-enabled' : 'access suspended');
+        STAFF_LIMITS[name] = { limit:newLimit, active:newActive };
+        if(changes.length){
+          logActivity('Siti Aminah (Admin)', 'Updated staff access', name, changes.join('; '));
+        }
+        renderStaffLimits();
+      });
+    });
+  }
+
   var STATUS_CLASS = { "Completed":"completed", "In Progress":"inprogress", "Needs Review":"needsreview", "Not Started":"notstarted" };
   var STAFF_COLOR_LIGHT = { "Nurul Huda":"#1A4376", "Chen Wei Ming":"#2f6f4e", "Ahmad Faiz":"#b8862f", "Priya Suresh":"#a23b3b" };
   var STAFF_COLOR_DARK = { "Nurul Huda":"#5fa2de", "Chen Wei Ming":"#6fc492", "Ahmad Faiz":"#e2ac5f", "Priya Suresh":"#e58888" };
@@ -1242,7 +1398,7 @@
   }
 
   function initials(name){
-    return name.split(' ').map(function(w){ return w[0]; }).join('').slice(0,2).toUpperCase();
+    return name.split(' ').filter(function(w){ return /^[A-Za-z0-9]/.test(w); }).map(function(w){ return w[0]; }).join('').slice(0,2).toUpperCase();
   }
 
   // ============ STAFF ASSIGNMENT + APPROVAL WORKFLOW ============
@@ -1318,9 +1474,12 @@
       var cust = CUSTOMERS.find(function(c){ return c.name === req.company; });
       if(cust) cust.staff = req.requestedStaff.slice();
     }
+    logActivity('Siti Aminah (Admin)', outcome + ' assignment', req.company,
+      'Staff: ' + req.requestedStaff.join(', ') + (outcome === 'Approved' ? ' — locked, requester can no longer edit' : ''));
     renderApprovals();
     renderQueueTable();
     renderStaffRow();
+    renderStaffLimits();
     renderCompanyGridSafe();
   }
 
@@ -1351,11 +1510,17 @@
     var atLimit = assignModalSelected.length >= 2;
     list.innerHTML = STAFF_ROSTER.map(function(name){
       var checked = assignModalSelected.indexOf(name) !== -1;
-      var disabled = atLimit && !checked;
+      var info = STAFF_LIMITS[name] || { limit:Infinity, active:true };
+      var overCapacity = !checked && (assignedCountFor(name) >= info.limit);
+      var suspended = !checked && !info.active;
+      var disabled = (atLimit && !checked) || overCapacity || suspended;
       var color = staffColor(name);
+      var note = suspended ? ' <span style="color:var(--danger);font-size:11px;">(access suspended)</span>'
+        : overCapacity ? ' <span style="color:var(--warning);font-size:11px;">(at client limit)</span>' : '';
+      return '<label class="assign-staff-row' + (disabled ? ' disabled' : '') + '">' +
         '<input type="checkbox" value="' + name + '" ' + (checked ? 'checked' : '') + (disabled ? ' disabled' : '') + ' />' +
         '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(name) + '</div>' +
-        '<span class="assign-staff-row-name">' + name + '</span>' +
+        '<span class="assign-staff-row-name">' + name + note + '</span>' +
       '</label>';
     }).join('');
     list.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
@@ -1395,6 +1560,8 @@
       date: "08 Aug 2026",
       status: "Pending"
     });
+    logActivity('Siti Aminah (Admin)', 'Requested assignment change', assignModalCompany,
+      'Requested staff: ' + assignModalSelected.join(', ') + ' — awaiting admin approval');
     closeAssignModal();
     renderApprovals();
     renderQueueTable();
@@ -1402,6 +1569,8 @@
   });
 
   renderApprovals();
+  renderStaffLimits();
+  renderActivityLog();
 
   function renderKpiRow(){
     var total = CUSTOMERS.length;

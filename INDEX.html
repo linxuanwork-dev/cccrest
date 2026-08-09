@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CREST — Bookkeeping &amp; Admin Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Neuton:wght@400;700;800&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;
+    --surface:#f6f7f8;
+    --surface-alt:#fafafb;
+    --surface-card:#ffffff;
+    --primary:#606060;
+    --primary-soft:#9a9a9a;
+    --accent:#1a4376;
+    --accent-fill:#1a4376;
+    --accent-dark:#123159;
+    --accent-tint:#eaf0f7;
+    --ink:#31363c;
+    --white:#ffffff;
+    --border:#e4e6e9;
+    --success:#2f6f4e;
+    --success-tint:#e7f1ec;
+    --warning:#b8862f;
+    --warning-tint:#fbf2e4;
+    --danger:#a23b3b;
+    --danger-tint:#f7eaea;
+    --font-display:'Neuton', Georgia, serif;
+    --font-cjk:'Noto Serif SC', serif;
+    --font-data:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --radius:8px;
+    --shadow:0 1px 2px rgba(26,67,118,0.06), 0 8px 24px rgba(26,67,118,0.08);
+    --dur:180ms;
+  }
+  html[data-theme="dark"]{
+    --bg:#0f1215;
+    --surface:#171b1f;
+    --surface-alt:#1d2227;
+    --surface-card:#1a1e23;
+    --primary:#bcc5cd;
+    --primary-soft:#8b949c;
+    --accent:#5fa2de;
+    --accent-fill:#2f5f95;
+    --accent-dark:#3f72ab;
+    --accent-tint:#1f3348;
+    --ink:#f3f5f7;
+    --border:#39424b;
+    --success:#6fc492;
+    --success-tint:#173023;
+    --warning:#e2ac5f;
+    --warning-tint:#3a2c15;
+    --danger:#e58888;
+    --danger-tint:#3a2222;
+    --shadow:0 1px 2px rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.5);
+  }
+  body, .login-card, .topbar, .table-card, .kpi-card, .recon-card, thead th, tbody td{
+    transition: background-color var(--dur), border-color var(--dur), color var(--dur);
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--surface);
+    color:var(--ink);
+    font-family:var(--font-display);
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  h1,h2,h3{ font-family:var(--font-display); margin:0; font-weight:700; }
+  .cjk{ font-family:var(--font-cjk); }
+  .num{ font-family:var(--font-data); font-variant-numeric:tabular-nums; }
+
+  /* ---------- shared logo mark ---------- */
+  .logo{ display:flex; align-items:center; gap:10px; }
+  .logo svg{ display:block; flex-shrink:0; }
+  .logo-word{ font-family:var(--font-display); font-weight:800; letter-spacing:0.5px; }
+
+  /* ================= LOGIN SCREEN ================= */
+  #login-screen{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    overflow:hidden;
+    padding:24px;
+  }
+  #login-screen[hidden]{ display:none; }
+  #login-screen .arc-bg{ position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  html[data-theme="dark"] #login-screen .arc-bg circle{ opacity:0.16 !important; }
+
+  .theme-toggle{ background:none; border:1px solid var(--border); border-radius:8px; padding:8px; display:flex; color:var(--primary); }
+  .theme-toggle:hover{ background:var(--surface); color:var(--accent); border-color:var(--accent); }
+  .theme-toggle .icon-sun{ display:none; }
+  .theme-toggle .icon-moon{ display:block; }
+  html[data-theme="dark"] .theme-toggle .icon-sun{ display:block; }
+  html[data-theme="dark"] .theme-toggle .icon-moon{ display:none; }
+  .login-theme-toggle{ position:absolute; top:20px; right:20px; z-index:2; background:var(--surface-card); }
+  .login-card{
+    position:relative;
+    z-index:1;
+    width:100%;
+    max-width:380px;
+    background:var(--surface-card);
+    border:1px solid var(--border);
+    border-radius:calc(var(--radius) + 4px);
+    box-shadow:var(--shadow);
+    padding:40px 36px 32px;
+    animation:riseIn 420ms ease both;
+  }
+  @keyframes riseIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  .login-card .logo{ justify-content:center; margin-bottom:6px; }
+  .login-card .logo-word{ font-size:26px; color:var(--accent); }
+  .login-tagline{ text-align:center; color:var(--primary); font-size:13.5px; margin-top:2px; }
+  .login-tagline .cjk{ display:block; font-size:12px; color:var(--primary-soft); margin-top:2px; }
+  .login-form{ margin-top:30px; }
+  .field{ margin-bottom:18px; }
+  .field label{ display:block; font-size:12.5px; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:7px; }
+  .field-input-wrap{ position:relative; }
+  .field input[type="text"], .field input[type="password"]{
+    width:100%;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:11px 13px;
+    background:var(--surface-alt);
+    transition:border-color var(--dur), background var(--dur);
+  }
+  .field input:focus{ border-color:var(--accent); background:var(--surface-card); outline:none; box-shadow:0 0 0 3px var(--accent-tint); }
+  .pw-toggle{
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    background:none; border:none; padding:6px; border-radius:6px; color:var(--primary-soft);
+    display:flex; align-items:center;
+  }
+  .pw-toggle:hover{ color:var(--accent); background:var(--accent-tint); }
+  .row-between{ display:flex; align-items:center; justify-content:space-between; margin:2px 0 26px; font-size:13px; }
+  .remember{ display:flex; align-items:center; gap:8px; color:var(--primary); }
+  .remember input{ width:15px; height:15px; accent-color:var(--accent); }
+  .forgot-link{ color:var(--accent); text-decoration:none; font-weight:700; }
+  .forgot-link:hover{ text-decoration:underline; }
+  .btn-primary{
+    width:100%; background:var(--accent-fill); color:var(--white); border:none; border-radius:var(--radius);
+    padding:12px 16px; font-size:15.5px; font-weight:700; letter-spacing:0.02em;
+    transition:background var(--dur), transform var(--dur);
+  }
+  .btn-primary:hover{ background:var(--accent-dark); }
+  .btn-primary:active{ transform:translateY(1px); }
+  .login-footer{ text-align:center; margin-top:26px; font-size:11.5px; color:var(--primary-soft); }
+
+  /* ================= APP SHELL ================= */
+  #app-shell{ min-height:100vh; display:flex; }
+  #app-shell[hidden]{ display:none; }
+  .sidebar{
+    width:250px; flex-shrink:0; background:var(--accent-fill); color:var(--white);
+    display:flex; flex-direction:column; padding:22px 16px;
+    position:fixed; top:0; bottom:0; left:0; z-index:40;
+    transition:transform var(--dur);
+  }
+  .sidebar .logo{ padding:4px 8px 26px; }
+  .sidebar .logo-word{ font-size:19px; color:var(--white); }
+  .nav-group-label{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.09em; font-weight:700;
+    color:rgba(255,255,255,0.55); padding:0 12px; margin-bottom:8px;
+  }
+  .sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
+  .nav-item{
+    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+    background:none; border:none; color:rgba(255,255,255,0.82);
+    padding:10px 12px; border-radius:6px; font-size:14.5px; font-family:var(--font-display);
+    transition:background var(--dur), color var(--dur);
+  }
+  .nav-item svg{ flex-shrink:0; opacity:0.9; }
+  .nav-item:hover{ background:rgba(255,255,255,0.08); color:var(--white); }
+  .nav-item.active{ background:var(--white); color:var(--accent-fill); font-weight:700; }
+  .nav-item.active svg{ opacity:1; }
+  .nav-label{ flex:1; }
+  .nav-badge{
+    background:var(--danger); color:#fff; font-size:10.5px; font-weight:700; font-family:var(--font-data);
+    padding:2px 7px; border-radius:20px; flex-shrink:0;
+  }
+  .nav-item.active .nav-badge{ background:var(--danger); color:#fff; }
+  .sidebar-foot{ margin-top:auto; padding-top:18px; border-top:1px solid rgba(255,255,255,0.15); }
+  .sidebar-foot-text{ font-size:11px; color:rgba(255,255,255,0.5); padding:6px 12px 0; }
+
+  .main{ margin-left:250px; flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar{
+    height:66px; flex-shrink:0; background:var(--surface-card); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; padding:0 28px; position:sticky; top:0; z-index:20;
+  }
+  .topbar-left{ display:flex; align-items:center; gap:16px; }
+  .menu-toggle{ display:none; background:none; border:none; padding:8px; margin-left:-8px; color:var(--ink); }
+  .company-search-wrap{ position:relative; width:230px; }
+  .company-search-icon{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--primary-soft); pointer-events:none; }
+  .company-search-input{
+    width:100%; border:1px solid var(--border); border-radius:6px; padding:8px 12px 8px 32px; background:var(--surface-alt);
+    font-family:var(--font-data); font-size:13.5px; color:var(--ink);
+  }
+  .company-search-input:focus{ border-color:var(--accent); background:var(--surface-card); outline:none; box-shadow:0 0 0 3px var(--accent-tint); }
+  .company-search-results{
+    position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30; max-height:280px; overflow-y:auto;
+    background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+  }
+  .company-search-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; cursor:pointer; }
+  .company-search-item:hover, .company-search-item.highlighted{ background:var(--accent-tint); }
+  .company-search-item-name{ font-size:13px; color:var(--ink); }
+  .company-search-item-type{ font-size:11px; color:var(--primary-soft); font-family:var(--font-data); white-space:nowrap; }
+  .company-search-empty{ padding:14px 12px; font-size:12.5px; color:var(--primary-soft); text-align:center; }
+
+  .company-search-wrap.large{ width:100%; max-width:520px; margin-bottom:28px; }
+  .company-search-wrap.large .company-search-input{ padding:14px 16px 14px 42px; font-size:15px; border-radius:10px; }
+  .company-search-wrap.large .company-search-icon{ left:16px; width:17px; height:17px; }
+
+  .company-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:14px; }
+  .company-card{
+    background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;
+    cursor:pointer; transition:border-color var(--dur), transform var(--dur);
+  }
+  .company-card:hover{ border-color:var(--accent); transform:translateY(-1px); }
+  .company-card-name{ font-size:14px; font-weight:700; color:var(--ink); margin-bottom:3px; }
+  .company-card-type{ font-size:12px; color:var(--primary-soft); font-family:var(--font-data); margin-bottom:12px; }
+  .company-card-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .company-card-staff{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--primary); }
+  .company-card-staff .avatar{ width:22px; height:22px; font-size:9.5px; }
+  .topbar-date{ font-size:13px; color:var(--primary); }
+  .topbar-right{ display:flex; align-items:center; gap:18px; }
+  .icon-btn{ position:relative; background:none; border:none; padding:8px; border-radius:8px; color:var(--primary); display:flex; }
+  .icon-btn:hover{ background:var(--surface); color:var(--accent); }
+  .dot{ position:absolute; top:6px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--danger); border:1.5px solid var(--surface-card); }
+  .divider-v{ width:1px; height:26px; background:var(--border); }
+  .user-menu-wrap{ position:relative; }
+  .user-trigger{ display:flex; align-items:center; gap:10px; background:none; border:none; padding:6px 8px; border-radius:8px; }
+  .user-trigger:hover{ background:var(--surface); }
+  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+  .user-info{ text-align:left; line-height:1.25; }
+  .user-name{ font-size:13.5px; font-weight:700; color:var(--ink); }
+  .user-role{ font-size:11.5px; color:var(--primary); }
+  .user-menu{
+    position:absolute; right:0; top:calc(100% + 8px); background:var(--surface-card); border:1px solid var(--border);
+    border-radius:var(--radius); box-shadow:var(--shadow); min-width:160px; padding:6px;
+    opacity:0; visibility:hidden; transform:translateY(-4px); transition:all var(--dur);
+  }
+  .user-menu.open{ opacity:1; visibility:visible; transform:translateY(0); }
+  .user-menu button{ width:100%; text-align:left; background:none; border:none; padding:9px 10px; border-radius:6px; font-size:13.5px; color:var(--ink); }
+  .user-menu button:hover{ background:var(--danger-tint); color:var(--danger); }
+
+  .content{ padding:28px; flex:1; }
+  .content-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:22px; flex-wrap:wrap; gap:8px; }
+  .content-header h2{ font-size:23px; color:var(--ink); }
+  .content-header .sub{ font-size:12.5px; color:var(--primary-soft); }
+
+  .kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:26px; }
+  .kpi-card{
+    background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px 20px; display:flex; align-items:center; gap:14px;
+  }
+  .kpi-icon{ width:38px; height:38px; border-radius:9px; background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .kpi-label{ font-size:11.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--primary); font-weight:700; }
+  .kpi-value{ font-size:21px; font-weight:700; color:var(--ink); margin-top:2px; }
+  .kpi-ring-card{ justify-content:space-between; }
+  .ring-wrap{ position:relative; width:56px; height:56px; flex-shrink:0; }
+  .ring-wrap svg{ transform:rotate(-90deg); }
+  .ring-pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:var(--accent); font-family:var(--font-data); }
+
+  .panel{ animation:fadeIn 260ms ease both; }
+  @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
+
+  .table-card{ background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--primary);
+    font-weight:700; padding:13px 18px; background:var(--surface-alt); border-bottom:1px solid var(--border);
+    font-family:var(--font-data);
+  }
+  tbody td{ padding:13px 18px; border-bottom:1px solid var(--border); font-size:13.5px; color:var(--ink); }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover td{ background:var(--surface-alt); }
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px;
+    font-size:11.5px; font-weight:700; font-family:var(--font-data);
+  }
+  .badge.synced, .badge.approved, .badge.paid, .badge.matched, .badge.completed{ background:var(--success-tint); color:var(--success); }
+  .badge.pending, .badge.unpaid, .badge.inprogress{ background:var(--warning-tint); color:var(--warning); }
+  .badge.unmatched, .badge.rejected{ background:var(--danger-tint); color:var(--danger); }
+  .badge.review, .badge.needsreview{ background:var(--danger-tint); color:var(--danger); }
+  .badge.notstarted{ background:var(--surface-alt); color:var(--primary); }
+
+  /* ---------- customer queue ---------- */
+  .staff-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+  .staff-card{ background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; display:flex; gap:12px; align-items:flex-start; }
+  .staff-card .avatar{ width:32px; height:32px; font-size:11.5px; flex-shrink:0; }
+  .staff-card-name{ font-size:13.5px; font-weight:700; color:var(--ink); }
+  .staff-card-count{ font-size:11.5px; color:var(--primary); margin-top:2px; font-family:var(--font-data); }
+  .staff-card-bar{ display:flex; height:5px; border-radius:3px; overflow:hidden; margin-top:9px; background:var(--surface-alt); }
+  .staff-card-bar span{ height:100%; }
+
+  .filter-bar{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:center; }
+  .filter-bar input[type="text"], .filter-bar select{
+    border:1px solid var(--border); border-radius:6px; padding:9px 12px; background:var(--surface-alt);
+    font-family:var(--font-data); font-size:13px; color:var(--ink);
+  }
+  .filter-bar input[type="text"]{ flex:1; min-width:180px; }
+  .filter-bar select{
+    appearance:none; padding-right:28px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23606060' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 10px center;
+  }
+  .filter-count{ font-size:12px; color:var(--primary-soft); font-family:var(--font-data); white-space:nowrap; }
+
+  .file-cell{ display:flex; align-items:center; gap:7px; font-family:var(--font-data); font-size:12.5px; }
+  .file-cell.missing{ color:var(--primary-soft); font-style:italic; }
+  .file-cell svg{ flex-shrink:0; color:var(--primary-soft); }
+
+  .btn-row{ background:none; border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:12.5px; font-weight:700; color:var(--accent); font-family:var(--font-data); }
+  .btn-row:hover{ background:var(--accent-tint); border-color:var(--accent); }
+
+  .pagination{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; font-size:12.5px; color:var(--primary); font-family:var(--font-data); }
+  .pagination-btns{ display:flex; gap:8px; }
+  .pagination-btns button{ background:none; border:1px solid var(--border); border-radius:6px; padding:6px 11px; color:var(--ink); }
+  .pagination-btns button:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+  .pagination-btns button:disabled{ opacity:0.4; cursor:default; }
+
+  .recon-context{ display:none; align-items:center; gap:10px; background:var(--accent-tint); border:1px solid rgba(26,67,118,0.2); border-radius:var(--radius); padding:11px 16px; margin-bottom:16px; font-size:13px; color:var(--accent); }
+  .recon-context.visible{ display:flex; }
+  .recon-context b{ font-weight:700; }
+  .recon-context button{ margin-left:auto; background:none; border:none; color:var(--accent); font-size:12px; font-weight:700; text-decoration:underline; }
+
+  /* ---------- assign-staff modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(20,24,28,0.5); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-backdrop[hidden]{ display:none; }
+  .modal-card{
+    background:var(--surface-card); border-radius:12px; width:100%; max-width:420px; box-shadow:var(--shadow);
+    animation:riseIn 220ms ease both; max-height:90vh; display:flex; flex-direction:column; overflow:hidden;
+  }
+  .modal-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--border); }
+  .modal-header h3{ font-size:17px; color:var(--ink); margin:0 0 4px; }
+  .modal-sub{ font-size:12px; color:var(--primary-soft); line-height:1.4; }
+  .modal-close{ background:none; border:none; color:var(--primary); padding:4px; border-radius:6px; flex-shrink:0; }
+  .modal-close:hover{ background:var(--surface); color:var(--accent); }
+  .modal-body{ padding:18px 22px; overflow-y:auto; }
+  .modal-footer{ display:flex; justify-content:flex-end; gap:10px; padding:16px 22px; border-top:1px solid var(--border); }
+
+  .assign-current{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
+  .assign-current-chip{ background:var(--surface-alt); border:1px solid var(--border); border-radius:20px; padding:4px 12px; font-size:12px; color:var(--primary); font-family:var(--font-data); }
+  .assign-staff-list{ display:flex; flex-direction:column; gap:2px; }
+  .assign-staff-row{ display:flex; align-items:center; gap:11px; padding:10px 8px; border-radius:8px; cursor:pointer; }
+  .assign-staff-row:hover{ background:var(--surface-alt); }
+  .assign-staff-row input{ width:16px; height:16px; accent-color:var(--accent); flex-shrink:0; }
+  .assign-staff-row.disabled{ opacity:0.4; cursor:not-allowed; }
+  .assign-staff-row .avatar{ width:28px; height:28px; font-size:10.5px; }
+  .assign-staff-row-name{ font-size:13.5px; color:var(--ink); }
+  .assign-limit-note{ font-size:11.5px; color:var(--primary-soft); margin-top:12px; }
+
+  .approval-actions{ display:flex; gap:6px; }
+  .approval-actions button{ font-size:12px; font-weight:700; font-family:var(--font-data); border-radius:6px; padding:6px 11px; border:1px solid var(--border); background:none; }
+  .approval-approve{ color:var(--success); border-color:rgba(47,111,78,0.35) !important; }
+  .approval-approve:hover{ background:var(--success-tint); }
+  .approval-reject{ color:var(--danger); border-color:rgba(162,59,59,0.35) !important; }
+  .approval-reject:hover{ background:var(--danger-tint); }
+
+  @media (max-width:980px){
+    .staff-row{ grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:640px){
+    .staff-row{ grid-template-columns:1fr; }
+    .filter-bar{ flex-direction:column; align-items:stretch; }
+  }
+
+  /* ---------- reconciliation tool ---------- */
+  .recon-card{ background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px; margin-bottom:16px; }
+  .recon-step-label{ font-size:12px; text-transform:uppercase; letter-spacing:0.06em; font-weight:700; color:var(--accent); margin-bottom:12px; font-family:var(--font-data); }
+  .recon-caption{ font-size:12px; color:var(--primary-soft); margin:-6px 0 18px; }
+
+  .upload-zone{
+    border:1.5px dashed var(--border); border-radius:var(--radius); padding:30px 20px; text-align:center;
+    background:var(--surface-alt); transition:border-color var(--dur), background var(--dur); cursor:pointer;
+  }
+  .upload-zone:hover, .upload-zone.dragover{ border-color:var(--accent); background:var(--accent-tint); }
+  .upload-zone.has-file{ border-style:solid; border-color:var(--success); background:var(--success-tint); }
+  .upload-zone svg{ color:var(--primary-soft); margin-bottom:8px; }
+  .upload-zone.has-file svg{ color:var(--success); }
+  .upload-text{ font-size:14px; color:var(--ink); }
+  .upload-browse{ color:var(--accent); font-weight:700; text-decoration:underline; }
+  .upload-hint{ font-size:11.5px; color:var(--primary-soft); margin-top:6px; font-family:var(--font-data); }
+  .upload-filename{ font-size:13px; font-weight:700; color:var(--success); margin-top:6px; font-family:var(--font-data); }
+
+  .recon-optional-row{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+  .recon-optional-title{ font-size:13.5px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:8px; }
+  .recon-optional-tag{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; font-weight:700; color:var(--primary); background:var(--surface-alt); border:1px solid var(--border); border-radius:20px; padding:2px 8px; }
+  .recon-optional-desc{ font-size:12px; color:var(--primary-soft); max-width:420px; margin-top:3px; line-height:1.5; }
+  .recon-optional-filename{ font-size:12.5px; font-weight:700; color:var(--success); margin-top:8px; font-family:var(--font-data); }
+
+  .recon-advanced-toggle{
+    display:flex; align-items:center; gap:6px; background:none; border:none; color:var(--primary); font-size:12px;
+    font-family:var(--font-data); font-weight:700; margin-top:16px; padding:4px 0;
+  }
+  .recon-advanced-toggle:hover{ color:var(--accent); }
+  .recon-advanced-toggle svg{ transition:transform var(--dur); }
+  .recon-advanced-toggle.open svg{ transform:rotate(180deg); }
+  .account-codes-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px 16px;
+    margin-top:12px; padding:14px 16px; background:var(--surface-alt); border-radius:8px;
+  }
+  .account-codes-grid div{ display:flex; flex-direction:column; gap:2px; }
+  .account-codes-grid span{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--primary-soft); font-family:var(--font-data); }
+  .account-codes-grid b{ font-size:13px; color:var(--ink); font-family:var(--font-data); font-weight:700; }
+
+  .radio-group{ display:flex; flex-direction:column; gap:11px; }
+  .radio-group label{ display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--ink); }
+  .radio-group input{ width:15px; height:15px; accent-color:var(--accent); flex-shrink:0; }
+
+  .btn-ghost{
+    background:var(--surface-card); color:var(--accent); border:1.5px solid var(--accent); border-radius:6px;
+    padding:8px 14px; font-size:13px; font-weight:700; font-family:var(--font-data);
+    transition:background var(--dur), color var(--dur);
+  }
+  .btn-ghost:hover{ background:var(--accent-fill); color:var(--white); }
+  .btn-run{ max-width:230px; display:flex; align-items:center; justify-content:center; gap:9px; }
+  .spinner{ width:15px; height:15px; border:2px solid rgba(255,255,255,0.4); border-top-color:var(--white); border-radius:50%; animation:spin 700ms linear infinite; display:none; }
+  .btn-run.loading .spinner{ display:inline-block; }
+  .btn-run.loading .btn-run-label::after{ content:"Reconciling…"; }
+  .btn-run .btn-run-label::after{ content:"Run Reconciliation"; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  #recon-results{ margin-top:22px; }
+  .recon-flag-note{ display:flex; gap:10px; align-items:flex-start; background:var(--danger-tint); border:1px solid rgba(162,59,59,0.25); border-radius:var(--radius); padding:14px 16px; margin-bottom:16px; font-size:13px; color:var(--danger); }
+  .recon-flag-note svg{ flex-shrink:0; margin-top:1px; }
+  .recon-flag-note b{ font-weight:700; }
+
+  .file-list{ display:flex; flex-direction:column; }
+  .file-row{ display:flex; align-items:center; gap:14px; padding:14px 4px; border-bottom:1px solid var(--border); }
+  .file-row:last-child{ border-bottom:none; }
+  .file-icon{ width:36px; height:36px; border-radius:8px; background:var(--accent-tint); color:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .file-icon.warn{ background:var(--warning-tint); color:var(--warning); }
+  .file-meta{ flex:1; min-width:0; }
+  .file-name{ font-size:13.5px; font-weight:700; color:var(--ink); font-family:var(--font-data); }
+  .file-desc{ font-size:12px; color:var(--primary); margin-top:1px; }
+  .section-title{ font-size:15px; font-weight:700; color:var(--ink); margin:26px 0 4px; }
+
+  .export-row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px 16px; margin-bottom:18px;
+  }
+  .export-row-text{ display:flex; flex-direction:column; gap:2px; }
+  .export-row-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--primary-soft); font-family:var(--font-data); }
+  .export-row-filename{ font-size:13.5px; font-weight:700; color:var(--ink); }
+  .export-row-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .format-toggle{ display:flex; background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; padding:2px; gap:2px; }
+  .format-option{
+    display:flex; align-items:center; gap:6px; background:none; border:none; border-radius:6px;
+    padding:6px 12px; font-size:12.5px; font-weight:700; font-family:var(--font-data); color:var(--primary);
+    transition:background var(--dur), color var(--dur);
+  }
+  .format-option:hover{ color:var(--accent); }
+  .format-option.active{ background:var(--surface-card); color:var(--accent); box-shadow:0 1px 2px rgba(26,67,118,0.12); }
+
+  .home-upload-card{
+    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    background:linear-gradient(135deg, var(--accent-tint), var(--surface-card)); border:1.5px solid var(--accent);
+    border-radius:12px; padding:22px 26px; margin-top:6px;
+  }
+  .home-upload-title{ font-size:16px; font-weight:700; color:var(--ink); margin-bottom:5px; }
+  .home-upload-desc{ font-size:12.5px; color:var(--primary); max-width:440px; line-height:1.5; }
+  .history-download{ background:none; border:1px solid var(--border); border-radius:6px; padding:5px 11px; font-size:12px; font-weight:700; color:var(--accent); font-family:var(--font-data); }
+  .history-download:hover{ background:var(--accent-tint); border-color:var(--accent); }
+
+  .generate-gate{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    background:var(--warning-tint); border:1px solid rgba(184,134,47,0.35); border-radius:var(--radius);
+    padding:16px 18px; margin-top:20px;
+  }
+  .generate-gate-text{ font-size:12.5px; color:var(--warning); max-width:420px; line-height:1.5; }
+  .generate-gate.done{ background:var(--success-tint); border-color:rgba(47,111,78,0.3); }
+  .generate-gate.done .generate-gate-text{ color:var(--success); }
+
+  @media (max-width:980px){
+    .kpi-row{ grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:880px){
+    .sidebar{ transform:translateX(-100%); box-shadow:0 0 0 2000px rgba(0,0,0,0); }
+    body.sidebar-open .sidebar{ transform:translateX(0); box-shadow:0 0 40px rgba(0,0,0,0.25); }
+    .main{ margin-left:0; }
+    .menu-toggle{ display:flex; }
+    .content{ padding:18px; }
+    .kpi-row{ grid-template-columns:1fr 1fr; }
+    table{ min-width:640px; }
+    .table-card{ overflow-x:auto; }
+  }
+  @media (max-width:520px){
+    .kpi-row{ grid-template-columns:1fr; }
+    .topbar{ padding:0 14px; }
+    .user-info{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN SCREEN ================= -->
+<div id="login-screen">
+  <button class="theme-toggle login-theme-toggle" id="theme-toggle-login" type="button" aria-label="Toggle dark mode">
+    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+  </button>
+  <svg class="arc-bg" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <circle cx="720" cy="60" r="220" fill="none" stroke="#606060" stroke-width="26" stroke-dasharray="720 1382" transform="rotate(20 720 60)" opacity="0.08"/>
+    <circle cx="740" cy="90" r="160" fill="none" stroke="#1A4376" stroke-width="30" stroke-dasharray="540 1005" transform="rotate(10 740 90)" opacity="0.10"/>
+    <circle cx="60" cy="760" r="200" fill="none" stroke="#606060" stroke-width="22" stroke-dasharray="650 1256" transform="rotate(200 60 760)" opacity="0.06"/>
+    <circle cx="90" cy="740" r="140" fill="none" stroke="#1A4376" stroke-width="26" stroke-dasharray="470 880" transform="rotate(195 90 740)" opacity="0.08"/>
+  </svg>
+
+  <div class="login-card">
+    <div class="logo">
+      <svg width="46" height="46" viewBox="0 0 60 60" aria-hidden="true">
+        <circle cx="29" cy="30" r="23" fill="none" stroke="#9a9a9a" stroke-width="6" stroke-dasharray="126 145" transform="rotate(-16 29 30)"/>
+        <circle cx="33" cy="30" r="17" fill="none" stroke="#1A4376" stroke-width="7" stroke-dasharray="88 107" transform="rotate(-20 33 30)"/>
+      </svg>
+      <span class="logo-word">CREST</span>
+    </div>
+    <p class="login-tagline">Bookkeeping &amp; Admin Portal
+      <span class="cjk">后台管理与记账系统</span>
+    </p>
+
+    <form class="login-form" id="login-form">
+      <div class="field">
+        <label for="userid">User ID</label>
+        <input type="text" id="userid" placeholder="e.g. admin01" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="field-input-wrap">
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+          <button type="button" class="pw-toggle" id="toggle-password" aria-label="Show password">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="row-between">
+        <label class="remember"><input type="checkbox" checked /> Remember me</label>
+        <a href="#" class="forgot-link" onclick="return false;">Forgot password?</a>
+      </div>
+      <button type="submit" class="btn-primary">Sign In</button>
+    </form>
+    <div class="login-footer">© 2026 CREST Bookkeeping Portal · v1.0</div>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app-shell" hidden>
+  <aside class="sidebar">
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 60 60" aria-hidden="true">
+        <circle cx="29" cy="30" r="23" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="6" stroke-dasharray="126 145" transform="rotate(-16 29 30)"/>
+        <circle cx="33" cy="30" r="17" fill="none" stroke="#ffffff" stroke-width="7" stroke-dasharray="88 107" transform="rotate(-20 33 30)"/>
+      </svg>
+      <span class="logo-word">CREST</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-panel="panel-company-picker">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <span class="nav-label">Choose Company</span>
+      </button>
+    </nav>
+
+    <div class="nav-group-label" style="margin-top:20px;">Bookkeeping Service</div>
+    <nav class="sidebar-nav">
+      <button class="nav-item" data-panel="panel-company-home">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+        <span class="nav-label">Company Home</span>
+      </button>
+      <button class="nav-item" data-panel="panel-sales">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+        <span class="nav-label">Sales Summary</span>
+      </button>
+      <button class="nav-item" data-panel="panel-bank">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
+        <span class="nav-label">Bank Statement</span>
+      </button>
+      <button class="nav-item" data-panel="panel-purchases">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+        <span class="nav-label">Purchases Bill</span>
+      </button>
+      <button class="nav-item" data-panel="panel-claim">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 8h6M9 12h6"/></svg>
+        <span class="nav-label">Claim Bill</span>
+      </button>
+      <button class="nav-item" data-panel="panel-petty">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14.5 6a6 6 0 0 1 0 12"/><path d="M7 9h4"/></svg>
+        <span class="nav-label">Petty Record</span>
+      </button>
+      <button class="nav-item" data-panel="panel-merchant">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
+        <span class="nav-label">Merchant Report</span>
+      </button>
+    </nav>
+
+    <div class="nav-group-label" style="margin-top:20px;">Tools</div>
+    <nav class="sidebar-nav">
+      <button class="nav-item" data-panel="panel-queue">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="nav-label">Customer Queue</span>
+      </button>
+      <button class="nav-item" data-panel="panel-approvals">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="nav-label">Staff Approvals</span>
+        <span class="nav-badge" id="approvals-nav-badge" hidden>0</span>
+      </button>
+      <button class="nav-item" data-panel="panel-recon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+        <span class="nav-label">Reconciliation</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="sidebar-foot-text">Synced with Bukku</div>
+      <div class="sidebar-foot-text">SQL data store · JB region</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+        <div class="company-search-wrap" id="topbar-search-wrap">
+          <svg class="company-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="topbar-search-input" class="company-search-input" placeholder="Search company…" autocomplete="off" aria-label="Search company" />
+          <div class="company-search-results" id="topbar-search-results" hidden></div>
+        </div>
+        <span class="topbar-date">Saturday, 8 Aug 2026</span>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" id="theme-toggle-app" type="button" aria-label="Toggle dark mode">
+          <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Notifications">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="dot"></span>
+        </button>
+        <div class="divider-v"></div>
+        <div class="user-menu-wrap">
+          <button class="user-trigger" id="user-trigger">
+            <div class="avatar">SA</div>
+            <div class="user-info">
+              <div class="user-name">Siti Aminah</div>
+              <div class="user-role">Admin</div>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="user-menu" id="user-menu">
+            <button type="button" onclick="return false;">Account Settings</button>
+            <button type="button" id="logout-btn">Log Out</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ---- CHOOSE COMPANY (landing page) ---- -->
+      <section class="panel" id="panel-company-picker">
+        <div class="content-header">
+          <h2>Choose a Company</h2>
+          <span class="sub">Search or browse your 50 clients to start working</span>
+        </div>
+
+        <div class="company-search-wrap large" id="landing-search-wrap">
+          <svg class="company-search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="landing-search-input" class="company-search-input" placeholder="Search company name…" autocomplete="off" aria-label="Search company" />
+          <div class="company-search-results" id="landing-search-results" hidden></div>
+        </div>
+
+        <div class="section-title" style="margin-top:0;">All companies</div>
+        <div class="company-grid" id="company-grid"></div>
+      </section>
+
+      <!-- ---- COMPANY HOME (per-company dashboard) ---- -->
+      <section class="panel" id="panel-company-home" hidden>
+        <div class="content-header">
+          <h2 id="home-company-name">Company Home</h2>
+          <span class="sub" id="home-sub">Select a company · monthly overview</span>
+        </div>
+
+        <div class="kpi-row" id="home-kpi-row"></div>
+
+        <div class="home-upload-card" id="home-upload-card">
+          <div class="home-upload-text">
+            <div class="home-upload-title">Upload This Month's Transaction Listing</div>
+            <div class="home-upload-desc">Runs the daily reconciliation and FIFO settlement match, then generates the Bukku Sales &amp; Payment import files.</div>
+          </div>
+          <button type="button" class="btn-primary" id="home-upload-btn" style="width:auto;padding:12px 20px;white-space:nowrap;">Upload &amp; Reconcile →</button>
+        </div>
+
+        <div class="section-title" style="margin-top:26px;">Past batches</div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Month</th><th>Invoices</th><th>Exceptions</th><th>Status</th><th></th></tr></thead>
+            <tbody id="home-history-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- SALES SUMMARY ---- -->
+      <section class="panel" id="panel-sales" hidden>
+        <div class="content-header">
+          <h2>Sales Summary</h2>
+          <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
+        </div>
+
+        <div class="export-row" id="sales-export-row">
+          <div class="export-row-text">
+            <span class="export-row-label">Output file name</span>
+            <span class="export-row-filename num" id="sales-export-filename">—</span>
+          </div>
+          <div class="export-row-actions">
+            <div class="format-toggle" id="sales-format-toggle">
+              <button type="button" class="format-option active" data-format="xlsx">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                Excel
+              </button>
+              <button type="button" class="format-option" data-format="pdf">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                PDF
+              </button>
+            </div>
+            <button type="button" class="btn-ghost" id="sales-export-btn">Download</button>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
+            <div><div class="kpi-label">Today's Gross Sales</div><div class="kpi-value num" id="sales-kpi-today">—</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
+            <div><div class="kpi-label">Payment Settled</div><div class="kpi-value num" id="sales-kpi-settled">—</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+            <div><div class="kpi-label">Unsettled Invoices</div><div class="kpi-value num" id="sales-kpi-pending">—</div></div>
+          </div>
+          <div class="kpi-card kpi-ring-card">
+            <div><div class="kpi-label">Synced to Bukku</div><div class="kpi-value num" id="sales-kpi-ring-text">—</div></div>
+            <div class="ring-wrap">
+              <svg width="56" height="56" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="23" fill="none" style="stroke:var(--accent-tint)" stroke-width="6"/>
+                <circle id="sales-ring-circle" cx="28" cy="28" r="23" fill="none" style="stroke:var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 144"/>
+              </svg>
+              <div class="ring-pct" id="sales-ring-pct">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Invoice No.</th><th>Gross Sales</th><th>Payment Settled</th><th>Petty Cash Out</th><th>Bukku Status</th>
+            </tr></thead>
+            <tbody id="sales-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- BANK STATEMENT ---- -->
+      <section class="panel" id="panel-bank" hidden>
+        <div class="content-header"><h2>Bank Statement</h2><span class="sub" id="bank-sub">Select a company · current account</span></div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Status</th></tr></thead>
+            <tbody id="bank-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- PURCHASES BILL ---- -->
+      <section class="panel" id="panel-purchases" hidden>
+        <div class="content-header"><h2>Purchases Bill</h2><span class="sub" id="purchases-sub">Select a company · supplier invoices</span></div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Invoice No.</th><th>Supplier</th><th>Amount</th><th>Date</th><th>Payment Status</th></tr></thead>
+            <tbody id="purchases-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- CLAIM BILL ---- -->
+      <section class="panel" id="panel-claim" hidden>
+        <div class="content-header"><h2>Claim Bill</h2><span class="sub" id="claim-sub">Select a company · staff reimbursement claims</span></div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Claim No.</th><th>Staff</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody id="claim-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- PETTY RECORD ---- -->
+      <section class="panel" id="panel-petty" hidden>
+        <div class="content-header"><h2>Petty Record</h2><span class="sub" id="petty-sub">Select a company · float log</span></div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Date</th><th>Description</th><th>In</th><th>Out</th><th>Balance</th></tr></thead>
+            <tbody id="petty-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- MERCHANT REPORT ---- -->
+      <section class="panel" id="panel-merchant" hidden>
+        <div class="content-header"><h2>Merchant Report</h2><span class="sub" id="merchant-sub">Select a company · DuitNow / FIUU settlement</span></div>
+
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
+            <div><div class="kpi-label">Total Transactions</div><div class="kpi-value num" id="merchant-kpi-txns">—</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <div><div class="kpi-label">Approved Amount</div><div class="kpi-value num" id="merchant-kpi-approved">—</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+            <div><div class="kpi-label">Gateway Fees</div><div class="kpi-value num" id="merchant-kpi-fees">—</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
+            <div><div class="kpi-label">Net Settlement</div><div class="kpi-value num" id="merchant-kpi-net">—</div></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Date</th><th>Total Txns</th><th>Approved Amt</th><th>Failed / Cancelled</th><th>Gateway Fee</th><th>Net Settlement</th></tr></thead>
+            <tbody id="merchant-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- CUSTOMER QUEUE (staff monitor) ---- -->
+      <section class="panel" id="panel-queue" hidden>
+        <div class="content-header">
+          <h2>Customer Reconciliation Queue</h2>
+          <span class="sub" id="queue-count-sub">50 customers · Jul 2026 cycle</span>
+        </div>
+
+        <div class="kpi-row" id="queue-kpi-row"></div>
+
+        <div class="section-title" style="margin-top:0;">Staff workload</div>
+        <div class="staff-row" id="staff-row"></div>
+
+        <div class="filter-bar">
+          <input type="text" id="queue-search" placeholder="Search customer name…" />
+          <select id="queue-staff-filter"><option value="">All staff</option></select>
+          <select id="queue-status-filter">
+            <option value="">All statuses</option>
+            <option value="Needs Review">Needs Review</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Not Started">Not Started</option>
+            <option value="Completed">Completed</option>
+          </select>
+          <span class="filter-count" id="queue-filter-count"></span>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Customer</th><th>Type</th><th>Assigned Staff</th><th>Input File</th><th>Output Files</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+            <tbody id="queue-tbody"></tbody>
+          </table>
+          <div class="pagination">
+            <span id="queue-page-label"></span>
+            <div class="pagination-btns">
+              <button type="button" id="queue-prev">← Prev</button>
+              <button type="button" id="queue-next">Next →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- STAFF APPROVALS ---- -->
+      <section class="panel" id="panel-approvals" hidden>
+        <div class="content-header">
+          <h2>Staff Approvals</h2>
+          <span class="sub">Assignment change requests · up to 2 staff per client</span>
+        </div>
+
+        <div class="kpi-row" id="approvals-kpi-row"></div>
+
+        <div class="table-card">
+          <table>
+            <thead><tr><th>Company</th><th>Current Staff</th><th>Requested Staff</th><th>Requested By</th><th>Date</th><th>Status</th><th></th></tr></thead>
+            <tbody id="approvals-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- RECONCILIATION (oltdanalysis) ---- -->
+      <section class="panel" id="panel-recon" hidden>
+        <div class="content-header">
+          <h2>Monthly Reconciliation</h2>
+          <span class="sub">DuitNow / FIUU → Bukku import</span>
+        </div>
+
+        <div class="recon-context" id="recon-context">
+          Viewing <b id="recon-context-name">—</b> · assigned to <b id="recon-context-staff">—</b>
+          <button type="button" id="recon-context-clear">Back to TD example</button>
+        </div>
+
+        <div class="recon-card">
+          <div class="recon-step-label">1 · Upload transaction listing</div>
+          <div class="upload-zone" id="upload-zone" tabindex="0" role="button" aria-label="Upload transaction listing workbook">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            <div class="upload-text" id="upload-text">Drop the <strong>TRANSACTION LISTING</strong> workbook here, or <span class="upload-browse">browse</span></div>
+            <div class="upload-hint">.xlsx with a transaction-listing sheet + settlement sheet — found by column headers, not sheet name</div>
+            <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
+          </div>
+
+          <div class="recon-optional-row">
+            <div class="recon-optional-text">
+              <div class="recon-optional-title">Bank statement <span class="recon-optional-tag">Optional</span></div>
+              <div class="recon-optional-desc">Cross-checks the gateway's settlement list against what actually hit the bank, and flags any mismatch.</div>
+            </div>
+            <button type="button" class="btn-ghost" id="bank-stmt-btn">Add bank statement</button>
+          </div>
+          <div class="recon-optional-filename" id="bank-stmt-filename" hidden></div>
+          <input type="file" id="bank-stmt-input" accept=".xlsx,.xls" hidden />
+
+          <button type="button" class="recon-advanced-toggle" id="account-codes-toggle">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            Account codes used for this outlet
+          </button>
+          <div class="account-codes-grid" id="account-codes-grid" hidden>
+            <div><span>Customer Code</span><b>C-C0010</b></div>
+            <div><span>Sales Account</span><b>5012</b></div>
+            <div><span>Fee Account</span><b>9006-02</b></div>
+            <div><span>Deposit Account</span><b>3521-02</b></div>
+            <div><span>Payment Method</span><b>UOB 286</b></div>
+            <div><span>Tag</span><b>TD</b></div>
+            <div><span>Invoice Prefix</span><b>FTD</b></div>
+            <div><span>Receipt Prefix</span><b>RFTD</b></div>
+          </div>
+        </div>
+
+        <div class="recon-card">
+          <div class="recon-step-label">2 · Carryover from previous month</div>
+          <div class="radio-group">
+            <label><input type="radio" name="carryover" checked /> Auto-detect unpaid invoices from last month's SUMMARY.xlsx</label>
+            <label><input type="radio" name="carryover" /> Enter unpaid invoices manually</label>
+            <label><input type="radio" name="carryover" /> First month — no carryover</label>
+          </div>
+        </div>
+
+        <button class="btn-primary btn-run" id="run-recon" type="button">
+          <span class="spinner"></span><span class="btn-run-label"></span>
+        </button>
+
+        <div id="recon-results" hidden>
+
+          <div class="recon-flag-note">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>
+            <div>
+              <b>1 settlement needs review.</b> 08 Aug 2026 — RM 512.30 doesn't cleanly sum to a prefix of the oldest unpaid invoices (closest running total: RM 500.00, gap RM 12.30). FIFO matching stops here, so every later settlement is waiting on this one too. Possible causes: a transaction missing or miscoded in the export, a cancelled/failed attempt whose fee wasn't accounted for, a manual gateway adjustment, or a genuinely partial settlement. Confirm which invoice(s) it covers before this is forced to match.
+            </div>
+          </div>
+
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <div><div class="kpi-label">Settlements Matched</div><div class="kpi-value num">8</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+              <div><div class="kpi-label">Unresolved</div><div class="kpi-value num">1</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
+              <div><div class="kpi-label">Bank-Verified</div><div class="kpi-value num" id="bank-verified-kpi">Not provided</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/></svg></div>
+              <div><div class="kpi-label">Invoices Issued</div><div class="kpi-value num">23</div></div>
+            </div>
+          </div>
+
+          <div class="section-title">Daily summary (Aug 2026)</div>
+          <p class="recon-caption">Invoices numbered FTD-2608-DD · receipts numbered RFTD-2608-NN, FIFO-matched against the oldest unpaid invoices</p>
+          <div class="table-card">
+            <table>
+              <thead><tr><th>Date</th><th>Invoice No.</th><th>Bill Amt</th><th>Txn Fee</th><th>Failed/Cancelled</th><th>Actual Amt</th><th>Settlement</th><th>Receipt No.</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>06 Aug 2026</td><td class="num">FTD-2608-06</td><td class="num">RM 1,240.80</td><td class="num">RM 12.40</td><td class="num">RM 38.00</td><td class="num">RM 1,228.40</td><td class="num">RM 1,228.40</td><td class="num">RFTD-2608-03</td><td><span class="badge matched">Matched</span></td></tr>
+                <tr><td>07 Aug 2026</td><td class="num">FTD-2608-07</td><td class="num">RM 909.80</td><td class="num">RM 8.00</td><td class="num">RM 0.00</td><td class="num">RM 901.80</td><td class="num">RM 905.00</td><td class="num">RFTD-2608-04</td><td><span class="badge matched">Matched</span></td></tr>
+                <tr><td>08 Aug 2026</td><td class="num">FTD-2608-08</td><td class="num">RM 1,246.70</td><td class="num">RM 12.30</td><td class="num">RM 24.00</td><td class="num">RM 1,234.40</td><td class="num">RM 512.30</td><td class="num">—</td><td><span class="badge review">Needs Review</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="generate-gate" id="generate-gate">
+            <div class="generate-gate-text">Review the daily summary above — the flagged item on 08 Aug needs a decision before the Bukku files are generated.</div>
+            <button type="button" class="btn-primary" id="generate-bukku-btn" style="width:auto;padding:11px 20px;white-space:nowrap;">Generate Bukku Templates →</button>
+          </div>
+
+          <div id="bukku-output" hidden>
+            <div class="section-title">Output files</div>
+            <div class="table-card">
+            <div class="file-list">
+              <div class="file-row">
+                <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="file-meta"><div class="file-name" id="output-summary-filename">SUMMARY.xlsx</div><div class="file-desc">24 daily rows · Aug 2026</div></div>
+                <button class="btn-ghost" type="button">Download</button>
+              </div>
+              <div class="file-row">
+                <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="file-meta"><div class="file-name">BUKKU-SALES.xlsx</div><div class="file-desc">23 credit invoices ready to import</div></div>
+                <button class="btn-ghost" type="button">Download</button>
+              </div>
+              <div class="file-row">
+                <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="file-meta"><div class="file-name">BUKKU-PAYMENT.xlsx</div><div class="file-desc">8 receipts ready to import</div></div>
+                <button class="btn-ghost" type="button">Download</button>
+              </div>
+              <div class="file-row">
+                <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="file-meta"><div class="file-name">carryover_next.json</div><div class="file-desc">2 invoices still open into next month</div></div>
+                <button class="btn-ghost" type="button">Download</button>
+              </div>
+              <div class="file-row">
+                <div class="file-icon warn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div>
+                <div class="file-meta"><div class="file-name">flags.json</div><div class="file-desc">1 item needs review</div></div>
+                <button class="btn-ghost" type="button">Download</button>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="assign-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="assign-modal-company">Assign Staff</h3>
+          <div class="modal-sub">Select up to 2 staff. Changes need admin approval before they take effect.</div>
+        </div>
+        <button type="button" class="modal-close" id="assign-modal-close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="assign-current" id="assign-current-staff"></div>
+        <div class="assign-staff-list" id="assign-staff-list"></div>
+        <div class="assign-limit-note" id="assign-limit-note">You can select up to 2 staff for one client.</div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="assign-cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="assign-submit" style="width:auto;padding:10px 18px;">Submit for Approval</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Login -> dashboard
+  document.getElementById('login-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    document.getElementById('login-screen').hidden = true;
+    document.getElementById('app-shell').hidden = false;
+  });
+
+  // Password show/hide
+  document.getElementById('toggle-password').addEventListener('click', function(){
+    var input = document.getElementById('password');
+    var isPw = input.type === 'password';
+    input.type = isPw ? 'text' : 'password';
+    this.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
+  });
+
+  // Sidebar nav switching
+  var navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      navItems.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('.panel').forEach(function(p){ p.hidden = true; });
+      document.getElementById(btn.dataset.panel).hidden = false;
+      document.body.classList.remove('sidebar-open');
+    });
+  });
+
+  // Mobile sidebar toggle
+  document.getElementById('menu-toggle').addEventListener('click', function(){
+    document.body.classList.toggle('sidebar-open');
+  });
+
+  // User menu
+  var userMenu = document.getElementById('user-menu');
+  document.getElementById('user-trigger').addEventListener('click', function(e){
+    e.stopPropagation();
+    userMenu.classList.toggle('open');
+  });
+  document.addEventListener('click', function(e){
+    if(userMenu.classList.contains('open') && !userMenu.contains(e.target)){
+      userMenu.classList.remove('open');
+    }
+  });
+
+  // Logout -> back to login
+  document.getElementById('logout-btn').addEventListener('click', function(){
+    document.getElementById('app-shell').hidden = true;
+    document.getElementById('login-screen').hidden = false;
+    userMenu.classList.remove('open');
+    document.getElementById('login-form').reset();
+  });
+
+  // Dark / light mode
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  document.querySelectorAll('.theme-toggle').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      if(typeof renderStaffRow === 'function') renderStaffRow();
+      if(typeof renderCompanyGrid === 'function') renderCompanyGrid();
+    });
+  });
+  if(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches){
+    applyTheme('dark');
+  }
+
+  // Reconciliation: upload zone
+  var uploadZone = document.getElementById('upload-zone');
+  var fileInput = document.getElementById('file-input');
+  var uploadText = document.getElementById('upload-text');
+
+  function showFile(name){
+    uploadZone.classList.add('has-file');
+    uploadText.innerHTML = '<strong>' + name + '</strong> selected — ready to reconcile';
+  }
+  uploadZone.addEventListener('click', function(){ fileInput.click(); });
+  uploadZone.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change', function(){ if(this.files[0]) showFile(this.files[0].name); });
+  ['dragover','dragenter'].forEach(function(evt){
+    uploadZone.addEventListener(evt, function(e){ e.preventDefault(); uploadZone.classList.add('dragover'); });
+  });
+  ['dragleave','dragend'].forEach(function(evt){
+    uploadZone.addEventListener(evt, function(){ uploadZone.classList.remove('dragover'); });
+  });
+  uploadZone.addEventListener('drop', function(e){
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    if(e.dataTransfer.files[0]) showFile(e.dataTransfer.files[0].name);
+  });
+
+  // Reconciliation: optional bank statement
+  var bankStmtBtn = document.getElementById('bank-stmt-btn');
+  var bankStmtInput = document.getElementById('bank-stmt-input');
+  var bankStmtFilename = document.getElementById('bank-stmt-filename');
+  var bankStatementProvided = false;
+  bankStmtBtn.addEventListener('click', function(){ bankStmtInput.click(); });
+  bankStmtInput.addEventListener('change', function(){
+    if(this.files[0]){
+      bankStatementProvided = true;
+      bankStmtFilename.hidden = false;
+      bankStmtFilename.textContent = this.files[0].name + ' — will cross-check settlements against actual deposits';
+      bankStmtBtn.textContent = 'Replace file';
+    }
+  });
+
+  // Reconciliation: account codes toggle
+  var codesToggle = document.getElementById('account-codes-toggle');
+  var codesGrid = document.getElementById('account-codes-grid');
+  codesToggle.addEventListener('click', function(){
+    var open = codesGrid.hidden;
+    codesGrid.hidden = !open;
+    codesToggle.classList.toggle('open', open);
+  });
+
+  // Reconciliation: run button
+  var runBtn = document.getElementById('run-recon');
+  var reconResults = document.getElementById('recon-results');
+  runBtn.addEventListener('click', function(){
+    if(runBtn.classList.contains('loading')) return;
+    runBtn.classList.add('loading');
+    setTimeout(function(){
+      runBtn.classList.remove('loading');
+      reconResults.hidden = false;
+      document.getElementById('bukku-output').hidden = true;
+      document.getElementById('bank-verified-kpi').textContent = bankStatementProvided ? '8 / 9' : 'Not provided';
+      if(currentCompany){
+        document.getElementById('output-summary-filename').textContent = salesSummaryFileName(currentCompany) + '.xlsx';
+      }
+      var gate = document.getElementById('generate-gate');
+      gate.classList.remove('done');
+      gate.querySelector('.generate-gate-text').textContent = 'Review the daily summary above — the flagged item on 08 Aug needs a decision before the Bukku files are generated.';
+      var genBtn = document.getElementById('generate-bukku-btn');
+      genBtn.disabled = false;
+      genBtn.textContent = 'Generate Bukku Templates →';
+      reconResults.scrollIntoView({ behavior:'smooth', block:'start' });
+    }, 900);
+  });
+
+  document.getElementById('generate-bukku-btn').addEventListener('click', function(){
+    document.getElementById('bukku-output').hidden = false;
+    var gate = document.getElementById('generate-gate');
+    gate.classList.add('done');
+    gate.querySelector('.generate-gate-text').textContent = 'Bukku Sales and Payment templates generated. The flagged item still needs manual confirmation before import.';
+    this.disabled = true;
+    this.textContent = 'Generated ✓';
+    document.getElementById('bukku-output').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+
+  // ============ CUSTOMER QUEUE ============
+  var CUSTOMERS = [{"name":"Larkin Print Solutions","type":"Print & Design","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-46.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"07 Aug 2026"},{"name":"Restoran Mount Austin","type":"Restaurant","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-12.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"07 Aug 2026"},{"name":"Salon Cantik Taman Sentosa","type":"Hair Salon","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-05.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"Taman Pelangi Auto Works","type":"Motor Workshop","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-40.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"Century Garden Bakery & Confectionery","type":"Bakery","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-19.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Gelang Patah Print Solutions","type":"Print & Design","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-10.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"05 Aug 2026"},{"name":"Pasir Gudang Learning Centre","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-06.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Restoran Adda Heights","type":"Restaurant","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-24.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Restoran Senai","type":"Restaurant","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-36.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"07 Aug 2026"},{"name":"Salon Cantik Pasir Gudang","type":"Hair Salon","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-29.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Setia Tropika Pet Care","type":"Pet Grooming","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-09.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"08 Aug 2026"},{"name":"Skudai Print Solutions","type":"Print & Design","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-34.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"07 Aug 2026"},{"name":"Stulang Coffee House","type":"Caf\u00e9","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-50.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"08 Aug 2026"},{"name":"TD - Senai","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-13.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"04 Aug 2026"},{"name":"TD - Ulu Tiram","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-01.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"Taman Perling Coffee House","type":"Caf\u00e9","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-26.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"04 Aug 2026"},{"name":"Austin Heights Bakery & Confectionery","type":"Bakery","staff":["Priya Suresh"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"Bukit Indah Coffee House","type":"Caf\u00e9","staff":["Nurul Huda"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"Iskandar Puteri Bakery & Confectionery","type":"Bakery","staff":["Ahmad Faiz"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"02 Aug 2026"},{"name":"Adda Heights Convenience Store","type":"Convenience Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-47.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Austin Heights Hardware Sdn Bhd","type":"Hardware Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-20.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Century Garden Learning Centre","type":"Tuition Centre","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-42.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"05 Aug 2026"},{"name":"Gelang Patah Pet Care","type":"Pet Grooming","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-33.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Iskandar Puteri Learning Centre","type":"Tuition Centre","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-30.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Kulai Bakery & Confectionery","type":"Bakery","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-31.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Kulai Hardware Sdn Bhd","type":"Hardware Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-08.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Larkin Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-23.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"05 Aug 2026"},{"name":"Mount Austin Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-35.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Nusa Bestari Coffee House","type":"Caf\u00e9","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-14.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Permas Jaya Learning Centre","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-18.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Restoran Ulu Tiram","type":"Restaurant","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-48.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Salon Cantik Permas Jaya","type":"Hair Salon","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-41.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Salon Cantik Taman Pelangi","type":"Hair Salon","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-17.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Setia Tropika Hardware Sdn Bhd","type":"Hardware Store","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-32.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Skudai Convenience Store","type":"Convenience Store","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-11.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Stulang Auto Works","type":"Motor Workshop","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-04.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Stulang Mini Mart","type":"Mini Market","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-27.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"TD - Bukit Indah","type":"Self-Service Laundry","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-25.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"TD - Nusa Bestari","type":"Self-Service Laundry","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-37.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"TD - Taman Perling","type":"Self-Service Laundry","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-49.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Daya Pet Care","type":"Pet Grooming","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-45.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Taman Daya Print Solutions","type":"Print & Design","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-22.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Molek Hardware Sdn Bhd","type":"Hardware Store","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-44.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Taman Molek Pet Care","type":"Pet Grooming","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-21.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"Taman Perling Mini Mart","type":"Mini Market","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-03.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"Taman Sentosa Auto Works","type":"Motor Workshop","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-28.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tampoi Coffee House","type":"Caf\u00e9","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-38.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tampoi Mini Mart","type":"Mini Market","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-15.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"Tebrau Auto Works","type":"Motor Workshop","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-16.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"04 Aug 2026"},{"name":"Tebrau Mini Mart","type":"Mini Market","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-39.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"06 Aug 2026"},{"name":"MINIFISH SDN BHD","type":"Trading & Supply","staff":["Nurul Huda"],"input":"TRANSACTION-JUL2026-58.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"INVIRO CLEANING SDN BHD","type":"Cleaning Service","staff":["Chen Wei Ming"],"input":"TRANSACTION-JUL2026-59.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"06 Aug 2026"},{"name":"OWN LAUNDRY SDN BHD","type":"Self-Service Laundry (HQ)","staff":["Nurul Huda","Ahmad Faiz"],"input":"TRANSACTION-JUL2026-60.xlsx","outReady":1,"outTotal":3,"status":"Needs Review","updated":"08 Aug 2026"},{"name":"OWN MARKET SDN BHD","type":"Market / Retail","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-61.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"},{"name":"DIDIK MULIA SDN BHD","type":"Tuition Centre","staff":["Ahmad Faiz"],"input":"TRANSACTION-JUL2026-62.xlsx","outReady":0,"outTotal":3,"status":"In Progress","updated":"05 Aug 2026"},{"name":"WEALTHY CC HOUSE (M) SDN  BHD","type":"Clubhouse / Recreation","staff":["Chen Wei Ming"],"input":null,"outReady":0,"outTotal":3,"status":"Not Started","updated":"01 Aug 2026"},{"name":"SK AUTO DETAILING (M) SDN BHD","type":"Auto Detailing","staff":["Priya Suresh"],"input":"TRANSACTION-JUL2026-63.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"08 Aug 2026"},{"name":"SK AUTO DETAILING PERMAS SDN BHD","type":"Auto Detailing","staff":["Priya Suresh","Chen Wei Ming"],"input":"TRANSACTION-JUL2026-64.xlsx","outReady":3,"outTotal":3,"status":"Completed","updated":"07 Aug 2026"}];
+
+  var STATUS_CLASS = { "Completed":"completed", "In Progress":"inprogress", "Needs Review":"needsreview", "Not Started":"notstarted" };
+  var STAFF_COLOR_LIGHT = { "Nurul Huda":"#1A4376", "Chen Wei Ming":"#2f6f4e", "Ahmad Faiz":"#b8862f", "Priya Suresh":"#a23b3b" };
+  var STAFF_COLOR_DARK = { "Nurul Huda":"#5fa2de", "Chen Wei Ming":"#6fc492", "Ahmad Faiz":"#e2ac5f", "Priya Suresh":"#e58888" };
+  function staffColor(name){
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var palette = isDark ? STAFF_COLOR_DARK : STAFF_COLOR_LIGHT;
+    return palette[name] || (isDark ? '#bcc5cd' : '#606060');
+  }
+
+  function initials(name){
+    return name.split(' ').map(function(w){ return w[0]; }).join('').slice(0,2).toUpperCase();
+  }
+
+  // ============ STAFF ASSIGNMENT + APPROVAL WORKFLOW ============
+  var ASSIGNMENT_REQUESTS = [
+    { id:1, company:"TD - Senai", currentStaff:["Nurul Huda"], requestedStaff:["Nurul Huda","Chen Wei Ming"], requestedBy:"Siti Aminah (Admin)", date:"07 Aug 2026", status:"Pending" },
+    { id:2, company:"Restoran Senai", currentStaff:["Priya Suresh"], requestedStaff:["Ahmad Faiz"], requestedBy:"Siti Aminah (Admin)", date:"06 Aug 2026", status:"Pending" },
+    { id:3, company:"Kulai Hardware Sdn Bhd", currentStaff:["Chen Wei Ming"], requestedStaff:["Chen Wei Ming","Ahmad Faiz"], requestedBy:"Siti Aminah (Admin)", date:"03 Aug 2026", status:"Rejected" }
+  ];
+  var requestIdCounter = 4;
+
+  function pendingRequestFor(company){
+    return ASSIGNMENT_REQUESTS.find(function(r){ return r.company === company && r.status === 'Pending'; }) || null;
+  }
+
+  function renderNavBadge(){
+    var count = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Pending'; }).length;
+    var badge = document.getElementById('approvals-nav-badge');
+    if(count > 0){ badge.hidden = false; badge.textContent = count; }
+    else { badge.hidden = true; }
+  }
+
+  function renderApprovals(){
+    var pending = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Pending'; }).length;
+    var approved = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Approved'; }).length;
+    var rejected = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Rejected'; }).length;
+    document.getElementById('approvals-kpi-row').innerHTML =
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Pending Requests</div><div class="kpi-value num">' + pending + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Approved</div><div class="kpi-value num">' + approved + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div><div><div class="kpi-label">Rejected</div><div class="kpi-value num">' + rejected + '</div></div></div>';
+
+    var tbody = document.getElementById('approvals-tbody');
+    var sorted = ASSIGNMENT_REQUESTS.slice().sort(function(a,b){
+      var order = { "Pending":0, "Approved":1, "Rejected":1 };
+      return order[a.status] - order[b.status] || (b.id - a.id);
+    });
+    if(sorted.length === 0){
+      tbody.innerHTML = emptyRowSafe(7, 'No assignment requests yet.');
+    } else {
+      tbody.innerHTML = sorted.map(function(r){
+        var badgeClass = r.status === 'Pending' ? 'inprogress' : (r.status === 'Approved' ? 'approved' : 'rejected');
+        var actions = r.status === 'Pending'
+          ? '<div class="approval-actions"><button type="button" class="approval-approve" data-approve="' + r.id + '">Approve</button><button type="button" class="approval-reject" data-reject="' + r.id + '">Reject</button></div>'
+          : '';
+        return '<tr>' +
+          '<td>' + r.company + '</td>' +
+          '<td class="num">' + r.currentStaff.join(', ') + '</td>' +
+          '<td class="num">' + r.requestedStaff.join(', ') + '</td>' +
+          '<td>' + r.requestedBy + '</td>' +
+          '<td class="num">' + r.date + '</td>' +
+          '<td><span class="badge ' + badgeClass + '">' + r.status + '</span></td>' +
+          '<td>' + actions + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+    tbody.querySelectorAll('[data-approve]').forEach(function(btn){
+      btn.addEventListener('click', function(){ resolveRequest(Number(btn.dataset.approve), 'Approved'); });
+    });
+    tbody.querySelectorAll('[data-reject]').forEach(function(btn){
+      btn.addEventListener('click', function(){ resolveRequest(Number(btn.dataset.reject), 'Rejected'); });
+    });
+    renderNavBadge();
+  }
+
+  function emptyRowSafe(colspan, msg){
+    return '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--primary-soft);padding:26px;">' + msg + '</td></tr>';
+  }
+
+  function resolveRequest(id, outcome){
+    var req = ASSIGNMENT_REQUESTS.find(function(r){ return r.id === id; });
+    if(!req) return;
+    req.status = outcome;
+    if(outcome === 'Approved'){
+      var cust = CUSTOMERS.find(function(c){ return c.name === req.company; });
+      if(cust) cust.staff = req.requestedStaff.slice();
+    }
+    renderApprovals();
+    renderQueueTable();
+    renderStaffRow();
+    renderCompanyGridSafe();
+  }
+
+  function renderCompanyGridSafe(){
+    if(typeof renderCompanyGrid === 'function' && document.getElementById('company-grid')){ renderCompanyGrid(); }
+  }
+
+  var assignModalCompany = null;
+  var assignModalSelected = [];
+
+  function openAssignModal(company){
+    var cust = CUSTOMERS.find(function(c){ return c.name === company; });
+    if(!cust) return;
+    assignModalCompany = company;
+    assignModalSelected = cust.staff.slice();
+
+    document.getElementById('assign-modal-company').textContent = 'Assign Staff — ' + company;
+    document.getElementById('assign-current-staff').innerHTML = cust.staff.map(function(s){
+      return '<span class="assign-current-chip">Currently: ' + s + '</span>';
+    }).join('');
+
+    renderAssignStaffList();
+    document.getElementById('assign-modal-backdrop').hidden = false;
+  }
+
+  function renderAssignStaffList(){
+    var list = document.getElementById('assign-staff-list');
+    var atLimit = assignModalSelected.length >= 2;
+    list.innerHTML = STAFF_ROSTER.map(function(name){
+      var checked = assignModalSelected.indexOf(name) !== -1;
+      var disabled = atLimit && !checked;
+      var color = staffColor(name);
+        '<input type="checkbox" value="' + name + '" ' + (checked ? 'checked' : '') + (disabled ? ' disabled' : '') + ' />' +
+        '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(name) + '</div>' +
+        '<span class="assign-staff-row-name">' + name + '</span>' +
+      '</label>';
+    }).join('');
+    list.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        if(cb.checked){
+          if(assignModalSelected.length < 2) assignModalSelected.push(cb.value);
+        } else {
+          assignModalSelected = assignModalSelected.filter(function(n){ return n !== cb.value; });
+        }
+        renderAssignStaffList();
+      });
+    });
+    document.getElementById('assign-limit-note').textContent =
+      assignModalSelected.length >= 2 ? 'Maximum of 2 staff selected.' : 'You can select up to 2 staff for one client.';
+  }
+
+  function closeAssignModal(){
+    document.getElementById('assign-modal-backdrop').hidden = true;
+    assignModalCompany = null;
+    assignModalSelected = [];
+  }
+
+  document.getElementById('assign-modal-close').addEventListener('click', closeAssignModal);
+  document.getElementById('assign-cancel').addEventListener('click', closeAssignModal);
+  document.getElementById('assign-modal-backdrop').addEventListener('click', function(e){
+    if(e.target === this) closeAssignModal();
+  });
+  document.getElementById('assign-submit').addEventListener('click', function(){
+    if(!assignModalCompany || assignModalSelected.length === 0) return;
+    var cust = CUSTOMERS.find(function(c){ return c.name === assignModalCompany; });
+    ASSIGNMENT_REQUESTS.push({
+      id: requestIdCounter++,
+      company: assignModalCompany,
+      currentStaff: cust ? cust.staff.slice() : [],
+      requestedStaff: assignModalSelected.slice(),
+      requestedBy: "Siti Aminah (Admin)",
+      date: "08 Aug 2026",
+      status: "Pending"
+    });
+    closeAssignModal();
+    renderApprovals();
+    renderQueueTable();
+    renderNavBadge();
+  });
+
+  renderApprovals();
+
+  function renderKpiRow(){
+    var total = CUSTOMERS.length;
+    var counts = { "Completed":0, "In Progress":0, "Needs Review":0, "Not Started":0 };
+    CUSTOMERS.forEach(function(c){ counts[c.status]++; });
+    var el = document.getElementById('queue-kpi-row');
+    el.innerHTML =
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="kpi-label">Total Customers</div><div class="kpi-value num">' + total + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Completed</div><div class="kpi-value num">' + counts['Completed'] + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">In Progress</div><div class="kpi-value num">' + counts['In Progress'] + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">Needs Review</div><div class="kpi-value num">' + counts['Needs Review'] + '</div></div></div>';
+  }
+
+  function renderStaffRow(){
+    var byStaff = {};
+    CUSTOMERS.forEach(function(c){
+      c.staff.forEach(function(name){
+        byStaff[name] = byStaff[name] || { total:0, Completed:0, "In Progress":0, "Needs Review":0, "Not Started":0 };
+        byStaff[name].total++;
+        byStaff[name][c.status]++;
+      });
+    });
+    var el = document.getElementById('staff-row');
+    el.innerHTML = '';
+    Object.keys(byStaff).sort().forEach(function(name){
+      var s = byStaff[name];
+      var color = staffColor(name);
+      var pct = function(n){ return (n / s.total * 100).toFixed(1); };
+      var reviewNote = s['Needs Review'] > 0 ? (s['Needs Review'] + ' need review') : 'all clear';
+      var card = document.createElement('div');
+      card.className = 'staff-card';
+      card.innerHTML =
+        '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(name) + '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="staff-card-name">' + name + '</div>' +
+          '<div class="staff-card-count">' + s.total + ' customers · ' + reviewNote + '</div>' +
+          '<div class="staff-card-bar">' +
+            '<span style="width:' + pct(s.Completed) + '%; background:var(--success);"></span>' +
+            '<span style="width:' + pct(s['In Progress']) + '%; background:var(--warning);"></span>' +
+            '<span style="width:' + pct(s['Needs Review']) + '%; background:var(--danger);"></span>' +
+            '<span style="width:' + pct(s['Not Started']) + '%; background:var(--primary-soft);"></span>' +
+          '</div>' +
+        '</div>';
+      el.appendChild(card);
+    });
+  }
+
+  function populateStaffFilter(){
+    var sel = document.getElementById('queue-staff-filter');
+    var all = CUSTOMERS.reduce(function(acc, c){ return acc.concat(c.staff); }, []);
+    var names = Array.from(new Set(all)).sort();
+    names.forEach(function(n){
+      var opt = document.createElement('option');
+      opt.value = n; opt.textContent = n;
+      sel.appendChild(opt);
+    });
+  }
+
+  var queuePage = 1;
+  var PAGE_SIZE = 10;
+
+  function getFiltered(){
+    var q = document.getElementById('queue-search').value.trim().toLowerCase();
+    var staff = document.getElementById('queue-staff-filter').value;
+    var status = document.getElementById('queue-status-filter').value;
+    return CUSTOMERS.filter(function(c){
+      if(q && c.name.toLowerCase().indexOf(q) === -1) return false;
+      if(staff && c.staff.indexOf(staff) === -1) return false;
+      if(status && c.status !== status) return false;
+      return true;
+    });
+  }
+
+  function fileCellHtml(c){
+    if(!c.input){
+      return '<span class="file-cell missing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Not uploaded</span>';
+    }
+    return '<span class="file-cell"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>' + c.input + '</span>';
+  }
+
+  function renderQueueTable(){
+    var filtered = getFiltered();
+    var totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if(queuePage > totalPages) queuePage = totalPages;
+    var start = (queuePage - 1) * PAGE_SIZE;
+    var pageRows = filtered.slice(start, start + PAGE_SIZE);
+
+    var tbody = document.getElementById('queue-tbody');
+    if(pageRows.length === 0){
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--primary-soft);padding:26px;">No customers match this filter.</td></tr>';
+    } else {
+      tbody.innerHTML = pageRows.map(function(c){
+        var badgeClass = STATUS_CLASS[c.status];
+        var outLabel = c.status === 'Not Started' ? '—' : (c.outReady + ' / ' + c.outTotal + ' ready');
+        var pending = pendingRequestFor(c.name);
+        var staffLabel = c.staff.join(', ') + (pending ? ' <span class="badge inprogress" style="margin-left:4px;">Pending change</span>' : '');
+        return '<tr>' +
+          '<td>' + c.name + '</td>' +
+          '<td class="num">' + c.type + '</td>' +
+          '<td>' + staffLabel + '</td>' +
+          '<td>' + fileCellHtml(c) + '</td>' +
+          '<td class="num">' + outLabel + '</td>' +
+          '<td><span class="badge ' + badgeClass + '">' + c.status + '</span></td>' +
+          '<td class="num">' + c.updated + '</td>' +
+          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">View</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">Assign</button></div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    document.getElementById('queue-filter-count').textContent = filtered.length + ' of ' + CUSTOMERS.length + ' customers';
+    document.getElementById('queue-page-label').textContent =
+      filtered.length === 0 ? 'No results' :
+      ('Showing ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, filtered.length) + ' of ' + filtered.length);
+    document.getElementById('queue-prev').disabled = queuePage <= 1;
+    document.getElementById('queue-next').disabled = queuePage >= totalPages;
+
+    tbody.querySelectorAll('[data-view]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var cust = CUSTOMERS.find(function(c){ return c.name === btn.dataset.view; });
+        if(!cust) return;
+        document.getElementById('recon-context-name').textContent = cust.name;
+        document.getElementById('recon-context-staff').textContent = cust.staff.join(', ');
+        document.getElementById('recon-context').classList.add('visible');
+        selectCompany(cust.name, { navigate: false });
+        var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
+        if(reconNav) reconNav.click();
+      });
+    });
+
+    tbody.querySelectorAll('[data-assign]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        openAssignModal(btn.dataset.assign);
+      });
+    });
+  }
+
+  document.getElementById('queue-search').addEventListener('input', function(){ queuePage = 1; renderQueueTable(); });
+  document.getElementById('queue-staff-filter').addEventListener('change', function(){ queuePage = 1; renderQueueTable(); });
+  document.getElementById('queue-status-filter').addEventListener('change', function(){ queuePage = 1; renderQueueTable(); });
+  document.getElementById('queue-prev').addEventListener('click', function(){ if(queuePage > 1){ queuePage--; renderQueueTable(); } });
+  document.getElementById('queue-next').addEventListener('click', function(){ queuePage++; renderQueueTable(); });
+  document.getElementById('recon-context-clear').addEventListener('click', function(){
+    document.getElementById('recon-context').classList.remove('visible');
+  });
+
+  renderKpiRow();
+  renderStaffRow();
+  populateStaffFilter();
+  renderQueueTable();
+
+  // ============ MASTER COMPANY FILTER (Bookkeeping Service panels) ============
+  var currentCompany = "";
+
+  function money(n){
+    var sign = n < 0 ? '-' : '';
+    return sign + 'RM ' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  }
+  function round2(n){ return Math.round(n * 100) / 100; }
+  function emptyRow(colspan, msg){
+    return '<tr><td colspan="' + colspan + '" style="text-align:center;color:var(--primary-soft);padding:26px;">' + msg + '</td></tr>';
+  }
+  function hashStr(str){
+    var h = 0;
+    for(var i=0;i<str.length;i++){ h = (Math.imul(31,h) + str.charCodeAt(i)) | 0; }
+    return h;
+  }
+  function mulberry32(seed){
+    var a = seed;
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function rngFor(company, panel){ return mulberry32(hashStr(company + '::' + panel)); }
+  function invoicePrefix(company){
+    var letters = company.replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).map(function(w){ return w[0]; }).join('').toUpperCase();
+    return (letters.slice(0,3) || 'INV');
+  }
+  function customerRecord(company){
+    return CUSTOMERS.find(function(c){ return c.name === company; });
+  }
+
+  // Master company short-name list, uploaded by the user (MASTER_COMPANY_SHORT_NAME.xlsx)
+  var COMPANY_SHORT_NAMES = {
+    "MINIFISH SDN BHD": "MF",
+    "INVIRO CLEANING SDN BHD": "INVIRO",
+    "OWN LAUNDRY SDN BHD": "OL",
+    "OWN MARKET SDN BHD": "OM",
+    "DIDIK MULIA SDN BHD": "DM",
+    "WEALTHY CC HOUSE (M) SDN  BHD": "WCCHMSB",
+    "SK AUTO DETAILING (M) SDN BHD": "SKMSB",
+    "SK AUTO DETAILING PERMAS SDN BHD": "SKPSB"
+  };
+  var CURRENT_PERIOD = { yyyy: '2026', mm: '08' };
+
+  function shortNameFor(company){
+    var key = company.trim().toUpperCase().replace(/\s+/g, ' ');
+    for(var full in COMPANY_SHORT_NAMES){
+      if(full.trim().toUpperCase().replace(/\s+/g, ' ') === key) return COMPANY_SHORT_NAMES[full];
+    }
+    return invoicePrefix(company);
+  }
+
+  function salesSummaryFileName(company){
+    return shortNameFor(company) + '-SALES SUMMARY-' + CURRENT_PERIOD.yyyy + '_' + CURRENT_PERIOD.mm;
+  }
+
+  var salesExportFormat = 'xlsx';
+  document.querySelectorAll('#sales-format-toggle .format-option').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('#sales-format-toggle .format-option').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      salesExportFormat = btn.dataset.format;
+      renderSales();
+    });
+  });
+
+  var DATE_POOL = ['04 Aug 2026','05 Aug 2026','06 Aug 2026','07 Aug 2026','08 Aug 2026'];
+
+  function genSales(company){
+    var rng = rngFor(company, 'sales');
+    var base = 150 + rng() * 420;
+    var prefix = invoicePrefix(company);
+    var rows = DATE_POOL.map(function(d, i){
+      var gross = round2(base * (0.65 + rng() * 0.7));
+      var isToday = i === DATE_POOL.length - 1;
+      var synced = rng() > (isToday ? 0.55 : 0.12);
+      var settled = synced ? round2(gross - rng() * 4) : (rng() > 0.5 ? round2(gross * rng() * 0.5) : 0);
+      var pettyOut = round2(rng() * 15);
+      return { date:d, invoice: prefix + '-' + (1000 + i*7 + Math.floor(rng()*80)), gross:gross, settled:settled, pettyOut:pettyOut, status: synced ? 'Synced' : 'Pending' };
+    });
+    var today = rows[rows.length - 1];
+    var unsettled = rows.filter(function(r){ return r.status === 'Pending'; }).length;
+    var syncedPct = Math.round((rows.length - unsettled) / rows.length * 100);
+    return { todayGross: today.gross, settledToday: today.settled, unsettled: unsettled, syncedPct: syncedPct, rows: rows };
+  }
+
+  function renderSales(){
+    var sub = document.getElementById('sales-sub');
+    var tbody = document.getElementById('sales-tbody');
+    var ring = document.getElementById('sales-ring-circle');
+    var filenameEl = document.getElementById('sales-export-filename');
+    if(!currentCompany){
+      sub.textContent = 'Select a company · Aug 2026';
+      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its sales records.');
+      ['sales-kpi-today','sales-kpi-settled','sales-kpi-pending','sales-kpi-ring-text','sales-ring-pct'].forEach(function(id){ document.getElementById(id).textContent = '—'; });
+      ring.setAttribute('stroke-dasharray', '0 144.5');
+      filenameEl.textContent = '—';
+      return;
+    }
+    sub.textContent = currentCompany + ' · Aug 2026';
+    filenameEl.textContent = salesSummaryFileName(currentCompany) + '.' + salesExportFormat;
+    var d = genSales(currentCompany);
+    document.getElementById('sales-kpi-today').textContent = money(d.todayGross);
+    document.getElementById('sales-kpi-settled').textContent = money(d.settledToday);
+    document.getElementById('sales-kpi-pending').textContent = d.unsettled;
+    document.getElementById('sales-kpi-ring-text').textContent = d.syncedPct + '%';
+    document.getElementById('sales-ring-pct').textContent = d.syncedPct + '%';
+    var circumference = 144.5;
+    ring.setAttribute('stroke-dasharray', (d.syncedPct/100*circumference).toFixed(1) + ' ' + circumference);
+    tbody.innerHTML = d.rows.map(function(r){
+      return '<tr><td>' + r.date + '</td><td class="num">' + r.invoice + '</td><td class="num">' + money(r.gross) + '</td><td class="num">' + money(r.settled) + '</td><td class="num">' + money(r.pettyOut) + '</td><td><span class="badge ' + (r.status === 'Synced' ? 'synced' : 'pending') + '">' + r.status + '</span></td></tr>';
+    }).join('');
+  }
+
+  function genBank(company){
+    var rng = rngFor(company, 'bank');
+    var balance = 8000 + rng() * 22000;
+    var rows = [];
+    DATE_POOL.slice(1).forEach(function(d){
+      if(rng() > 0.3){
+        var credit = round2(300 + rng() * 1800);
+        balance = round2(balance + credit);
+        rows.push({ date:d, desc:'DuitNow Settlement — FIUU', debit:null, credit:credit, balance:balance, status: rng() > 0.15 ? 'Matched' : 'Unmatched' });
+      }
+      if(rng() > 0.55){
+        var debit = round2(20 + rng() * 550);
+        balance = round2(balance - debit);
+        rows.push({ date:d, desc: rng() > 0.5 ? 'Supplier Payment' : 'Bank Charges', debit:debit, credit:null, balance:balance, status:'Matched' });
+      }
+    });
+    return { rows: rows };
+  }
+
+  function renderBank(){
+    var sub = document.getElementById('bank-sub');
+    var tbody = document.getElementById('bank-tbody');
+    if(!currentCompany){
+      sub.textContent = 'Select a company · current account';
+      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its bank statement.');
+      return;
+    }
+    sub.textContent = currentCompany + ' · current account';
+    var d = genBank(currentCompany);
+    if(d.rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No bank activity this period.'); return; }
+    tbody.innerHTML = d.rows.map(function(r){
+      return '<tr><td>' + r.date + '</td><td>' + r.desc + '</td><td class="num">' + (r.debit ? money(r.debit) : '—') + '</td><td class="num">' + (r.credit ? money(r.credit) : '—') + '</td><td class="num">' + money(r.balance) + '</td><td><span class="badge ' + (r.status === 'Matched' ? 'matched' : 'unmatched') + '">' + r.status + '</span></td></tr>';
+    }).join('');
+  }
+
+  var SUPPLIERS = ['ABC Supplies Sdn Bhd','JB Trading Co','Prime Distributors','Sinar Wholesale Sdn Bhd','Delta Packaging'];
+
+  function genPurchases(company){
+    var rng = rngFor(company, 'purchases');
+    var count = 3 + Math.floor(rng() * 3);
+    var rows = [];
+    for(var i=0;i<count;i++){
+      rows.push({
+        inv: 'INV-' + (4000 + Math.floor(rng()*900)),
+        supplier: SUPPLIERS[Math.floor(rng()*SUPPLIERS.length)],
+        amount: round2(80 + rng()*900),
+        date: DATE_POOL[Math.floor(rng()*DATE_POOL.length)],
+        status: rng() > 0.4 ? 'Paid' : 'Unpaid'
+      });
+    }
+    return { rows: rows };
+  }
+
+  function renderPurchases(){
+    var sub = document.getElementById('purchases-sub');
+    var tbody = document.getElementById('purchases-tbody');
+    if(!currentCompany){
+      sub.textContent = 'Select a company · supplier invoices';
+      tbody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its purchase bills.');
+      return;
+    }
+    sub.textContent = currentCompany + ' · supplier invoices';
+    var d = genPurchases(currentCompany);
+    tbody.innerHTML = d.rows.map(function(r){
+      return '<tr><td class="num">' + r.inv + '</td><td>' + r.supplier + '</td><td class="num">' + money(r.amount) + '</td><td>' + r.date + '</td><td><span class="badge ' + (r.status === 'Paid' ? 'paid' : 'unpaid') + '">' + r.status + '</span></td></tr>';
+    }).join('');
+  }
+
+  var CLAIM_CATEGORIES = ['Transport','Equipment Repair','Utilities','Cleaning Supplies','Stationery','Meals'];
+  var STAFF_ROSTER = ['Nurul Huda','Chen Wei Ming','Ahmad Faiz','Priya Suresh'];
+
+  function genClaim(company){
+    var rng = rngFor(company, 'claim');
+    var rec = customerRecord(company);
+    var staffName = rec ? rec.staff[Math.floor(rng()*rec.staff.length)] : STAFF_ROSTER[Math.floor(rng()*STAFF_ROSTER.length)];
+    var count = 2 + Math.floor(rng() * 3);
+    var rows = [];
+    for(var i=0;i<count;i++){
+      rows.push({
+        claimNo: 'CLM-' + (5000 + Math.floor(rng()*900)),
+        staff: staffName,
+        category: CLAIM_CATEGORIES[Math.floor(rng()*CLAIM_CATEGORIES.length)],
+        amount: round2(20 + rng()*220),
+        date: DATE_POOL[Math.floor(rng()*DATE_POOL.length)],
+        status: rng() > 0.35 ? 'Approved' : 'Pending'
+      });
+    }
+    return { rows: rows, staff: staffName };
+  }
+
+  function renderClaim(){
+    var sub = document.getElementById('claim-sub');
+    var tbody = document.getElementById('claim-tbody');
+    if(!currentCompany){
+      sub.textContent = 'Select a company · staff reimbursement claims';
+      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its claim bills.');
+      return;
+    }
+    var d = genClaim(currentCompany);
+    sub.textContent = currentCompany + ' · handled by ' + d.staff;
+    tbody.innerHTML = d.rows.map(function(r){
+      return '<tr><td class="num">' + r.claimNo + '</td><td>' + r.staff + '</td><td>' + r.category + '</td><td class="num">' + money(r.amount) + '</td><td>' + r.date + '</td><td><span class="badge ' + (r.status === 'Approved' ? 'approved' : 'pending') + '">' + r.status + '</span></td></tr>';
+    }).join('');
+  }
+
+  var PETTY_DESC = ['Float top-up','Cleaning supplies','Minor repair','Postage & courier','Parking / toll','Stationery'];
+
+  function genPetty(company){
+    var rng = rngFor(company, 'petty');
+    var balance = round2(50 + rng() * 150);
+    var rows = [];
+    DATE_POOL.forEach(function(d){
+      if(rng() > 0.4){
+        var isIn = rng() > 0.7;
+        var amt = round2(isIn ? (50 + rng()*100) : (5 + rng()*40));
+        balance = round2(isIn ? balance + amt : balance - amt);
+        rows.push({ date:d, desc: isIn ? 'Float top-up' : PETTY_DESC[1 + Math.floor(rng()*(PETTY_DESC.length-1))], amtIn: isIn ? amt : null, amtOut: isIn ? null : amt, balance: balance });
+      }
+    });
+    return { rows: rows };
+  }
+
+  function renderPetty(){
+    var sub = document.getElementById('petty-sub');
+    var tbody = document.getElementById('petty-tbody');
+    if(!currentCompany){
+      sub.textContent = 'Select a company · float log';
+      tbody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its petty cash record.');
+      return;
+    }
+    sub.textContent = currentCompany + ' · float log';
+    var d = genPetty(currentCompany);
+    if(d.rows.length === 0){ tbody.innerHTML = emptyRow(5, 'No petty cash movement this period.'); return; }
+    tbody.innerHTML = d.rows.map(function(r){
+      return '<tr><td>' + r.date + '</td><td>' + r.desc + '</td><td class="num">' + (r.amtIn ? money(r.amtIn) : '—') + '</td><td class="num">' + (r.amtOut ? money(r.amtOut) : '—') + '</td><td class="num">' + money(r.balance) + '</td></tr>';
+    }).join('');
+  }
+
+  function genMerchant(company){
+    var rng = rngFor(company, 'merchant');
+    var rows = [];
+    var totalTxns=0, totalApproved=0, totalFees=0, totalNet=0;
+    DATE_POOL.forEach(function(d){
+      var txns = 5 + Math.floor(rng()*40);
+      var approved = round2(txns * (15 + rng()*25));
+      var failed = round2(rng()*40);
+      var fee = round2(approved * 0.0086);
+      var net = round2(approved - fee);
+      totalTxns += txns; totalApproved += approved; totalFees += fee; totalNet += net;
+      rows.push({ date:d, txns:txns, approved:approved, failed:failed, fee:fee, net:net });
+    });
+    return { rows:rows, totalTxns:totalTxns, totalApproved:round2(totalApproved), totalFees:round2(totalFees), totalNet:round2(totalNet) };
+  }
+
+  function renderMerchant(){
+    var sub = document.getElementById('merchant-sub');
+    var tbody = document.getElementById('merchant-tbody');
+    if(!currentCompany){
+      sub.textContent = 'Select a company · DuitNow / FIUU settlement';
+      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its merchant report.');
+      ['merchant-kpi-txns','merchant-kpi-approved','merchant-kpi-fees','merchant-kpi-net'].forEach(function(id){ document.getElementById(id).textContent = '—'; });
+      return;
+    }
+    sub.textContent = currentCompany + ' · DuitNow / FIUU settlement';
+    var d = genMerchant(currentCompany);
+    document.getElementById('merchant-kpi-txns').textContent = d.totalTxns;
+    document.getElementById('merchant-kpi-approved').textContent = money(d.totalApproved);
+    document.getElementById('merchant-kpi-fees').textContent = money(d.totalFees);
+    document.getElementById('merchant-kpi-net').textContent = money(d.totalNet);
+    tbody.innerHTML = d.rows.map(function(r){
+      return '<tr><td>' + r.date + '</td><td class="num">' + r.txns + '</td><td class="num">' + money(r.approved) + '</td><td class="num">' + money(r.failed) + '</td><td class="num">' + money(r.fee) + '</td><td class="num">' + money(r.net) + '</td></tr>';
+    }).join('');
+  }
+
+  var MONTH_POOL = ['May 2026','Jun 2026','Jul 2026'];
+
+  function genCompanyHome(company){
+    var rng = rngFor(company, 'home');
+    var sales = genSales(company);
+    var monthlyRevenue = round2(sales.rows.reduce(function(s,r){ return s + r.gross; }, 0) * 6);
+    var settled = round2(sales.rows.reduce(function(s,r){ return s + r.settled; }, 0) * 6);
+    var unsettled = round2(Math.max(0, monthlyRevenue - settled));
+    var exceptions = sales.unsettled;
+    var history = MONTH_POOL.map(function(m){
+      var invoices = 18 + Math.floor(rng()*14);
+      var exc = rng() > 0.7 ? 1 + Math.floor(rng()*2) : 0;
+      var status = exc > 0 && m === MONTH_POOL[MONTH_POOL.length-1] ? 'Needs Review' : 'Completed';
+      return { month:m, invoices:invoices, exceptions:exc, status:status };
+    });
+    return { monthlyRevenue:monthlyRevenue, settled:settled, unsettled:unsettled, exceptions:exceptions, history:history };
+  }
+
+  function renderCompanyHome(){
+    var nameEl = document.getElementById('home-company-name');
+    var subEl = document.getElementById('home-sub');
+    var kpiRow = document.getElementById('home-kpi-row');
+    var historyBody = document.getElementById('home-history-tbody');
+    if(!currentCompany){
+      nameEl.textContent = 'Company Home';
+      subEl.textContent = 'Select a company · monthly overview';
+      kpiRow.innerHTML = '';
+      historyBody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its dashboard.');
+      return;
+    }
+    var d = genCompanyHome(currentCompany);
+    nameEl.textContent = currentCompany;
+    subEl.textContent = 'Monthly overview · Aug 2026';
+    kpiRow.innerHTML =
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><div><div class="kpi-label">Monthly Revenue</div><div class="kpi-value num">' + money(d.monthlyRevenue) + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Settled</div><div class="kpi-value num">' + money(d.settled) + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Unsettled</div><div class="kpi-value num">' + money(d.unsettled) + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">Exceptions</div><div class="kpi-value num">' + d.exceptions + '</div></div></div>';
+    historyBody.innerHTML = d.history.map(function(h){
+      var badgeClass = h.status === 'Completed' ? 'completed' : 'needsreview';
+      return '<tr><td>' + h.month + '</td><td class="num">' + h.invoices + '</td><td class="num">' + h.exceptions + '</td><td><span class="badge ' + badgeClass + '">' + h.status + '</span></td><td><button type="button" class="history-download">Download</button></td></tr>';
+    }).join('');
+  }
+
+  document.getElementById('home-upload-btn').addEventListener('click', function(){
+    var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
+    if(reconNav) reconNav.click();
+  });
+
+  function renderAllCompanyPanels(){
+    renderCompanyHome();
+    renderSales();
+    renderBank();
+    renderPurchases();
+    renderClaim();
+    renderPetty();
+    renderMerchant();
+  }
+
+  // ============ COMPANY SEARCH (typeahead) + LANDING GRID ============
+  function matchesQuery(name, q){
+    return name.toLowerCase().indexOf(q) !== -1;
+  }
+
+  function setupTypeahead(inputId, resultsId){
+    var input = document.getElementById(inputId);
+    var results = document.getElementById(resultsId);
+    var highlighted = -1;
+    var currentMatches = [];
+
+    function closeResults(){
+      results.hidden = true;
+      results.innerHTML = '';
+      highlighted = -1;
+    }
+
+    function openResults(matches){
+      currentMatches = matches;
+      highlighted = -1;
+      if(matches.length === 0){
+        results.innerHTML = '<div class="company-search-empty">No company matches that search.</div>';
+      } else {
+        results.innerHTML = matches.map(function(c, i){
+          return '<div class="company-search-item" data-idx="' + i + '"><span class="company-search-item-name">' + c.name + '</span><span class="company-search-item-type">' + c.type + '</span></div>';
+        }).join('');
+      }
+      results.hidden = false;
+      results.querySelectorAll('.company-search-item').forEach(function(el){
+        el.addEventListener('mousedown', function(e){
+          e.preventDefault();
+          var idx = Number(el.dataset.idx);
+          selectCompany(currentMatches[idx].name, { navigate: true });
+          closeResults();
+          input.value = currentMatches[idx].name;
+          input.blur();
+        });
+      });
+    }
+
+    input.addEventListener('input', function(){
+      var q = input.value.trim().toLowerCase();
+      if(q.length === 0){ closeResults(); return; }
+      var matches = CUSTOMERS.filter(function(c){ return matchesQuery(c.name, q); }).slice(0, 8);
+      openResults(matches);
+    });
+
+    input.addEventListener('focus', function(){
+      if(input.value.trim().length > 0){
+        var q = input.value.trim().toLowerCase();
+        var matches = CUSTOMERS.filter(function(c){ return matchesQuery(c.name, q); }).slice(0, 8);
+        openResults(matches);
+      }
+    });
+
+    input.addEventListener('keydown', function(e){
+      if(results.hidden || currentMatches.length === 0) return;
+      var items = results.querySelectorAll('.company-search-item');
+      if(e.key === 'ArrowDown'){
+        e.preventDefault();
+        highlighted = Math.min(highlighted + 1, items.length - 1);
+        items.forEach(function(el,i){ el.classList.toggle('highlighted', i === highlighted); });
+      } else if(e.key === 'ArrowUp'){
+        e.preventDefault();
+        highlighted = Math.max(highlighted - 1, 0);
+        items.forEach(function(el,i){ el.classList.toggle('highlighted', i === highlighted); });
+      } else if(e.key === 'Enter'){
+        e.preventDefault();
+        if(highlighted >= 0 && currentMatches[highlighted]){
+          selectCompany(currentMatches[highlighted].name, { navigate: true });
+          input.value = currentMatches[highlighted].name;
+          closeResults();
+          input.blur();
+        }
+      } else if(e.key === 'Escape'){
+        closeResults();
+        input.blur();
+      }
+    });
+
+    document.addEventListener('click', function(e){
+      if(!results.hidden && !input.contains(e.target) && !results.contains(e.target)){
+        closeResults();
+      }
+    });
+
+    return { close: closeResults, setValue: function(v){ input.value = v; } };
+  }
+
+  function renderCompanyGrid(){
+    var grid = document.getElementById('company-grid');
+    grid.innerHTML = CUSTOMERS.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).map(function(c){
+      var color = staffColor(c.staff[0]);
+      return '<div class="company-card" data-company="' + c.name.replace(/"/g,'&quot;') + '">' +
+        '<div class="company-card-name">' + c.name + '</div>' +
+        '<div class="company-card-type">' + c.type + '</div>' +
+        '<div class="company-card-foot">' +
+          '<div class="company-card-staff"><div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(c.staff[0]) + '</div>' + c.staff.join(', ') + '</div>' +
+          '<span class="badge ' + STATUS_CLASS[c.status] + '">' + c.status + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    grid.querySelectorAll('[data-company]').forEach(function(card){
+      card.addEventListener('click', function(){
+        selectCompany(card.dataset.company, { navigate: true });
+      });
+    });
+  }
+
+  var topbarTypeahead, landingTypeahead;
+
+  function selectCompany(name, opts){
+    opts = opts || {};
+    currentCompany = name;
+    if(topbarTypeahead) topbarTypeahead.setValue(name);
+    if(landingTypeahead) landingTypeahead.setValue(name);
+    renderAllCompanyPanels();
+    if(opts.navigate){
+      var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
+      if(homeNav) homeNav.click();
+    }
+  }
+
+  topbarTypeahead = setupTypeahead('topbar-search-input', 'topbar-search-results');
+  landingTypeahead = setupTypeahead('landing-search-input', 'landing-search-results');
+  renderCompanyGrid();
+  renderAllCompanyPanels();
+</script>
+</body>
+</html>

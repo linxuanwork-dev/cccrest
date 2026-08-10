@@ -572,7 +572,7 @@
       <span class="logo-word">CC CREST</span>
     </div>
 
-    <nav class="sidebar-nav" id="nav-group-choose" data-roles="admin staff">
+    <nav class="sidebar-nav" id="nav-group-choose" data-roles="admin staff manager">
       <button class="nav-item active" data-panel="panel-company-picker">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <span class="nav-label" data-i18n="nav_choose_company">Choose Company</span>
@@ -580,7 +580,7 @@
     </nav>
 
     <div class="nav-group-label" style="margin-top:20px;" data-i18n="nav_group_bookkeeping">Bookkeeping Service</div>
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" id="nav-group-bookkeeping">
       <button class="nav-item" data-panel="panel-company-home">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
         <span class="nav-label" data-i18n="nav_company_home">Company Home</span>
@@ -611,8 +611,17 @@
       </button>
     </nav>
 
-    <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff" style="margin-top:20px;" data-i18n="nav_group_tools">Tools</div>
-    <nav class="sidebar-nav" id="nav-group-tools" data-roles="admin staff">
+    <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff manager" style="margin-top:20px;" data-i18n="nav_group_tools">Tools</div>
+    <nav class="sidebar-nav" id="nav-group-tools" data-roles="admin staff manager">
+      <button class="nav-item" data-panel="panel-workflow" data-roles="admin">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        <span class="nav-label" data-i18n="nav_workflow">Workflow</span>
+      </button>
+      <button class="nav-item" data-panel="panel-myjobs" data-roles="admin staff manager">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><rect x="3" y="5" width="14" height="16" rx="2"/></svg>
+        <span class="nav-label" data-i18n="nav_my_jobs">My Jobs</span>
+        <span class="nav-badge" id="myjobs-nav-badge" hidden>0</span>
+      </button>
       <button class="nav-item" data-panel="panel-queue" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="nav-label" data-i18n="nav_customer_queue">Customer Queue</span>
@@ -622,7 +631,7 @@
         <span class="nav-label" data-i18n="nav_staff_approvals">Staff Approvals</span>
         <span class="nav-badge" id="approvals-nav-badge" hidden>0</span>
       </button>
-      <button class="nav-item" data-panel="panel-recon" data-roles="admin staff">
+      <button class="nav-item" data-panel="panel-recon" data-roles="admin staff manager">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
         <span class="nav-label" data-i18n="nav_reconciliation">Reconciliation</span>
       </button>
@@ -644,7 +653,7 @@
         <button class="menu-toggle" id="menu-toggle" data-i18n-aria="toggle_nav" aria-label="Toggle navigation">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
-        <div class="company-search-wrap" id="topbar-search-wrap" data-roles="admin staff">
+        <div class="company-search-wrap" id="topbar-search-wrap" data-roles="admin staff manager">
           <svg class="company-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="text" id="topbar-search-input" class="company-search-input" data-i18n-placeholder="search_company" placeholder="Search company…" autocomplete="off" data-i18n-aria="search_company" aria-label="Search company" />
           <div class="company-search-results" id="topbar-search-results" hidden></div>
@@ -858,6 +867,67 @@
             <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_total_txns">Total Txns</th><th data-i18n="th_approved_amt">Approved Amt</th><th data-i18n="th_failed_cancelled">Failed / Cancelled</th><th data-i18n="th_gateway_fee">Gateway Fee</th><th data-i18n="th_net_settlement">Net Settlement</th></tr></thead>
             <tbody id="merchant-tbody"></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- ---- WORKFLOW (owner-only progress dashboard) ---- -->
+      <section class="panel" id="panel-workflow" hidden>
+        <div class="content-header">
+          <h2 data-i18n="h_workflow">Workflow &amp; Progress</h2>
+          <span class="sub" data-i18n="sub_workflow">Staff and manager progress across all clients · Owner only</span>
+        </div>
+
+        <div class="section-title" style="margin-top:0;" data-i18n="staff_progress">Staff progress</div>
+        <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_staff">Staff</th><th data-i18n="th_assigned_clients">Assigned Clients</th><th data-i18n="th_outstanding">Outstanding</th><th data-i18n="th_completed">Completed</th><th data-i18n="th_access">Access</th></tr></thead>
+            <tbody id="workflow-staff-tbody"></tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div class="section-title" style="margin:0;" data-i18n="managers">Managers</div>
+          <button type="button" class="btn-ghost" id="add-manager-btn" data-i18n="add_manager_btn">+ Add Manager</button>
+        </div>
+        <div class="table-card" style="overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_manager">Manager</th><th data-i18n="th_team">Team</th><th data-i18n="th_team_outstanding">Team Outstanding</th><th></th></tr></thead>
+            <tbody id="workflow-managers-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- MY JOBS (outstanding work + reminders) ---- -->
+      <section class="panel" id="panel-myjobs" hidden>
+        <div class="content-header">
+          <h2 data-i18n="nav_my_jobs">My Jobs</h2>
+          <span class="sub" data-i18n="sub_my_jobs">Your outstanding work and reminders</span>
+        </div>
+
+        <div class="section-title" style="margin-top:0;" data-i18n="my_outstanding_jobs">My outstanding jobs</div>
+        <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_company">Company</th><th data-i18n="th_status">Status</th><th data-i18n="th_updated">Updated</th><th data-i18n="th_reminders">Reminders</th></tr></thead>
+            <tbody id="myjobs-mine-tbody"></tbody>
+          </table>
+        </div>
+
+        <div id="myjobs-team-section" data-roles="admin manager">
+          <div class="section-title" style="margin-top:0;" data-i18n="my_team">My team</div>
+          <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
+            <table>
+              <thead><tr><th data-i18n="th_staff">Staff</th><th data-i18n="th_assigned_clients">Assigned Clients</th><th data-i18n="th_client_limit">Client Limit</th><th data-i18n="th_access">Access</th><th></th></tr></thead>
+              <tbody id="myjobs-team-staff-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="section-title" style="margin-top:0;" data-i18n="team_outstanding_jobs">Team outstanding jobs</div>
+          <div class="table-card" style="overflow-x:auto;">
+            <table>
+              <thead><tr><th data-i18n="th_staff">Staff</th><th data-i18n="th_company">Company</th><th data-i18n="th_status">Status</th><th data-i18n="th_updated">Updated</th><th></th></tr></thead>
+              <tbody id="myjobs-team-jobs-tbody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -1104,6 +1174,81 @@
       </div>
     </div>
   </div>
+
+  <div class="modal-backdrop" id="manager-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 data-i18n="add_manager_title">Add Manager</h3>
+          <div class="modal-sub" data-i18n="add_manager_sub">Create a login for a new manager account.</div>
+        </div>
+        <button type="button" class="modal-close" id="manager-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="manager-display-name" data-i18n="field_display_name">Display Name</label>
+          <input type="text" id="manager-display-name" placeholder="e.g. Aisha Rahman" />
+        </div>
+        <div class="field">
+          <label for="manager-login-id" data-i18n="field_login_id">Login ID</label>
+          <input type="text" id="manager-login-id" placeholder="e.g. aisha-rahman" />
+        </div>
+        <div class="field">
+          <label for="manager-password" data-i18n="field_password">Password</label>
+          <input type="password" id="manager-password" placeholder="••••••••" />
+        </div>
+        <div id="manager-modal-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="manager-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="manager-submit" style="width:auto;padding:10px 18px;" data-i18n="create_btn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="team-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="team-modal-manager" data-i18n="edit_team_title">Edit Team</h3>
+          <div class="modal-sub" data-i18n="edit_team_sub">Select which staff report to this manager.</div>
+        </div>
+        <button type="button" class="modal-close" id="team-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="assign-staff-list" id="team-staff-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="team-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="team-submit" style="width:auto;padding:10px 18px;" data-i18n="save_btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="features-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="features-modal-company" data-i18n="company_features_title">Client Feature Access</h3>
+          <div class="modal-sub" data-i18n="company_features_sub">Choose which panels this client can see when they log in.</div>
+        </div>
+        <button type="button" class="modal-close" id="features-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="assign-staff-list" id="features-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="features-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="features-submit" style="width:auto;padding:10px 18px;" data-i18n="save_btn">Save</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1127,13 +1272,19 @@
       document.getElementById('topbar-user-name').textContent = profile.companyName;
       document.getElementById('topbar-user-role').textContent = t('role_client');
       currentCompany = profile.companyName;
+      var enabled = profile.enabledFeatures || [];
+      document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
+        btn.hidden = enabled.indexOf(btn.dataset.panel) === -1;
+      });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
-      var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
-      if(homeNav) homeNav.click();
+      var firstEnabled = document.querySelector('#nav-group-bookkeeping .nav-item[data-panel]:not([hidden])');
+      if(firstEnabled) firstEnabled.click();
     } else {
       document.getElementById('topbar-avatar').textContent = initials(profile.displayName);
       document.getElementById('topbar-user-name').textContent = profile.displayName;
-      document.getElementById('topbar-user-role').textContent = role === 'admin' ? t('role_admin') : t('role_staff');
+      document.getElementById('topbar-user-role').textContent =
+        role === 'admin' ? t('role_admin') : role === 'manager' ? t('role_manager') : t('role_staff');
+      document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){ btn.hidden = false; });
       var pickerNav = document.querySelector('.nav-item[data-panel="panel-company-picker"]');
       if(pickerNav) pickerNav.click();
     }
@@ -1284,7 +1435,21 @@
       selected_ready_suffix:"selected — ready to reconcile",
       will_crosscheck_suffix:" — will cross-check settlements against actual deposits",
       replace_file:"Replace file",
-      login_error_hint:" — staff/admin use your assigned login ID; clients use their company code."
+      login_error_hint:" — staff/admin use your assigned login ID; clients use their company code.",
+      nav_workflow:"Workflow", nav_my_jobs:"My Jobs",
+      h_workflow:"Workflow & Progress", sub_workflow:"Staff and manager progress across all clients · Owner only",
+      staff_progress:"Staff progress", th_outstanding:"Outstanding", th_completed:"Completed",
+      managers:"Managers", add_manager_btn:"+ Add Manager", th_manager:"Manager", th_team:"Team", th_team_outstanding:"Team Outstanding",
+      sub_my_jobs:"Your outstanding work and reminders", my_outstanding_jobs:"My outstanding jobs", th_reminders:"Reminders",
+      my_team:"My team", team_outstanding_jobs:"Team outstanding jobs",
+      add_manager_title:"Add Manager", add_manager_sub:"Create a login for a new manager account.",
+      field_display_name:"Display Name", field_login_id:"Login ID", create_btn:"Create",
+      edit_team_title:"Edit Team", edit_team_sub:"Select which staff report to this manager.",
+      company_features_title:"Client Feature Access", company_features_sub:"Choose which panels this client can see when they log in.",
+      role_manager:"Manager", features_btn:"Features", send_reminder_btn:"Remind", acknowledge_btn:"Acknowledge",
+      no_outstanding_jobs:"No outstanding jobs — all caught up!", no_managers_yet:"No managers yet.",
+      reminder_prompt:"Add a note for this reminder (optional):", acknowledged_label:"Acknowledged",
+      reminded_by_prefix:"Reminder from"
     },
     zh: {
       ac_customer_code:"客户代码", ac_deposit_account:"存款账户", ac_fee_account:"手续费账户",
@@ -1399,7 +1564,21 @@
       selected_ready_suffix:"已选择 — 可开始对账",
       will_crosscheck_suffix:" — 将与实际入账进行核对",
       replace_file:"更换文件",
-      login_error_hint:" — 员工/管理员请使用您的登录账号；客户请使用您的公司代码。"
+      login_error_hint:" — 员工/管理员请使用您的登录账号；客户请使用您的公司代码。",
+      nav_workflow:"工作流程", nav_my_jobs:"我的任务",
+      h_workflow:"工作流程与进度", sub_workflow:"所有客户的员工与经理进度 · 仅限东主查看",
+      staff_progress:"员工进度", th_outstanding:"未完成", th_completed:"已完成",
+      managers:"经理", add_manager_btn:"+ 添加经理", th_manager:"经理", th_team:"团队", th_team_outstanding:"团队未完成",
+      sub_my_jobs:"您的未完成工作与提醒", my_outstanding_jobs:"我的未完成工作", th_reminders:"提醒",
+      my_team:"我的团队", team_outstanding_jobs:"团队未完成工作",
+      add_manager_title:"添加经理", add_manager_sub:"为新经理账户创建登录信息。",
+      field_display_name:"显示名称", field_login_id:"登录账号", create_btn:"创建",
+      edit_team_title:"编辑团队", edit_team_sub:"选择向该经理汇报的员工。",
+      company_features_title:"客户功能权限", company_features_sub:"选择该客户登录后可查看的功能页面。",
+      role_manager:"经理", features_btn:"功能", send_reminder_btn:"提醒", acknowledge_btn:"已知悉",
+      no_outstanding_jobs:"没有未完成工作 — 全部完成！", no_managers_yet:"暂无经理。",
+      reminder_prompt:"为此提醒添加备注（可选）：", acknowledged_label:"已确认",
+      reminded_by_prefix:"提醒来自"
     }
   };
 
@@ -1465,6 +1644,10 @@
       renderApprovals();
       renderStaffLimits();
       renderActivityLog();
+      renderWorkflow();
+    }
+    if(CURRENT_ROLE === 'admin' || CURRENT_ROLE === 'manager' || CURRENT_ROLE === 'staff'){
+      renderMyJobs();
     }
   }
 
@@ -2042,7 +2225,7 @@
           '<td class="num">' + outLabel + '</td>' +
           '<td><span class="badge ' + badgeClass + '">' + statusLabel(c.status) + '</span></td>' +
           '<td class="num">' + c.updated + '</td>' +
-          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">' + t('view_btn') + '</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">' + t('assign_btn') + '</button></div></td>' +
+          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">' + t('view_btn') + '</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">' + t('assign_btn') + '</button><button type="button" class="btn-row" data-features="' + c.name.replace(/"/g,'&quot;') + '">' + t('features_btn') + '</button></div></td>' +
         '</tr>';
       }).join('');
     }
@@ -2074,6 +2257,12 @@
         openAssignModal(btn.dataset.assign);
       });
     });
+
+    tbody.querySelectorAll('[data-features]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        openFeaturesModal(btn.dataset.features);
+      });
+    });
   }
 
   document.getElementById('queue-search').addEventListener('input', function(){ queuePage = 1; renderQueueTable(); });
@@ -2101,7 +2290,8 @@
           outReady: ready,
           outTotal: 3,
           status: c.status || 'Not Started',
-          updated: formatDate(c.updated_at)
+          updated: formatDate(c.updated_at),
+          enabledFeatures: c.enabled_features
         };
       });
       return COMPANIES;
@@ -2482,6 +2672,250 @@
   topbarTypeahead = setupTypeahead('topbar-search-input', 'topbar-search-results');
   landingTypeahead = setupTypeahead('landing-search-input', 'landing-search-results');
 
+  // ============ WORKFLOW (owner-only) ============
+  function renderWorkflow(){
+    var staffTbody = document.getElementById('workflow-staff-tbody');
+    if(!staffTbody || CURRENT_ROLE !== 'admin') return;
+    api('/workflow/overview').then(function(data){
+      staffTbody.innerHTML = data.staff.length === 0 ? emptyRowSafe(5, '—') : data.staff.map(function(s){
+        return '<tr>' +
+          '<td>' + s.name + '</td>' +
+          '<td class="num">' + s.assigned_count + '</td>' +
+          '<td class="num">' + s.outstanding_count + '</td>' +
+          '<td class="num">' + s.completed_count + '</td>' +
+          '<td><span class="badge ' + (s.active ? 'approved' : 'rejected') + '">' + (s.active ? t('status_active') : t('status_suspended')) + '</span></td>' +
+        '</tr>';
+      }).join('');
+
+      var mgrTbody = document.getElementById('workflow-managers-tbody');
+      if(data.managers.length === 0){
+        mgrTbody.innerHTML = emptyRowSafe(4, t('no_managers_yet'));
+      } else {
+        mgrTbody.innerHTML = data.managers.map(function(m){
+          return '<tr>' +
+            '<td>' + m.display_name + '</td>' +
+            '<td class="num">' + (m.team_names.length ? m.team_names.join(', ') : '—') + '</td>' +
+            '<td class="num">' + m.team_outstanding + ' / ' + m.team_assigned + '</td>' +
+            '<td><button type="button" class="btn-row" data-edit-team="' + m.id + '" data-manager-name="' + String(m.display_name).replace(/"/g,'&quot;') + '">' + t('edit_team_title') + '</button></td>' +
+          '</tr>';
+        }).join('');
+        mgrTbody.querySelectorAll('[data-edit-team]').forEach(function(btn){
+          btn.addEventListener('click', function(){ openTeamModal(btn.dataset.editTeam, btn.dataset.managerName); });
+        });
+      }
+    });
+  }
+
+  document.getElementById('add-manager-btn').addEventListener('click', function(){
+    document.getElementById('manager-display-name').value = '';
+    document.getElementById('manager-login-id').value = '';
+    document.getElementById('manager-password').value = '';
+    document.getElementById('manager-modal-error').hidden = true;
+    document.getElementById('manager-modal-backdrop').hidden = false;
+  });
+  function closeManagerModal(){ document.getElementById('manager-modal-backdrop').hidden = true; }
+  document.getElementById('manager-modal-close').addEventListener('click', closeManagerModal);
+  document.getElementById('manager-cancel').addEventListener('click', closeManagerModal);
+  document.getElementById('manager-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeManagerModal(); });
+  document.getElementById('manager-submit').addEventListener('click', function(){
+    var displayName = document.getElementById('manager-display-name').value.trim();
+    var loginId = document.getElementById('manager-login-id').value.trim();
+    var password = document.getElementById('manager-password').value;
+    var errEl = document.getElementById('manager-modal-error');
+    if(!displayName || !loginId || !password){
+      errEl.textContent = t('field_display_name') + ' / ' + t('field_login_id') + ' / ' + t('field_password') + ' — all required.';
+      errEl.hidden = false;
+      return;
+    }
+    var btn = this;
+    btn.disabled = true;
+    api('/managers', { method:'POST', body: JSON.stringify({ loginId:loginId, password:password, displayName:displayName }) })
+      .then(function(){ closeManagerModal(); renderWorkflow(); renderActivityLog(); })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  var teamModalManagerId = null;
+  function openTeamModal(managerId, managerName){
+    teamModalManagerId = managerId;
+    document.getElementById('team-modal-manager').textContent = t('edit_team_title') + ' — ' + managerName;
+    Promise.all([api('/staff'), api('/managers')]).then(function(results){
+      var allStaff = results[0];
+      var managers = results[1];
+      var mgr = managers.find(function(m){ return String(m.id) === String(managerId); });
+      var currentTeamIds = mgr ? mgr.team_staff_ids : [];
+      var list = document.getElementById('team-staff-list');
+      list.innerHTML = allStaff.map(function(s){
+        var checked = currentTeamIds.indexOf(s.id) !== -1;
+        var color = staffColor(s.name);
+        return '<label class="assign-staff-row">' +
+          '<input type="checkbox" value="' + s.id + '" ' + (checked ? 'checked' : '') + ' />' +
+          '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(s.name) + '</div>' +
+          '<span class="assign-staff-row-name">' + s.name + '</span>' +
+        '</label>';
+      }).join('');
+      document.getElementById('team-modal-backdrop').hidden = false;
+    });
+  }
+  function closeTeamModal(){ document.getElementById('team-modal-backdrop').hidden = true; teamModalManagerId = null; }
+  document.getElementById('team-modal-close').addEventListener('click', closeTeamModal);
+  document.getElementById('team-cancel').addEventListener('click', closeTeamModal);
+  document.getElementById('team-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeTeamModal(); });
+  document.getElementById('team-submit').addEventListener('click', function(){
+    if(!teamModalManagerId) return;
+    var ids = Array.from(document.querySelectorAll('#team-staff-list input:checked')).map(function(cb){ return Number(cb.value); });
+    var btn = this;
+    btn.disabled = true;
+    api('/managers/' + teamModalManagerId + '/team', { method:'PUT', body: JSON.stringify({ staffIds: ids }) })
+      .then(function(){ closeTeamModal(); renderWorkflow(); renderActivityLog(); })
+      .catch(function(err){ alert(err.message); })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // ============ COMPANY FEATURE ACCESS (owner-only) ============
+  var FEATURE_PANELS = [
+    { key:'panel-company-home', labelKey:'nav_company_home' },
+    { key:'panel-sales', labelKey:'nav_sales_summary' },
+    { key:'panel-bank', labelKey:'nav_bank_statement' },
+    { key:'panel-purchases', labelKey:'nav_purchases_bill' },
+    { key:'panel-claim', labelKey:'nav_claim_bill' },
+    { key:'panel-petty', labelKey:'nav_petty_record' },
+    { key:'panel-merchant', labelKey:'nav_merchant_report' }
+  ];
+  var featuresModalCompanyId = null;
+  function openFeaturesModal(companyName){
+    var company = COMPANIES.find(function(c){ return c.name === companyName; });
+    if(!company) return;
+    featuresModalCompanyId = company.id;
+    document.getElementById('features-modal-company').textContent = t('company_features_title') + ' — ' + company.name;
+    var enabled = company.enabledFeatures || FEATURE_PANELS.map(function(f){ return f.key; });
+    var list = document.getElementById('features-list');
+    list.innerHTML = FEATURE_PANELS.map(function(f){
+      var checked = enabled.indexOf(f.key) !== -1;
+      return '<label class="assign-staff-row"><input type="checkbox" value="' + f.key + '" ' + (checked ? 'checked' : '') + ' /><span class="assign-staff-row-name">' + t(f.labelKey) + '</span></label>';
+    }).join('');
+    document.getElementById('features-modal-backdrop').hidden = false;
+  }
+  function closeFeaturesModal(){ document.getElementById('features-modal-backdrop').hidden = true; featuresModalCompanyId = null; }
+  document.getElementById('features-modal-close').addEventListener('click', closeFeaturesModal);
+  document.getElementById('features-cancel').addEventListener('click', closeFeaturesModal);
+  document.getElementById('features-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeFeaturesModal(); });
+  document.getElementById('features-submit').addEventListener('click', function(){
+    if(!featuresModalCompanyId) return;
+    var enabled = Array.from(document.querySelectorAll('#features-list input:checked')).map(function(cb){ return cb.value; });
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + featuresModalCompanyId + '/features', { method:'PATCH', body: JSON.stringify({ enabledFeatures: enabled }) })
+      .then(function(){ closeFeaturesModal(); loadCompanies(); renderActivityLog(); })
+      .catch(function(err){ alert(err.message); })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // ============ MY JOBS (staff / manager / admin) ============
+  function jobStatusBadgeClass(status){
+    if(status === 'Needs Review') return 'needsreview';
+    if(status === 'In Progress') return 'inprogress';
+    return 'notstarted';
+  }
+
+  function renderJobReminders(reminders){
+    if(!reminders || reminders.length === 0) return '—';
+    return reminders.map(function(r){
+      var unacked = !r.acknowledged_at;
+      var style = unacked ? 'color:var(--danger);font-weight:700;' : 'color:var(--primary-soft);';
+      var ackBtn = (unacked && CURRENT_ROLE === 'staff')
+        ? ' <button type="button" class="btn-row" data-ack-reminder="' + r.id + '" style="padding:2px 8px;font-size:11px;">' + t('acknowledge_btn') + '</button>'
+        : (!unacked ? ' (' + t('acknowledged_label') + ')' : '');
+      return '<div style="' + style + '">' + t('reminded_by_prefix') + ' ' + r.sent_by + (r.note ? ': ' + r.note : '') + ackBtn + '</div>';
+    }).join('');
+  }
+
+  function renderMyJobs(){
+    var mineTbody = document.getElementById('myjobs-mine-tbody');
+    if(!mineTbody) return;
+    api('/workflow/my-jobs').then(function(data){
+      var badge = document.getElementById('myjobs-nav-badge');
+      var unackCount = data.mine.reduce(function(n, j){ return n + j.reminders.filter(function(r){ return !r.acknowledged_at; }).length; }, 0);
+      if(unackCount > 0){ badge.hidden = false; badge.textContent = unackCount; } else { badge.hidden = true; }
+
+      if(data.mine.length === 0){
+        mineTbody.innerHTML = emptyRowSafe(4, t('no_outstanding_jobs'));
+      } else {
+        mineTbody.innerHTML = data.mine.map(function(j){
+          return '<tr>' +
+            '<td>' + j.company_name + '</td>' +
+            '<td><span class="badge ' + jobStatusBadgeClass(j.status) + '">' + statusLabel(j.status || 'Not Started') + '</span></td>' +
+            '<td class="num">' + formatDate(j.updated_at) + '</td>' +
+            '<td>' + renderJobReminders(j.reminders) + '</td>' +
+          '</tr>';
+        }).join('');
+        mineTbody.querySelectorAll('[data-ack-reminder]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            api('/workflow/reminders/' + btn.dataset.ackReminder + '/acknowledge', { method:'POST' })
+              .then(function(){ renderMyJobs(); })
+              .catch(function(err){ alert(err.message); });
+          });
+        });
+      }
+
+      if(CURRENT_ROLE !== 'manager' && CURRENT_ROLE !== 'admin') return;
+
+      var teamJobsTbody = document.getElementById('myjobs-team-jobs-tbody');
+      var flatJobs = [];
+      data.team.forEach(function(member){
+        member.jobs.forEach(function(j){ flatJobs.push({ staffName: member.staffName, staffId: member.staffId, job: j }); });
+      });
+      if(flatJobs.length === 0){
+        teamJobsTbody.innerHTML = emptyRowSafe(5, t('no_outstanding_jobs'));
+      } else {
+        teamJobsTbody.innerHTML = flatJobs.map(function(r){
+          return '<tr>' +
+            '<td>' + r.staffName + '</td>' +
+            '<td>' + r.job.company_name + '</td>' +
+            '<td><span class="badge ' + jobStatusBadgeClass(r.job.status) + '">' + statusLabel(r.job.status || 'Not Started') + '</span></td>' +
+            '<td class="num">' + formatDate(r.job.updated_at) + '</td>' +
+            '<td><button type="button" class="btn-row" data-remind-company="' + r.job.company_id + '" data-remind-staff="' + r.staffId + '">' + t('send_reminder_btn') + '</button></td>' +
+          '</tr>';
+        }).join('');
+        teamJobsTbody.querySelectorAll('[data-remind-company]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var note = window.prompt(t('reminder_prompt'), '');
+            if(note === null) return;
+            api('/workflow/remind', { method:'POST', body: JSON.stringify({ companyId: Number(btn.dataset.remindCompany), staffId: Number(btn.dataset.remindStaff), note: note || null }) })
+              .then(function(){ renderMyJobs(); renderActivityLog(); })
+              .catch(function(err){ alert(err.message); });
+          });
+        });
+      }
+
+      var teamStaffTbody = document.getElementById('myjobs-team-staff-tbody');
+      api('/staff').then(function(rows){
+        teamStaffTbody.innerHTML = rows.map(function(s){
+          var atCap = s.assigned_count >= s.client_limit;
+          return '<tr>' +
+            '<td>' + s.name + '</td>' +
+            '<td class="num">' + s.assigned_count + (atCap ? ' <span class="badge review" style="margin-left:6px;">' + t('at_limit_badge') + '</span>' : '') + '</td>' +
+            '<td class="num"><input type="number" min="1" value="' + s.client_limit + '" data-myteam-limit-for="' + s.id + '" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--surface-alt);font-family:var(--font-data);color:inherit;" /></td>' +
+            '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);"><input type="checkbox" data-myteam-active-for="' + s.id + '" ' + (s.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (s.active ? t('status_active') : t('status_suspended')) + '</label></td>' +
+            '<td><button type="button" class="btn-row" data-myteam-save="' + s.id + '">' + t('save_btn') + '</button></td>' +
+          '</tr>';
+        }).join('');
+        teamStaffTbody.querySelectorAll('[data-myteam-save]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var id = btn.dataset.myteamSave;
+            var row = btn.closest('tr');
+            var newLimit = Math.max(1, Number(row.querySelector('[data-myteam-limit-for="' + id + '"]').value) || 1);
+            var newActive = row.querySelector('[data-myteam-active-for="' + id + '"]').checked;
+            btn.disabled = true;
+            api('/staff/' + id, { method:'PATCH', body: JSON.stringify({ clientLimit:newLimit, active:newActive }) })
+              .then(function(){ renderMyJobs(); renderActivityLog(); loadCompanies(); })
+              .catch(function(err){ alert(err.message); btn.disabled = false; });
+          });
+        });
+      });
+    }).catch(function(){ mineTbody.innerHTML = emptyRowSafe(4, t('could_not_load_home')); });
+  }
+
   // ============ AUTH BOOTSTRAP ============
   function onAuthenticated(profile){
     queuePage = 1;
@@ -2496,6 +2930,10 @@
         renderApprovals();
         renderStaffLimits();
         renderActivityLog();
+        renderWorkflow();
+      }
+      if(profile.role === 'admin' || profile.role === 'manager' || profile.role === 'staff'){
+        renderMyJobs();
       }
     });
   }

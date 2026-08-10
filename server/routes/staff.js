@@ -1,23 +1,33 @@
 const express = require('express');
 const { pool } = require('../db');
-const { requireRole } = require('../auth');
+const { requireRole, staffInManagerTeam } = require('../auth');
 const { logActivity } = require('../lib/activity');
 
 const router = express.Router();
 
-router.get('/staff', requireRole('admin'), async (req, res) => {
+router.get('/staff', requireRole('admin', 'manager'), async (req, res) => {
+  const scopeClause = req.user.role === 'manager'
+    ? 'WHERE s.id IN (SELECT staff_id FROM manager_staff WHERE manager_user_id = $1)'
+    : '';
+  const params = req.user.role === 'manager' ? [req.user.sub] : [];
   const { rows } = await pool.query(`
     SELECT s.id, s.name, s.client_limit, s.active,
       (SELECT COUNT(*) FROM company_staff cs WHERE cs.staff_id = s.id)::int AS assigned_count
     FROM staff s
+    ${scopeClause}
     ORDER BY s.name
-  `);
+  `, params);
   res.json(rows);
 });
 
-router.patch('/staff/:id', requireRole('admin'), async (req, res) => {
+router.patch('/staff/:id', requireRole('admin', 'manager'), async (req, res) => {
   const { clientLimit, active } = req.body || {};
   const id = Number(req.params.id);
+
+  if (req.user.role === 'manager') {
+    const inTeam = await staffInManagerTeam(req.user.sub, id);
+    if (!inTeam) return res.status(403).json({ error: 'That staff member is not on your team' });
+  }
 
   const { rows: before } = await pool.query('SELECT * FROM staff WHERE id = $1', [id]);
   if (!before[0]) return res.status(404).json({ error: 'Not found' });

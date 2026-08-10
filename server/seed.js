@@ -33,7 +33,12 @@ const SEED_ASSIGNMENT_REQUESTS = [
   { company: 'Kulai Hardware Sdn Bhd', currentStaff: ['Chen Wei Ming'], requestedStaff: ['Chen Wei Ming', 'Ahmad Faiz'], status: 'Rejected' }
 ];
 
-const DEMO_PASSWORD = { admin: 'admin123', staff: 'staff123', client: 'client123' };
+const SEED_MANAGERS = [
+  { loginId: 'aisha-rahman', displayName: 'Aisha Rahman', team: ['Nurul Huda', 'Chen Wei Ming'] },
+  { loginId: 'farid-hassan', displayName: 'Farid Hassan', team: ['Ahmad Faiz', 'Priya Suresh'] }
+];
+
+const DEMO_PASSWORD = { admin: 'admin123', manager: 'manager123', staff: 'staff123', client: 'client123' };
 
 function shortNameFor(name) {
   return COMPANY_SHORT_NAMES[name] || invoicePrefix(name);
@@ -112,6 +117,18 @@ async function seed() {
          VALUES ($1, $2, 'staff', $3, $4, true)`,
         [slugify(name), staffHash, name, staffIdByName[name]]
       );
+    }
+
+    const managerHash = await bcrypt.hash(DEMO_PASSWORD.manager, 10);
+    for (const m of SEED_MANAGERS) {
+      const { rows: mgrRows } = await client.query(
+        `INSERT INTO users (login_id, password_hash, role, display_name, active)
+         VALUES ($1, $2, 'manager', $3, true) RETURNING id`,
+        [m.loginId, managerHash, m.displayName]
+      );
+      for (const staffName of m.team) {
+        await client.query('INSERT INTO manager_staff (manager_user_id, staff_id) VALUES ($1,$2)', [mgrRows[0].id, staffIdByName[staffName]]);
+      }
     }
 
     const clientHash = await bcrypt.hash(DEMO_PASSWORD.client, 10);

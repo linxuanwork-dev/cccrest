@@ -7,15 +7,20 @@ const router = express.Router();
 
 async function publicProfile(user) {
   let companyName = null;
+  let enabledFeatures = null;
   if (user.company_id) {
-    const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [user.company_id]);
-    companyName = rows[0] ? rows[0].name : null;
+    const { rows } = await pool.query('SELECT name, enabled_features FROM companies WHERE id = $1', [user.company_id]);
+    if (rows[0]) {
+      companyName = rows[0].name;
+      enabledFeatures = rows[0].enabled_features;
+    }
   }
   return {
     role: user.role,
     displayName: user.display_name,
     companyId: user.company_id,
     companyName,
+    enabledFeatures,
     staffId: user.staff_id
   };
 }

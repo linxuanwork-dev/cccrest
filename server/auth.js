@@ -93,7 +93,27 @@ async function scopeToCompany(req, res, next) {
     return next();
   }
 
+  if (req.user.role === 'manager') {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM company_staff cs
+       JOIN manager_staff ms ON ms.staff_id = cs.staff_id
+       WHERE cs.company_id = $1 AND ms.manager_user_id = $2`,
+      [companyId, req.user.sub]
+    );
+    if (rows.length === 0) return res.status(403).json({ error: 'Not allowed' });
+    return next();
+  }
+
   return res.status(403).json({ error: 'Not allowed' });
+}
+
+// True if the given staffId is on this manager's team.
+async function staffInManagerTeam(managerUserId, staffId) {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM manager_staff WHERE manager_user_id = $1 AND staff_id = $2',
+    [managerUserId, staffId]
+  );
+  return rows.length > 0;
 }
 
 module.exports = {
@@ -104,5 +124,6 @@ module.exports = {
   attachUser,
   requireAuth,
   requireRole,
-  scopeToCompany
+  scopeToCompany,
+  staffInManagerTeam
 };

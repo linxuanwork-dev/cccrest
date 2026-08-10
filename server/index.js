@@ -18,6 +18,7 @@ app.use('/api', require('./routes/assignments'));
 app.use('/api', require('./routes/activity'));
 app.use('/api', require('./routes/reports'));
 app.use('/api', require('./routes/reconciliation'));
+app.use('/api', require('./routes/workflow'));
 
 // Everything else is the single-page app.
 app.get('*', (req, res) => {

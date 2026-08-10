@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CREST — Bookkeeping &amp; Admin Portal</title>
+<title>CC CREST — Bookkeeping &amp; Admin Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Neuton:wght@400;700;800&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
@@ -40,14 +40,14 @@
     --surface:#171b1f;
     --surface-alt:#1d2227;
     --surface-card:#1a1e23;
-    --primary:#bcc5cd;
-    --primary-soft:#8b949c;
-    --accent:#5fa2de;
+    --primary:#cdd4da;
+    --primary-soft:#a6afb8;
+    --accent:#6fb0e8;
     --accent-fill:#2f5f95;
-    --accent-dark:#3f72ab;
-    --accent-tint:#1f3348;
-    --ink:#f3f5f7;
-    --border:#39424b;
+    --accent-dark:#4a80b8;
+    --accent-tint:#213a54;
+    --ink:#f6f8f9;
+    --border:#4a5560;
     --success:#6fc492;
     --success-tint:#173023;
     --warning:#e2ac5f;
@@ -106,6 +106,9 @@
   html[data-theme="dark"] .theme-toggle .icon-sun{ display:block; }
   html[data-theme="dark"] .theme-toggle .icon-moon{ display:none; }
   .login-theme-toggle{ position:absolute; top:20px; right:20px; z-index:2; background:var(--surface-card); }
+  .lang-toggle{ background:none; border:1px solid var(--border); border-radius:8px; padding:8px 10px; display:flex; align-items:center; color:var(--primary); font-size:12.5px; font-weight:700; font-family:var(--font-data); }
+  .lang-toggle:hover{ background:var(--surface); color:var(--accent); border-color:var(--accent); }
+  .login-lang-toggle{ position:absolute; top:20px; right:66px; z-index:2; background:var(--surface-card); }
   .login-card{
     position:relative;
     z-index:1;
@@ -431,8 +434,6 @@
   .btn-run{ max-width:230px; display:flex; align-items:center; justify-content:center; gap:9px; }
   .spinner{ width:15px; height:15px; border:2px solid rgba(255,255,255,0.4); border-top-color:var(--white); border-radius:50%; animation:spin 700ms linear infinite; display:none; }
   .btn-run.loading .spinner{ display:inline-block; }
-  .btn-run.loading .btn-run-label::after{ content:"Reconciling…"; }
-  .btn-run .btn-run-label::after{ content:"Run Reconciliation"; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
   #recon-results{ margin-top:22px; }
@@ -511,6 +512,7 @@
 
 <!-- ================= LOGIN SCREEN ================= -->
 <div id="login-screen">
+  <button class="lang-toggle login-lang-toggle" id="lang-toggle-login" type="button" aria-label="Switch language">EN</button>
   <button class="theme-toggle login-theme-toggle" id="theme-toggle-login" type="button" aria-label="Toggle dark mode">
     <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
     <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
@@ -525,10 +527,10 @@
   <div class="login-card">
     <div class="logo">
       <svg width="46" height="46" viewBox="0 0 60 60" aria-hidden="true">
-        <circle cx="29" cy="30" r="23" fill="none" stroke="#9a9a9a" stroke-width="6" stroke-dasharray="126 145" transform="rotate(-16 29 30)"/>
-        <circle cx="33" cy="30" r="17" fill="none" stroke="#1A4376" stroke-width="7" stroke-dasharray="88 107" transform="rotate(-20 33 30)"/>
+        <circle cx="29" cy="30" r="23" fill="none" stroke="#808080" stroke-width="6" stroke-dasharray="108 145" transform="rotate(-10 29 30)"/>
+        <circle cx="33" cy="30" r="17" fill="none" stroke="#1A4376" stroke-width="7" stroke-dasharray="80 110" transform="rotate(-15 33 30)"/>
       </svg>
-      <span class="logo-word">CREST</span>
+      <span class="logo-word">CC CREST</span>
     </div>
     <p class="login-tagline">Bookkeeping &amp; Admin Portal
       <span class="cjk">后台管理与记账系统</span>
@@ -536,26 +538,26 @@
 
     <form class="login-form" id="login-form">
       <div class="field">
-        <label for="userid">User ID</label>
-        <input type="text" id="userid" placeholder="e.g. admin01, or your company code" autocomplete="username" />
+        <label for="userid" data-i18n="field_userid">User ID</label>
+        <input type="text" id="userid" data-i18n-placeholder="ph_userid" placeholder="e.g. admin01, or your company code" autocomplete="username" />
       </div>
       <div class="field">
-        <label for="password">Password</label>
+        <label for="password" data-i18n="field_password">Password</label>
         <div class="field-input-wrap">
           <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
-          <button type="button" class="pw-toggle" id="toggle-password" aria-label="Show password">
+          <button type="button" class="pw-toggle" id="toggle-password" data-i18n-aria="show_password" aria-label="Show password">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
       </div>
       <div id="login-error" hidden style="color:var(--danger);font-size:12.5px;margin:-8px 0 16px;line-height:1.5;"></div>
       <div class="row-between">
-        <label class="remember"><input type="checkbox" checked /> Remember me</label>
-        <a href="#" class="forgot-link" onclick="return false;">Forgot password?</a>
+        <label class="remember"><input type="checkbox" checked /> <span data-i18n="remember_me">Remember me</span></label>
+        <a href="#" class="forgot-link" data-i18n="forgot_password" onclick="return false;">Forgot password?</a>
       </div>
-      <button type="submit" class="btn-primary">Sign In</button>
+      <button type="submit" class="btn-primary" data-i18n="sign_in">Sign In</button>
     </form>
-    <div class="login-footer">© 2026 CREST Bookkeeping Portal · v1.0</div>
+    <div class="login-footer" data-i18n="login_footer">© 2026 CC CREST Bookkeeping Portal · v1.0</div>
   </div>
 </div>
 
@@ -564,97 +566,98 @@
   <aside class="sidebar">
     <div class="logo">
       <svg width="30" height="30" viewBox="0 0 60 60" aria-hidden="true">
-        <circle cx="29" cy="30" r="23" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="6" stroke-dasharray="126 145" transform="rotate(-16 29 30)"/>
-        <circle cx="33" cy="30" r="17" fill="none" stroke="#ffffff" stroke-width="7" stroke-dasharray="88 107" transform="rotate(-20 33 30)"/>
+        <circle cx="29" cy="30" r="23" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="6" stroke-dasharray="108 145" transform="rotate(-10 29 30)"/>
+        <circle cx="33" cy="30" r="17" fill="none" stroke="#ffffff" stroke-width="7" stroke-dasharray="80 110" transform="rotate(-15 33 30)"/>
       </svg>
-      <span class="logo-word">CREST</span>
+      <span class="logo-word">CC CREST</span>
     </div>
 
     <nav class="sidebar-nav" id="nav-group-choose" data-roles="admin staff">
       <button class="nav-item active" data-panel="panel-company-picker">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <span class="nav-label">Choose Company</span>
+        <span class="nav-label" data-i18n="nav_choose_company">Choose Company</span>
       </button>
     </nav>
 
-    <div class="nav-group-label" style="margin-top:20px;">Bookkeeping Service</div>
+    <div class="nav-group-label" style="margin-top:20px;" data-i18n="nav_group_bookkeeping">Bookkeeping Service</div>
     <nav class="sidebar-nav">
       <button class="nav-item" data-panel="panel-company-home">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
-        <span class="nav-label">Company Home</span>
+        <span class="nav-label" data-i18n="nav_company_home">Company Home</span>
       </button>
       <button class="nav-item" data-panel="panel-sales">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
-        <span class="nav-label">Sales Summary</span>
+        <span class="nav-label" data-i18n="nav_sales_summary">Sales Summary</span>
       </button>
       <button class="nav-item" data-panel="panel-bank">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
-        <span class="nav-label">Bank Statement</span>
+        <span class="nav-label" data-i18n="nav_bank_statement">Bank Statement</span>
       </button>
       <button class="nav-item" data-panel="panel-purchases">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
-        <span class="nav-label">Purchases Bill</span>
+        <span class="nav-label" data-i18n="nav_purchases_bill">Purchases Bill</span>
       </button>
       <button class="nav-item" data-panel="panel-claim">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 8h6M9 12h6"/></svg>
-        <span class="nav-label">Claim Bill</span>
+        <span class="nav-label" data-i18n="nav_claim_bill">Claim Bill</span>
       </button>
       <button class="nav-item" data-panel="panel-petty">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14.5 6a6 6 0 0 1 0 12"/><path d="M7 9h4"/></svg>
-        <span class="nav-label">Petty Record</span>
+        <span class="nav-label" data-i18n="nav_petty_record">Petty Record</span>
       </button>
       <button class="nav-item" data-panel="panel-merchant">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
-        <span class="nav-label">Merchant Report</span>
+        <span class="nav-label" data-i18n="nav_merchant_report">Merchant Report</span>
       </button>
     </nav>
 
-    <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff" style="margin-top:20px;">Tools</div>
+    <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff" style="margin-top:20px;" data-i18n="nav_group_tools">Tools</div>
     <nav class="sidebar-nav" id="nav-group-tools" data-roles="admin staff">
       <button class="nav-item" data-panel="panel-queue" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span class="nav-label">Customer Queue</span>
+        <span class="nav-label" data-i18n="nav_customer_queue">Customer Queue</span>
       </button>
       <button class="nav-item" data-panel="panel-approvals" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span class="nav-label">Staff Approvals</span>
+        <span class="nav-label" data-i18n="nav_staff_approvals">Staff Approvals</span>
         <span class="nav-badge" id="approvals-nav-badge" hidden>0</span>
       </button>
       <button class="nav-item" data-panel="panel-recon" data-roles="admin staff">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-        <span class="nav-label">Reconciliation</span>
+        <span class="nav-label" data-i18n="nav_reconciliation">Reconciliation</span>
       </button>
       <button class="nav-item" data-panel="panel-activity" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 8 4-16 2 8h6"/></svg>
-        <span class="nav-label">Activity Log</span>
+        <span class="nav-label" data-i18n="nav_activity_log">Activity Log</span>
       </button>
     </nav>
 
     <div class="sidebar-foot">
-      <div class="sidebar-foot-text">Synced with Bukku</div>
-      <div class="sidebar-foot-text">SQL data store · JB region</div>
+      <div class="sidebar-foot-text" data-i18n="sidebar_synced">Synced with Bukku</div>
+      <div class="sidebar-foot-text" data-i18n="sidebar_region">SQL data store · JB region</div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation">
+        <button class="menu-toggle" id="menu-toggle" data-i18n-aria="toggle_nav" aria-label="Toggle navigation">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
         <div class="company-search-wrap" id="topbar-search-wrap" data-roles="admin staff">
           <svg class="company-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="topbar-search-input" class="company-search-input" placeholder="Search company…" autocomplete="off" aria-label="Search company" />
+          <input type="text" id="topbar-search-input" class="company-search-input" data-i18n-placeholder="search_company" placeholder="Search company…" autocomplete="off" data-i18n-aria="search_company" aria-label="Search company" />
           <div class="company-search-results" id="topbar-search-results" hidden></div>
         </div>
         <span class="topbar-date">Saturday, 8 Aug 2026</span>
       </div>
       <div class="topbar-right">
+        <button class="lang-toggle" id="lang-toggle-app" type="button" aria-label="Switch language">EN</button>
         <button class="theme-toggle" id="theme-toggle-app" type="button" aria-label="Toggle dark mode">
           <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
           <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
         </button>
-        <button class="icon-btn" aria-label="Notifications">
+        <button class="icon-btn" data-i18n-aria="notifications" aria-label="Notifications">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
           <span class="dot"></span>
         </button>
@@ -669,8 +672,8 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           <div class="user-menu" id="user-menu">
-            <button type="button" onclick="return false;">Account Settings</button>
-            <button type="button" id="logout-btn">Log Out</button>
+            <button type="button" data-i18n="account_settings" onclick="return false;">Account Settings</button>
+            <button type="button" id="logout-btn" data-i18n="log_out">Log Out</button>
           </div>
         </div>
       </div>
@@ -681,24 +684,24 @@
       <!-- ---- CHOOSE COMPANY (landing page) ---- -->
       <section class="panel" id="panel-company-picker">
         <div class="content-header">
-          <h2>Choose a Company</h2>
-          <span class="sub">Search or browse your 50 clients to start working</span>
+          <h2 data-i18n="h_choose_company">Choose a Company</h2>
+          <span class="sub" data-i18n="sub_choose_company">Search or browse your 50 clients to start working</span>
         </div>
 
         <div class="company-search-wrap large" id="landing-search-wrap">
           <svg class="company-search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="landing-search-input" class="company-search-input" placeholder="Search company name…" autocomplete="off" aria-label="Search company" />
+          <input type="text" id="landing-search-input" class="company-search-input" data-i18n-placeholder="search_company_name" placeholder="Search company name…" autocomplete="off" data-i18n-aria="search_company" aria-label="Search company" />
           <div class="company-search-results" id="landing-search-results" hidden></div>
         </div>
 
-        <div class="section-title" style="margin-top:0;">All companies</div>
+        <div class="section-title" style="margin-top:0;" data-i18n="all_companies">All companies</div>
         <div class="company-grid" id="company-grid"></div>
       </section>
 
       <!-- ---- COMPANY HOME (per-company dashboard) ---- -->
       <section class="panel" id="panel-company-home" hidden>
         <div class="content-header">
-          <h2 id="home-company-name">Company Home</h2>
+          <h2 id="home-company-name" data-i18n="nav_company_home">Company Home</h2>
           <span class="sub" id="home-sub">Select a company · monthly overview</span>
         </div>
 
@@ -706,16 +709,16 @@
 
         <div class="home-upload-card" id="home-upload-card">
           <div class="home-upload-text">
-            <div class="home-upload-title">Upload This Month's Transaction Listing</div>
-            <div class="home-upload-desc">Runs the daily reconciliation and FIFO settlement match, then generates the Bukku Sales &amp; Payment import files.</div>
+            <div class="home-upload-title" data-i18n="upload_title">Upload This Month's Transaction Listing</div>
+            <div class="home-upload-desc" data-i18n="upload_desc">Runs the daily reconciliation and FIFO settlement match, then generates the Bukku Sales &amp; Payment import files.</div>
           </div>
-          <button type="button" class="btn-primary" id="home-upload-btn" style="width:auto;padding:12px 20px;white-space:nowrap;">Upload &amp; Reconcile →</button>
+          <button type="button" class="btn-primary" id="home-upload-btn" style="width:auto;padding:12px 20px;white-space:nowrap;" data-i18n="upload_reconcile_btn">Upload &amp; Reconcile →</button>
         </div>
 
-        <div class="section-title" style="margin-top:26px;">Past batches</div>
+        <div class="section-title" style="margin-top:26px;" data-i18n="past_batches">Past batches</div>
         <div class="table-card">
           <table>
-            <thead><tr><th>Month</th><th>Invoices</th><th>Exceptions</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th data-i18n="th_month">Month</th><th data-i18n="th_invoices">Invoices</th><th data-i18n="th_exceptions">Exceptions</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
             <tbody id="home-history-tbody"></tbody>
           </table>
         </div>
@@ -724,13 +727,13 @@
       <!-- ---- SALES SUMMARY ---- -->
       <section class="panel" id="panel-sales" hidden>
         <div class="content-header">
-          <h2>Sales Summary</h2>
+          <h2 data-i18n="nav_sales_summary">Sales Summary</h2>
           <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
         </div>
 
         <div class="export-row" id="sales-export-row">
           <div class="export-row-text">
-            <span class="export-row-label">Output file name</span>
+            <span class="export-row-label" data-i18n="output_file_name">Output file name</span>
             <span class="export-row-filename num" id="sales-export-filename">—</span>
           </div>
           <div class="export-row-actions">
@@ -744,25 +747,25 @@
                 PDF
               </button>
             </div>
-            <button type="button" class="btn-ghost" id="sales-export-btn">Download</button>
+            <button type="button" class="btn-ghost" id="sales-export-btn" data-i18n="download">Download</button>
           </div>
         </div>
 
         <div class="kpi-row">
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
-            <div><div class="kpi-label">Today's Gross Sales</div><div class="kpi-value num" id="sales-kpi-today">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_today_gross_sales">Today's Gross Sales</div><div class="kpi-value num" id="sales-kpi-today">—</div></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
-            <div><div class="kpi-label">Payment Settled</div><div class="kpi-value num" id="sales-kpi-settled">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_payment_settled">Payment Settled</div><div class="kpi-value num" id="sales-kpi-settled">—</div></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
-            <div><div class="kpi-label">Unsettled Invoices</div><div class="kpi-value num" id="sales-kpi-pending">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_unsettled_invoices">Unsettled Invoices</div><div class="kpi-value num" id="sales-kpi-pending">—</div></div>
           </div>
           <div class="kpi-card kpi-ring-card">
-            <div><div class="kpi-label">Synced to Bukku</div><div class="kpi-value num" id="sales-kpi-ring-text">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_synced_bukku">Synced to Bukku</div><div class="kpi-value num" id="sales-kpi-ring-text">—</div></div>
             <div class="ring-wrap">
               <svg width="56" height="56" viewBox="0 0 56 56">
                 <circle cx="28" cy="28" r="23" fill="none" style="stroke:var(--accent-tint)" stroke-width="6"/>
@@ -776,7 +779,7 @@
         <div class="table-card">
           <table>
             <thead><tr>
-              <th>Date</th><th>Invoice No.</th><th>Gross Sales</th><th>Payment Settled</th><th>Petty Cash Out</th><th>Bukku Status</th>
+              <th data-i18n="th_date">Date</th><th data-i18n="th_invoice_no">Invoice No.</th><th data-i18n="th_gross_sales">Gross Sales</th><th data-i18n="th_payment_settled">Payment Settled</th><th data-i18n="th_petty_cash_out">Petty Cash Out</th><th data-i18n="th_bukku_status">Bukku Status</th>
             </tr></thead>
             <tbody id="sales-tbody"></tbody>
           </table>
@@ -785,10 +788,10 @@
 
       <!-- ---- BANK STATEMENT ---- -->
       <section class="panel" id="panel-bank" hidden>
-        <div class="content-header"><h2>Bank Statement</h2><span class="sub" id="bank-sub">Select a company · current account</span></div>
+        <div class="content-header"><h2 data-i18n="nav_bank_statement">Bank Statement</h2><span class="sub" id="bank-sub">Select a company · current account</span></div>
         <div class="table-card">
           <table>
-            <thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Status</th></tr></thead>
+            <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_description">Description</th><th data-i18n="th_debit">Debit</th><th data-i18n="th_credit">Credit</th><th data-i18n="th_balance">Balance</th><th data-i18n="th_status">Status</th></tr></thead>
             <tbody id="bank-tbody"></tbody>
           </table>
         </div>
@@ -796,10 +799,10 @@
 
       <!-- ---- PURCHASES BILL ---- -->
       <section class="panel" id="panel-purchases" hidden>
-        <div class="content-header"><h2>Purchases Bill</h2><span class="sub" id="purchases-sub">Select a company · supplier invoices</span></div>
+        <div class="content-header"><h2 data-i18n="nav_purchases_bill">Purchases Bill</h2><span class="sub" id="purchases-sub">Select a company · supplier invoices</span></div>
         <div class="table-card">
           <table>
-            <thead><tr><th>Invoice No.</th><th>Supplier</th><th>Amount</th><th>Date</th><th>Payment Status</th></tr></thead>
+            <thead><tr><th data-i18n="th_invoice_no">Invoice No.</th><th data-i18n="th_supplier">Supplier</th><th data-i18n="th_amount">Amount</th><th data-i18n="th_date">Date</th><th data-i18n="th_payment_status">Payment Status</th></tr></thead>
             <tbody id="purchases-tbody"></tbody>
           </table>
         </div>
@@ -807,10 +810,10 @@
 
       <!-- ---- CLAIM BILL ---- -->
       <section class="panel" id="panel-claim" hidden>
-        <div class="content-header"><h2>Claim Bill</h2><span class="sub" id="claim-sub">Select a company · staff reimbursement claims</span></div>
+        <div class="content-header"><h2 data-i18n="nav_claim_bill">Claim Bill</h2><span class="sub" id="claim-sub">Select a company · staff reimbursement claims</span></div>
         <div class="table-card">
           <table>
-            <thead><tr><th>Claim No.</th><th>Staff</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+            <thead><tr><th data-i18n="th_claim_no">Claim No.</th><th data-i18n="th_staff">Staff</th><th data-i18n="th_category">Category</th><th data-i18n="th_amount">Amount</th><th data-i18n="th_date">Date</th><th data-i18n="th_status">Status</th></tr></thead>
             <tbody id="claim-tbody"></tbody>
           </table>
         </div>
@@ -818,10 +821,10 @@
 
       <!-- ---- PETTY RECORD ---- -->
       <section class="panel" id="panel-petty" hidden>
-        <div class="content-header"><h2>Petty Record</h2><span class="sub" id="petty-sub">Select a company · float log</span></div>
+        <div class="content-header"><h2 data-i18n="nav_petty_record">Petty Record</h2><span class="sub" id="petty-sub">Select a company · float log</span></div>
         <div class="table-card">
           <table>
-            <thead><tr><th>Date</th><th>Description</th><th>In</th><th>Out</th><th>Balance</th></tr></thead>
+            <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_description">Description</th><th data-i18n="th_in">In</th><th data-i18n="th_out">Out</th><th data-i18n="th_balance">Balance</th></tr></thead>
             <tbody id="petty-tbody"></tbody>
           </table>
         </div>
@@ -829,30 +832,30 @@
 
       <!-- ---- MERCHANT REPORT ---- -->
       <section class="panel" id="panel-merchant" hidden>
-        <div class="content-header"><h2>Merchant Report</h2><span class="sub" id="merchant-sub">Select a company · DuitNow / FIUU settlement</span></div>
+        <div class="content-header"><h2 data-i18n="nav_merchant_report">Merchant Report</h2><span class="sub" id="merchant-sub">Select a company · DuitNow / FIUU settlement</span></div>
 
         <div class="kpi-row">
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
-            <div><div class="kpi-label">Total Transactions</div><div class="kpi-value num" id="merchant-kpi-txns">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_total_transactions">Total Transactions</div><div class="kpi-value num" id="merchant-kpi-txns">—</div></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
-            <div><div class="kpi-label">Approved Amount</div><div class="kpi-value num" id="merchant-kpi-approved">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_approved_amount">Approved Amount</div><div class="kpi-value num" id="merchant-kpi-approved">—</div></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
-            <div><div class="kpi-label">Gateway Fees</div><div class="kpi-value num" id="merchant-kpi-fees">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_gateway_fees">Gateway Fees</div><div class="kpi-value num" id="merchant-kpi-fees">—</div></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
-            <div><div class="kpi-label">Net Settlement</div><div class="kpi-value num" id="merchant-kpi-net">—</div></div>
+            <div><div class="kpi-label" data-i18n="kpi_net_settlement">Net Settlement</div><div class="kpi-value num" id="merchant-kpi-net">—</div></div>
           </div>
         </div>
 
         <div class="table-card">
           <table>
-            <thead><tr><th>Date</th><th>Total Txns</th><th>Approved Amt</th><th>Failed / Cancelled</th><th>Gateway Fee</th><th>Net Settlement</th></tr></thead>
+            <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_total_txns">Total Txns</th><th data-i18n="th_approved_amt">Approved Amt</th><th data-i18n="th_failed_cancelled">Failed / Cancelled</th><th data-i18n="th_gateway_fee">Gateway Fee</th><th data-i18n="th_net_settlement">Net Settlement</th></tr></thead>
             <tbody id="merchant-tbody"></tbody>
           </table>
         </div>
@@ -861,38 +864,38 @@
       <!-- ---- CUSTOMER QUEUE (staff monitor) ---- -->
       <section class="panel" id="panel-queue" hidden>
         <div class="content-header">
-          <h2>Customer Reconciliation Queue</h2>
+          <h2 data-i18n="h_customer_queue">Customer Reconciliation Queue</h2>
           <span class="sub" id="queue-count-sub">50 customers · Jul 2026 cycle</span>
         </div>
 
         <div class="kpi-row" id="queue-kpi-row"></div>
 
-        <div class="section-title" style="margin-top:0;">Staff workload</div>
+        <div class="section-title" style="margin-top:0;" data-i18n="staff_workload">Staff workload</div>
         <div class="staff-row" id="staff-row"></div>
 
         <div class="filter-bar">
-          <input type="text" id="queue-search" placeholder="Search customer name…" />
-          <select id="queue-staff-filter"><option value="">All staff</option></select>
+          <input type="text" id="queue-search" data-i18n-placeholder="search_customer_name" placeholder="Search customer name…" />
+          <select id="queue-staff-filter"><option value="" data-i18n="all_staff">All staff</option></select>
           <select id="queue-status-filter">
-            <option value="">All statuses</option>
-            <option value="Needs Review">Needs Review</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Not Started">Not Started</option>
-            <option value="Completed">Completed</option>
+            <option value="" data-i18n="all_statuses">All statuses</option>
+            <option value="Needs Review" data-i18n="status_needs_review">Needs Review</option>
+            <option value="In Progress" data-i18n="status_in_progress">In Progress</option>
+            <option value="Not Started" data-i18n="status_not_started">Not Started</option>
+            <option value="Completed" data-i18n="status_completed">Completed</option>
           </select>
           <span class="filter-count" id="queue-filter-count"></span>
         </div>
 
         <div class="table-card">
           <table>
-            <thead><tr><th>Customer</th><th>Type</th><th>Assigned Staff</th><th>Input File</th><th>Output Files</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+            <thead><tr><th data-i18n="th_customer">Customer</th><th data-i18n="th_type">Type</th><th data-i18n="th_assigned_staff">Assigned Staff</th><th data-i18n="th_input_file">Input File</th><th data-i18n="th_output_files">Output Files</th><th data-i18n="th_status">Status</th><th data-i18n="th_updated">Updated</th><th></th></tr></thead>
             <tbody id="queue-tbody"></tbody>
           </table>
           <div class="pagination">
             <span id="queue-page-label"></span>
             <div class="pagination-btns">
-              <button type="button" id="queue-prev">← Prev</button>
-              <button type="button" id="queue-next">Next →</button>
+              <button type="button" id="queue-prev" data-i18n="prev">← Prev</button>
+              <button type="button" id="queue-next" data-i18n="next">Next →</button>
             </div>
           </div>
         </div>
@@ -901,25 +904,25 @@
       <!-- ---- STAFF APPROVALS ---- -->
       <section class="panel" id="panel-approvals" hidden>
         <div class="content-header">
-          <h2>Staff Approvals</h2>
-          <span class="sub">Assignment change requests · up to 2 staff per client</span>
+          <h2 data-i18n="nav_staff_approvals">Staff Approvals</h2>
+          <span class="sub" data-i18n="sub_staff_approvals">Assignment change requests · up to 2 staff per client</span>
         </div>
 
         <div class="kpi-row" id="approvals-kpi-row"></div>
 
-        <div class="section-title" style="margin-top:0;">Staff access limits</div>
-        <p class="recon-caption" style="margin-top:-2px;">Max clients each staff member can be assigned, and whether they can currently receive new assignments. Admin-only.</p>
+        <div class="section-title" style="margin-top:0;" data-i18n="staff_access_limits">Staff access limits</div>
+        <p class="recon-caption" style="margin-top:-2px;" data-i18n="staff_access_limits_desc">Max clients each staff member can be assigned, and whether they can currently receive new assignments. Admin-only.</p>
         <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
           <table>
-            <thead><tr><th>Staff</th><th>Assigned Clients</th><th>Client Limit</th><th>Access</th><th></th></tr></thead>
+            <thead><tr><th data-i18n="th_staff">Staff</th><th data-i18n="th_assigned_clients">Assigned Clients</th><th data-i18n="th_client_limit">Client Limit</th><th data-i18n="th_access">Access</th><th></th></tr></thead>
             <tbody id="staff-limits-tbody"></tbody>
           </table>
         </div>
 
-        <div class="section-title" style="margin-top:0;">Assignment requests</div>
+        <div class="section-title" style="margin-top:0;" data-i18n="assignment_requests">Assignment requests</div>
         <div class="table-card" style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Company</th><th>Current Staff</th><th>Requested Staff</th><th>Requested By</th><th>Date</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th data-i18n="th_company">Company</th><th data-i18n="th_current_staff">Current Staff</th><th data-i18n="th_requested_staff">Requested Staff</th><th data-i18n="th_requested_by">Requested By</th><th data-i18n="th_date">Date</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
             <tbody id="approvals-tbody"></tbody>
           </table>
         </div>
@@ -928,12 +931,12 @@
       <!-- ---- ACTIVITY LOG ---- -->
       <section class="panel" id="panel-activity" hidden>
         <div class="content-header">
-          <h2>Activity Log</h2>
-          <span class="sub">Audit trail of staff, access, and assignment changes</span>
+          <h2 data-i18n="nav_activity_log">Activity Log</h2>
+          <span class="sub" data-i18n="sub_activity_log">Audit trail of staff, access, and assignment changes</span>
         </div>
         <div class="table-card" style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+            <thead><tr><th data-i18n="th_time">Time</th><th data-i18n="th_actor">Actor</th><th data-i18n="th_action">Action</th><th data-i18n="th_target">Target</th><th data-i18n="th_details">Details</th></tr></thead>
             <tbody id="activity-tbody"></tbody>
           </table>
         </div>
@@ -942,56 +945,56 @@
       <!-- ---- RECONCILIATION (oltdanalysis) ---- -->
       <section class="panel" id="panel-recon" hidden>
         <div class="content-header">
-          <h2>Monthly Reconciliation</h2>
-          <span class="sub">DuitNow / FIUU → Bukku import</span>
+          <h2 data-i18n="h_monthly_reconciliation">Monthly Reconciliation</h2>
+          <span class="sub" data-i18n="sub_monthly_reconciliation">DuitNow / FIUU → Bukku import</span>
         </div>
 
         <div class="recon-context" id="recon-context">
-          Viewing <b id="recon-context-name">—</b> · assigned to <b id="recon-context-staff">—</b>
-          <button type="button" id="recon-context-clear">Back to TD example</button>
+          <span data-i18n="viewing">Viewing</span> <b id="recon-context-name">—</b> · <span data-i18n="assigned_to">assigned to</span> <b id="recon-context-staff">—</b>
+          <button type="button" id="recon-context-clear" data-i18n="back_to_td_example">Back to TD example</button>
         </div>
 
         <div class="recon-card">
-          <div class="recon-step-label">1 · Upload transaction listing</div>
-          <div class="upload-zone" id="upload-zone" tabindex="0" role="button" aria-label="Upload transaction listing workbook">
+          <div class="recon-step-label" data-i18n="step1_upload">1 · Upload transaction listing</div>
+          <div class="upload-zone" id="upload-zone" tabindex="0" role="button" data-i18n-aria="upload_zone_aria" aria-label="Upload transaction listing workbook">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-            <div class="upload-text" id="upload-text">Drop the <strong>TRANSACTION LISTING</strong> workbook here, or <span class="upload-browse">browse</span></div>
-            <div class="upload-hint">.xlsx with a transaction-listing sheet + settlement sheet — found by column headers, not sheet name</div>
+            <div class="upload-text" id="upload-text" data-i18n-html="upload_drop_text">Drop the <strong>TRANSACTION LISTING</strong> workbook here, or <span class="upload-browse">browse</span></div>
+            <div class="upload-hint" data-i18n="upload_hint">.xlsx with a transaction-listing sheet + settlement sheet — found by column headers, not sheet name</div>
             <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
           </div>
 
           <div class="recon-optional-row">
             <div class="recon-optional-text">
-              <div class="recon-optional-title">Bank statement <span class="recon-optional-tag">Optional</span></div>
-              <div class="recon-optional-desc">Cross-checks the gateway's settlement list against what actually hit the bank, and flags any mismatch.</div>
+              <div class="recon-optional-title"><span data-i18n="bank_statement">Bank statement</span> <span class="recon-optional-tag" data-i18n="optional">Optional</span></div>
+              <div class="recon-optional-desc" data-i18n="bank_statement_desc">Cross-checks the gateway's settlement list against what actually hit the bank, and flags any mismatch.</div>
             </div>
-            <button type="button" class="btn-ghost" id="bank-stmt-btn">Add bank statement</button>
+            <button type="button" class="btn-ghost" id="bank-stmt-btn" data-i18n="add_bank_statement">Add bank statement</button>
           </div>
           <div class="recon-optional-filename" id="bank-stmt-filename" hidden></div>
           <input type="file" id="bank-stmt-input" accept=".xlsx,.xls" hidden />
 
           <button type="button" class="recon-advanced-toggle" id="account-codes-toggle">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-            Account codes used for this outlet
+            <span data-i18n="account_codes_toggle">Account codes used for this outlet</span>
           </button>
           <div class="account-codes-grid" id="account-codes-grid" hidden>
-            <div><span>Customer Code</span><b>C-C0010</b></div>
-            <div><span>Sales Account</span><b>5012</b></div>
-            <div><span>Fee Account</span><b>9006-02</b></div>
-            <div><span>Deposit Account</span><b>3521-02</b></div>
-            <div><span>Payment Method</span><b>UOB 286</b></div>
-            <div><span>Tag</span><b>TD</b></div>
-            <div><span>Invoice Prefix</span><b>FTD</b></div>
-            <div><span>Receipt Prefix</span><b>RFTD</b></div>
+            <div><span data-i18n="ac_customer_code">Customer Code</span><b>C-C0010</b></div>
+            <div><span data-i18n="ac_sales_account">Sales Account</span><b>5012</b></div>
+            <div><span data-i18n="ac_fee_account">Fee Account</span><b>9006-02</b></div>
+            <div><span data-i18n="ac_deposit_account">Deposit Account</span><b>3521-02</b></div>
+            <div><span data-i18n="ac_payment_method">Payment Method</span><b>UOB 286</b></div>
+            <div><span data-i18n="ac_tag">Tag</span><b>TD</b></div>
+            <div><span data-i18n="ac_invoice_prefix">Invoice Prefix</span><b>FTD</b></div>
+            <div><span data-i18n="ac_receipt_prefix">Receipt Prefix</span><b>RFTD</b></div>
           </div>
         </div>
 
         <div class="recon-card">
-          <div class="recon-step-label">2 · Carryover from previous month</div>
+          <div class="recon-step-label" data-i18n="step2_carryover">2 · Carryover from previous month</div>
           <div class="radio-group">
-            <label><input type="radio" name="carryover" checked /> Auto-detect unpaid invoices from last month's SUMMARY.xlsx</label>
-            <label><input type="radio" name="carryover" /> Enter unpaid invoices manually</label>
-            <label><input type="radio" name="carryover" /> First month — no carryover</label>
+            <label><input type="radio" name="carryover" checked /> <span data-i18n="carryover_auto">Auto-detect unpaid invoices from last month's SUMMARY.xlsx</span></label>
+            <label><input type="radio" name="carryover" /> <span data-i18n="carryover_manual">Enter unpaid invoices manually</span></label>
+            <label><input type="radio" name="carryover" /> <span data-i18n="carryover_first_month">First month — no carryover</span></label>
           </div>
         </div>
 
@@ -1009,64 +1012,64 @@
           <div class="kpi-row">
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
-              <div><div class="kpi-label">Settlements Matched</div><div class="kpi-value num" id="recon-kpi-matched">—</div></div>
+              <div><div class="kpi-label" data-i18n="kpi_settlements_matched">Settlements Matched</div><div class="kpi-value num" id="recon-kpi-matched">—</div></div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
-              <div><div class="kpi-label">Unresolved</div><div class="kpi-value num" id="recon-kpi-unresolved">—</div></div>
+              <div><div class="kpi-label" data-i18n="kpi_unresolved">Unresolved</div><div class="kpi-value num" id="recon-kpi-unresolved">—</div></div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
-              <div><div class="kpi-label">Bank-Verified</div><div class="kpi-value num" id="bank-verified-kpi">Not provided</div></div>
+              <div><div class="kpi-label" data-i18n="kpi_bank_verified">Bank-Verified</div><div class="kpi-value num" id="bank-verified-kpi" data-i18n="not_provided">Not provided</div></div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/></svg></div>
-              <div><div class="kpi-label">Invoices Issued</div><div class="kpi-value num" id="recon-kpi-invoices">—</div></div>
+              <div><div class="kpi-label" data-i18n="kpi_invoices_issued">Invoices Issued</div><div class="kpi-value num" id="recon-kpi-invoices">—</div></div>
             </div>
           </div>
 
-          <div class="section-title">Daily summary (Aug 2026)</div>
-          <p class="recon-caption" id="recon-caption">FIFO-matched against the oldest unpaid invoices</p>
+          <div class="section-title" data-i18n="daily_summary">Daily summary (Aug 2026)</div>
+          <p class="recon-caption" id="recon-caption" data-i18n="fifo_caption">FIFO-matched against the oldest unpaid invoices</p>
           <div class="table-card">
             <table>
-              <thead><tr><th>Date</th><th>Invoice No.</th><th>Bill Amt</th><th>Txn Fee</th><th>Failed/Cancelled</th><th>Actual Amt</th><th>Settlement</th><th>Receipt No.</th><th>Status</th></tr></thead>
+              <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_invoice_no">Invoice No.</th><th data-i18n="th_bill_amt">Bill Amt</th><th data-i18n="th_txn_fee">Txn Fee</th><th data-i18n="th_failed_cancelled_short">Failed/Cancelled</th><th data-i18n="th_actual_amt">Actual Amt</th><th data-i18n="th_settlement">Settlement</th><th data-i18n="th_receipt_no">Receipt No.</th><th data-i18n="th_status">Status</th></tr></thead>
               <tbody id="recon-lines-tbody"></tbody>
             </table>
           </div>
 
           <div class="generate-gate" id="generate-gate">
             <div class="generate-gate-text">Review the daily summary above — the flagged item on 08 Aug needs a decision before the Bukku files are generated.</div>
-            <button type="button" class="btn-primary" id="generate-bukku-btn" style="width:auto;padding:11px 20px;white-space:nowrap;">Generate Bukku Templates →</button>
+            <button type="button" class="btn-primary" id="generate-bukku-btn" style="width:auto;padding:11px 20px;white-space:nowrap;" data-i18n="generate_bukku_btn">Generate Bukku Templates →</button>
           </div>
 
           <div id="bukku-output" hidden>
-            <div class="section-title">Output files</div>
+            <div class="section-title" data-i18n="output_files">Output files</div>
             <div class="table-card">
             <div class="file-list">
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
                 <div class="file-meta"><div class="file-name" id="output-summary-filename">SUMMARY.xlsx</div><div class="file-desc" id="output-summary-desc">—</div></div>
-                <button class="btn-ghost" type="button">Download</button>
+                <button class="btn-ghost" type="button" data-i18n="download">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
                 <div class="file-meta"><div class="file-name">BUKKU-SALES.xlsx</div><div class="file-desc" id="output-sales-desc">—</div></div>
-                <button class="btn-ghost" type="button">Download</button>
+                <button class="btn-ghost" type="button" data-i18n="download">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
                 <div class="file-meta"><div class="file-name">BUKKU-PAYMENT.xlsx</div><div class="file-desc" id="output-payment-desc">—</div></div>
-                <button class="btn-ghost" type="button">Download</button>
+                <button class="btn-ghost" type="button" data-i18n="download">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-                <div class="file-meta"><div class="file-name">carryover_next.json</div><div class="file-desc">Unpaid invoices carried into next month</div></div>
-                <button class="btn-ghost" type="button">Download</button>
+                <div class="file-meta"><div class="file-name">carryover_next.json</div><div class="file-desc" data-i18n="carryover_desc">Unpaid invoices carried into next month</div></div>
+                <button class="btn-ghost" type="button" data-i18n="download">Download</button>
               </div>
               <div class="file-row">
                 <div class="file-icon warn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div>
                 <div class="file-meta"><div class="file-name">flags.json</div><div class="file-desc" id="output-flags-desc">—</div></div>
-                <button class="btn-ghost" type="button">Download</button>
+                <button class="btn-ghost" type="button" data-i18n="download">Download</button>
               </div>
             </div>
             </div>
@@ -1081,10 +1084,10 @@
     <div class="modal-card">
       <div class="modal-header">
         <div>
-          <h3 id="assign-modal-company">Assign Staff</h3>
-          <div class="modal-sub">Select up to 2 staff. Changes need admin approval before they take effect.</div>
+          <h3 id="assign-modal-company" data-i18n="assign_staff_title">Assign Staff</h3>
+          <div class="modal-sub" data-i18n="assign_staff_sub">Select up to 2 staff. Changes need admin approval before they take effect.</div>
         </div>
-        <button type="button" class="modal-close" id="assign-modal-close" aria-label="Close">
+        <button type="button" class="modal-close" id="assign-modal-close" data-i18n-aria="close" aria-label="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -1092,12 +1095,12 @@
       <div class="modal-body">
         <div class="assign-current" id="assign-current-staff"></div>
         <div class="assign-staff-list" id="assign-staff-list"></div>
-        <div class="assign-limit-note" id="assign-limit-note">You can select up to 2 staff for one client.</div>
+        <div class="assign-limit-note" id="assign-limit-note" data-i18n="assign_limit_note">You can select up to 2 staff for one client.</div>
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn-ghost" id="assign-cancel">Cancel</button>
-        <button type="button" class="btn-primary" id="assign-submit" style="width:auto;padding:10px 18px;">Submit for Approval</button>
+        <button type="button" class="btn-ghost" id="assign-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="assign-submit" style="width:auto;padding:10px 18px;" data-i18n="submit_for_approval">Submit for Approval</button>
       </div>
     </div>
   </div>
@@ -1122,7 +1125,7 @@
     if(role === 'client'){
       document.getElementById('topbar-avatar').textContent = initials(profile.companyName);
       document.getElementById('topbar-user-name').textContent = profile.companyName;
-      document.getElementById('topbar-user-role').textContent = 'Client';
+      document.getElementById('topbar-user-role').textContent = t('role_client');
       currentCompany = profile.companyName;
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
@@ -1130,7 +1133,7 @@
     } else {
       document.getElementById('topbar-avatar').textContent = initials(profile.displayName);
       document.getElementById('topbar-user-name').textContent = profile.displayName;
-      document.getElementById('topbar-user-role').textContent = role === 'admin' ? 'Admin' : 'Staff';
+      document.getElementById('topbar-user-role').textContent = role === 'admin' ? t('role_admin') : t('role_staff');
       var pickerNav = document.querySelector('.nav-item[data-panel="panel-company-picker"]');
       if(pickerNav) pickerNav.click();
     }
@@ -1158,6 +1161,317 @@
     return String(d.getUTCDate()).padStart(2,'0') + ' ' + months[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
   }
 
+  // ============ I18N (English / Simplified Chinese) ============
+  var LANG = localStorage.getItem('crest_lang') || 'en';
+
+  var I18N = {
+    en: {
+      ac_customer_code:"Customer Code", ac_deposit_account:"Deposit Account", ac_fee_account:"Fee Account",
+      ac_invoice_prefix:"Invoice Prefix", ac_payment_method:"Payment Method", ac_receipt_prefix:"Receipt Prefix",
+      ac_sales_account:"Sales Account", ac_tag:"Tag",
+      account_codes_toggle:"Account codes used for this outlet", account_settings:"Account Settings",
+      add_bank_statement:"Add bank statement", all_companies:"All companies", all_staff:"All staff", all_statuses:"All statuses",
+      assign_limit_note:"You can select up to 2 staff for one client.",
+      assign_staff_sub:"Select up to 2 staff. Changes need admin approval before they take effect.",
+      assign_staff_title:"Assign Staff", assigned_to:"assigned to", assignment_requests:"Assignment requests",
+      back_to_td_example:"Back to TD example", bank_statement:"Bank statement",
+      bank_statement_desc:"Cross-checks the gateway's settlement list against what actually hit the bank, and flags any mismatch.",
+      cancel:"Cancel",
+      carryover_auto:"Auto-detect unpaid invoices from last month's SUMMARY.xlsx",
+      carryover_desc:"Unpaid invoices carried into next month",
+      carryover_first_month:"First month — no carryover", carryover_manual:"Enter unpaid invoices manually",
+      close:"Close", daily_summary:"Daily summary (Aug 2026)", download:"Download",
+      field_password:"Password", field_userid:"User ID",
+      fifo_caption:"FIFO-matched against the oldest unpaid invoices", forgot_password:"Forgot password?",
+      generate_bukku_btn:"Generate Bukku Templates →",
+      h_choose_company:"Choose a Company", h_customer_queue:"Customer Reconciliation Queue", h_monthly_reconciliation:"Monthly Reconciliation",
+      kpi_approved_amount:"Approved Amount", kpi_bank_verified:"Bank-Verified", kpi_gateway_fees:"Gateway Fees",
+      kpi_invoices_issued:"Invoices Issued", kpi_net_settlement:"Net Settlement", kpi_payment_settled:"Payment Settled",
+      kpi_settlements_matched:"Settlements Matched", kpi_synced_bukku:"Synced to Bukku", kpi_today_gross_sales:"Today's Gross Sales",
+      kpi_total_transactions:"Total Transactions", kpi_unresolved:"Unresolved", kpi_unsettled_invoices:"Unsettled Invoices",
+      log_out:"Log Out", login_footer:"© 2026 CC CREST Bookkeeping Portal · v1.0",
+      nav_activity_log:"Activity Log", nav_bank_statement:"Bank Statement", nav_choose_company:"Choose Company",
+      nav_claim_bill:"Claim Bill", nav_company_home:"Company Home", nav_customer_queue:"Customer Queue",
+      nav_group_bookkeeping:"Bookkeeping Service", nav_group_tools:"Tools", nav_merchant_report:"Merchant Report",
+      nav_petty_record:"Petty Record", nav_purchases_bill:"Purchases Bill", nav_reconciliation:"Reconciliation",
+      nav_sales_summary:"Sales Summary", nav_staff_approvals:"Staff Approvals",
+      next:"Next →", not_provided:"Not provided", notifications:"Notifications", optional:"Optional",
+      output_file_name:"Output file name", output_files:"Output files", past_batches:"Past batches",
+      ph_userid:"e.g. admin01, or your company code", prev:"← Prev", remember_me:"Remember me",
+      search_company:"Search company", search_company_name:"Search company name…", search_customer_name:"Search customer name…",
+      show_password:"Show password", sidebar_region:"SQL data store · JB region", sidebar_synced:"Synced with Bukku",
+      sign_in:"Sign In", staff_access_limits:"Staff access limits",
+      staff_access_limits_desc:"Max clients each staff member can be assigned, and whether they can currently receive new assignments. Admin-only.",
+      staff_workload:"Staff workload",
+      status_completed:"Completed", status_in_progress:"In Progress", status_needs_review:"Needs Review", status_not_started:"Not Started",
+      status_synced:"Synced", status_pending:"Pending", status_matched:"Matched", status_unmatched:"Unmatched",
+      status_paid:"Paid", status_unpaid:"Unpaid", status_approved:"Approved", status_rejected:"Rejected",
+      status_active:"Active", status_suspended:"Suspended",
+      step1_upload:"1 · Upload transaction listing", step2_carryover:"2 · Carryover from previous month",
+      sub_activity_log:"Audit trail of staff, access, and assignment changes",
+      sub_choose_company:"Search or browse your 50 clients to start working",
+      sub_monthly_reconciliation:"DuitNow / FIUU → Bukku import",
+      sub_staff_approvals:"Assignment change requests · up to 2 staff per client",
+      submit_for_approval:"Submit for Approval",
+      th_access:"Access", th_action:"Action", th_actor:"Actor", th_actual_amt:"Actual Amt", th_amount:"Amount",
+      th_approved_amt:"Approved Amt", th_assigned_clients:"Assigned Clients", th_assigned_staff:"Assigned Staff",
+      th_balance:"Balance", th_bill_amt:"Bill Amt", th_bukku_status:"Bukku Status", th_category:"Category",
+      th_claim_no:"Claim No.", th_client_limit:"Client Limit", th_company:"Company", th_credit:"Credit",
+      th_current_staff:"Current Staff", th_customer:"Customer", th_date:"Date", th_debit:"Debit",
+      th_description:"Description", th_details:"Details", th_exceptions:"Exceptions",
+      th_failed_cancelled:"Failed / Cancelled", th_failed_cancelled_short:"Failed/Cancelled",
+      th_gateway_fee:"Gateway Fee", th_gross_sales:"Gross Sales", th_in:"In", th_input_file:"Input File",
+      th_invoice_no:"Invoice No.", th_invoices:"Invoices", th_month:"Month", th_net_settlement:"Net Settlement",
+      th_out:"Out", th_output_files:"Output Files", th_payment_settled:"Payment Settled", th_payment_status:"Payment Status",
+      th_petty_cash_out:"Petty Cash Out", th_receipt_no:"Receipt No.", th_requested_by:"Requested By",
+      th_requested_staff:"Requested Staff", th_settlement:"Settlement", th_staff:"Staff", th_status:"Status",
+      th_supplier:"Supplier", th_target:"Target", th_time:"Time", th_total_txns:"Total Txns", th_txn_fee:"Txn Fee",
+      th_type:"Type", th_updated:"Updated",
+      toggle_nav:"Toggle navigation",
+      upload_desc:"Runs the daily reconciliation and FIFO settlement match, then generates the Bukku Sales &amp; Payment import files.",
+      upload_drop_text:'Drop the <strong>TRANSACTION LISTING</strong> workbook here, or <span class="upload-browse">browse</span>',
+      upload_hint:".xlsx with a transaction-listing sheet + settlement sheet — found by column headers, not sheet name",
+      upload_reconcile_btn:"Upload & Reconcile →", upload_title:"Upload This Month's Transaction Listing",
+      upload_zone_aria:"Upload transaction listing workbook", viewing:"Viewing",
+
+      empty_sales:"Select a company from the filter above to view its sales records.",
+      empty_sales_no_data:"No sales records for this period.",
+      empty_bank:"Select a company from the filter above to view its bank statement.",
+      empty_bank_no_data:"No bank activity this period.",
+      empty_purchases:"Select a company from the filter above to view its purchase bills.",
+      empty_purchases_no_data:"No purchase bills this period.",
+      empty_claim:"Select a company from the filter above to view its claim bills.",
+      empty_claim_no_data:"No claim bills this period.",
+      empty_petty:"Select a company from the filter above to view its petty cash record.",
+      empty_petty_no_data:"No petty cash movement this period.",
+      empty_merchant:"Select a company from the filter above to view its merchant report.",
+      empty_home:"Select a company from the filter above to view its dashboard.",
+      empty_no_recon_batch:"No reconciliation batches yet for this company.",
+      empty_recon_batch_none:"No reconciliation batch for this period yet.",
+      could_not_load_sales:"Could not load sales records.", could_not_load_bank:"Could not load bank statement.",
+      could_not_load_purchases:"Could not load purchase bills.", could_not_load_claim:"Could not load claim bills.",
+      could_not_load_petty:"Could not load petty cash record.", could_not_load_merchant:"Could not load merchant report.",
+      could_not_load_home:"Could not load company dashboard.", could_not_load_activity:"Could not load activity log.",
+      no_activity_yet:"No activity recorded yet.", no_assignment_requests:"No assignment requests yet.",
+
+      sub_select_aug:"Select a company · Aug 2026", sub_current_account:"Select a company · current account",
+      sub_supplier_invoices:"Select a company · supplier invoices", sub_staff_claims:"Select a company · staff reimbursement claims",
+      sub_float_log:"Select a company · float log", sub_merchant_settlement:"Select a company · DuitNow / FIUU settlement",
+      sub_monthly_overview:"Select a company · monthly overview", monthly_overview_period:"Monthly overview · Aug 2026",
+      period_aug2026:"Aug 2026", current_account_suffix:"current account", supplier_invoices_suffix:"supplier invoices",
+      staff_claims_suffix:"staff reimbursement claims", float_log_suffix:"float log",
+      merchant_settlement_suffix:"DuitNow / FIUU settlement",
+
+      no_customers_match:"No customers match this filter.", no_results:"No results",
+      no_company_match:"No company matches that search.", not_uploaded:"Not uploaded",
+      currently_label:"Currently:", access_suspended_note:"(access suspended)", at_client_limit_note:"(at client limit)",
+      max_2_selected:"Maximum of 2 staff selected.", generated_check:"Generated ✓",
+      pending_change_badge:"Pending change", at_limit_badge:"At limit",
+      need_review_suffix:"need review", all_clear:"all clear", customers_word:"customers",
+      reconciling_label:"Reconciling…", run_reconciliation_label:"Run Reconciliation",
+      role_admin:"Admin", role_staff:"Staff", role_client:"Client",
+      unrecognized_id_prefix:"Unrecognized ID",
+      kpi_period_revenue:"Period Revenue", kpi_settled:"Settled", kpi_unsettled:"Unsettled", kpi_exceptions:"Exceptions",
+      kpi_total_customers:"Total Customers", view_btn:"View", ready_word:"ready", assign_btn:"Assign",
+      save_btn:"Save", kpi_pending_requests:"Pending Requests", kpi_approved:"Approved", kpi_rejected:"Rejected",
+      approve_btn:"Approve", reject_btn:"Reject",
+      verifying:"Verifying…",
+      bukku_generated_flagged:"Bukku Sales and Payment templates generated. The flagged item still needs manual confirmation before import.",
+      bukku_generated:"Bukku Sales and Payment templates generated.",
+      review_gate_flagged:"Review the daily summary above — the flagged item needs a decision before the Bukku files are generated.",
+      review_gate_clear:"Review the daily summary above, then generate the Bukku import files.",
+      daily_rows_word:"daily rows", credit_invoices_ready:"credit invoices ready to import", receipts_ready:"receipts ready to import",
+      selected_ready_suffix:"selected — ready to reconcile",
+      will_crosscheck_suffix:" — will cross-check settlements against actual deposits",
+      replace_file:"Replace file",
+      login_error_hint:" — staff/admin use your assigned login ID; clients use their company code."
+    },
+    zh: {
+      ac_customer_code:"客户代码", ac_deposit_account:"存款账户", ac_fee_account:"手续费账户",
+      ac_invoice_prefix:"发票前缀", ac_payment_method:"付款方式", ac_receipt_prefix:"收据前缀",
+      ac_sales_account:"销售账户", ac_tag:"标签",
+      account_codes_toggle:"该门店使用的会计代码", account_settings:"账户设置",
+      add_bank_statement:"添加银行对账单", all_companies:"所有公司", all_staff:"所有员工", all_statuses:"所有状态",
+      assign_limit_note:"每位客户最多可选择2名员工。",
+      assign_staff_sub:"最多选择2名员工。更改需经管理员批准后才能生效。",
+      assign_staff_title:"分配员工", assigned_to:"分配给", assignment_requests:"分配申请",
+      back_to_td_example:"返回 TD 示例", bank_statement:"银行对账单",
+      bank_statement_desc:"将支付网关的结算清单与实际入账的银行记录核对，并标记任何不符之处。",
+      cancel:"取消",
+      carryover_auto:"从上月的 SUMMARY.xlsx 自动检测未付发票",
+      carryover_desc:"结转至下月的未付发票",
+      carryover_first_month:"首月 — 无结转", carryover_manual:"手动输入未付发票",
+      close:"关闭", daily_summary:"每日汇总（2026年8月）", download:"下载",
+      field_password:"密码", field_userid:"用户账号",
+      fifo_caption:"按先进先出（FIFO）与最早未付发票匹配", forgot_password:"忘记密码？",
+      generate_bukku_btn:"生成 Bukku 模板 →",
+      h_choose_company:"选择公司", h_customer_queue:"客户对账队列", h_monthly_reconciliation:"月度对账",
+      kpi_approved_amount:"已批准金额", kpi_bank_verified:"银行已核实", kpi_gateway_fees:"网关手续费",
+      kpi_invoices_issued:"已开发票数", kpi_net_settlement:"净结算金额", kpi_payment_settled:"已结算款项",
+      kpi_settlements_matched:"已匹配结算", kpi_synced_bukku:"已同步至 Bukku", kpi_today_gross_sales:"今日总销售额",
+      kpi_total_transactions:"交易总数", kpi_unresolved:"未解决", kpi_unsettled_invoices:"未结算发票",
+      log_out:"退出登录", login_footer:"© 2026 CC CREST 记账门户 · v1.0",
+      nav_activity_log:"活动日志", nav_bank_statement:"银行对账单", nav_choose_company:"选择公司",
+      nav_claim_bill:"报销单", nav_company_home:"公司首页", nav_customer_queue:"客户队列",
+      nav_group_bookkeeping:"记账服务", nav_group_tools:"工具", nav_merchant_report:"商户报告",
+      nav_petty_record:"零用现金记录", nav_purchases_bill:"采购账单", nav_reconciliation:"对账",
+      nav_sales_summary:"销售汇总", nav_staff_approvals:"员工审批",
+      next:"下一页 →", not_provided:"未提供", notifications:"通知", optional:"可选",
+      output_file_name:"输出文件名", output_files:"输出文件", past_batches:"历史批次",
+      ph_userid:"例如 admin01，或您的公司代码", prev:"← 上一页", remember_me:"记住我",
+      search_company:"搜索公司", search_company_name:"搜索公司名称…", search_customer_name:"搜索客户名称…",
+      show_password:"显示密码", sidebar_region:"SQL 数据存储 · 新山地区", sidebar_synced:"已与 Bukku 同步",
+      sign_in:"登录", staff_access_limits:"员工访问限制",
+      staff_access_limits_desc:"每位员工最多可分配的客户数，以及是否可接受新的分配。仅限管理员。",
+      staff_workload:"员工工作量",
+      status_completed:"已完成", status_in_progress:"进行中", status_needs_review:"待审核", status_not_started:"未开始",
+      status_synced:"已同步", status_pending:"待处理", status_matched:"已匹配", status_unmatched:"未匹配",
+      status_paid:"已付款", status_unpaid:"未付款", status_approved:"已批准", status_rejected:"已拒绝",
+      status_active:"启用", status_suspended:"已暂停",
+      step1_upload:"1 · 上传交易清单", step2_carryover:"2 · 上月结转",
+      sub_activity_log:"员工、权限及分配变更的审计记录",
+      sub_choose_company:"搜索或浏览您的50个客户以开始工作",
+      sub_monthly_reconciliation:"DuitNow / FIUU → 导入 Bukku",
+      sub_staff_approvals:"分配变更申请 · 每位客户最多2名员工",
+      submit_for_approval:"提交审批",
+      th_access:"访问权限", th_action:"操作", th_actor:"操作人", th_actual_amt:"实际金额", th_amount:"金额",
+      th_approved_amt:"已批准金额", th_assigned_clients:"已分配客户数", th_assigned_staff:"分配员工",
+      th_balance:"余额", th_bill_amt:"账单金额", th_bukku_status:"Bukku 状态", th_category:"类别",
+      th_claim_no:"报销单号", th_client_limit:"客户上限", th_company:"公司", th_credit:"存入",
+      th_current_staff:"现任员工", th_customer:"客户", th_date:"日期", th_debit:"支出",
+      th_description:"描述", th_details:"详情", th_exceptions:"异常项",
+      th_failed_cancelled:"失败／取消", th_failed_cancelled_short:"失败/取消",
+      th_gateway_fee:"网关手续费", th_gross_sales:"总销售额", th_in:"收入", th_input_file:"输入文件",
+      th_invoice_no:"发票号", th_invoices:"发票数", th_month:"月份", th_net_settlement:"净结算金额",
+      th_out:"支出", th_output_files:"输出文件", th_payment_settled:"已结算款项", th_payment_status:"付款状态",
+      th_petty_cash_out:"零用现金支出", th_receipt_no:"收据号", th_requested_by:"申请人",
+      th_requested_staff:"申请员工", th_settlement:"结算金额", th_staff:"员工", th_status:"状态",
+      th_supplier:"供应商", th_target:"对象", th_time:"时间", th_total_txns:"交易总数", th_txn_fee:"交易费",
+      th_type:"类型", th_updated:"更新时间",
+      toggle_nav:"切换导航",
+      upload_desc:"运行每日对账与FIFO结算匹配，然后生成 Bukku 销售与付款导入文件。",
+      upload_drop_text:'将 <strong>TRANSACTION LISTING</strong> 工作簿拖放到此处，或<span class="upload-browse">浏览选择</span>',
+      upload_hint:".xlsx 文件，需包含交易清单表和结算表 — 通过列标题识别，而非工作表名称",
+      upload_reconcile_btn:"上传并对账 →", upload_title:"上传本月交易清单",
+      upload_zone_aria:"上传交易清单工作簿", viewing:"正在查看",
+
+      empty_sales:"请从上方选择一个公司以查看其销售记录。", empty_sales_no_data:"该期间没有销售记录。",
+      empty_bank:"请从上方选择一个公司以查看其银行对账单。", empty_bank_no_data:"该期间没有银行交易记录。",
+      empty_purchases:"请从上方选择一个公司以查看其采购账单。", empty_purchases_no_data:"该期间没有采购账单。",
+      empty_claim:"请从上方选择一个公司以查看其报销单。", empty_claim_no_data:"该期间没有报销单。",
+      empty_petty:"请从上方选择一个公司以查看其零用现金记录。", empty_petty_no_data:"该期间没有零用现金变动。",
+      empty_merchant:"请从上方选择一个公司以查看其商户报告。",
+      empty_home:"请从上方选择一个公司以查看其仪表盘。",
+      empty_no_recon_batch:"该公司暂无对账批次。", empty_recon_batch_none:"该期间暂无对账批次。",
+      could_not_load_sales:"无法加载销售记录。", could_not_load_bank:"无法加载银行对账单。",
+      could_not_load_purchases:"无法加载采购账单。", could_not_load_claim:"无法加载报销单。",
+      could_not_load_petty:"无法加载零用现金记录。", could_not_load_merchant:"无法加载商户报告。",
+      could_not_load_home:"无法加载公司仪表盘。", could_not_load_activity:"无法加载活动日志。",
+      no_activity_yet:"暂无活动记录。", no_assignment_requests:"暂无分配申请。",
+
+      sub_select_aug:"请选择公司 · 2026年8月", sub_current_account:"请选择公司 · 往来账户",
+      sub_supplier_invoices:"请选择公司 · 供应商发票", sub_staff_claims:"请选择公司 · 员工报销",
+      sub_float_log:"请选择公司 · 备用金记录", sub_merchant_settlement:"请选择公司 · DuitNow / FIUU 结算",
+      sub_monthly_overview:"请选择公司 · 月度概览", monthly_overview_period:"月度概览 · 2026年8月",
+      period_aug2026:"2026年8月", current_account_suffix:"往来账户", supplier_invoices_suffix:"供应商发票",
+      staff_claims_suffix:"员工报销", float_log_suffix:"备用金记录",
+      merchant_settlement_suffix:"DuitNow / FIUU 结算",
+
+      no_customers_match:"没有符合筛选条件的客户。", no_results:"无结果",
+      no_company_match:"未找到匹配的公司。", not_uploaded:"未上传",
+      currently_label:"当前：", access_suspended_note:"（访问已暂停）", at_client_limit_note:"（已达客户上限）",
+      max_2_selected:"最多可选择2名员工。", generated_check:"已生成 ✓",
+      pending_change_badge:"待处理变更", at_limit_badge:"已达上限",
+      need_review_suffix:"待审核", all_clear:"全部正常", customers_word:"位客户",
+      reconciling_label:"对账中…", run_reconciliation_label:"运行对账",
+      role_admin:"管理员", role_staff:"员工", role_client:"客户",
+      unrecognized_id_prefix:"无法识别的账号",
+      kpi_period_revenue:"期间营收", kpi_settled:"已结算", kpi_unsettled:"未结算", kpi_exceptions:"异常项",
+      kpi_total_customers:"客户总数", view_btn:"查看", ready_word:"已就绪", assign_btn:"分配",
+      save_btn:"保存", kpi_pending_requests:"待处理申请", kpi_approved:"已批准", kpi_rejected:"已拒绝",
+      approve_btn:"批准", reject_btn:"拒绝",
+      verifying:"核实中…",
+      bukku_generated_flagged:"Bukku 销售与付款模板已生成。标记项目仍需人工确认后才能导入。",
+      bukku_generated:"Bukku 销售与付款模板已生成。",
+      review_gate_flagged:"请查看上方的每日汇总 — 标记项目需先做出决定，才能生成 Bukku 文件。",
+      review_gate_clear:"请查看上方的每日汇总，然后生成 Bukku 导入文件。",
+      daily_rows_word:"条每日记录", credit_invoices_ready:"张销项发票待导入", receipts_ready:"张收据待导入",
+      selected_ready_suffix:"已选择 — 可开始对账",
+      will_crosscheck_suffix:" — 将与实际入账进行核对",
+      replace_file:"更换文件",
+      login_error_hint:" — 员工/管理员请使用您的登录账号；客户请使用您的公司代码。"
+    }
+  };
+
+  function t(key){
+    return (I18N[LANG] && I18N[LANG][key] !== undefined) ? I18N[LANG][key] : ((I18N.en[key] !== undefined) ? I18N.en[key] : key);
+  }
+
+  var STATUS_LABEL_KEY = {
+    'Synced':'status_synced', 'Pending':'status_pending', 'Matched':'status_matched', 'Unmatched':'status_unmatched',
+    'Paid':'status_paid', 'Unpaid':'status_unpaid', 'Approved':'status_approved', 'Rejected':'status_rejected',
+    'Needs Review':'status_needs_review', 'In Progress':'status_in_progress', 'Not Started':'status_not_started',
+    'Completed':'status_completed', 'Active':'status_active', 'Suspended':'status_suspended'
+  };
+  function statusLabel(status){
+    var key = STATUS_LABEL_KEY[status];
+    return key ? t(key) : status;
+  }
+
+  function settlementsNeedReviewHeading(n){
+    return LANG === 'zh' ? (n + ' 项结算待审核') : (n + ' settlement' + (n > 1 ? 's' : '') + ' need' + (n > 1 ? '' : 's') + ' review');
+  }
+  function itemsNeedReviewText(n){
+    return LANG === 'zh' ? (n + ' 项待审核') : (n + ' item' + (n === 1 ? '' : 's') + ' need review');
+  }
+  function flagNoteBody(f){
+    if(LANG === 'zh'){
+      return formatDate(f.date) + ' — ' + money(Number(f.settlement)) + ' 与发票 ' + f.invoice_no + ' 的预期金额不完全匹配。FIFO 匹配到此中断，因此之后的结算也需等待此项确认。请在强制匹配前确认该款项对应的发票。';
+    }
+    return formatDate(f.date) + ' — ' + money(Number(f.settlement)) + " doesn't cleanly match the expected amount for " + f.invoice_no + '. FIFO matching stops here, so later settlements are waiting on this one too. Confirm which invoice(s) it covers before this is forced to match.';
+  }
+
+  function applyTranslations(){
+    document.documentElement.setAttribute('lang', LANG === 'zh' ? 'zh-CN' : 'en');
+    document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-html]').forEach(function(el){ el.innerHTML = t(el.dataset.i18nHtml); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){ el.placeholder = t(el.dataset.i18nPlaceholder); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+    document.querySelectorAll('.lang-toggle').forEach(function(btn){ btn.textContent = LANG === 'en' ? '中文' : 'EN'; });
+    var runLabel = document.querySelector('.btn-run-label');
+    if(runLabel) runLabel.textContent = t('run_reconciliation_label');
+    if(CURRENT_ROLE){
+      var roleEl = document.getElementById('topbar-user-role');
+      if(roleEl && CURRENT_ROLE !== 'client'){ roleEl.textContent = t('role_' + CURRENT_ROLE); }
+      else if(roleEl){ roleEl.textContent = t('role_client'); }
+    }
+  }
+
+  function setLang(lang){
+    LANG = lang;
+    localStorage.setItem('crest_lang', lang);
+    applyTranslations();
+    refreshDynamicContent();
+  }
+
+  function refreshDynamicContent(){
+    if(!CURRENT_ROLE) return;
+    renderCompanyGrid();
+    renderKpiRow();
+    renderStaffRow();
+    renderQueueTable();
+    if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
+    if(CURRENT_ROLE === 'admin'){
+      renderApprovals();
+      renderStaffLimits();
+      renderActivityLog();
+    }
+  }
+
+  document.querySelectorAll('.lang-toggle').forEach(function(btn){
+    btn.addEventListener('click', function(){ setLang(LANG === 'en' ? 'zh' : 'en'); });
+  });
+
   // Login -> dashboard
   document.getElementById('login-form').addEventListener('submit', function(e){
     e.preventDefault();
@@ -1175,7 +1489,7 @@
         return onAuthenticated(profile);
       })
       .catch(function(err){
-        errEl.textContent = err.message + ' — staff/admin use your assigned login ID; clients use their company code.';
+        errEl.textContent = err.message + t('login_error_hint');
         errEl.hidden = false;
       })
       .finally(function(){ submitBtn.disabled = false; });
@@ -1257,7 +1571,7 @@
 
   function showFile(name){
     uploadZone.classList.add('has-file');
-    uploadText.innerHTML = '<strong>' + name + '</strong> selected — ready to reconcile';
+    uploadText.innerHTML = '<strong>' + name + '</strong> ' + t('selected_ready_suffix');
   }
   uploadZone.addEventListener('click', function(){ fileInput.click(); });
   uploadZone.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); } });
@@ -1284,8 +1598,8 @@
     if(this.files[0]){
       bankStatementProvided = true;
       bankStmtFilename.hidden = false;
-      bankStmtFilename.textContent = this.files[0].name + ' — will cross-check settlements against actual deposits';
-      bankStmtBtn.textContent = 'Replace file';
+      bankStmtFilename.textContent = this.files[0].name + t('will_crosscheck_suffix');
+      bankStmtBtn.textContent = t('replace_file');
     }
   });
 
@@ -1306,7 +1620,7 @@
     var flagNote = document.getElementById('recon-flag-note');
 
     if(!recon){
-      document.getElementById('recon-lines-tbody').innerHTML = emptyRowSafe(9, 'No reconciliation batch for this period yet.');
+      document.getElementById('recon-lines-tbody').innerHTML = emptyRowSafe(9, t('empty_recon_batch_none'));
       flagNote.hidden = true;
       return;
     }
@@ -1317,43 +1631,38 @@
     document.getElementById('recon-kpi-matched').textContent = matchedCount;
     document.getElementById('recon-kpi-unresolved').textContent = flagged.length;
     document.getElementById('recon-kpi-invoices').textContent = batch.invoices_count;
-    document.getElementById('bank-verified-kpi').textContent = batch.bank_verified || (bankStatementProvided ? 'Verifying…' : 'Not provided');
+    document.getElementById('bank-verified-kpi').textContent = batch.bank_verified || (bankStatementProvided ? t('verifying') : t('not_provided'));
 
     if(flagged.length > 0){
       var f = flagged[0];
       document.getElementById('recon-flag-note-text').innerHTML =
-        '<b>' + flagged.length + ' settlement' + (flagged.length > 1 ? 's' : '') + ' need' + (flagged.length > 1 ? '' : 's') + ' review.</b> ' +
-        formatDate(f.date) + ' — ' + money(Number(f.settlement)) + ' doesn\'t cleanly match the expected amount for ' + f.invoice_no + '. FIFO matching stops here, so later settlements are waiting on this one too. Confirm which invoice(s) it covers before this is forced to match.';
+        '<b>' + settlementsNeedReviewHeading(flagged.length) + '.</b> ' + flagNoteBody(f);
       flagNote.hidden = false;
     } else {
       flagNote.hidden = true;
     }
 
     document.getElementById('recon-lines-tbody').innerHTML = lines.map(function(l){
-      return '<tr><td>' + formatDate(l.date) + '</td><td class="num">' + l.invoice_no + '</td><td class="num">' + money(Number(l.bill_amt)) + '</td><td class="num">' + money(Number(l.txn_fee)) + '</td><td class="num">' + money(Number(l.failed_cancelled)) + '</td><td class="num">' + money(Number(l.actual_amt)) + '</td><td class="num">' + money(Number(l.settlement)) + '</td><td class="num">' + (l.receipt_no || '—') + '</td><td><span class="badge ' + (l.status === 'Matched' ? 'matched' : 'review') + '">' + l.status + '</span></td></tr>';
+      return '<tr><td>' + formatDate(l.date) + '</td><td class="num">' + l.invoice_no + '</td><td class="num">' + money(Number(l.bill_amt)) + '</td><td class="num">' + money(Number(l.txn_fee)) + '</td><td class="num">' + money(Number(l.failed_cancelled)) + '</td><td class="num">' + money(Number(l.actual_amt)) + '</td><td class="num">' + money(Number(l.settlement)) + '</td><td class="num">' + (l.receipt_no || '—') + '</td><td><span class="badge ' + (l.status === 'Matched' ? 'matched' : 'review') + '">' + statusLabel(l.status) + '</span></td></tr>';
     }).join('');
 
     var allReady = batch.output_summary_ready && batch.output_sales_ready && batch.output_payment_ready;
     if(allReady){
       gate.classList.add('done');
-      gate.querySelector('.generate-gate-text').textContent = flagged.length > 0
-        ? 'Bukku Sales and Payment templates generated. The flagged item still needs manual confirmation before import.'
-        : 'Bukku Sales and Payment templates generated.';
+      gate.querySelector('.generate-gate-text').textContent = flagged.length > 0 ? t('bukku_generated_flagged') : t('bukku_generated');
       genBtn.disabled = true;
-      genBtn.textContent = 'Generated ✓';
+      genBtn.textContent = t('generated_check');
       bukkuOutput.hidden = false;
       document.getElementById('output-summary-filename').textContent = currentCompany ? salesSummaryFileName(currentCompany) + '.xlsx' : 'SUMMARY.xlsx';
-      document.getElementById('output-summary-desc').textContent = batch.invoices_count + ' daily rows · Aug 2026';
-      document.getElementById('output-sales-desc').textContent = matchedCount + ' credit invoices ready to import';
-      document.getElementById('output-payment-desc').textContent = matchedCount + ' receipts ready to import';
-      document.getElementById('output-flags-desc').textContent = flagged.length + ' item' + (flagged.length === 1 ? '' : 's') + ' need review';
+      document.getElementById('output-summary-desc').textContent = batch.invoices_count + ' ' + t('daily_rows_word') + ' · ' + t('period_aug2026');
+      document.getElementById('output-sales-desc').textContent = matchedCount + ' ' + t('credit_invoices_ready');
+      document.getElementById('output-payment-desc').textContent = matchedCount + ' ' + t('receipts_ready');
+      document.getElementById('output-flags-desc').textContent = itemsNeedReviewText(flagged.length);
     } else {
       gate.classList.remove('done');
-      gate.querySelector('.generate-gate-text').textContent = flagged.length > 0
-        ? 'Review the daily summary above — the flagged item needs a decision before the Bukku files are generated.'
-        : 'Review the daily summary above, then generate the Bukku import files.';
+      gate.querySelector('.generate-gate-text').textContent = flagged.length > 0 ? t('review_gate_flagged') : t('review_gate_clear');
       genBtn.disabled = false;
-      genBtn.textContent = 'Generate Bukku Templates →';
+      genBtn.textContent = t('generate_bukku_btn');
       bukkuOutput.hidden = true;
     }
   }
@@ -1365,12 +1674,14 @@
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     runBtn.classList.add('loading');
+    runBtn.querySelector('.btn-run-label').textContent = t('reconciling_label');
     api('/companies/' + companyId + '/reconciliation-batches').then(function(recon){
       renderReconResults(recon);
       reconResults.hidden = false;
       reconResults.scrollIntoView({ behavior:'smooth', block:'start' });
     }).catch(function(err){ alert(err.message); }).finally(function(){
       runBtn.classList.remove('loading');
+      runBtn.querySelector('.btn-run-label').textContent = t('run_reconciliation_label');
     });
   });
 
@@ -1398,11 +1709,11 @@
     var tbody = document.getElementById('activity-tbody');
     if(!tbody || CURRENT_ROLE !== 'admin') return;
     api('/activity-log').then(function(rows){
-      if(rows.length === 0){ tbody.innerHTML = emptyRowSafe(5, 'No activity recorded yet.'); return; }
+      if(rows.length === 0){ tbody.innerHTML = emptyRowSafe(5, t('no_activity_yet')); return; }
       tbody.innerHTML = rows.map(function(e){
         return '<tr><td class="num">' + formatDate(e.created_at) + '</td><td>' + e.actor + '</td><td>' + e.action + '</td><td>' + e.target + '</td><td style="color:var(--primary-soft);">' + (e.details || '') + '</td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRowSafe(5, 'Could not load activity log.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRowSafe(5, t('could_not_load_activity')); });
   }
 
   // ============ STAFF ACCESS LIMITS ============
@@ -1425,10 +1736,10 @@
         var atCap = s.assigned_count >= s.client_limit;
         return '<tr>' +
           '<td>' + s.name + '</td>' +
-          '<td class="num">' + s.assigned_count + (atCap ? ' <span class="badge review" style="margin-left:6px;">At limit</span>' : '') + '</td>' +
+          '<td class="num">' + s.assigned_count + (atCap ? ' <span class="badge review" style="margin-left:6px;">' + t('at_limit_badge') + '</span>' : '') + '</td>' +
           '<td class="num"><input type="number" min="1" value="' + s.client_limit + '" data-limit-for="' + s.id + '" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--surface-alt);font-family:var(--font-data);color:inherit;" /></td>' +
-          '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);"><input type="checkbox" data-active-for="' + s.id + '" ' + (s.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (s.active ? 'Active' : 'Suspended') + '</label></td>' +
-          '<td><button type="button" class="btn-row" data-save-limit="' + s.id + '">Save</button></td>' +
+          '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);"><input type="checkbox" data-active-for="' + s.id + '" ' + (s.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (s.active ? t('status_active') : t('status_suspended')) + '</label></td>' +
+          '<td><button type="button" class="btn-row" data-save-limit="' + s.id + '">' + t('save_btn') + '</button></td>' +
         '</tr>';
       }).join('');
 
@@ -1489,21 +1800,21 @@
       var approved = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Approved'; }).length;
       var rejected = ASSIGNMENT_REQUESTS.filter(function(r){ return r.status === 'Rejected'; }).length;
       document.getElementById('approvals-kpi-row').innerHTML =
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Pending Requests</div><div class="kpi-value num">' + pending + '</div></div></div>' +
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Approved</div><div class="kpi-value num">' + approved + '</div></div></div>' +
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div><div><div class="kpi-label">Rejected</div><div class="kpi-value num">' + rejected + '</div></div></div>';
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">' + t('kpi_pending_requests') + '</div><div class="kpi-value num">' + pending + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">' + t('kpi_approved') + '</div><div class="kpi-value num">' + approved + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div><div><div class="kpi-label">' + t('kpi_rejected') + '</div><div class="kpi-value num">' + rejected + '</div></div></div>';
 
       var sorted = ASSIGNMENT_REQUESTS.slice().sort(function(a,b){
         var order = { "Pending":0, "Approved":1, "Rejected":1 };
         return order[a.status] - order[b.status] || (b.id - a.id);
       });
       if(sorted.length === 0){
-        tbody.innerHTML = emptyRowSafe(7, 'No assignment requests yet.');
+        tbody.innerHTML = emptyRowSafe(7, t('no_assignment_requests'));
       } else {
         tbody.innerHTML = sorted.map(function(r){
           var badgeClass = r.status === 'Pending' ? 'inprogress' : (r.status === 'Approved' ? 'approved' : 'rejected');
           var actions = r.status === 'Pending'
-            ? '<div class="approval-actions"><button type="button" class="approval-approve" data-approve="' + r.id + '">Approve</button><button type="button" class="approval-reject" data-reject="' + r.id + '">Reject</button></div>'
+            ? '<div class="approval-actions"><button type="button" class="approval-approve" data-approve="' + r.id + '">' + t('approve_btn') + '</button><button type="button" class="approval-reject" data-reject="' + r.id + '">' + t('reject_btn') + '</button></div>'
             : '';
           return '<tr>' +
             '<td>' + r.company + '</td>' +
@@ -1511,7 +1822,7 @@
             '<td class="num">' + r.requestedStaff.join(', ') + '</td>' +
             '<td>' + r.requestedBy + '</td>' +
             '<td class="num">' + formatDate(r.date) + '</td>' +
-            '<td><span class="badge ' + badgeClass + '">' + r.status + '</span></td>' +
+            '<td><span class="badge ' + badgeClass + '">' + statusLabel(r.status) + '</span></td>' +
             '<td>' + actions + '</td>' +
           '</tr>';
         }).join('');
@@ -1557,9 +1868,9 @@
     if(!cust) return;
     assignModalCompany = cust;
 
-    document.getElementById('assign-modal-company').textContent = 'Assign Staff — ' + cust.name;
+    document.getElementById('assign-modal-company').textContent = t('assign_staff_title') + ' — ' + cust.name;
     document.getElementById('assign-current-staff').innerHTML = cust.staff.map(function(s){
-      return '<span class="assign-current-chip">Currently: ' + s + '</span>';
+      return '<span class="assign-current-chip">' + t('currently_label') + ' ' + s + '</span>';
     }).join('');
 
     loadStaffList().then(function(){
@@ -1578,8 +1889,8 @@
       var suspended = !checked && !s.active;
       var disabled = (atLimit && !checked) || overCapacity || suspended;
       var color = staffColor(s.name);
-      var note = suspended ? ' <span style="color:var(--danger);font-size:11px;">(access suspended)</span>'
-        : overCapacity ? ' <span style="color:var(--warning);font-size:11px;">(at client limit)</span>' : '';
+      var note = suspended ? ' <span style="color:var(--danger);font-size:11px;">' + t('access_suspended_note') + '</span>'
+        : overCapacity ? ' <span style="color:var(--warning);font-size:11px;">' + t('at_client_limit_note') + '</span>' : '';
       return '<label class="assign-staff-row' + (disabled ? ' disabled' : '') + '">' +
         '<input type="checkbox" value="' + s.id + '" ' + (checked ? 'checked' : '') + (disabled ? ' disabled' : '') + ' />' +
         '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(s.name) + '</div>' +
@@ -1598,7 +1909,7 @@
       });
     });
     document.getElementById('assign-limit-note').textContent =
-      assignModalSelected.length >= 2 ? 'Maximum of 2 staff selected.' : 'You can select up to 2 staff for one client.';
+      assignModalSelected.length >= 2 ? t('max_2_selected') : t('assign_limit_note');
   }
 
   function closeAssignModal(){
@@ -1633,10 +1944,10 @@
     COMPANIES.forEach(function(c){ counts[c.status]++; });
     var el = document.getElementById('queue-kpi-row');
     el.innerHTML =
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="kpi-label">Total Customers</div><div class="kpi-value num">' + total + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Completed</div><div class="kpi-value num">' + counts['Completed'] + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">In Progress</div><div class="kpi-value num">' + counts['In Progress'] + '</div></div></div>' +
-      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">Needs Review</div><div class="kpi-value num">' + counts['Needs Review'] + '</div></div></div>';
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="kpi-label">' + t('kpi_total_customers') + '</div><div class="kpi-value num">' + total + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">' + t('status_completed') + '</div><div class="kpi-value num">' + counts['Completed'] + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">' + t('status_in_progress') + '</div><div class="kpi-value num">' + counts['In Progress'] + '</div></div></div>' +
+      '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">' + t('status_needs_review') + '</div><div class="kpi-value num">' + counts['Needs Review'] + '</div></div></div>';
   }
 
   function renderStaffRow(){
@@ -1654,14 +1965,14 @@
       var s = byStaff[name];
       var color = staffColor(name);
       var pct = function(n){ return (n / s.total * 100).toFixed(1); };
-      var reviewNote = s['Needs Review'] > 0 ? (s['Needs Review'] + ' need review') : 'all clear';
+      var reviewNote = s['Needs Review'] > 0 ? (s['Needs Review'] + ' ' + t('need_review_suffix')) : t('all_clear');
       var card = document.createElement('div');
       card.className = 'staff-card';
       card.innerHTML =
         '<div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(name) + '</div>' +
         '<div style="flex:1;min-width:0;">' +
           '<div class="staff-card-name">' + name + '</div>' +
-          '<div class="staff-card-count">' + s.total + ' customers · ' + reviewNote + '</div>' +
+          '<div class="staff-card-count">' + s.total + ' ' + t('customers_word') + ' · ' + reviewNote + '</div>' +
           '<div class="staff-card-bar">' +
             '<span style="width:' + pct(s.Completed) + '%; background:var(--success);"></span>' +
             '<span style="width:' + pct(s['In Progress']) + '%; background:var(--warning);"></span>' +
@@ -1702,7 +2013,7 @@
 
   function fileCellHtml(c){
     if(!c.input){
-      return '<span class="file-cell missing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Not uploaded</span>';
+      return '<span class="file-cell missing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>' + t('not_uploaded') + '</span>';
     }
     return '<span class="file-cell"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>' + c.input + '</span>';
   }
@@ -1716,30 +2027,32 @@
 
     var tbody = document.getElementById('queue-tbody');
     if(pageRows.length === 0){
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--primary-soft);padding:26px;">No customers match this filter.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--primary-soft);padding:26px;">' + t('no_customers_match') + '</td></tr>';
     } else {
       tbody.innerHTML = pageRows.map(function(c){
         var badgeClass = STATUS_CLASS[c.status];
-        var outLabel = c.status === 'Not Started' ? '—' : (c.outReady + ' / ' + c.outTotal + ' ready');
+        var outLabel = c.status === 'Not Started' ? '—' : (c.outReady + ' / ' + c.outTotal + ' ' + t('ready_word'));
         var pending = pendingRequestFor(c.name);
-        var staffLabel = c.staff.join(', ') + (pending ? ' <span class="badge inprogress" style="margin-left:4px;">Pending change</span>' : '');
+        var staffLabel = c.staff.join(', ') + (pending ? ' <span class="badge inprogress" style="margin-left:4px;">' + t('pending_change_badge') + '</span>' : '');
         return '<tr>' +
           '<td>' + c.name + '</td>' +
           '<td class="num">' + c.type + '</td>' +
           '<td>' + staffLabel + '</td>' +
           '<td>' + fileCellHtml(c) + '</td>' +
           '<td class="num">' + outLabel + '</td>' +
-          '<td><span class="badge ' + badgeClass + '">' + c.status + '</span></td>' +
+          '<td><span class="badge ' + badgeClass + '">' + statusLabel(c.status) + '</span></td>' +
           '<td class="num">' + c.updated + '</td>' +
-          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">View</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">Assign</button></div></td>' +
+          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">' + t('view_btn') + '</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">' + t('assign_btn') + '</button></div></td>' +
         '</tr>';
       }).join('');
     }
 
-    document.getElementById('queue-filter-count').textContent = filtered.length + ' of ' + COMPANIES.length + ' customers';
+    document.getElementById('queue-filter-count').textContent = filtered.length + ' ' + (LANG==='zh' ? '/ ' + COMPANIES.length + ' ' + t('customers_word') : 'of ' + COMPANIES.length + ' customers');
     document.getElementById('queue-page-label').textContent =
-      filtered.length === 0 ? 'No results' :
-      ('Showing ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, filtered.length) + ' of ' + filtered.length);
+      filtered.length === 0 ? t('no_results') :
+      (LANG==='zh'
+        ? ('显示第 ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, filtered.length) + ' 项，共 ' + filtered.length + ' 项')
+        : ('Showing ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, filtered.length) + ' of ' + filtered.length));
     document.getElementById('queue-prev').disabled = queuePage <= 1;
     document.getElementById('queue-next').disabled = queuePage >= totalPages;
 
@@ -1856,19 +2169,19 @@
     var ring = document.getElementById('sales-ring-circle');
     var filenameEl = document.getElementById('sales-export-filename');
     if(!currentCompany){
-      sub.textContent = 'Select a company · Aug 2026';
-      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its sales records.');
+      sub.textContent = t('sub_select_aug');
+      tbody.innerHTML = emptyRow(6, t('empty_sales'));
       ['sales-kpi-today','sales-kpi-settled','sales-kpi-pending','sales-kpi-ring-text','sales-ring-pct'].forEach(function(id){ document.getElementById(id).textContent = '—'; });
       ring.setAttribute('stroke-dasharray', '0 144.5');
       filenameEl.textContent = '—';
       return;
     }
-    sub.textContent = currentCompany + ' · Aug 2026';
+    sub.textContent = currentCompany + ' · ' + t('period_aug2026');
     filenameEl.textContent = salesSummaryFileName(currentCompany) + '.' + salesExportFormat;
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     api('/companies/' + companyId + '/sales').then(function(rows){
-      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No sales records for this period.'); return; }
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, t('empty_sales_no_data')); return; }
       var today = rows[rows.length - 1];
       var unsettled = rows.filter(function(r){ return r.status === 'Pending'; }).length;
       var syncedPct = Math.round((rows.length - unsettled) / rows.length * 100);
@@ -1880,97 +2193,97 @@
       var circumference = 144.5;
       ring.setAttribute('stroke-dasharray', (syncedPct/100*circumference).toFixed(1) + ' ' + circumference);
       tbody.innerHTML = rows.map(function(r){
-        return '<tr><td>' + formatDate(r.date) + '</td><td class="num">' + r.invoice_no + '</td><td class="num">' + money(Number(r.gross)) + '</td><td class="num">' + money(Number(r.settled)) + '</td><td class="num">' + money(Number(r.petty_out)) + '</td><td><span class="badge ' + (r.status === 'Synced' ? 'synced' : 'pending') + '">' + r.status + '</span></td></tr>';
+        return '<tr><td>' + formatDate(r.date) + '</td><td class="num">' + r.invoice_no + '</td><td class="num">' + money(Number(r.gross)) + '</td><td class="num">' + money(Number(r.settled)) + '</td><td class="num">' + money(Number(r.petty_out)) + '</td><td><span class="badge ' + (r.status === 'Synced' ? 'synced' : 'pending') + '">' + statusLabel(r.status) + '</span></td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load sales records.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_sales')); });
   }
 
   function renderBank(){
     var sub = document.getElementById('bank-sub');
     var tbody = document.getElementById('bank-tbody');
     if(!currentCompany){
-      sub.textContent = 'Select a company · current account';
-      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its bank statement.');
+      sub.textContent = t('sub_current_account');
+      tbody.innerHTML = emptyRow(6, t('empty_bank'));
       return;
     }
-    sub.textContent = currentCompany + ' · current account';
+    sub.textContent = currentCompany + ' · ' + t('current_account_suffix');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     api('/companies/' + companyId + '/bank').then(function(rows){
-      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No bank activity this period.'); return; }
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, t('empty_bank_no_data')); return; }
       tbody.innerHTML = rows.map(function(r){
-        return '<tr><td>' + formatDate(r.date) + '</td><td>' + r.description + '</td><td class="num">' + (r.debit ? money(Number(r.debit)) : '—') + '</td><td class="num">' + (r.credit ? money(Number(r.credit)) : '—') + '</td><td class="num">' + money(Number(r.balance)) + '</td><td><span class="badge ' + (r.status === 'Matched' ? 'matched' : 'unmatched') + '">' + r.status + '</span></td></tr>';
+        return '<tr><td>' + formatDate(r.date) + '</td><td>' + r.description + '</td><td class="num">' + (r.debit ? money(Number(r.debit)) : '—') + '</td><td class="num">' + (r.credit ? money(Number(r.credit)) : '—') + '</td><td class="num">' + money(Number(r.balance)) + '</td><td><span class="badge ' + (r.status === 'Matched' ? 'matched' : 'unmatched') + '">' + statusLabel(r.status) + '</span></td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load bank statement.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_bank')); });
   }
 
   function renderPurchases(){
     var sub = document.getElementById('purchases-sub');
     var tbody = document.getElementById('purchases-tbody');
     if(!currentCompany){
-      sub.textContent = 'Select a company · supplier invoices';
-      tbody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its purchase bills.');
+      sub.textContent = t('sub_supplier_invoices');
+      tbody.innerHTML = emptyRow(5, t('empty_purchases'));
       return;
     }
-    sub.textContent = currentCompany + ' · supplier invoices';
+    sub.textContent = currentCompany + ' · ' + t('supplier_invoices_suffix');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     api('/companies/' + companyId + '/purchases').then(function(rows){
-      if(rows.length === 0){ tbody.innerHTML = emptyRow(5, 'No purchase bills this period.'); return; }
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(5, t('empty_purchases_no_data')); return; }
       tbody.innerHTML = rows.map(function(r){
-        return '<tr><td class="num">' + r.invoice_no + '</td><td>' + r.supplier + '</td><td class="num">' + money(Number(r.amount)) + '</td><td>' + formatDate(r.date) + '</td><td><span class="badge ' + (r.status === 'Paid' ? 'paid' : 'unpaid') + '">' + r.status + '</span></td></tr>';
+        return '<tr><td class="num">' + r.invoice_no + '</td><td>' + r.supplier + '</td><td class="num">' + money(Number(r.amount)) + '</td><td>' + formatDate(r.date) + '</td><td><span class="badge ' + (r.status === 'Paid' ? 'paid' : 'unpaid') + '">' + statusLabel(r.status) + '</span></td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRow(5, 'Could not load purchase bills.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRow(5, t('could_not_load_purchases')); });
   }
 
   function renderClaim(){
     var sub = document.getElementById('claim-sub');
     var tbody = document.getElementById('claim-tbody');
     if(!currentCompany){
-      sub.textContent = 'Select a company · staff reimbursement claims';
-      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its claim bills.');
+      sub.textContent = t('sub_staff_claims');
+      tbody.innerHTML = emptyRow(6, t('empty_claim'));
       return;
     }
-    sub.textContent = currentCompany + ' · staff reimbursement claims';
+    sub.textContent = currentCompany + ' · ' + t('staff_claims_suffix');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     api('/companies/' + companyId + '/claims').then(function(rows){
-      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, 'No claim bills this period.'); return; }
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(6, t('empty_claim_no_data')); return; }
       tbody.innerHTML = rows.map(function(r){
-        return '<tr><td class="num">' + r.claim_no + '</td><td>' + (r.staff_name || '—') + '</td><td>' + r.category + '</td><td class="num">' + money(Number(r.amount)) + '</td><td>' + formatDate(r.date) + '</td><td><span class="badge ' + (r.status === 'Approved' ? 'approved' : 'pending') + '">' + r.status + '</span></td></tr>';
+        return '<tr><td class="num">' + r.claim_no + '</td><td>' + (r.staff_name || '—') + '</td><td>' + r.category + '</td><td class="num">' + money(Number(r.amount)) + '</td><td>' + formatDate(r.date) + '</td><td><span class="badge ' + (r.status === 'Approved' ? 'approved' : 'pending') + '">' + statusLabel(r.status) + '</span></td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load claim bills.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_claim')); });
   }
 
   function renderPetty(){
     var sub = document.getElementById('petty-sub');
     var tbody = document.getElementById('petty-tbody');
     if(!currentCompany){
-      sub.textContent = 'Select a company · float log';
-      tbody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its petty cash record.');
+      sub.textContent = t('sub_float_log');
+      tbody.innerHTML = emptyRow(5, t('empty_petty'));
       return;
     }
-    sub.textContent = currentCompany + ' · float log';
+    sub.textContent = currentCompany + ' · ' + t('float_log_suffix');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     api('/companies/' + companyId + '/petty').then(function(rows){
-      if(rows.length === 0){ tbody.innerHTML = emptyRow(5, 'No petty cash movement this period.'); return; }
+      if(rows.length === 0){ tbody.innerHTML = emptyRow(5, t('empty_petty_no_data')); return; }
       tbody.innerHTML = rows.map(function(r){
         return '<tr><td>' + formatDate(r.date) + '</td><td>' + r.description + '</td><td class="num">' + (r.amount_in ? money(Number(r.amount_in)) : '—') + '</td><td class="num">' + (r.amount_out ? money(Number(r.amount_out)) : '—') + '</td><td class="num">' + money(Number(r.balance)) + '</td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRow(5, 'Could not load petty cash record.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRow(5, t('could_not_load_petty')); });
   }
 
   function renderMerchant(){
     var sub = document.getElementById('merchant-sub');
     var tbody = document.getElementById('merchant-tbody');
     if(!currentCompany){
-      sub.textContent = 'Select a company · DuitNow / FIUU settlement';
-      tbody.innerHTML = emptyRow(6, 'Select a company from the filter above to view its merchant report.');
+      sub.textContent = t('sub_merchant_settlement');
+      tbody.innerHTML = emptyRow(6, t('empty_merchant'));
       ['merchant-kpi-txns','merchant-kpi-approved','merchant-kpi-fees','merchant-kpi-net'].forEach(function(id){ document.getElementById(id).textContent = '—'; });
       return;
     }
-    sub.textContent = currentCompany + ' · DuitNow / FIUU settlement';
+    sub.textContent = currentCompany + ' · ' + t('merchant_settlement_suffix');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     api('/companies/' + companyId + '/merchant').then(function(rows){
@@ -1983,7 +2296,7 @@
       tbody.innerHTML = rows.map(function(r){
         return '<tr><td>' + formatDate(r.date) + '</td><td class="num">' + r.txns + '</td><td class="num">' + money(Number(r.approved_amt)) + '</td><td class="num">' + money(Number(r.failed_amt)) + '</td><td class="num">' + money(Number(r.fee)) + '</td><td class="num">' + money(Number(r.net)) + '</td></tr>';
       }).join('');
-    }).catch(function(){ tbody.innerHTML = emptyRow(6, 'Could not load merchant report.'); });
+    }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_merchant')); });
   }
 
   function renderCompanyHome(){
@@ -1992,14 +2305,14 @@
     var kpiRow = document.getElementById('home-kpi-row');
     var historyBody = document.getElementById('home-history-tbody');
     if(!currentCompany){
-      nameEl.textContent = 'Company Home';
-      subEl.textContent = 'Select a company · monthly overview';
+      nameEl.textContent = t('nav_company_home');
+      subEl.textContent = t('sub_monthly_overview');
       kpiRow.innerHTML = '';
-      historyBody.innerHTML = emptyRow(5, 'Select a company from the filter above to view its dashboard.');
+      historyBody.innerHTML = emptyRow(5, t('empty_home'));
       return;
     }
     nameEl.textContent = currentCompany;
-    subEl.textContent = 'Monthly overview · Aug 2026';
+    subEl.textContent = t('monthly_overview_period');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
     Promise.all([
@@ -2013,18 +2326,18 @@
       var unsettled = Math.max(0, round2(revenue - settled));
       var exceptions = salesRows.filter(function(r){ return r.status === 'Pending'; }).length;
       kpiRow.innerHTML =
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><div><div class="kpi-label">Period Revenue</div><div class="kpi-value num">' + money(round2(revenue)) + '</div></div></div>' +
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">Settled</div><div class="kpi-value num">' + money(round2(settled)) + '</div></div></div>' +
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">Unsettled</div><div class="kpi-value num">' + money(unsettled) + '</div></div></div>' +
-        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">Exceptions</div><div class="kpi-value num">' + exceptions + '</div></div></div>';
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><div><div class="kpi-label">' + t('kpi_period_revenue') + '</div><div class="kpi-value num">' + money(round2(revenue)) + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="kpi-label">' + t('kpi_settled') + '</div><div class="kpi-value num">' + money(round2(settled)) + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="kpi-label">' + t('kpi_unsettled') + '</div><div class="kpi-value num">' + money(unsettled) + '</div></div></div>' +
+        '<div class="kpi-card"><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg></div><div><div class="kpi-label">' + t('kpi_exceptions') + '</div><div class="kpi-value num">' + exceptions + '</div></div></div>';
 
       if(!recon){
-        historyBody.innerHTML = emptyRow(5, 'No reconciliation batches yet for this company.');
+        historyBody.innerHTML = emptyRow(5, t('empty_no_recon_batch'));
         return;
       }
       var badgeClass = recon.batch.status === 'Completed' ? 'completed' : (recon.batch.status === 'Needs Review' ? 'needsreview' : (recon.batch.status === 'In Progress' ? 'inprogress' : 'notstarted'));
-      historyBody.innerHTML = '<tr><td>Aug 2026</td><td class="num">' + recon.batch.invoices_count + '</td><td class="num">' + recon.batch.exceptions_count + '</td><td><span class="badge ' + badgeClass + '">' + recon.batch.status + '</span></td><td><button type="button" class="history-download">Download</button></td></tr>';
-    }).catch(function(){ historyBody.innerHTML = emptyRow(5, 'Could not load company dashboard.'); });
+      historyBody.innerHTML = '<tr><td>' + t('period_aug2026') + '</td><td class="num">' + recon.batch.invoices_count + '</td><td class="num">' + recon.batch.exceptions_count + '</td><td><span class="badge ' + badgeClass + '">' + statusLabel(recon.batch.status) + '</span></td><td><button type="button" class="history-download" data-i18n="download">' + t('download') + '</button></td></tr>';
+    }).catch(function(){ historyBody.innerHTML = emptyRow(5, t('could_not_load_home')); });
   }
 
   document.getElementById('home-upload-btn').addEventListener('click', function(){
@@ -2064,7 +2377,7 @@
       currentMatches = matches;
       highlighted = -1;
       if(matches.length === 0){
-        results.innerHTML = '<div class="company-search-empty">No company matches that search.</div>';
+        results.innerHTML = '<div class="company-search-empty">' + t('no_company_match') + '</div>';
       } else {
         results.innerHTML = matches.map(function(c, i){
           return '<div class="company-search-item" data-idx="' + i + '"><span class="company-search-item-name">' + c.name + '</span><span class="company-search-item-type">' + c.type + '</span></div>';
@@ -2141,7 +2454,7 @@
         '<div class="company-card-type">' + c.type + '</div>' +
         '<div class="company-card-foot">' +
           '<div class="company-card-staff"><div class="avatar" style="background:' + color + '22; color:' + color + ';">' + initials(c.staff[0]) + '</div>' + c.staff.join(', ') + '</div>' +
-          '<span class="badge ' + STATUS_CLASS[c.status] + '">' + c.status + '</span>' +
+          '<span class="badge ' + STATUS_CLASS[c.status] + '">' + statusLabel(c.status) + '</span>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -2186,6 +2499,8 @@
       }
     });
   }
+
+  applyTranslations();
 
   // Resume an existing session on page load/refresh instead of always showing the login screen.
   api('/me').then(function(profile){

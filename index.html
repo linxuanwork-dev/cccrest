@@ -1308,9 +1308,14 @@
         </button>
       </div>
       <div class="modal-body">
+        <div id="profile-name-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
+        <div id="profile-name-success" hidden style="color:var(--success, #2e8b57);font-size:12.5px;margin-bottom:10px;"></div>
         <div class="field">
-          <label data-i18n="field_display_name">Display Name</label>
-          <div id="profile-display-name" style="padding:9px 0;font-weight:600;"></div>
+          <label for="profile-display-name-input" data-i18n="field_display_name">Display Name</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="profile-display-name-input" style="flex:1;" />
+            <button type="button" class="btn-ghost" id="profile-name-save" style="width:auto;padding:9px 16px;white-space:nowrap;" data-i18n="save_btn">Save</button>
+          </div>
         </div>
         <div class="field">
           <label data-i18n="field_login_id">Login ID</label>
@@ -1425,7 +1430,7 @@
       change_password:"Change Password", field_current_password:"Current Password", field_new_password:"New Password",
       field_confirm_password:"Confirm New Password", save_password_btn:"Save Password",
       password_changed_success:"Password changed successfully.", passwords_dont_match:"New password and confirmation don't match.",
-      password_too_short:"New password must be at least 6 characters.",
+      password_too_short:"New password must be at least 6 characters.", name_changed_success:"Display name updated.",
       add_bank_statement:"Add bank statement", all_companies:"All companies", all_staff:"All staff", all_statuses:"All statuses",
       assign_limit_note:"You can select up to 2 staff for one client.",
       assign_staff_sub:"Select up to 2 staff. Changes need admin approval before they take effect.",
@@ -1573,7 +1578,7 @@
       change_password:"修改密码", field_current_password:"当前密码", field_new_password:"新密码",
       field_confirm_password:"确认新密码", save_password_btn:"保存密码",
       password_changed_success:"密码修改成功。", passwords_dont_match:"新密码与确认密码不一致。",
-      password_too_short:"新密码至少需要 6 个字符。",
+      password_too_short:"新密码至少需要 6 个字符。", name_changed_success:"显示名称已更新。",
       add_bank_statement:"添加银行对账单", all_companies:"所有公司", all_staff:"所有员工", all_statuses:"所有状态",
       assign_limit_note:"每位客户最多可选择2名员工。",
       assign_staff_sub:"最多选择2名员工。更改需经管理员批准后才能生效。",
@@ -1860,7 +1865,7 @@
   // ============ MY PROFILE / CHANGE PASSWORD ============
   function openProfileModal(){
     userMenu.classList.remove('open');
-    document.getElementById('profile-display-name').textContent = (CURRENT_USER && CURRENT_USER.displayName) || (CURRENT_USER && CURRENT_USER.companyName) || '—';
+    document.getElementById('profile-display-name-input').value = (CURRENT_USER && CURRENT_USER.displayName) || (CURRENT_USER && CURRENT_USER.companyName) || '';
     document.getElementById('profile-login-id').textContent = (CURRENT_USER && CURRENT_USER.loginId) || '—';
     document.getElementById('profile-role').textContent = document.getElementById('topbar-user-role').textContent;
     var companyField = document.getElementById('profile-company-field');
@@ -1870,6 +1875,8 @@
     } else {
       companyField.hidden = true;
     }
+    document.getElementById('profile-name-error').hidden = true;
+    document.getElementById('profile-name-success').hidden = true;
     document.getElementById('profile-current-password').value = '';
     document.getElementById('profile-new-password').value = '';
     document.getElementById('profile-confirm-password').value = '';
@@ -1883,6 +1890,35 @@
   document.getElementById('profile-modal-close').addEventListener('click', closeProfileModal);
   document.getElementById('profile-modal-cancel').addEventListener('click', closeProfileModal);
   document.getElementById('profile-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeProfileModal(); });
+
+  document.getElementById('profile-name-save').addEventListener('click', function(){
+    var name = document.getElementById('profile-display-name-input').value.trim();
+    var errEl = document.getElementById('profile-name-error');
+    var okEl = document.getElementById('profile-name-success');
+    errEl.hidden = true;
+    okEl.hidden = true;
+
+    if(!name){
+      errEl.textContent = t('field_display_name') + ' — required.';
+      errEl.hidden = false;
+      return;
+    }
+
+    var btn = this;
+    btn.disabled = true;
+    api('/me/profile', { method:'PATCH', body: JSON.stringify({ displayName:name }) })
+      .then(function(profile){
+        CURRENT_USER.displayName = profile.displayName;
+        if(CURRENT_ROLE !== 'client'){
+          document.getElementById('topbar-user-name').textContent = profile.displayName;
+          document.getElementById('topbar-avatar').textContent = initials(profile.displayName);
+        }
+        okEl.textContent = t('name_changed_success');
+        okEl.hidden = false;
+      })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
 
   document.getElementById('profile-password-save').addEventListener('click', function(){
     var current = document.getElementById('profile-current-password').value;

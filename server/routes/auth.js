@@ -61,6 +61,22 @@ router.get('/me', async (req, res) => {
   res.json(await publicProfile(rows[0]));
 });
 
+router.patch('/me/profile', requireAuth, async (req, res) => {
+  const { displayName } = req.body || {};
+  const trimmed = (displayName || '').trim();
+  if (!trimmed) return res.status(400).json({ error: 'Display name is required' });
+
+  const { rows } = await pool.query(
+    'UPDATE users SET display_name = $1 WHERE id = $2 RETURNING *',
+    [trimmed, req.user.sub]
+  );
+  const user = rows[0];
+  if (!user) return res.status(401).json({ error: 'Not signed in' });
+
+  await logActivity(user.id, 'Updated profile', trimmed, 'Changed display name');
+  res.json(await publicProfile(user));
+});
+
 router.patch('/me/password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) {

@@ -1,6 +1,8 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
-const { verifyLogin, setSessionCookie, clearSessionCookie, COOKIE_NAME } = require('../auth');
+const { verifyLogin, setSessionCookie, clearSessionCookie, COOKIE_NAME, requireAuth } = require('../auth');
+const { logActivity } = require('../lib/activity');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -17,6 +19,7 @@ async function publicProfile(user) {
   }
   return {
     role: user.role,
+    loginId: user.login_id,
     displayName: user.display_name,
     companyId: user.company_id,
     companyName,
@@ -56,6 +59,29 @@ router.get('/me', async (req, res) => {
   if (!rows[0]) return res.status(401).json({ error: 'Not signed in' });
 
   res.json(await publicProfile(rows[0]));
+});
+
+router.patch('/me/password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+
+  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.sub]);
+  const user = rows[0];
+  if (!user) return res.status(401).json({ error: 'Not signed in' });
+
+  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!ok) return res.status(400).json({ error: 'Current password is incorrect' });
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, user.id]);
+  await logActivity(user.id, 'Changed password', user.display_name, null);
+
+  res.json({ ok: true });
 });
 
 module.exports = router;

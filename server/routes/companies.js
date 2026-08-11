@@ -10,6 +10,7 @@ function baseCompanyQuery(whereClause) {
   return `
     SELECT c.id, c.name, c.type, c.slug, c.enabled_features,
       COALESCE(array_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '{}') AS staff,
+      COALESCE(json_agg(DISTINCT jsonb_build_object('id', s.id, 'name', s.name)) FILTER (WHERE s.id IS NOT NULL), '[]') AS staff_detail,
       rb.status, rb.exceptions_count, rb.invoices_count, rb.input_file_name,
       rb.output_summary_ready, rb.output_sales_ready, rb.output_payment_ready,
       rb.updated_at

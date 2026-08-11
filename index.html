@@ -130,15 +130,17 @@
   .field{ margin-bottom:18px; }
   .field label{ display:block; font-size:12.5px; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:7px; }
   .field-input-wrap{ position:relative; }
-  .field input[type="text"], .field input[type="password"]{
+  .field input[type="text"], .field input[type="password"], .field input[type="number"], .field input[type="date"], .field select{
     width:100%;
     border:1px solid var(--border);
     border-radius:var(--radius);
     padding:11px 13px;
     background:var(--surface-alt);
+    color:inherit;
+    font-family:inherit;
     transition:border-color var(--dur), background var(--dur);
   }
-  .field input:focus{ border-color:var(--accent); background:var(--surface-card); outline:none; box-shadow:0 0 0 3px var(--accent-tint); }
+  .field input:focus, .field select:focus{ border-color:var(--accent); background:var(--surface-card); outline:none; box-shadow:0 0 0 3px var(--accent-tint); }
   .pw-toggle{
     position:absolute; right:6px; top:50%; transform:translateY(-50%);
     background:none; border:none; padding:6px; border-radius:6px; color:var(--primary-soft);
@@ -820,6 +822,50 @@
       <!-- ---- CLAIM BILL ---- -->
       <section class="panel" id="panel-claim" hidden>
         <div class="content-header"><h2 data-i18n="nav_claim_bill">Claim Bill</h2><span class="sub" id="claim-sub">Select a company · staff reimbursement claims</span></div>
+
+        <div class="recon-card" id="claim-upload-card" data-roles="admin staff manager">
+          <div class="recon-step-label" data-i18n="upload_claim_bill">Upload a receipt</div>
+          <div class="upload-zone" id="claim-upload-zone" tabindex="0" role="button" data-i18n-aria="claim_upload_aria" aria-label="Upload claim bill receipt">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            <div class="upload-text" id="claim-upload-text" data-i18n-html="claim_upload_drop_text">Drop a <strong>receipt or invoice</strong> here, or <span class="upload-browse">browse</span></div>
+            <div class="upload-hint" data-i18n="claim_upload_hint">JPG, PNG, WEBP, or PDF — up to 10MB. We'll read the amount, date, and vendor automatically.</div>
+            <input type="file" id="claim-file-input" accept="image/jpeg,image/png,image/webp,application/pdf" hidden />
+          </div>
+          <div style="margin-top:14px;">
+            <button type="button" class="btn-ghost" id="claim-manual-btn" data-i18n="enter_manually_btn">Enter manually instead</button>
+          </div>
+        </div>
+
+        <div class="recon-card" id="claim-review-card" hidden data-roles="admin staff manager">
+          <div class="recon-step-label" data-i18n="review_claim_title">Review claim details</div>
+          <div id="claim-ocr-note" hidden style="font-size:12px;color:var(--accent);margin:-6px 0 14px;"></div>
+          <div id="claim-review-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:14px;"></div>
+          <div class="field">
+            <label for="claim-field-staff" data-i18n="th_staff">Staff</label>
+            <select id="claim-field-staff"></select>
+          </div>
+          <div class="field">
+            <label for="claim-field-category" data-i18n="th_category">Category</label>
+            <select id="claim-field-category"></select>
+          </div>
+          <div class="field">
+            <label for="claim-field-amount" data-i18n="th_amount">Amount</label>
+            <input type="number" step="0.01" min="0" id="claim-field-amount" />
+          </div>
+          <div class="field">
+            <label for="claim-field-date" data-i18n="th_date">Date</label>
+            <input type="date" id="claim-field-date" />
+          </div>
+          <div class="field">
+            <label for="claim-field-desc" data-i18n="field_description">Description</label>
+            <input type="text" id="claim-field-desc" />
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn-ghost" id="claim-review-cancel" data-i18n="cancel">Cancel</button>
+            <button type="button" class="btn-primary" id="claim-review-save" style="width:auto;padding:10px 18px;" data-i18n="save_claim_btn">Save Claim</button>
+          </div>
+        </div>
+
         <div class="table-card">
           <table>
             <thead><tr><th data-i18n="th_claim_no">Claim No.</th><th data-i18n="th_staff">Staff</th><th data-i18n="th_category">Category</th><th data-i18n="th_amount">Amount</th><th data-i18n="th_date">Date</th><th data-i18n="th_status">Status</th></tr></thead>
@@ -1449,7 +1495,15 @@
       role_manager:"Manager", features_btn:"Features", send_reminder_btn:"Remind", acknowledge_btn:"Acknowledge",
       no_outstanding_jobs:"No outstanding jobs — all caught up!", no_managers_yet:"No managers yet.",
       reminder_prompt:"Add a note for this reminder (optional):", acknowledged_label:"Acknowledged",
-      reminded_by_prefix:"Reminder from"
+      reminded_by_prefix:"Reminder from",
+      upload_claim_bill:"Upload a receipt",
+      claim_upload_drop_text:'Drop a <strong>receipt or invoice</strong> here, or <span class="upload-browse">browse</span>',
+      claim_upload_hint:"JPG, PNG, WEBP, or PDF — up to 10MB. We'll read the amount, date, and vendor automatically.",
+      claim_upload_aria:"Upload claim bill receipt",
+      enter_manually_btn:"Enter manually instead", review_claim_title:"Review claim details",
+      field_description:"Description", save_claim_btn:"Save Claim",
+      ocr_reading:"Reading receipt…", ocr_extracted_note:"Auto-filled from your receipt — please check before saving.",
+      select_staff_placeholder:"Select staff…", select_category_placeholder:"Select category…"
     },
     zh: {
       ac_customer_code:"客户代码", ac_deposit_account:"存款账户", ac_fee_account:"手续费账户",
@@ -1578,7 +1632,15 @@
       role_manager:"经理", features_btn:"功能", send_reminder_btn:"提醒", acknowledge_btn:"已知悉",
       no_outstanding_jobs:"没有未完成工作 — 全部完成！", no_managers_yet:"暂无经理。",
       reminder_prompt:"为此提醒添加备注（可选）：", acknowledged_label:"已确认",
-      reminded_by_prefix:"提醒来自"
+      reminded_by_prefix:"提醒来自",
+      upload_claim_bill:"上传收据",
+      claim_upload_drop_text:'将<strong>收据或发票</strong>拖放到此处，或<span class="upload-browse">浏览选择</span>',
+      claim_upload_hint:"支持 JPG、PNG、WEBP 或 PDF，最大 10MB。系统将自动识别金额、日期与商家信息。",
+      claim_upload_aria:"上传报销收据",
+      enter_manually_btn:"改为手动输入", review_claim_title:"核对报销详情",
+      field_description:"说明", save_claim_btn:"保存报销单",
+      ocr_reading:"正在识别收据…", ocr_extracted_note:"已根据收据自动填写 — 请核对后再保存。",
+      select_staff_placeholder:"选择员工…", select_category_placeholder:"选择类别…"
     }
   };
 
@@ -2291,7 +2353,8 @@
           outTotal: 3,
           status: c.status || 'Not Started',
           updated: formatDate(c.updated_at),
-          enabledFeatures: c.enabled_features
+          enabledFeatures: c.enabled_features,
+          staffDetail: c.staff_detail || []
         };
       });
       return COMPANIES;
@@ -2429,6 +2492,7 @@
   function renderClaim(){
     var sub = document.getElementById('claim-sub');
     var tbody = document.getElementById('claim-tbody');
+    if(typeof closeClaimReview === 'function') closeClaimReview();
     if(!currentCompany){
       sub.textContent = t('sub_staff_claims');
       tbody.innerHTML = emptyRow(6, t('empty_claim'));
@@ -2444,6 +2508,145 @@
       }).join('');
     }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_claim')); });
   }
+
+  // ============ CLAIM BILL: OCR upload + manual entry ============
+  var CLAIM_CATEGORIES = ['Transport', 'Equipment Repair', 'Utilities', 'Cleaning Supplies', 'Stationery', 'Meals', 'Other'];
+
+  function populateClaimCategorySelect(){
+    var sel = document.getElementById('claim-field-category');
+    sel.innerHTML = '<option value="">' + t('select_category_placeholder') + '</option>' +
+      CLAIM_CATEGORIES.map(function(c){ return '<option value="' + c + '">' + c + '</option>'; }).join('');
+  }
+
+  function populateClaimStaffSelect(){
+    var sel = document.getElementById('claim-field-staff');
+    var company = customerRecord(currentCompany);
+    var detail = (company && company.staffDetail) || [];
+    if(CURRENT_ROLE === 'staff'){
+      var mine = detail.find(function(s){ return s.id === CURRENT_USER.staffId; });
+      sel.innerHTML = mine ? '<option value="' + mine.id + '">' + mine.name + '</option>' : '<option value="">—</option>';
+      sel.disabled = true;
+    } else {
+      sel.disabled = false;
+      sel.innerHTML = '<option value="">' + t('select_staff_placeholder') + '</option>' +
+        detail.map(function(s){ return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
+    }
+  }
+
+  function openClaimReview(prefill){
+    populateClaimCategorySelect();
+    populateClaimStaffSelect();
+    document.getElementById('claim-field-amount').value = (prefill && prefill.amount != null) ? prefill.amount : '';
+    document.getElementById('claim-field-date').value = (prefill && prefill.date) ? prefill.date : '';
+    document.getElementById('claim-field-desc').value = (prefill && prefill.description) ? prefill.description : '';
+    if(prefill && prefill.category && CLAIM_CATEGORIES.indexOf(prefill.category) !== -1){
+      document.getElementById('claim-field-category').value = prefill.category;
+    }
+    if(CURRENT_ROLE === 'staff' && CURRENT_USER && CURRENT_USER.staffId){
+      document.getElementById('claim-field-staff').value = String(CURRENT_USER.staffId);
+    }
+    var noteEl = document.getElementById('claim-ocr-note');
+    if(prefill && prefill._fromOcr){
+      noteEl.textContent = t('ocr_extracted_note') + (prefill.confidence ? ' (' + prefill.confidence + ')' : '');
+      noteEl.hidden = false;
+    } else {
+      noteEl.hidden = true;
+    }
+    document.getElementById('claim-review-error').hidden = true;
+    document.getElementById('claim-upload-card').hidden = true;
+    document.getElementById('claim-review-card').hidden = false;
+  }
+
+  function closeClaimReview(){
+    document.getElementById('claim-review-card').hidden = true;
+    document.getElementById('claim-upload-card').hidden = false;
+    var input = document.getElementById('claim-file-input');
+    if(input) input.value = '';
+    var zone = document.getElementById('claim-upload-zone');
+    if(zone) zone.classList.remove('has-file');
+  }
+
+  document.getElementById('claim-manual-btn').addEventListener('click', function(){
+    if(!currentCompany) return;
+    openClaimReview(null);
+  });
+  document.getElementById('claim-review-cancel').addEventListener('click', closeClaimReview);
+
+  var claimUploadZone = document.getElementById('claim-upload-zone');
+  var claimFileInput = document.getElementById('claim-file-input');
+  claimUploadZone.addEventListener('click', function(){ if(currentCompany) claimFileInput.click(); });
+  claimUploadZone.addEventListener('keydown', function(e){ if((e.key === 'Enter' || e.key === ' ') && currentCompany){ e.preventDefault(); claimFileInput.click(); } });
+  ['dragover','dragenter'].forEach(function(evt){
+    claimUploadZone.addEventListener(evt, function(e){ e.preventDefault(); claimUploadZone.classList.add('dragover'); });
+  });
+  ['dragleave','dragend'].forEach(function(evt){
+    claimUploadZone.addEventListener(evt, function(){ claimUploadZone.classList.remove('dragover'); });
+  });
+  claimUploadZone.addEventListener('drop', function(e){
+    e.preventDefault();
+    claimUploadZone.classList.remove('dragover');
+    if(currentCompany && e.dataTransfer.files[0]) handleClaimFile(e.dataTransfer.files[0]);
+  });
+  claimFileInput.addEventListener('change', function(){ if(this.files[0]) handleClaimFile(this.files[0]); });
+
+  function handleClaimFile(file){
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    claimUploadZone.classList.add('has-file');
+    document.getElementById('claim-upload-text').innerHTML = '<strong>' + t('ocr_reading') + '</strong>';
+    var formData = new FormData();
+    formData.append('file', file);
+    fetch('/api/companies/' + companyId + '/claims/ocr', { method:'POST', body: formData })
+      .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
+      .then(function(result){
+        claimUploadZone.classList.remove('has-file');
+        applyTranslations();
+        if(!result.ok){
+          alert(result.data.error || 'OCR failed');
+          return;
+        }
+        var extracted = result.data;
+        extracted._fromOcr = true;
+        openClaimReview(extracted);
+      })
+      .catch(function(err){
+        claimUploadZone.classList.remove('has-file');
+        applyTranslations();
+        alert(err.message);
+      });
+  }
+
+  document.getElementById('claim-review-save').addEventListener('click', function(){
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    var staffId = Number(document.getElementById('claim-field-staff').value);
+    var category = document.getElementById('claim-field-category').value;
+    var amount = Number(document.getElementById('claim-field-amount').value);
+    var date = document.getElementById('claim-field-date').value;
+    var description = document.getElementById('claim-field-desc').value.trim();
+    var errEl = document.getElementById('claim-review-error');
+
+    if(!staffId || !category || !amount || !date){
+      errEl.textContent = t('th_staff') + ' / ' + t('th_category') + ' / ' + t('th_amount') + ' / ' + t('th_date') + ' — all required.';
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
+
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + companyId + '/claims', {
+      method:'POST',
+      body: JSON.stringify({ staffId:staffId, category:category, amount:amount, date:date, description:description || null })
+    })
+      .then(function(){
+        closeClaimReview();
+        renderClaim();
+        renderActivityLog();
+      })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
 
   function renderPetty(){
     var sub = document.getElementById('petty-sub');

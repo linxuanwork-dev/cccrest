@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
 const { logActivity } = require('../lib/activity');
@@ -93,6 +94,69 @@ router.patch('/companies/:companyId/features', requireRole('admin'), async (req,
 router.get('/companies/:companyId', requireAuth, scopeToCompany, async (req, res) => {
   const { rows } = await pool.query(baseCompanyQuery('WHERE c.id = $1'), [req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
+// ============ CLIENT LOGIN (Owner only — one login per company) ============
+
+router.get('/companies/:companyId/client-login', requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, login_id, active FROM users WHERE company_id = $1 AND role = 'client'`,
+    [req.params.companyId]
+  );
+  res.json(rows[0] || null);
+});
+
+router.post('/companies/:companyId/client-login', requireRole('admin'), async (req, res) => {
+  const { loginId, password } = req.body || {};
+  if (!loginId || !password) return res.status(400).json({ error: 'loginId and password are required' });
+
+  const { rows: existing } = await pool.query(
+    `SELECT id FROM users WHERE company_id = $1 AND role = 'client'`,
+    [req.params.companyId]
+  );
+  if (existing[0]) return res.status(400).json({ error: 'This company already has a login' });
+
+  const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  if (!companyRows[0]) return res.status(404).json({ error: 'Company not found' });
+
+  const hash = await bcrypt.hash(password, 10);
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO users (login_id, password_hash, role, display_name, company_id, active)
+       VALUES ($1,$2,'client',$3,$4,true) RETURNING id, login_id, active`,
+      [loginId.trim().toLowerCase(), hash, companyRows[0].name, req.params.companyId]
+    );
+    await logActivity(req.user.sub, 'Created client login', companyRows[0].name, 'Login ID: ' + rows[0].login_id);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'That login ID is already taken' });
+    throw err;
+  }
+});
+
+router.patch('/companies/:companyId/client-login', requireRole('admin'), async (req, res) => {
+  const { active, password } = req.body || {};
+  const { rows: existing } = await pool.query(
+    `SELECT * FROM users WHERE company_id = $1 AND role = 'client'`,
+    [req.params.companyId]
+  );
+  if (!existing[0]) return res.status(404).json({ error: 'No login exists for this company yet' });
+
+  const newActive = typeof active === 'boolean' ? active : existing[0].active;
+  const newHash = password ? await bcrypt.hash(password, 10) : existing[0].password_hash;
+
+  const { rows } = await pool.query(
+    'UPDATE users SET active = $1, password_hash = $2 WHERE id = $3 RETURNING id, login_id, active',
+    [newActive, newHash, existing[0].id]
+  );
+
+  const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  const changes = [];
+  if (existing[0].active !== newActive) changes.push(newActive ? 'access re-enabled' : 'access removed');
+  if (password) changes.push('password reset');
+  if (changes.length) await logActivity(req.user.sub, 'Updated client login', companyRows[0].name, changes.join('; '));
+
   res.json(rows[0]);
 });
 

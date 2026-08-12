@@ -596,7 +596,7 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
         <span class="nav-label" data-i18n="nav_bank_statement">Bank Statement</span>
       </button>
-      <button class="nav-item" data-panel="panel-recon" data-roles="admin staff manager">
+      <button class="nav-item" id="nav-recon" data-panel="panel-recon" data-roles="admin staff manager" hidden>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
         <span class="nav-label" data-i18n="nav_reconciliation">Dwi Danga Sales Summary</span>
       </button>
@@ -2815,9 +2815,11 @@
         document.getElementById('recon-context-name').textContent = cust.name;
         document.getElementById('recon-context-staff').textContent = cust.staff.join(', ');
         document.getElementById('recon-context').classList.add('visible');
-        selectCompany(cust.name, { navigate: false });
-        var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
-        if(reconNav) reconNav.click();
+        selectCompany(cust.name, { navigate: cust.name !== RECON_ONLY_COMPANY });
+        if(cust.name === RECON_ONLY_COMPANY){
+          var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
+          if(reconNav) reconNav.click();
+        }
       });
     });
 
@@ -3426,6 +3428,7 @@
   }
 
   document.getElementById('home-upload-btn').addEventListener('click', function(){
+    if(currentCompany !== RECON_ONLY_COMPANY) return;
     var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
     if(reconNav) reconNav.click();
   });
@@ -3553,12 +3556,27 @@
 
   var topbarTypeahead, landingTypeahead;
 
+  // Dwi Danga Sales Summary (DuitNow/FIUU reconciliation) is specific to
+  // Own Laundry Sdn Bhd's payment gateway setup — no other company has this.
+  var RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.';
+  function updateReconNavVisibility(){
+    var btn = document.getElementById('nav-recon');
+    if(!btn) return;
+    var applicable = currentCompany === RECON_ONLY_COMPANY;
+    btn.hidden = !applicable;
+    if(!applicable && btn.classList.contains('active')){
+      var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
+      if(homeNav) homeNav.click();
+    }
+  }
+
   function selectCompany(name, opts){
     opts = opts || {};
     currentCompany = name;
     if(topbarTypeahead) topbarTypeahead.setValue(name);
     if(landingTypeahead) landingTypeahead.setValue(name);
     renderAllCompanyPanels();
+    updateReconNavVisibility();
     if(opts.navigate){
       var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
       if(homeNav) homeNav.click();
@@ -4152,6 +4170,7 @@
     // network round-trip (e.g. right after a page refresh) can hit handlers
     // that read CURRENT_USER while it's still null.
     applyRole(profile.role, profile);
+    updateReconNavVisibility();
     return loadCompanies().then(function(){
       renderCompanyGrid();
       renderKpiRow();

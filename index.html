@@ -926,18 +926,17 @@
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div class="section-title" style="margin:0;" data-i18n="staff_progress">Staff progress</div>
-          <button type="button" class="btn-ghost" id="add-staff-btn" data-i18n="add_staff_btn">+ Add Staff</button>
+          <button type="button" class="btn-ghost" id="add-staff-btn" data-i18n="add_user_btn">+ Add User</button>
         </div>
         <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
           <table>
-            <thead><tr><th data-i18n="th_staff">Staff</th><th data-i18n="th_assigned_clients">Assigned Clients</th><th data-i18n="th_outstanding">Outstanding</th><th data-i18n="th_completed">Completed</th><th data-i18n="th_access">Access</th></tr></thead>
+            <thead><tr><th data-i18n="th_staff">Staff</th><th data-i18n="th_assigned_clients">Assigned Clients</th><th data-i18n="th_outstanding">Outstanding</th><th data-i18n="th_completed">Completed</th><th data-i18n="th_client_limit">Client Limit</th><th data-i18n="th_access">Access</th><th></th></tr></thead>
             <tbody id="workflow-staff-tbody"></tbody>
           </table>
         </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div class="section-title" style="margin:0;" data-i18n="managers">Managers</div>
-          <button type="button" class="btn-ghost" id="add-manager-btn" data-i18n="add_manager_btn">+ Add Manager</button>
         </div>
         <div class="table-card" style="overflow-x:auto;">
           <table>
@@ -1229,39 +1228,6 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="manager-modal-backdrop" hidden>
-    <div class="modal-card">
-      <div class="modal-header">
-        <div>
-          <h3 data-i18n="add_manager_title">Add Manager</h3>
-          <div class="modal-sub" data-i18n="add_manager_sub">Create a login for a new manager account.</div>
-        </div>
-        <button type="button" class="modal-close" id="manager-modal-close" data-i18n-aria="close" aria-label="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="field">
-          <label for="manager-display-name" data-i18n="field_display_name">Display Name</label>
-          <input type="text" id="manager-display-name" placeholder="e.g. Aisha Rahman" />
-        </div>
-        <div class="field">
-          <label for="manager-login-id" data-i18n="field_login_id">Login ID</label>
-          <input type="text" id="manager-login-id" placeholder="e.g. aisha-rahman" />
-        </div>
-        <div class="field">
-          <label for="manager-password" data-i18n="field_password">Password</label>
-          <input type="password" id="manager-password" placeholder="••••••••" />
-        </div>
-        <div id="manager-modal-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-ghost" id="manager-cancel" data-i18n="cancel">Cancel</button>
-        <button type="button" class="btn-primary" id="manager-submit" style="width:auto;padding:10px 18px;" data-i18n="create_btn">Create</button>
-      </div>
-    </div>
-  </div>
-
   <div class="modal-backdrop" id="team-modal-backdrop" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -1396,14 +1362,22 @@
     <div class="modal-card">
       <div class="modal-header">
         <div>
-          <h3 data-i18n="add_staff_title">Add Staff</h3>
-          <div class="modal-sub" data-i18n="add_staff_sub">Create a login for a new staff member.</div>
+          <h3 data-i18n="add_user_title">Add User</h3>
+          <div class="modal-sub" data-i18n="add_user_sub">Create a login and choose its role.</div>
         </div>
         <button type="button" class="modal-close" id="staff-modal-close" data-i18n-aria="close" aria-label="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
       <div class="modal-body">
+        <div class="field">
+          <label for="staff-role" data-i18n="field_role">Role</label>
+          <select id="staff-role">
+            <option value="staff" data-i18n="role_staff">Staff</option>
+            <option value="manager" data-i18n="role_manager">Manager</option>
+            <option value="admin" data-i18n="role_admin">Owner</option>
+          </select>
+        </div>
         <div class="field">
           <label for="staff-display-name" data-i18n="field_display_name">Display Name</label>
           <input type="text" id="staff-display-name" placeholder="e.g. Nurul Huda" />
@@ -1416,7 +1390,7 @@
           <label for="staff-password" data-i18n="field_password">Password</label>
           <input type="password" id="staff-password" placeholder="••••••••" />
         </div>
-        <div class="field">
+        <div class="field" id="staff-client-limit-field">
           <label for="staff-client-limit" data-i18n="th_client_limit">Client Limit</label>
           <input type="number" min="1" id="staff-client-limit" placeholder="20" />
         </div>
@@ -1425,6 +1399,28 @@
       <div class="modal-footer">
         <button type="button" class="btn-ghost" id="staff-cancel" data-i18n="cancel">Cancel</button>
         <button type="button" class="btn-primary" id="staff-submit" style="width:auto;padding:10px 18px;" data-i18n="create_btn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="staff-companies-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="staff-companies-modal-name" data-i18n="manage_companies_title">Manage Companies</h3>
+          <div class="modal-sub" data-i18n="manage_companies_sub">Choose which companies this staff member handles.</div>
+        </div>
+        <button type="button" class="modal-close" id="staff-companies-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="assign-staff-list" id="staff-companies-list"></div>
+        <div id="staff-companies-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:10px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="staff-companies-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="staff-companies-submit" style="width:auto;padding:10px 18px;" data-i18n="save_btn">Save</button>
       </div>
     </div>
   </div>
@@ -1556,12 +1552,15 @@
       password_changed_success:"Password changed successfully.", passwords_dont_match:"New password and confirmation don't match.",
       password_too_short:"New password must be at least 6 characters.", name_changed_success:"Display name updated.",
       add_company_title:"Add Company", add_company_sub:"Add a new client company.", field_company_name:"Company Name",
-      field_company_type:"Type (optional)", add_staff_title:"Add Staff", add_staff_sub:"Create a login for a new staff member.",
-      add_company_btn:"+ Add Company", add_staff_btn:"+ Add Staff",
+      field_company_type:"Type (optional)",
+      add_company_btn:"+ Add Company",
       client_login_btn:"Login", client_login_title:"Client Login", client_login_sub:"Owner only — manage this company's own login.",
       loading:"Loading…", reset_password_label:"Reset Password (optional)", create_login_btn:"Create Login",
       no_login_yet:"No login exists for this company yet.", deactivate_btn:"Deactivate", reactivate_btn:"Reactivate",
       login_created_success:"Login created.", login_updated_success:"Updated.",
+      add_user_title:"Add User", add_user_sub:"Create a login and choose its role.", field_role:"Role",
+      manage_companies_title:"Manage Companies", manage_companies_sub:"Choose which companies this staff member handles.",
+      manage_companies_btn:"Companies", add_user_btn:"+ Add User",
       add_bank_statement:"Add bank statement", all_companies:"All companies", all_staff:"All staff", all_statuses:"All statuses",
       assign_limit_note:"You can select up to 2 staff for one client.",
       assign_staff_sub:"Select up to 2 staff. Changes need admin approval before they take effect.",
@@ -1680,10 +1679,9 @@
       nav_workflow:"Workflow", nav_my_jobs:"My Jobs",
       h_workflow:"Workflow & Progress", sub_workflow:"Staff and manager progress across all clients · Owner only",
       staff_progress:"Staff progress", th_outstanding:"Outstanding", th_completed:"Completed",
-      managers:"Managers", add_manager_btn:"+ Add Manager", th_manager:"Manager", th_team:"Team", th_team_outstanding:"Team Outstanding",
+      managers:"Managers", th_manager:"Manager", th_team:"Team", th_team_outstanding:"Team Outstanding",
       sub_my_jobs:"Your outstanding work and reminders", my_outstanding_jobs:"My outstanding jobs", th_reminders:"Reminders",
       my_team:"My team", team_outstanding_jobs:"Team outstanding jobs",
-      add_manager_title:"Add Manager", add_manager_sub:"Create a login for a new manager account.",
       field_display_name:"Display Name", field_login_id:"Login ID", create_btn:"Create",
       edit_team_title:"Edit Team", edit_team_sub:"Select which staff report to this manager.",
       company_features_title:"Client Feature Access", company_features_sub:"Choose which panels this client can see when they log in.",
@@ -1711,12 +1709,15 @@
       password_changed_success:"密码修改成功。", passwords_dont_match:"新密码与确认密码不一致。",
       password_too_short:"新密码至少需要 6 个字符。", name_changed_success:"显示名称已更新。",
       add_company_title:"添加公司", add_company_sub:"添加一个新的客户公司。", field_company_name:"公司名称",
-      field_company_type:"类型（可选）", add_staff_title:"添加员工", add_staff_sub:"为新员工创建登录账号。",
-      add_company_btn:"+ 添加公司", add_staff_btn:"+ 添加员工",
+      field_company_type:"类型（可选）",
+      add_company_btn:"+ 添加公司",
       client_login_btn:"登录账号", client_login_title:"客户登录账号", client_login_sub:"仅限东主 · 管理此公司自己的登录账号。",
       loading:"加载中…", reset_password_label:"重置密码（可选）", create_login_btn:"创建登录账号",
       no_login_yet:"该公司尚未创建登录账号。", deactivate_btn:"停用", reactivate_btn:"启用",
       login_created_success:"登录账号已创建。", login_updated_success:"已更新。",
+      add_user_title:"添加用户", add_user_sub:"创建登录账号并选择角色。", field_role:"角色",
+      manage_companies_title:"管理公司", manage_companies_sub:"选择此员工负责的公司。",
+      manage_companies_btn:"公司", add_user_btn:"+ 添加用户",
       add_bank_statement:"添加银行对账单", all_companies:"所有公司", all_staff:"所有员工", all_statuses:"所有状态",
       assign_limit_note:"每位客户最多可选择2名员工。",
       assign_staff_sub:"最多选择2名员工。更改需经管理员批准后才能生效。",
@@ -1829,10 +1830,9 @@
       nav_workflow:"工作流程", nav_my_jobs:"我的任务",
       h_workflow:"工作流程与进度", sub_workflow:"所有客户的员工与经理进度 · 仅限东主查看",
       staff_progress:"员工进度", th_outstanding:"未完成", th_completed:"已完成",
-      managers:"经理", add_manager_btn:"+ 添加经理", th_manager:"经理", th_team:"团队", th_team_outstanding:"团队未完成",
+      managers:"经理", th_manager:"经理", th_team:"团队", th_team_outstanding:"团队未完成",
       sub_my_jobs:"您的未完成工作与提醒", my_outstanding_jobs:"我的未完成工作", th_reminders:"提醒",
       my_team:"我的团队", team_outstanding_jobs:"团队未完成工作",
-      add_manager_title:"添加经理", add_manager_sub:"为新经理账户创建登录信息。",
       field_display_name:"显示名称", field_login_id:"登录账号", create_btn:"创建",
       edit_team_title:"编辑团队", edit_team_sub:"选择向该经理汇报的员工。",
       company_features_title:"客户功能权限", company_features_sub:"选择该客户登录后可查看的功能页面。",
@@ -3196,15 +3196,35 @@
     var staffTbody = document.getElementById('workflow-staff-tbody');
     if(!staffTbody || CURRENT_ROLE !== 'admin') return;
     api('/workflow/overview').then(function(data){
-      staffTbody.innerHTML = data.staff.length === 0 ? emptyRowSafe(5, '—') : data.staff.map(function(s){
+      staffTbody.innerHTML = data.staff.length === 0 ? emptyRowSafe(7, '—') : data.staff.map(function(s){
         return '<tr>' +
           '<td>' + s.name + '</td>' +
           '<td class="num">' + s.assigned_count + '</td>' +
           '<td class="num">' + s.outstanding_count + '</td>' +
           '<td class="num">' + s.completed_count + '</td>' +
-          '<td><span class="badge ' + (s.active ? 'approved' : 'rejected') + '">' + (s.active ? t('status_active') : t('status_suspended')) + '</span></td>' +
+          '<td class="num"><input type="number" min="1" value="' + s.client_limit + '" data-workflow-limit-for="' + s.id + '" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--surface-alt);font-family:var(--font-data);color:inherit;" /></td>' +
+          '<td><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><input type="checkbox" data-workflow-active-for="' + s.id + '" ' + (s.active ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" />' + (s.active ? t('status_active') : t('status_suspended')) + '</label></td>' +
+          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-workflow-save="' + s.id + '">' + t('save_btn') + '</button><button type="button" class="btn-row" data-manage-companies="' + s.id + '" data-manage-companies-name="' + String(s.name).replace(/"/g,'&quot;') + '">' + t('manage_companies_btn') + '</button></div></td>' +
         '</tr>';
       }).join('');
+
+      staffTbody.querySelectorAll('[data-workflow-save]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var id = btn.dataset.workflowSave;
+          var row = btn.closest('tr');
+          var newLimit = Math.max(1, Number(row.querySelector('[data-workflow-limit-for="' + id + '"]').value) || 1);
+          var newActive = row.querySelector('[data-workflow-active-for="' + id + '"]').checked;
+          btn.disabled = true;
+          api('/staff/' + id, { method:'PATCH', body: JSON.stringify({ clientLimit:newLimit, active:newActive }) })
+            .then(function(){ renderWorkflow(); renderActivityLog(); loadCompanies(); })
+            .catch(function(err){ alert(err.message); btn.disabled = false; });
+        });
+      });
+      staffTbody.querySelectorAll('[data-manage-companies]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          openStaffCompaniesModal(btn.dataset.manageCompanies, btn.dataset.manageCompaniesName);
+        });
+      });
 
       var mgrTbody = document.getElementById('workflow-managers-tbody');
       if(data.managers.length === 0){
@@ -3225,36 +3245,12 @@
     });
   }
 
-  document.getElementById('add-manager-btn').addEventListener('click', function(){
-    document.getElementById('manager-display-name').value = '';
-    document.getElementById('manager-login-id').value = '';
-    document.getElementById('manager-password').value = '';
-    document.getElementById('manager-modal-error').hidden = true;
-    document.getElementById('manager-modal-backdrop').hidden = false;
+  document.getElementById('staff-role').addEventListener('change', function(){
+    document.getElementById('staff-client-limit-field').hidden = this.value !== 'staff';
   });
-  function closeManagerModal(){ document.getElementById('manager-modal-backdrop').hidden = true; }
-  document.getElementById('manager-modal-close').addEventListener('click', closeManagerModal);
-  document.getElementById('manager-cancel').addEventListener('click', closeManagerModal);
-  document.getElementById('manager-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeManagerModal(); });
-  document.getElementById('manager-submit').addEventListener('click', function(){
-    var displayName = document.getElementById('manager-display-name').value.trim();
-    var loginId = document.getElementById('manager-login-id').value.trim();
-    var password = document.getElementById('manager-password').value;
-    var errEl = document.getElementById('manager-modal-error');
-    if(!displayName || !loginId || !password){
-      errEl.textContent = t('field_display_name') + ' / ' + t('field_login_id') + ' / ' + t('field_password') + ' — all required.';
-      errEl.hidden = false;
-      return;
-    }
-    var btn = this;
-    btn.disabled = true;
-    api('/managers', { method:'POST', body: JSON.stringify({ loginId:loginId, password:password, displayName:displayName }) })
-      .then(function(){ closeManagerModal(); renderWorkflow(); renderActivityLog(); })
-      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
-      .finally(function(){ btn.disabled = false; });
-  });
-
   document.getElementById('add-staff-btn').addEventListener('click', function(){
+    document.getElementById('staff-role').value = 'staff';
+    document.getElementById('staff-client-limit-field').hidden = false;
     document.getElementById('staff-display-name').value = '';
     document.getElementById('staff-login-id').value = '';
     document.getElementById('staff-password').value = '';
@@ -3267,6 +3263,7 @@
   document.getElementById('staff-cancel').addEventListener('click', closeStaffModal);
   document.getElementById('staff-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeStaffModal(); });
   document.getElementById('staff-submit').addEventListener('click', function(){
+    var role = document.getElementById('staff-role').value;
     var displayName = document.getElementById('staff-display-name').value.trim();
     var loginId = document.getElementById('staff-login-id').value.trim();
     var password = document.getElementById('staff-password').value;
@@ -3279,8 +3276,58 @@
     }
     var btn = this;
     btn.disabled = true;
-    api('/staff', { method:'POST', body: JSON.stringify({ name:displayName, loginId:loginId, password:password, clientLimit: clientLimit ? Number(clientLimit) : undefined }) })
+    api('/users', { method:'POST', body: JSON.stringify({ role:role, name:displayName, loginId:loginId, password:password, clientLimit: clientLimit ? Number(clientLimit) : undefined }) })
       .then(function(){ closeStaffModal(); renderWorkflow(); renderActivityLog(); populateStaffFilter(); })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Manage Companies (staff-centric assignment) ----
+  var staffCompaniesModalStaffId = null;
+  function openStaffCompaniesModal(staffId, staffName){
+    staffCompaniesModalStaffId = staffId;
+    document.getElementById('staff-companies-modal-name').textContent = t('manage_companies_title') + ' — ' + staffName;
+    document.getElementById('staff-companies-error').hidden = true;
+    document.getElementById('staff-companies-list').innerHTML = '<div style="padding:10px 0;color:var(--primary-soft);">' + t('loading') + '</div>';
+    document.getElementById('staff-companies-modal-backdrop').hidden = false;
+
+    Promise.all([api('/staff/' + staffId + '/companies'), loadCompanies()]).then(function(results){
+      var assignedIds = results[0].map(function(c){ return c.id; });
+      var list = document.getElementById('staff-companies-list');
+      list.innerHTML = COMPANIES.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).map(function(c){
+        var checked = assignedIds.indexOf(c.id) !== -1;
+        return '<label class="assign-staff-row"><input type="checkbox" value="' + c.id + '" ' + (checked ? 'checked' : '') + ' /><span class="assign-staff-row-name">' + c.name + '</span></label>';
+      }).join('');
+    }).catch(function(err){
+      document.getElementById('staff-companies-error').textContent = err.message;
+      document.getElementById('staff-companies-error').hidden = false;
+    });
+  }
+  function closeStaffCompaniesModal(){
+    document.getElementById('staff-companies-modal-backdrop').hidden = true;
+    staffCompaniesModalStaffId = null;
+  }
+  document.getElementById('staff-companies-modal-close').addEventListener('click', closeStaffCompaniesModal);
+  document.getElementById('staff-companies-cancel').addEventListener('click', closeStaffCompaniesModal);
+  document.getElementById('staff-companies-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeStaffCompaniesModal(); });
+  document.getElementById('staff-companies-submit').addEventListener('click', function(){
+    if(!staffCompaniesModalStaffId) return;
+    var companyIds = Array.from(document.querySelectorAll('#staff-companies-list input:checked')).map(function(cb){ return Number(cb.value); });
+    var errEl = document.getElementById('staff-companies-error');
+    errEl.hidden = true;
+    var btn = this;
+    btn.disabled = true;
+    api('/staff/' + staffCompaniesModalStaffId + '/companies', { method:'PUT', body: JSON.stringify({ companyIds:companyIds }) })
+      .then(function(){
+        closeStaffCompaniesModal();
+        renderWorkflow();
+        renderActivityLog();
+        return loadCompanies().then(function(){
+          renderQueueTable();
+          renderStaffRow();
+          renderCompanyGridSafe();
+        });
+      })
       .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
       .finally(function(){ btn.disabled = false; });
   });

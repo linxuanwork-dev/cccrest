@@ -1,5 +1,4 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 const { requireRole, staffInManagerTeam } = require('../auth');
 const { logActivity } = require('../lib/activity');
@@ -22,26 +21,6 @@ router.get('/managers', requireRole('admin'), async (req, res) => {
     ORDER BY u.display_name
   `);
   res.json(rows);
-});
-
-router.post('/managers', requireRole('admin'), async (req, res) => {
-  const { loginId, password, displayName } = req.body || {};
-  if (!loginId || !password || !displayName) {
-    return res.status(400).json({ error: 'loginId, password, and displayName are required' });
-  }
-  const hash = await bcrypt.hash(password, 10);
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO users (login_id, password_hash, role, display_name, active)
-       VALUES ($1, $2, 'manager', $3, true) RETURNING id, login_id, display_name, active`,
-      [loginId.trim().toLowerCase(), hash, displayName]
-    );
-    await logActivity(req.user.sub, 'Created manager account', displayName, 'Login ID: ' + rows[0].login_id);
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(400).json({ error: 'That login ID is already taken' });
-    throw err;
-  }
 });
 
 router.put('/managers/:managerId/team', requireRole('admin'), async (req, res) => {

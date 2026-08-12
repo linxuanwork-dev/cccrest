@@ -43,5 +43,5 @@ ALTER TABLE companies ALTER COLUMN enabled_features SET DEFAULT ARRAY[
   'panel-company-home','panel-sales','panel-bank','panel-purchases','panel-claim','panel-petty','panel-merchant','panel-payroll'
 ];
 
-UPDATE companies SET enabled_features = enabled_features || 'panel-payroll'
+UPDATE companies SET enabled_features = array_append(enabled_features, 'panel-payroll')
 WHERE NOT ('panel-payroll' = ANY(enabled_features));

@@ -743,6 +743,18 @@
           <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
         </div>
 
+        <div id="sales-outlet-picker" hidden style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px;">
+          <button type="button" class="btn-row" id="sales-outlet-dwi-danga" style="text-align:left;padding:14px 16px;font-size:14px;" data-i18n="outlet_dwi_danga">Dwi Danga Sales Summary</button>
+          <button type="button" class="btn-row" disabled style="text-align:left;padding:14px 16px;font-size:14px;opacity:0.5;cursor:not-allowed;display:flex;justify-content:space-between;align-items:center;">
+            <span data-i18n="outlet_danga_bay">Danga Bay Sales Summary</span>
+            <span style="font-size:11px;font-weight:600;color:var(--primary-soft);" data-i18n="coming_soon">Coming soon</span>
+          </button>
+          <button type="button" class="btn-row" disabled style="text-align:left;padding:14px 16px;font-size:14px;opacity:0.5;cursor:not-allowed;display:flex;justify-content:space-between;align-items:center;">
+            <span data-i18n="outlet_work_25">Work 25 Sales Summary</span>
+            <span style="font-size:11px;font-weight:600;color:var(--primary-soft);" data-i18n="coming_soon">Coming soon</span>
+          </button>
+        </div>
+
         <div class="export-row" id="sales-export-row">
           <div class="export-row-text">
             <span class="export-row-label" data-i18n="output_file_name">Output file name</span>
@@ -763,7 +775,7 @@
           </div>
         </div>
 
-        <div class="kpi-row">
+        <div class="kpi-row" id="sales-kpi-row">
           <div class="kpi-card">
             <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
             <div><div class="kpi-label" data-i18n="kpi_today_gross_sales">Today's Gross Sales</div><div class="kpi-value num" id="sales-kpi-today">—</div></div>
@@ -788,7 +800,7 @@
           </div>
         </div>
 
-        <div class="table-card">
+        <div class="table-card" id="sales-table-card">
           <table>
             <thead><tr>
               <th data-i18n="th_date">Date</th><th data-i18n="th_invoice_no">Invoice No.</th><th data-i18n="th_gross_sales">Gross Sales</th><th data-i18n="th_payment_settled">Payment Settled</th><th data-i18n="th_petty_cash_out">Petty Cash Out</th><th data-i18n="th_bukku_status">Bukku Status</th>
@@ -1716,6 +1728,8 @@
       add_user_title:"Add User", add_user_sub:"Create a login and choose its role.", field_role:"Role",
       manage_companies_title:"Manage Companies", manage_companies_sub:"Choose which companies this staff member handles.",
       manage_companies_btn:"Companies", add_user_btn:"+ Add User",
+      outlet_dwi_danga:"Dwi Danga Sales Summary", outlet_danga_bay:"Danga Bay Sales Summary",
+      outlet_work_25:"Work 25 Sales Summary", coming_soon:"Coming soon",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
       edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
@@ -1892,6 +1906,8 @@
       add_user_title:"添加用户", add_user_sub:"创建登录账号并选择角色。", field_role:"角色",
       manage_companies_title:"管理公司", manage_companies_sub:"选择此员工负责的公司。",
       manage_companies_btn:"公司", add_user_btn:"+ 添加用户",
+      outlet_dwi_danga:"Dwi Danga 销售汇总", outlet_danga_bay:"Danga Bay 销售汇总",
+      outlet_work_25:"Work 25 销售汇总", coming_soon:"即将推出",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
       edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
@@ -2155,15 +2171,7 @@
       navItems.forEach(function(b){ b.classList.remove('active'); });
       btn.classList.add('active');
       document.querySelectorAll('.panel').forEach(function(p){ p.hidden = true; });
-      // Own Laundry Sdn Bhd's "sales" are tracked entirely through the
-      // DuitNow/FIUU gateway reconciliation, so its Sales Summary click
-      // shows Dwi Danga Sales Summary (panel-recon) instead of the
-      // generic sales table every other company uses.
-      var targetPanel = btn.dataset.panel;
-      if(targetPanel === 'panel-sales' && currentCompany === RECON_ONLY_COMPANY){
-        targetPanel = 'panel-recon';
-      }
-      document.getElementById(targetPanel).hidden = false;
+      document.getElementById(btn.dataset.panel).hidden = false;
       document.body.classList.remove('sidebar-open');
     });
   });
@@ -2946,6 +2954,18 @@
     var tbody = document.getElementById('sales-tbody');
     var ring = document.getElementById('sales-ring-circle');
     var filenameEl = document.getElementById('sales-export-filename');
+    var picker = document.getElementById('sales-outlet-picker');
+    var normalSections = [document.getElementById('sales-export-row'), document.getElementById('sales-kpi-row'), document.getElementById('sales-table-card')];
+
+    if(currentCompany === RECON_ONLY_COMPANY){
+      picker.hidden = false;
+      normalSections.forEach(function(el){ el.hidden = true; });
+      sub.textContent = currentCompany + ' · ' + t('period_aug2026');
+      return;
+    }
+    picker.hidden = true;
+    normalSections.forEach(function(el){ el.hidden = false; });
+
     if(!currentCompany){
       sub.textContent = t('sub_select_aug');
       tbody.innerHTML = emptyRow(6, t('empty_sales'));
@@ -3435,6 +3455,11 @@
     if(currentCompany !== RECON_ONLY_COMPANY) return;
     var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
     if(salesNav) salesNav.click();
+  });
+
+  document.getElementById('sales-outlet-dwi-danga').addEventListener('click', function(){
+    document.querySelectorAll('.panel').forEach(function(p){ p.hidden = true; });
+    document.getElementById('panel-recon').hidden = false;
   });
 
   function renderAllCompanyPanels(){

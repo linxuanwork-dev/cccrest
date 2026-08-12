@@ -1224,7 +1224,7 @@
 
       <div class="modal-footer">
         <button type="button" class="btn-ghost" id="assign-cancel" data-i18n="cancel">Cancel</button>
-        <button type="button" class="btn-primary" id="assign-submit" style="width:auto;padding:10px 18px;" data-i18n="submit_for_approval">Submit for Approval</button>
+        <button type="button" class="btn-primary" id="assign-submit" style="width:auto;padding:10px 18px;">Submit for Approval</button>
       </div>
     </div>
   </div>
@@ -1607,7 +1607,7 @@
       pending_change_badge:"Pending change", at_limit_badge:"At limit",
       need_review_suffix:"need review", all_clear:"all clear", customers_word:"customers",
       reconciling_label:"Reconciling…", run_reconciliation_label:"Run Reconciliation",
-      role_admin:"Admin", role_staff:"Staff", role_client:"Client",
+      role_admin:"Owner", role_staff:"Staff", role_client:"Client",
       unrecognized_id_prefix:"Unrecognized ID",
       kpi_period_revenue:"Period Revenue", kpi_settled:"Settled", kpi_unsettled:"Unsettled", kpi_exceptions:"Exceptions",
       kpi_total_customers:"Total Customers", view_btn:"View", ready_word:"ready", assign_btn:"Assign",
@@ -1752,7 +1752,7 @@
       pending_change_badge:"待处理变更", at_limit_badge:"已达上限",
       need_review_suffix:"待审核", all_clear:"全部正常", customers_word:"位客户",
       reconciling_label:"对账中…", run_reconciliation_label:"运行对账",
-      role_admin:"管理员", role_staff:"员工", role_client:"客户",
+      role_admin:"东主", role_staff:"员工", role_client:"客户",
       unrecognized_id_prefix:"无法识别的账号",
       kpi_period_revenue:"期间营收", kpi_settled:"已结算", kpi_unsettled:"未结算", kpi_exceptions:"异常项",
       kpi_total_customers:"客户总数", view_btn:"查看", ready_word:"已就绪", assign_btn:"分配",
@@ -2367,6 +2367,7 @@
     loadStaffList().then(function(){
       assignModalSelected = cust.staff.map(staffIdByName).filter(function(id){ return id !== null; });
       renderAssignStaffList();
+      document.getElementById('assign-submit').textContent = CURRENT_ROLE === 'admin' ? t('assign_btn') : t('submit_for_approval');
       document.getElementById('assign-modal-backdrop').hidden = false;
     });
   }
@@ -2422,8 +2423,13 @@
       .then(function(){
         closeAssignModal();
         renderApprovals();
-        renderQueueTable();
         renderNavBadge();
+        renderActivityLog();
+        return loadCompanies().then(function(){
+          renderQueueTable();
+          renderStaffRow();
+          renderCompanyGridSafe();
+        });
       })
       .catch(function(err){ alert(err.message); })
       .finally(function(){ btn.disabled = false; });

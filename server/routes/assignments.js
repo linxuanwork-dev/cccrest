@@ -69,13 +69,41 @@ router.post('/assignment-requests', requireRole('admin', 'staff'), async (req, r
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [companyId]);
   if (!companyRows[0]) return res.status(404).json({ error: 'Company not found' });
 
+  const requestedNames = await namesForIds(requestedStaffIds);
+
+  // Admin/Owner assignments apply immediately — the approval step exists to
+  // give the Owner sign-off over staff-initiated requests, not to make the
+  // Owner approve their own actions.
+  if (req.user.role === 'admin') {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `INSERT INTO assignment_requests (company_id, requested_by_user_id, current_staff_ids, requested_staff_ids, status, resolved_at, resolved_by_user_id)
+         VALUES ($1,$2,$3,$4,'Approved',now(),$2) RETURNING id, created_at`,
+        [companyId, req.user.sub, currentIds, requestedStaffIds]
+      );
+      await client.query('DELETE FROM company_staff WHERE company_id = $1', [companyId]);
+      for (const staffId of requestedStaffIds) {
+        await client.query('INSERT INTO company_staff (company_id, staff_id) VALUES ($1,$2)', [companyId, staffId]);
+      }
+      await client.query('COMMIT');
+      await logActivity(req.user.sub, 'Updated assignment', companyRows[0].name, `Staff: ${requestedNames.join(', ')}`);
+      return res.status(201).json({ id: rows[0].id, createdAt: rows[0].created_at, status: 'Approved' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO assignment_requests (company_id, requested_by_user_id, current_staff_ids, requested_staff_ids)
      VALUES ($1,$2,$3,$4) RETURNING id, created_at`,
     [companyId, req.user.sub, currentIds, requestedStaffIds]
   );
 
-  const requestedNames = await namesForIds(requestedStaffIds);
   await logActivity(
     req.user.sub,
     'Requested assignment change',

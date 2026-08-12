@@ -1987,7 +1987,7 @@
     btn.disabled = true;
     api('/me/profile', { method:'PATCH', body: JSON.stringify({ displayName:name }) })
       .then(function(profile){
-        CURRENT_USER.displayName = profile.displayName;
+        if(CURRENT_USER) CURRENT_USER.displayName = profile.displayName;
         if(CURRENT_ROLE !== 'client'){
           document.getElementById('topbar-user-name').textContent = profile.displayName;
           document.getElementById('topbar-avatar').textContent = initials(profile.displayName);
@@ -3433,13 +3433,18 @@
   // ============ AUTH BOOTSTRAP ============
   function onAuthenticated(profile){
     queuePage = 1;
+    // Applied synchronously (not inside the loadCompanies().then chain) so
+    // CURRENT_USER/CURRENT_ROLE are set before the browser yields control —
+    // otherwise a user who interacts with the page during the loadCompanies
+    // network round-trip (e.g. right after a page refresh) can hit handlers
+    // that read CURRENT_USER while it's still null.
+    applyRole(profile.role, profile);
     return loadCompanies().then(function(){
       renderCompanyGrid();
       renderKpiRow();
       renderStaffRow();
       populateStaffFilter();
       renderQueueTable();
-      applyRole(profile.role, profile);
       if(profile.role === 'admin'){
         renderApprovals();
         renderStaffLimits();

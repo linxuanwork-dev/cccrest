@@ -743,6 +743,34 @@
           <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
         </div>
 
+        <div class="recon-card" id="dm-invoice-card" hidden style="margin-bottom:22px;">
+          <div class="recon-step-label" data-i18n="dm_invoice_title">Registration &amp; Modul Invoice</div>
+          <div class="upload-zone" id="dm-invoice-upload-zone" tabindex="0" role="button" data-i18n-aria="dm_invoice_upload_aria" aria-label="Upload DM REG and MOD bill">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            <div class="upload-text" id="dm-invoice-upload-text" data-i18n-html="dm_invoice_upload_text">Drop the <strong>DM REG &amp; MOD bill</strong> PDF here, or <span class="upload-browse">browse</span></div>
+            <div class="upload-hint" data-i18n="dm_invoice_upload_hint">.pdf — one branch's monthly registration and module bill</div>
+            <input type="file" id="dm-invoice-file-input" accept="application/pdf" hidden />
+          </div>
+          <div style="margin-top:14px;">
+            <button type="button" class="btn-ghost" id="dm-invoice-manage-btn" data-i18n="manage_customer_codes_btn">Manage Customer Codes</button>
+          </div>
+
+          <div id="dm-invoice-review" hidden style="margin-top:20px;">
+            <div class="section-title" style="margin-top:0;" data-i18n="dm_invoice_review_title">Review before generating</div>
+            <div id="dm-invoice-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
+            <div class="table-card" style="overflow-x:auto;">
+              <table>
+                <thead><tr><th data-i18n="th_name">Name</th><th data-i18n="field_nric">NRIC</th><th data-i18n="th_type">Type</th><th data-i18n="field_product">Product</th><th data-i18n="th_amount">Amount</th><th data-i18n="field_customer_code">Customer Code</th></tr></thead>
+                <tbody id="dm-invoice-review-tbody"></tbody>
+              </table>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px;">
+              <button type="button" class="btn-ghost" id="dm-invoice-cancel-review" data-i18n="cancel">Cancel</button>
+              <button type="button" class="btn-primary" id="dm-invoice-generate-btn" data-i18n="dm_invoice_generate_btn">Generate Invoice File</button>
+            </div>
+          </div>
+        </div>
+
         <div id="sales-outlet-picker" hidden style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px;">
           <button type="button" class="btn-row" id="sales-outlet-dwi-danga" style="text-align:left;padding:14px 16px;font-size:14px;" data-i18n="outlet_dwi_danga">Dwi Danga Sales Summary</button>
           <button type="button" class="btn-row" disabled style="text-align:left;padding:14px 16px;font-size:14px;opacity:0.5;cursor:not-allowed;display:flex;justify-content:space-between;align-items:center;">
@@ -1592,6 +1620,49 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="dm-customers-modal-backdrop" hidden>
+    <div class="modal-card" style="max-width:720px;">
+      <div class="modal-header">
+        <div>
+          <h3 data-i18n="manage_customer_codes_title">Manage Customer Codes</h3>
+          <div class="modal-sub" data-i18n="manage_customer_codes_sub">Registration &amp; Modul Invoice — customer code lookup per branch.</div>
+        </div>
+        <button type="button" class="modal-close" id="dm-customers-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+          <select id="dm-customers-branch-filter">
+            <option value="TDA">TDA</option>
+            <option value="TST">TST</option>
+            <option value="BBU">BBU</option>
+          </select>
+          <button type="button" class="btn-ghost" id="dm-customers-import-btn" data-i18n="import_master_list_btn">Import Master List</button>
+          <input type="file" id="dm-customers-import-input" accept=".xlsx,.csv" hidden />
+        </div>
+        <div id="dm-customers-import-result" hidden style="font-size:12px;margin-bottom:10px;"></div>
+
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <input type="text" id="dm-customer-new-name" data-i18n-placeholder="field_customer_name_placeholder" placeholder="Client name" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:9px 12px;background:var(--surface-alt);color:inherit;" />
+          <input type="text" id="dm-customer-new-code" data-i18n-placeholder="field_customer_code_placeholder" placeholder="Customer code" style="width:140px;border:1px solid var(--border);border-radius:6px;padding:9px 12px;background:var(--surface-alt);color:inherit;" />
+          <button type="button" class="btn-ghost" id="dm-customer-add-btn" data-i18n="add_btn">+ Add</button>
+        </div>
+        <div id="dm-customers-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
+
+        <div class="table-card" style="overflow-x:auto;max-height:340px;overflow-y:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_name">Name</th><th data-i18n="field_customer_code">Customer Code</th><th></th></tr></thead>
+            <tbody id="dm-customers-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="dm-customers-close-btn" data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="client-login-modal-backdrop" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -1730,6 +1801,18 @@
       manage_companies_btn:"Companies", add_user_btn:"+ Add User",
       outlet_dwi_danga:"Dwi Danga Sales Summary", outlet_danga_bay:"Danga Bay Sales Summary",
       outlet_work_25:"Work 25 Sales Summary", coming_soon:"Coming soon",
+      dm_invoice_title:"Registration & Modul Invoice", dm_invoice_upload_aria:"Upload DM REG and MOD bill",
+      dm_invoice_upload_text:"Drop the <strong>DM REG &amp; MOD bill</strong> PDF here, or <span class=\"upload-browse\">browse</span>",
+      dm_invoice_upload_hint:".pdf — one branch's monthly registration and module bill",
+      manage_customer_codes_btn:"Manage Customer Codes", dm_invoice_review_title:"Review before generating",
+      field_nric:"NRIC", field_product:"Product", field_customer_code:"Customer Code",
+      dm_invoice_generate_btn:"Generate Invoice File", manage_customer_codes_title:"Manage Customer Codes",
+      manage_customer_codes_sub:"Registration & Modul Invoice — customer code lookup per branch.",
+      import_master_list_btn:"Import Master List", field_customer_name_placeholder:"Client name",
+      field_customer_code_placeholder:"Customer code", add_btn:"+ Add",
+      dm_reading_bill:"Reading bill…", dm_extraction_failed:"Extraction failed",
+      dm_invoice_generated_success:"Invoice file generated and downloaded.", dm_missing_code_note:"Missing — enter code",
+      dm_no_customers_yet:"No customers saved for this branch yet.", dm_customer_added_success:"Customer added.",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
       edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
@@ -1908,6 +1991,18 @@
       manage_companies_btn:"公司", add_user_btn:"+ 添加用户",
       outlet_dwi_danga:"Dwi Danga 销售汇总", outlet_danga_bay:"Danga Bay 销售汇总",
       outlet_work_25:"Work 25 销售汇总", coming_soon:"即将推出",
+      dm_invoice_title:"注册与模块发票", dm_invoice_upload_aria:"上传 DM REG and MOD 账单",
+      dm_invoice_upload_text:"将 <strong>DM REG &amp; MOD 账单</strong> PDF 拖到此处，或<span class=\"upload-browse\">浏览</span>",
+      dm_invoice_upload_hint:".pdf — 单一分行的每月注册与模块账单",
+      manage_customer_codes_btn:"管理客户代码", dm_invoice_review_title:"生成前请先核对",
+      field_nric:"身份证号", field_product:"产品", field_customer_code:"客户代码",
+      dm_invoice_generate_btn:"生成发票文件", manage_customer_codes_title:"管理客户代码",
+      manage_customer_codes_sub:"注册与模块发票 — 各分行客户代码对照表。",
+      import_master_list_btn:"导入主清单", field_customer_name_placeholder:"客户姓名",
+      field_customer_code_placeholder:"客户代码", add_btn:"+ 添加",
+      dm_reading_bill:"正在读取账单…", dm_extraction_failed:"提取失败",
+      dm_invoice_generated_success:"发票文件已生成并下载。", dm_missing_code_note:"缺失 — 请输入代码",
+      dm_no_customers_yet:"该分行尚未保存任何客户。", dm_customer_added_success:"客户已添加。",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
       edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
@@ -2956,6 +3051,7 @@
     var filenameEl = document.getElementById('sales-export-filename');
     var picker = document.getElementById('sales-outlet-picker');
     var normalSections = [document.getElementById('sales-export-row'), document.getElementById('sales-kpi-row'), document.getElementById('sales-table-card')];
+    document.getElementById('dm-invoice-card').hidden = currentCompany !== DM_INVOICE_COMPANY;
 
     if(currentCompany === RECON_ONLY_COMPANY){
       picker.hidden = false;
@@ -3191,6 +3287,214 @@
       })
       .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
       .finally(function(){ btn.disabled = false; });
+  });
+
+  // ============ REGISTRATION & MODUL INVOICE (Didik Mulia only) ============
+  var dmInvoiceCurrentData = null;
+
+  var dmUploadZone = document.getElementById('dm-invoice-upload-zone');
+  var dmFileInput = document.getElementById('dm-invoice-file-input');
+  dmUploadZone.addEventListener('click', function(){ if(currentCompany) dmFileInput.click(); });
+  dmUploadZone.addEventListener('keydown', function(e){ if((e.key === 'Enter' || e.key === ' ') && currentCompany){ e.preventDefault(); dmFileInput.click(); } });
+  ['dragover','dragenter'].forEach(function(evt){
+    dmUploadZone.addEventListener(evt, function(e){ e.preventDefault(); dmUploadZone.classList.add('dragover'); });
+  });
+  ['dragleave','dragend'].forEach(function(evt){
+    dmUploadZone.addEventListener(evt, function(){ dmUploadZone.classList.remove('dragover'); });
+  });
+  dmUploadZone.addEventListener('drop', function(e){
+    e.preventDefault();
+    dmUploadZone.classList.remove('dragover');
+    if(currentCompany && e.dataTransfer.files[0]) handleDmInvoiceFile(e.dataTransfer.files[0]);
+  });
+  dmFileInput.addEventListener('change', function(){ if(this.files[0]) handleDmInvoiceFile(this.files[0]); });
+
+  function handleDmInvoiceFile(file){
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    dmUploadZone.classList.add('has-file');
+    document.getElementById('dm-invoice-upload-text').innerHTML = '<strong>' + t('dm_reading_bill') + '</strong>';
+    var formData = new FormData();
+    formData.append('file', file);
+    fetch('/api/companies/' + companyId + '/dm-invoice/extract', { method:'POST', body: formData })
+      .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
+      .then(function(result){
+        dmUploadZone.classList.remove('has-file');
+        applyTranslations();
+        if(!result.ok){
+          alert(result.data.error || t('dm_extraction_failed'));
+          return;
+        }
+        dmInvoiceCurrentData = result.data;
+        renderDmInvoiceReview();
+      })
+      .catch(function(err){
+        dmUploadZone.classList.remove('has-file');
+        applyTranslations();
+        alert(err.message);
+      });
+  }
+
+  function renderDmInvoiceReview(){
+    if(!dmInvoiceCurrentData) return;
+    document.getElementById('dm-invoice-error').hidden = true;
+    var tbody = document.getElementById('dm-invoice-review-tbody');
+    tbody.innerHTML = dmInvoiceCurrentData.rows.map(function(row, i){
+      var hasCode = !!row.customerCode;
+      var codeInput = '<input type="text" data-dm-code-for="' + i + '" value="' + (row.customerCode || '') + '" placeholder="' + t('dm_missing_code_note') + '" style="width:130px;border:1px solid ' + (hasCode ? 'var(--border)' : 'var(--danger)') + ';border-radius:6px;padding:6px 8px;background:var(--surface-alt);color:inherit;" />';
+      return '<tr>' +
+        '<td>' + row.clientName + '</td>' +
+        '<td class="num">' + (row.nric || '—') + '</td>' +
+        '<td>' + row.type + '</td>' +
+        '<td>' + row.product + '</td>' +
+        '<td class="num">' + money(Number(row.amount)) + '</td>' +
+        '<td>' + codeInput + '</td>' +
+      '</tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-dm-code-for]').forEach(function(input){
+      input.addEventListener('input', function(){
+        var i = Number(input.dataset.dmCodeFor);
+        dmInvoiceCurrentData.rows[i].customerCode = input.value.trim();
+        input.style.borderColor = input.value.trim() ? 'var(--border)' : 'var(--danger)';
+      });
+    });
+    document.getElementById('dm-invoice-review').hidden = false;
+  }
+
+  document.getElementById('dm-invoice-cancel-review').addEventListener('click', function(){
+    dmInvoiceCurrentData = null;
+    document.getElementById('dm-invoice-review').hidden = true;
+    document.getElementById('dm-invoice-file-input').value = '';
+  });
+
+  document.getElementById('dm-invoice-generate-btn').addEventListener('click', function(){
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId || !dmInvoiceCurrentData) return;
+    var errEl = document.getElementById('dm-invoice-error');
+    var missing = dmInvoiceCurrentData.rows.filter(function(r){ return !r.customerCode; });
+    if(missing.length){
+      errEl.textContent = t('dm_missing_code_note') + ': ' + missing.map(function(r){ return r.clientName; }).join(', ');
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
+    var btn = this;
+    btn.disabled = true;
+    fetch('/api/companies/' + companyId + '/dm-invoice/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dmInvoiceCurrentData)
+    }).then(function(res){
+      if(!res.ok) return res.json().then(function(body){ throw new Error(body.error || 'Generate failed'); });
+      var cd = res.headers.get('Content-Disposition') || '';
+      var match = cd.match(/filename="([^"]+)"/);
+      var filename = match ? match[1] : 'sales-invoice.xlsx';
+      return res.blob().then(function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+    }).then(function(){
+      alert(t('dm_invoice_generated_success'));
+      dmInvoiceCurrentData = null;
+      document.getElementById('dm-invoice-review').hidden = true;
+      document.getElementById('dm-invoice-file-input').value = '';
+    }).catch(function(err){
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    }).finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Manage Customer Codes modal ----
+  document.getElementById('dm-invoice-manage-btn').addEventListener('click', function(){
+    document.getElementById('dm-customers-modal-backdrop').hidden = false;
+    renderDmCustomersList();
+  });
+  function closeDmCustomersModal(){ document.getElementById('dm-customers-modal-backdrop').hidden = true; }
+  document.getElementById('dm-customers-modal-close').addEventListener('click', closeDmCustomersModal);
+  document.getElementById('dm-customers-close-btn').addEventListener('click', closeDmCustomersModal);
+  document.getElementById('dm-customers-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeDmCustomersModal(); });
+
+  function renderDmCustomersList(){
+    var companyId = customerRecordId(DM_INVOICE_COMPANY);
+    if(!companyId) return;
+    var branch = document.getElementById('dm-customers-branch-filter').value;
+    var tbody = document.getElementById('dm-customers-tbody');
+    api('/companies/' + companyId + '/dm-invoice/customers?branch=' + branch).then(function(rows){
+      tbody.innerHTML = rows.length === 0 ? emptyRow(3, t('dm_no_customers_yet')) : rows.map(function(c){
+        return '<tr>' +
+          '<td>' + c.name + '</td>' +
+          '<td class="num">' + c.customer_code + '</td>' +
+          '<td><button type="button" class="btn-row" data-dm-customer-delete="' + c.id + '">' + t('remove_btn') + '</button></td>' +
+        '</tr>';
+      }).join('');
+      tbody.querySelectorAll('[data-dm-customer-delete]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          btn.disabled = true;
+          api('/companies/' + companyId + '/dm-invoice/customers/' + btn.dataset.dmCustomerDelete, { method:'DELETE' })
+            .then(function(){ renderDmCustomersList(); })
+            .catch(function(err){ alert(err.message); btn.disabled = false; });
+        });
+      });
+    }).catch(function(){ tbody.innerHTML = emptyRow(3, t('could_not_load_home')); });
+  }
+  document.getElementById('dm-customers-branch-filter').addEventListener('change', renderDmCustomersList);
+
+  document.getElementById('dm-customer-add-btn').addEventListener('click', function(){
+    var companyId = customerRecordId(DM_INVOICE_COMPANY);
+    if(!companyId) return;
+    var branch = document.getElementById('dm-customers-branch-filter').value;
+    var name = document.getElementById('dm-customer-new-name').value.trim();
+    var code = document.getElementById('dm-customer-new-code').value.trim();
+    var errEl = document.getElementById('dm-customers-error');
+    if(!name || !code){
+      errEl.textContent = t('field_customer_name_placeholder') + ' / ' + t('field_customer_code_placeholder') + ' — all required.';
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + companyId + '/dm-invoice/customers', { method:'POST', body: JSON.stringify({ branch:branch, name:name, customerCode:code }) })
+      .then(function(){
+        document.getElementById('dm-customer-new-name').value = '';
+        document.getElementById('dm-customer-new-code').value = '';
+        renderDmCustomersList();
+      })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById('dm-customers-import-btn').addEventListener('click', function(){
+    document.getElementById('dm-customers-import-input').click();
+  });
+  document.getElementById('dm-customers-import-input').addEventListener('change', function(){
+    var companyId = customerRecordId(DM_INVOICE_COMPANY);
+    if(!companyId || !this.files[0]) return;
+    var formData = new FormData();
+    formData.append('file', this.files[0]);
+    var resultEl = document.getElementById('dm-customers-import-result');
+    resultEl.hidden = true;
+    var input = this;
+    input.disabled = true;
+    fetch('/api/companies/' + companyId + '/dm-invoice/customers/import', { method:'POST', body: formData })
+      .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
+      .then(function(result){
+        if(!result.ok){ throw new Error(result.data.error || 'Import failed'); }
+        resultEl.textContent = result.data.added + ' added, ' + result.data.updated + ' updated' + (result.data.skipped.length ? ', ' + result.data.skipped.length + ' skipped' : '');
+        resultEl.hidden = false;
+        renderDmCustomersList();
+      })
+      .catch(function(err){
+        resultEl.textContent = err.message;
+        resultEl.hidden = false;
+      })
+      .finally(function(){ input.disabled = false; input.value = ''; });
   });
 
   function renderPetty(){
@@ -3588,6 +3892,7 @@
   // Dwi Danga Sales Summary (DuitNow/FIUU reconciliation) is specific to
   // Own Laundry Sdn Bhd's payment gateway setup — no other company has this.
   var RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.';
+  var DM_INVOICE_COMPANY = 'DIDIK MULIA SDN. BHD.';
   // If Dwi Danga Sales Summary is currently showing (only reachable via the
   // Sales Summary nav item for Own Laundry) and the company changes away
   // from Own Laundry without a fresh nav click, re-route back to the normal

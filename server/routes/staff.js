@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 const { requireRole, staffInManagerTeam } = require('../auth');
 const { logActivity } = require('../lib/activity');
@@ -18,6 +19,38 @@ router.get('/staff', requireRole('admin', 'manager'), async (req, res) => {
     ORDER BY s.name
   `, params);
   res.json(rows);
+});
+
+router.post('/staff', requireRole('admin'), async (req, res) => {
+  const { name, loginId, password, clientLimit } = req.body || {};
+  if (!name || !loginId || !password) {
+    return res.status(400).json({ error: 'name, loginId, and password are required' });
+  }
+  const limit = Number.isFinite(Number(clientLimit)) && Number(clientLimit) > 0 ? Number(clientLimit) : 20;
+  const hash = await bcrypt.hash(password, 10);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: staffRows } = await client.query(
+      'INSERT INTO staff (name, client_limit, active) VALUES ($1,$2,true) RETURNING *',
+      [name.trim(), limit]
+    );
+    await client.query(
+      `INSERT INTO users (login_id, password_hash, role, display_name, staff_id, active)
+       VALUES ($1,$2,'staff',$3,$4,true)`,
+      [loginId.trim().toLowerCase(), hash, name.trim(), staffRows[0].id]
+    );
+    await client.query('COMMIT');
+    await logActivity(req.user.sub, 'Created staff account', name.trim(), 'Login ID: ' + loginId.trim().toLowerCase());
+    res.status(201).json(staffRows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(400).json({ error: 'That staff name or login ID is already taken' });
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 router.patch('/staff/:id', requireRole('admin', 'manager'), async (req, res) => {

@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
 const { logActivity } = require('../lib/activity');
+const { slugify } = require('../lib/mockGen');
 
 const router = express.Router();
 const PERIOD = '2026-08';
@@ -55,6 +56,26 @@ router.get('/companies', requireAuth, async (req, res) => {
     return res.json(rows);
   }
   res.status(403).json({ error: 'Not allowed' });
+});
+
+router.post('/companies', requireRole('admin'), async (req, res) => {
+  const { name, type, shortName } = req.body || {};
+  const trimmedName = (name || '').trim();
+  if (!trimmedName) return res.status(400).json({ error: 'Company name is required' });
+
+  const slug = slugify(trimmedName);
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO companies (name, slug, type, short_name) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [trimmedName, slug, (type || '').trim() || 'Company', (shortName || '').trim() || null]
+    );
+    await logActivity(req.user.sub, 'Added company', trimmedName, null);
+    const { rows: full } = await pool.query(baseCompanyQuery('WHERE c.id = $1'), [rows[0].id]);
+    res.status(201).json(full[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'A company with that name already exists' });
+    throw err;
+  }
 });
 
 router.patch('/companies/:companyId/features', requireRole('admin'), async (req, res) => {

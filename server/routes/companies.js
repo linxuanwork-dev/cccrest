@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
@@ -8,9 +9,19 @@ const { slugify } = require('../lib/mockGen');
 const router = express.Router();
 const PERIOD = '2026-08';
 
+const letterheadUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.mimetype)) return cb(new Error('Unsupported file type — use JPG, PNG, or WEBP.'));
+    cb(null, true);
+  }
+});
+
 function baseCompanyQuery(whereClause) {
   return `
-    SELECT c.id, c.name, c.type, c.slug, c.enabled_features,
+    SELECT c.id, c.name, c.type, c.slug, c.enabled_features, c.registration_no, c.address,
       COALESCE(array_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '{}') AS staff,
       COALESCE(json_agg(DISTINCT jsonb_build_object('id', s.id, 'name', s.name)) FILTER (WHERE s.id IS NOT NULL), '[]') AS staff_detail,
       rb.status, rb.exceptions_count, rb.invoices_count, rb.input_file_name,
@@ -77,6 +88,62 @@ router.post('/companies', requireRole('admin'), async (req, res) => {
     if (err.code === '23505') return res.status(400).json({ error: 'A company with that name already exists' });
     throw err;
   }
+});
+
+router.patch('/companies/:companyId', requireRole('admin'), async (req, res) => {
+  const { name, type, registrationNo, address } = req.body || {};
+  const { rows: before } = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.companyId]);
+  if (!before[0]) return res.status(404).json({ error: 'Not found' });
+
+  const trimmedName = typeof name === 'string' && name.trim() ? name.trim() : before[0].name;
+  const newSlug = trimmedName !== before[0].name ? slugify(trimmedName) : before[0].slug;
+  const newType = typeof type === 'string' && type.trim() ? type.trim() : before[0].type;
+  const newRegNo = typeof registrationNo === 'string' ? (registrationNo.trim() || null) : before[0].registration_no;
+  const newAddress = typeof address === 'string' ? (address.trim() || null) : before[0].address;
+
+  try {
+    await pool.query(
+      'UPDATE companies SET name = $1, slug = $2, type = $3, registration_no = $4, address = $5 WHERE id = $6',
+      [trimmedName, newSlug, newType, newRegNo, newAddress, req.params.companyId]
+    );
+    await logActivity(req.user.sub, 'Updated company profile', trimmedName, null);
+    const { rows: full } = await pool.query(baseCompanyQuery('WHERE c.id = $1'), [req.params.companyId]);
+    res.json(full[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'A company with that name already exists' });
+    throw err;
+  }
+});
+
+router.get('/companies/:companyId/profile', requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, name, type, registration_no, address, letterhead_data_url FROM companies WHERE id = $1',
+    [req.params.companyId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
+router.post('/companies/:companyId/letterhead', requireRole('admin'), letterheadUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const dataUrl = 'data:' + req.file.mimetype + ';base64,' + req.file.buffer.toString('base64');
+  const { rows } = await pool.query(
+    'UPDATE companies SET letterhead_data_url = $1 WHERE id = $2 RETURNING id, name',
+    [dataUrl, req.params.companyId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  await logActivity(req.user.sub, 'Uploaded letterhead', rows[0].name, null);
+  res.json({ ok: true });
+});
+
+router.delete('/companies/:companyId/letterhead', requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE companies SET letterhead_data_url = NULL WHERE id = $1 RETURNING id, name',
+    [req.params.companyId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  await logActivity(req.user.sub, 'Removed letterhead', rows[0].name, null);
+  res.json({ ok: true });
 });
 
 router.patch('/companies/:companyId/features', requireRole('admin'), async (req, res) => {

@@ -3,8 +3,31 @@ const multer = require('multer');
 const { pool } = require('../db');
 const { scopeToCompany, requireAuth } = require('../auth');
 const { logActivity } = require('../lib/activity');
+const { renderLetterheadHeader, renderTable, PDFDocument } = require('../lib/pdf');
 
 const router = express.Router();
+const PERIOD_LABEL = 'Aug 2026';
+
+function money(n) {
+  if (n == null) return '';
+  return 'RM ' + Number(n).toFixed(2);
+}
+
+async function streamReportPdf(res, companyId, reportTitle, columns, rows) {
+  const { rows: companyRows } = await pool.query(
+    'SELECT name, registration_no, address, letterhead_data_url FROM companies WHERE id = $1',
+    [companyId]
+  );
+  if (!companyRows[0]) return res.status(404).json({ error: 'Company not found' });
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + reportTitle.replace(/\s+/g, '-') + '.pdf"');
+  doc.pipe(res);
+  renderLetterheadHeader(doc, companyRows[0], reportTitle, PERIOD_LABEL);
+  renderTable(doc, columns, rows);
+  doc.end();
+}
 
 const CLAIM_CATEGORIES = ['Transport', 'Equipment Repair', 'Utilities', 'Cleaning Supplies', 'Stationery', 'Meals', 'Other'];
 
@@ -75,12 +98,42 @@ router.get('/companies/:companyId/sales', requireAuth, scopeToCompany, async (re
   res.json(rows);
 });
 
+router.get('/companies/:companyId/sales/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT date, invoice_no, gross, settled, petty_out, status FROM sales_records WHERE company_id = $1 ORDER BY date',
+    [req.params.companyId]
+  );
+  await streamReportPdf(res, req.params.companyId, 'Sales Summary', [
+    { key: 'date', label: 'Date', width: 1 },
+    { key: 'invoice_no', label: 'Invoice No.', width: 1.3 },
+    { key: 'gross', label: 'Gross', width: 1, align: 'right' },
+    { key: 'settled', label: 'Settled', width: 1, align: 'right' },
+    { key: 'petty_out', label: 'Petty Out', width: 1, align: 'right' },
+    { key: 'status', label: 'Status', width: 1 }
+  ], rows.map((r) => ({ ...r, gross: money(r.gross), settled: money(r.settled), petty_out: money(r.petty_out) })));
+});
+
 router.get('/companies/:companyId/bank', requireAuth, scopeToCompany, async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, description, debit, credit, balance, status FROM bank_statement_entries WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
   );
   res.json(rows);
+});
+
+router.get('/companies/:companyId/bank/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT date, description, debit, credit, balance, status FROM bank_statement_entries WHERE company_id = $1 ORDER BY date, id',
+    [req.params.companyId]
+  );
+  await streamReportPdf(res, req.params.companyId, 'Bank Statement', [
+    { key: 'date', label: 'Date', width: 0.9 },
+    { key: 'description', label: 'Description', width: 1.8 },
+    { key: 'debit', label: 'Debit', width: 0.9, align: 'right' },
+    { key: 'credit', label: 'Credit', width: 0.9, align: 'right' },
+    { key: 'balance', label: 'Balance', width: 0.9, align: 'right' },
+    { key: 'status', label: 'Status', width: 0.8 }
+  ], rows.map((r) => ({ ...r, debit: money(r.debit), credit: money(r.credit), balance: money(r.balance) })));
 });
 
 router.get('/companies/:companyId/purchases', requireAuth, scopeToCompany, async (req, res) => {
@@ -91,6 +144,20 @@ router.get('/companies/:companyId/purchases', requireAuth, scopeToCompany, async
   res.json(rows);
 });
 
+router.get('/companies/:companyId/purchases/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT invoice_no, supplier, amount, date, status FROM purchase_bills WHERE company_id = $1 ORDER BY date, id',
+    [req.params.companyId]
+  );
+  await streamReportPdf(res, req.params.companyId, 'Purchases Bill', [
+    { key: 'invoice_no', label: 'Invoice No.', width: 1.2 },
+    { key: 'supplier', label: 'Supplier', width: 1.6 },
+    { key: 'amount', label: 'Amount', width: 1, align: 'right' },
+    { key: 'date', label: 'Date', width: 1 },
+    { key: 'status', label: 'Status', width: 1 }
+  ], rows.map((r) => ({ ...r, amount: money(r.amount) })));
+});
+
 router.get('/companies/:companyId/claims', requireAuth, scopeToCompany, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cb.claim_no, s.name AS staff_name, cb.category, cb.amount, cb.date, cb.status
@@ -99,6 +166,23 @@ router.get('/companies/:companyId/claims', requireAuth, scopeToCompany, async (r
     [req.params.companyId]
   );
   res.json(rows);
+});
+
+router.get('/companies/:companyId/claims/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT cb.claim_no, s.name AS staff_name, cb.category, cb.amount, cb.date, cb.status
+     FROM claim_bills cb LEFT JOIN staff s ON s.id = cb.staff_id
+     WHERE cb.company_id = $1 ORDER BY cb.date, cb.id`,
+    [req.params.companyId]
+  );
+  await streamReportPdf(res, req.params.companyId, 'Claim Bill', [
+    { key: 'claim_no', label: 'Claim No.', width: 1 },
+    { key: 'staff_name', label: 'Staff', width: 1.2 },
+    { key: 'category', label: 'Category', width: 1.2 },
+    { key: 'amount', label: 'Amount', width: 1, align: 'right' },
+    { key: 'date', label: 'Date', width: 1 },
+    { key: 'status', label: 'Status', width: 0.9 }
+  ], rows.map((r) => ({ ...r, amount: money(r.amount) })));
 });
 
 // Reads an uploaded receipt/invoice via Claude's vision API and returns extracted
@@ -158,12 +242,41 @@ router.get('/companies/:companyId/petty', requireAuth, scopeToCompany, async (re
   res.json(rows);
 });
 
+router.get('/companies/:companyId/petty/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT date, description, amount_in, amount_out, balance FROM petty_cash_entries WHERE company_id = $1 ORDER BY date, id',
+    [req.params.companyId]
+  );
+  await streamReportPdf(res, req.params.companyId, 'Petty Cash Record', [
+    { key: 'date', label: 'Date', width: 0.9 },
+    { key: 'description', label: 'Description', width: 1.8 },
+    { key: 'amount_in', label: 'In', width: 1, align: 'right' },
+    { key: 'amount_out', label: 'Out', width: 1, align: 'right' },
+    { key: 'balance', label: 'Balance', width: 1, align: 'right' }
+  ], rows.map((r) => ({ ...r, amount_in: money(r.amount_in), amount_out: money(r.amount_out), balance: money(r.balance) })));
+});
+
 router.get('/companies/:companyId/merchant', requireAuth, scopeToCompany, async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, txns, approved_amt, failed_amt, fee, net FROM merchant_settlements WHERE company_id = $1 ORDER BY date',
     [req.params.companyId]
   );
   res.json(rows);
+});
+
+router.get('/companies/:companyId/merchant/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT date, txns, approved_amt, failed_amt, fee, net FROM merchant_settlements WHERE company_id = $1 ORDER BY date',
+    [req.params.companyId]
+  );
+  await streamReportPdf(res, req.params.companyId, 'Merchant Report', [
+    { key: 'date', label: 'Date', width: 0.9 },
+    { key: 'txns', label: 'Txns', width: 0.7, align: 'right' },
+    { key: 'approved_amt', label: 'Approved', width: 1, align: 'right' },
+    { key: 'failed_amt', label: 'Failed', width: 1, align: 'right' },
+    { key: 'fee', label: 'Fee', width: 0.9, align: 'right' },
+    { key: 'net', label: 'Net', width: 1, align: 'right' }
+  ], rows.map((r) => ({ ...r, approved_amt: money(r.approved_amt), failed_amt: money(r.failed_amt), fee: money(r.fee), net: money(r.net) })));
 });
 
 module.exports = router;

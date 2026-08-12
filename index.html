@@ -612,6 +612,10 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
         <span class="nav-label" data-i18n="nav_merchant_report">Merchant Report</span>
       </button>
+      <button class="nav-item" data-panel="panel-payroll">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><circle cx="12" cy="13" r="2"/></svg>
+        <span class="nav-label" data-i18n="nav_payroll">Payroll</span>
+      </button>
     </nav>
 
     <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff manager" style="margin-top:20px;" data-i18n="nav_group_tools">Tools</div>
@@ -801,6 +805,7 @@
       <!-- ---- BANK STATEMENT ---- -->
       <section class="panel" id="panel-bank" hidden>
         <div class="content-header"><h2 data-i18n="nav_bank_statement">Bank Statement</h2><span class="sub" id="bank-sub">Select a company · current account</span></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="bank-export-btn" data-i18n="download">Download</button></div>
         <div class="table-card">
           <table>
             <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_description">Description</th><th data-i18n="th_debit">Debit</th><th data-i18n="th_credit">Credit</th><th data-i18n="th_balance">Balance</th><th data-i18n="th_status">Status</th></tr></thead>
@@ -812,6 +817,7 @@
       <!-- ---- PURCHASES BILL ---- -->
       <section class="panel" id="panel-purchases" hidden>
         <div class="content-header"><h2 data-i18n="nav_purchases_bill">Purchases Bill</h2><span class="sub" id="purchases-sub">Select a company · supplier invoices</span></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="purchases-export-btn" data-i18n="download">Download</button></div>
         <div class="table-card">
           <table>
             <thead><tr><th data-i18n="th_invoice_no">Invoice No.</th><th data-i18n="th_supplier">Supplier</th><th data-i18n="th_amount">Amount</th><th data-i18n="th_date">Date</th><th data-i18n="th_payment_status">Payment Status</th></tr></thead>
@@ -867,6 +873,7 @@
           </div>
         </div>
 
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="claim-export-btn" data-i18n="download">Download</button></div>
         <div class="table-card">
           <table>
             <thead><tr><th data-i18n="th_claim_no">Claim No.</th><th data-i18n="th_staff">Staff</th><th data-i18n="th_category">Category</th><th data-i18n="th_amount">Amount</th><th data-i18n="th_date">Date</th><th data-i18n="th_status">Status</th></tr></thead>
@@ -878,6 +885,7 @@
       <!-- ---- PETTY RECORD ---- -->
       <section class="panel" id="panel-petty" hidden>
         <div class="content-header"><h2 data-i18n="nav_petty_record">Petty Record</h2><span class="sub" id="petty-sub">Select a company · float log</span></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="petty-export-btn" data-i18n="download">Download</button></div>
         <div class="table-card">
           <table>
             <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_description">Description</th><th data-i18n="th_in">In</th><th data-i18n="th_out">Out</th><th data-i18n="th_balance">Balance</th></tr></thead>
@@ -889,6 +897,7 @@
       <!-- ---- MERCHANT REPORT ---- -->
       <section class="panel" id="panel-merchant" hidden>
         <div class="content-header"><h2 data-i18n="nav_merchant_report">Merchant Report</h2><span class="sub" id="merchant-sub">Select a company · DuitNow / FIUU settlement</span></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="merchant-export-btn" data-i18n="download">Download</button></div>
 
         <div class="kpi-row">
           <div class="kpi-card">
@@ -913,6 +922,37 @@
           <table>
             <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_total_txns">Total Txns</th><th data-i18n="th_approved_amt">Approved Amt</th><th data-i18n="th_failed_cancelled">Failed / Cancelled</th><th data-i18n="th_gateway_fee">Gateway Fee</th><th data-i18n="th_net_settlement">Net Settlement</th></tr></thead>
             <tbody id="merchant-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---- PAYROLL ---- -->
+      <section class="panel" id="panel-payroll" hidden>
+        <div class="content-header"><h2 data-i18n="nav_payroll">Payroll</h2><span class="sub" id="payroll-sub">Select a company · employee payroll</span></div>
+        <div id="payroll-estimate-note" style="font-size:11.5px;color:var(--primary-soft);margin-bottom:16px;" data-i18n="payroll_estimate_note">EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.</div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div class="section-title" style="margin:0;" data-i18n="employees_label">Employees</div>
+          <button type="button" class="btn-ghost" id="add-employee-btn" data-i18n="add_employee_btn">+ Add Employee</button>
+        </div>
+        <div class="table-card" style="margin-bottom:28px; overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_name">Name</th><th data-i18n="th_position">Position</th><th data-i18n="th_basic_salary">Basic Salary</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
+            <tbody id="employees-tbody"></tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div class="section-title" style="margin:0;" data-i18n="payroll_entries_label">Payroll</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="month" id="payroll-period-select" style="border:1px solid var(--border);border-radius:6px;padding:7px 10px;background:var(--surface-alt);color:inherit;" />
+            <button type="button" class="btn-primary" id="run-payroll-btn" style="width:auto;padding:9px 16px;" data-i18n="run_payroll_btn">Run Payroll</button>
+          </div>
+        </div>
+        <div class="table-card" style="overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_name">Name</th><th data-i18n="th_basic_salary">Basic</th><th data-i18n="th_net_pay">Net Pay</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
+            <tbody id="payroll-tbody"></tbody>
           </table>
         </div>
       </section>
@@ -1349,11 +1389,130 @@
           <label for="company-type" data-i18n="field_company_type">Type (optional)</label>
           <input type="text" id="company-type" placeholder="e.g. Restaurant, Retail, Laundry" />
         </div>
+        <div class="field">
+          <label for="company-reg-no" data-i18n="field_registration_no">Registration No. (optional)</label>
+          <input type="text" id="company-reg-no" placeholder="e.g. 202301012345" />
+        </div>
+        <div class="field">
+          <label for="company-address" data-i18n="field_address">Address (optional)</label>
+          <input type="text" id="company-address" placeholder="e.g. 12, Jalan Test, 81300 Skudai, Johor" />
+        </div>
         <div id="company-modal-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-ghost" id="company-cancel" data-i18n="cancel">Cancel</button>
         <button type="button" class="btn-primary" id="company-submit" style="width:auto;padding:10px 18px;" data-i18n="create_btn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="edit-company-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="edit-company-modal-title" data-i18n="edit_company_title">Edit Company</h3>
+          <div class="modal-sub" data-i18n="edit_company_sub">Update profile details and letterhead used on reports.</div>
+        </div>
+        <button type="button" class="modal-close" id="edit-company-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="edit-company-name" data-i18n="field_company_name">Company Name</label>
+          <input type="text" id="edit-company-name" />
+        </div>
+        <div class="field">
+          <label for="edit-company-type" data-i18n="field_company_type">Type (optional)</label>
+          <input type="text" id="edit-company-type" />
+        </div>
+        <div class="field">
+          <label for="edit-company-reg-no" data-i18n="field_registration_no">Registration No. (optional)</label>
+          <input type="text" id="edit-company-reg-no" />
+        </div>
+        <div class="field">
+          <label for="edit-company-address" data-i18n="field_address">Address (optional)</label>
+          <input type="text" id="edit-company-address" />
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;" />
+
+        <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;" data-i18n="letterhead_label">Letterhead</div>
+        <div id="edit-company-letterhead-preview" style="margin-bottom:10px;"></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="file" id="edit-company-letterhead-input" accept="image/jpeg,image/png,image/webp" />
+          <button type="button" class="btn-ghost" id="edit-company-letterhead-remove" hidden data-i18n="remove_btn">Remove</button>
+        </div>
+
+        <div id="edit-company-modal-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:12px;"></div>
+        <div id="edit-company-modal-success" hidden style="color:var(--success, #2e8b57);font-size:12.5px;margin-top:12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="edit-company-cancel" data-i18n="close">Close</button>
+        <button type="button" class="btn-primary" id="edit-company-submit" style="width:auto;padding:10px 18px;" data-i18n="save_btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="employee-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 data-i18n="add_employee_title">Add Employee</h3>
+          <div class="modal-sub" data-i18n="add_employee_sub">Employee payroll record for this company.</div>
+        </div>
+        <button type="button" class="modal-close" id="employee-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field"><label for="employee-name" data-i18n="th_name">Name</label><input type="text" id="employee-name" /></div>
+        <div class="field"><label for="employee-position" data-i18n="th_position">Position</label><input type="text" id="employee-position" /></div>
+        <div class="field"><label for="employee-ic-no" data-i18n="field_ic_no">IC No.</label><input type="text" id="employee-ic-no" /></div>
+        <div class="field"><label for="employee-basic-salary" data-i18n="th_basic_salary">Basic Salary</label><input type="number" min="0" step="0.01" id="employee-basic-salary" /></div>
+        <div class="field"><label for="employee-epf-no" data-i18n="field_epf_no">EPF No.</label><input type="text" id="employee-epf-no" /></div>
+        <div class="field"><label for="employee-socso-no" data-i18n="field_socso_no">SOCSO No.</label><input type="text" id="employee-socso-no" /></div>
+        <div class="field"><label for="employee-bank-name" data-i18n="field_bank_name">Bank Name</label><input type="text" id="employee-bank-name" /></div>
+        <div class="field"><label for="employee-bank-account" data-i18n="field_bank_account">Bank Account No.</label><input type="text" id="employee-bank-account" /></div>
+        <div id="employee-modal-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="employee-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="employee-submit" style="width:auto;padding:10px 18px;" data-i18n="create_btn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="payroll-modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="payroll-modal-title" data-i18n="run_payroll_title">Run Payroll</h3>
+          <div class="modal-sub" data-i18n="payroll_estimate_note">EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.</div>
+        </div>
+        <button type="button" class="modal-close" id="payroll-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="payroll-employee-select" data-i18n="employees_label">Employees</label>
+          <select id="payroll-employee-select"></select>
+        </div>
+        <div class="field"><label for="payroll-basic-salary" data-i18n="th_basic_salary">Basic Salary</label><input type="number" min="0" step="0.01" id="payroll-basic-salary" /></div>
+        <div class="field"><label for="payroll-allowances" data-i18n="field_allowances">Allowances</label><input type="number" min="0" step="0.01" id="payroll-allowances" value="0" /></div>
+        <div class="field"><label for="payroll-epf-employee" data-i18n="field_epf_employee">EPF (Employee)</label><input type="number" min="0" step="0.01" id="payroll-epf-employee" /></div>
+        <div class="field"><label for="payroll-epf-employer" data-i18n="field_epf_employer">EPF (Employer)</label><input type="number" min="0" step="0.01" id="payroll-epf-employer" /></div>
+        <div class="field"><label for="payroll-socso-employee" data-i18n="field_socso_employee">SOCSO (Employee)</label><input type="number" min="0" step="0.01" id="payroll-socso-employee" /></div>
+        <div class="field"><label for="payroll-socso-employer" data-i18n="field_socso_employer">SOCSO (Employer)</label><input type="number" min="0" step="0.01" id="payroll-socso-employer" /></div>
+        <div class="field"><label for="payroll-eis-employee" data-i18n="field_eis_employee">EIS (Employee)</label><input type="number" min="0" step="0.01" id="payroll-eis-employee" /></div>
+        <div class="field"><label for="payroll-eis-employer" data-i18n="field_eis_employer">EIS (Employer)</label><input type="number" min="0" step="0.01" id="payroll-eis-employer" /></div>
+        <div class="field"><label for="payroll-pcb" data-i18n="field_pcb">PCB (manual entry)</label><input type="number" min="0" step="0.01" id="payroll-pcb" value="0" /></div>
+        <div id="payroll-modal-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="payroll-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="payroll-submit" style="width:auto;padding:10px 18px;" data-i18n="save_btn">Save</button>
       </div>
     </div>
   </div>
@@ -1561,6 +1720,23 @@
       add_user_title:"Add User", add_user_sub:"Create a login and choose its role.", field_role:"Role",
       manage_companies_title:"Manage Companies", manage_companies_sub:"Choose which companies this staff member handles.",
       manage_companies_btn:"Companies", add_user_btn:"+ Add User",
+      field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
+      edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
+      letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
+      no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
+      letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
+      nav_payroll:"Payroll", payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
+      employees_label:"Employees", add_employee_btn:"+ Add Employee", payroll_entries_label:"Payroll", run_payroll_btn:"Run Payroll",
+      th_name:"Name", th_position:"Position", th_basic_salary:"Basic Salary", th_net_pay:"Net Pay",
+      add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.",
+      field_ic_no:"IC No.", field_epf_no:"EPF No.", field_socso_no:"SOCSO No.", field_bank_name:"Bank Name", field_bank_account:"Bank Account No.",
+      run_payroll_title:"Run Payroll", field_allowances:"Allowances",
+      field_epf_employee:"EPF (Employee)", field_epf_employer:"EPF (Employer)",
+      field_socso_employee:"SOCSO (Employee)", field_socso_employer:"SOCSO (Employer)",
+      field_eis_employee:"EIS (Employee)", field_eis_employer:"EIS (Employer)", field_pcb:"PCB (manual entry)",
+      voucher_btn:"Voucher", mark_paid_btn:"Mark Paid", no_employees_yet:"No employees added yet.",
+      no_payroll_entries_yet:"No payroll entries for this period.", select_employee_placeholder:"Select employee…",
+      employee_created_success:"Employee added.", payroll_entry_created_success:"Payroll entry saved.",
       add_bank_statement:"Add bank statement", all_companies:"All companies", all_staff:"All staff", all_statuses:"All statuses",
       assign_limit_note:"You can select up to 2 staff for one client.",
       assign_staff_sub:"Select up to 2 staff. Changes need admin approval before they take effect.",
@@ -1636,12 +1812,14 @@
       empty_petty:"Select a company from the filter above to view its petty cash record.",
       empty_petty_no_data:"No petty cash movement this period.",
       empty_merchant:"Select a company from the filter above to view its merchant report.",
+      empty_payroll:"Select a company from the filter above to view its payroll.",
       empty_home:"Select a company from the filter above to view its dashboard.",
       empty_no_recon_batch:"No reconciliation batches yet for this company.",
       empty_recon_batch_none:"No reconciliation batch for this period yet.",
       could_not_load_sales:"Could not load sales records.", could_not_load_bank:"Could not load bank statement.",
       could_not_load_purchases:"Could not load purchase bills.", could_not_load_claim:"Could not load claim bills.",
       could_not_load_petty:"Could not load petty cash record.", could_not_load_merchant:"Could not load merchant report.",
+      could_not_load_payroll:"Could not load payroll.",
       could_not_load_home:"Could not load company dashboard.", could_not_load_activity:"Could not load activity log.",
       no_activity_yet:"No activity recorded yet.", no_assignment_requests:"No assignment requests yet.",
 
@@ -1718,6 +1896,23 @@
       add_user_title:"添加用户", add_user_sub:"创建登录账号并选择角色。", field_role:"角色",
       manage_companies_title:"管理公司", manage_companies_sub:"选择此员工负责的公司。",
       manage_companies_btn:"公司", add_user_btn:"+ 添加用户",
+      field_registration_no:"注册号（可选）", field_address:"地址（可选）",
+      edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
+      letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
+      no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
+      letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
+      nav_payroll:"薪资", payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
+      employees_label:"员工", add_employee_btn:"+ 添加员工", payroll_entries_label:"薪资记录", run_payroll_btn:"发放薪资",
+      th_name:"姓名", th_position:"职位", th_basic_salary:"基本薪资", th_net_pay:"实发薪资",
+      add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。",
+      field_ic_no:"身份证号", field_epf_no:"公积金号", field_socso_no:"社保号", field_bank_name:"银行名称", field_bank_account:"银行账号",
+      run_payroll_title:"发放薪资", field_allowances:"津贴",
+      field_epf_employee:"公积金（员工）", field_epf_employer:"公积金（雇主）",
+      field_socso_employee:"社保（员工）", field_socso_employer:"社保（雇主）",
+      field_eis_employee:"就业保险（员工）", field_eis_employer:"就业保险（雇主）", field_pcb:"所得税预扣（手动输入）",
+      voucher_btn:"付款凭证", mark_paid_btn:"标记已付", no_employees_yet:"尚未添加员工。",
+      no_payroll_entries_yet:"该月份尚无薪资记录。", select_employee_placeholder:"选择员工…",
+      employee_created_success:"员工已添加。", payroll_entry_created_success:"薪资记录已保存。",
       add_bank_statement:"添加银行对账单", all_companies:"所有公司", all_staff:"所有员工", all_statuses:"所有状态",
       assign_limit_note:"每位客户最多可选择2名员工。",
       assign_staff_sub:"最多选择2名员工。更改需经管理员批准后才能生效。",
@@ -1788,11 +1983,13 @@
       empty_claim:"请从上方选择一个公司以查看其报销单。", empty_claim_no_data:"该期间没有报销单。",
       empty_petty:"请从上方选择一个公司以查看其零用现金记录。", empty_petty_no_data:"该期间没有零用现金变动。",
       empty_merchant:"请从上方选择一个公司以查看其商户报告。",
+      empty_payroll:"请从上方选择一个公司以查看其薪资记录。",
       empty_home:"请从上方选择一个公司以查看其仪表盘。",
       empty_no_recon_batch:"该公司暂无对账批次。", empty_recon_batch_none:"该期间暂无对账批次。",
       could_not_load_sales:"无法加载销售记录。", could_not_load_bank:"无法加载银行对账单。",
       could_not_load_purchases:"无法加载采购账单。", could_not_load_claim:"无法加载报销单。",
       could_not_load_petty:"无法加载零用现金记录。", could_not_load_merchant:"无法加载商户报告。",
+      could_not_load_payroll:"无法加载薪资记录。",
       could_not_load_home:"无法加载公司仪表盘。", could_not_load_activity:"无法加载活动日志。",
       no_activity_yet:"暂无活动记录。", no_assignment_requests:"暂无分配申请。",
 
@@ -2597,7 +2794,7 @@
           '<td class="num">' + outLabel + '</td>' +
           '<td><span class="badge ' + badgeClass + '">' + statusLabel(c.status) + '</span></td>' +
           '<td class="num">' + c.updated + '</td>' +
-          '<td><div style="display:flex;gap:6px;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">' + t('view_btn') + '</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">' + t('assign_btn') + '</button><button type="button" class="btn-row" data-features="' + c.name.replace(/"/g,'&quot;') + '">' + t('features_btn') + '</button><button type="button" class="btn-row" data-client-login="' + c.id + '" data-client-login-name="' + c.name.replace(/"/g,'&quot;') + '">' + t('client_login_btn') + '</button></div></td>' +
+          '<td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn-row" data-view="' + c.name.replace(/"/g,'&quot;') + '">' + t('view_btn') + '</button><button type="button" class="btn-row" data-assign="' + c.name.replace(/"/g,'&quot;') + '">' + t('assign_btn') + '</button><button type="button" class="btn-row" data-features="' + c.name.replace(/"/g,'&quot;') + '">' + t('features_btn') + '</button><button type="button" class="btn-row" data-client-login="' + c.id + '" data-client-login-name="' + c.name.replace(/"/g,'&quot;') + '">' + t('client_login_btn') + '</button><button type="button" class="btn-row" data-edit-company="' + c.id + '">' + t('edit_btn') + '</button></div></td>' +
         '</tr>';
       }).join('');
     }
@@ -2639,6 +2836,12 @@
     tbody.querySelectorAll('[data-client-login]').forEach(function(btn){
       btn.addEventListener('click', function(){
         openClientLoginModal(Number(btn.dataset.clientLogin), btn.dataset.clientLoginName);
+      });
+    });
+
+    tbody.querySelectorAll('[data-edit-company]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        openEditCompanyModal(Number(btn.dataset.editCompany));
       });
     });
   }
@@ -3008,6 +3211,179 @@
     }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_merchant')); });
   }
 
+  // ============ PAYROLL ============
+  var CURRENT_EMPLOYEES = [];
+
+  function currentPayrollPeriod(){
+    var input = document.getElementById('payroll-period-select');
+    if(!input.value) input.value = '2026-08';
+    return input.value;
+  }
+
+  function renderPayroll(){
+    var employeesTbody = document.getElementById('employees-tbody');
+    var payrollTbody = document.getElementById('payroll-tbody');
+    if(!currentCompany){
+      employeesTbody.innerHTML = emptyRow(5, t('empty_payroll'));
+      payrollTbody.innerHTML = emptyRow(5, t('empty_payroll'));
+      return;
+    }
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+
+    api('/companies/' + companyId + '/employees').then(function(rows){
+      CURRENT_EMPLOYEES = rows;
+      employeesTbody.innerHTML = rows.length === 0 ? emptyRow(5, t('no_employees_yet')) : rows.map(function(e){
+        return '<tr>' +
+          '<td>' + e.name + '</td>' +
+          '<td>' + (e.position || '—') + '</td>' +
+          '<td class="num">' + money(Number(e.basic_salary)) + '</td>' +
+          '<td><span class="badge ' + (e.active ? 'approved' : 'rejected') + '">' + (e.active ? t('status_active') : t('status_suspended')) + '</span></td>' +
+          '<td></td>' +
+        '</tr>';
+      }).join('');
+
+      var sel = document.getElementById('payroll-employee-select');
+      sel.innerHTML = '<option value="">' + t('select_employee_placeholder') + '</option>' +
+        rows.filter(function(e){ return e.active; }).map(function(e){ return '<option value="' + e.id + '">' + e.name + '</option>'; }).join('');
+    }).catch(function(){ employeesTbody.innerHTML = emptyRow(5, t('could_not_load_payroll')); });
+
+    var period = currentPayrollPeriod();
+    api('/companies/' + companyId + '/payroll?period=' + period).then(function(rows){
+      payrollTbody.innerHTML = rows.length === 0 ? emptyRow(5, t('no_payroll_entries_yet')) : rows.map(function(p){
+        var actions = '<button type="button" class="btn-row" data-voucher="' + p.id + '">' + t('voucher_btn') + '</button>';
+        if(p.status !== 'Paid'){
+          actions += ' <button type="button" class="btn-row" data-mark-paid="' + p.id + '">' + t('mark_paid_btn') + '</button>';
+        }
+        return '<tr>' +
+          '<td>' + p.employee_name + '</td>' +
+          '<td class="num">' + money(Number(p.basic_salary)) + '</td>' +
+          '<td class="num">' + money(Number(p.net_pay)) + '</td>' +
+          '<td><span class="badge ' + (p.status === 'Paid' ? 'approved' : 'inprogress') + '">' + (p.status === 'Paid' ? t('status_paid') : t('status_pending')) + '</span></td>' +
+          '<td>' + actions + '</td>' +
+        '</tr>';
+      }).join('');
+
+      payrollTbody.querySelectorAll('[data-voucher]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          window.open('/api/companies/' + companyId + '/payroll/' + btn.dataset.voucher + '/voucher.pdf', '_blank');
+        });
+      });
+      payrollTbody.querySelectorAll('[data-mark-paid]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          btn.disabled = true;
+          api('/companies/' + companyId + '/payroll/' + btn.dataset.markPaid, { method:'PATCH', body: JSON.stringify({ status:'Paid' }) })
+            .then(function(){ renderPayroll(); renderActivityLog(); })
+            .catch(function(err){ alert(err.message); btn.disabled = false; });
+        });
+      });
+    }).catch(function(){ payrollTbody.innerHTML = emptyRow(5, t('could_not_load_payroll')); });
+  }
+
+  document.getElementById('payroll-period-select').addEventListener('change', renderPayroll);
+
+  document.getElementById('add-employee-btn').addEventListener('click', function(){
+    ['employee-name','employee-position','employee-ic-no','employee-basic-salary','employee-epf-no','employee-socso-no','employee-bank-name','employee-bank-account'].forEach(function(id){
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('employee-modal-error').hidden = true;
+    document.getElementById('employee-modal-backdrop').hidden = false;
+  });
+  function closeEmployeeModal(){ document.getElementById('employee-modal-backdrop').hidden = true; }
+  document.getElementById('employee-modal-close').addEventListener('click', closeEmployeeModal);
+  document.getElementById('employee-cancel').addEventListener('click', closeEmployeeModal);
+  document.getElementById('employee-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeEmployeeModal(); });
+  document.getElementById('employee-submit').addEventListener('click', function(){
+    var companyId = customerRecordId(currentCompany);
+    var name = document.getElementById('employee-name').value.trim();
+    var errEl = document.getElementById('employee-modal-error');
+    if(!companyId || !name){
+      errEl.textContent = t('th_name') + ' — required.';
+      errEl.hidden = false;
+      return;
+    }
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + companyId + '/employees', { method:'POST', body: JSON.stringify({
+      name: name,
+      position: document.getElementById('employee-position').value.trim(),
+      icNo: document.getElementById('employee-ic-no').value.trim(),
+      basicSalary: Number(document.getElementById('employee-basic-salary').value) || 0,
+      epfNo: document.getElementById('employee-epf-no').value.trim(),
+      socsoNo: document.getElementById('employee-socso-no').value.trim(),
+      bankName: document.getElementById('employee-bank-name').value.trim(),
+      bankAccount: document.getElementById('employee-bank-account').value.trim()
+    }) })
+      .then(function(){ closeEmployeeModal(); renderPayroll(); renderActivityLog(); })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById('run-payroll-btn').addEventListener('click', function(){
+    if(!currentCompany || CURRENT_EMPLOYEES.length === 0) return;
+    document.getElementById('payroll-employee-select').value = '';
+    ['payroll-basic-salary','payroll-epf-employee','payroll-epf-employer','payroll-socso-employee','payroll-socso-employer','payroll-eis-employee','payroll-eis-employer'].forEach(function(id){
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('payroll-allowances').value = '0';
+    document.getElementById('payroll-pcb').value = '0';
+    document.getElementById('payroll-modal-error').hidden = true;
+    document.getElementById('payroll-modal-backdrop').hidden = false;
+  });
+  function closePayrollModal(){ document.getElementById('payroll-modal-backdrop').hidden = true; }
+  document.getElementById('payroll-modal-close').addEventListener('click', closePayrollModal);
+  document.getElementById('payroll-cancel').addEventListener('click', closePayrollModal);
+  document.getElementById('payroll-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closePayrollModal(); });
+
+  document.getElementById('payroll-employee-select').addEventListener('change', function(){
+    var companyId = customerRecordId(currentCompany);
+    var employeeId = this.value;
+    if(!companyId || !employeeId) return;
+    var allowances = Number(document.getElementById('payroll-allowances').value) || 0;
+    api('/companies/' + companyId + '/payroll/suggest?employeeId=' + employeeId + '&allowances=' + allowances).then(function(s){
+      document.getElementById('payroll-basic-salary').value = s.basicSalary;
+      document.getElementById('payroll-epf-employee').value = s.epfEmployee;
+      document.getElementById('payroll-epf-employer').value = s.epfEmployer;
+      document.getElementById('payroll-socso-employee').value = s.socsoEmployee;
+      document.getElementById('payroll-socso-employer').value = s.socsoEmployer;
+      document.getElementById('payroll-eis-employee').value = s.eisEmployee;
+      document.getElementById('payroll-eis-employer').value = s.eisEmployer;
+    }).catch(function(err){
+      var errEl = document.getElementById('payroll-modal-error');
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    });
+  });
+
+  document.getElementById('payroll-submit').addEventListener('click', function(){
+    var companyId = customerRecordId(currentCompany);
+    var employeeId = document.getElementById('payroll-employee-select').value;
+    var errEl = document.getElementById('payroll-modal-error');
+    if(!companyId || !employeeId){
+      errEl.textContent = t('select_employee_placeholder');
+      errEl.hidden = false;
+      return;
+    }
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + companyId + '/payroll', { method:'POST', body: JSON.stringify({
+      employeeId: Number(employeeId),
+      period: currentPayrollPeriod(),
+      basicSalary: Number(document.getElementById('payroll-basic-salary').value) || 0,
+      allowances: Number(document.getElementById('payroll-allowances').value) || 0,
+      epfEmployee: Number(document.getElementById('payroll-epf-employee').value) || 0,
+      epfEmployer: Number(document.getElementById('payroll-epf-employer').value) || 0,
+      socsoEmployee: Number(document.getElementById('payroll-socso-employee').value) || 0,
+      socsoEmployer: Number(document.getElementById('payroll-socso-employer').value) || 0,
+      eisEmployee: Number(document.getElementById('payroll-eis-employee').value) || 0,
+      eisEmployer: Number(document.getElementById('payroll-eis-employer').value) || 0,
+      pcb: Number(document.getElementById('payroll-pcb').value) || 0
+    }) })
+      .then(function(){ closePayrollModal(); renderPayroll(); renderActivityLog(); })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
   function renderCompanyHome(){
     var nameEl = document.getElementById('home-company-name');
     var subEl = document.getElementById('home-sub');
@@ -3062,6 +3438,7 @@
     renderClaim();
     renderPetty();
     renderMerchant();
+    renderPayroll();
   }
 
 
@@ -3335,6 +3712,8 @@
   document.getElementById('add-company-btn').addEventListener('click', function(){
     document.getElementById('company-name').value = '';
     document.getElementById('company-type').value = '';
+    document.getElementById('company-reg-no').value = '';
+    document.getElementById('company-address').value = '';
     document.getElementById('company-modal-error').hidden = true;
     document.getElementById('company-modal-backdrop').hidden = false;
   });
@@ -3345,6 +3724,8 @@
   document.getElementById('company-submit').addEventListener('click', function(){
     var name = document.getElementById('company-name').value.trim();
     var type = document.getElementById('company-type').value.trim();
+    var registrationNo = document.getElementById('company-reg-no').value.trim();
+    var address = document.getElementById('company-address').value.trim();
     var errEl = document.getElementById('company-modal-error');
     if(!name){
       errEl.textContent = t('field_company_name') + ' — required.';
@@ -3353,7 +3734,7 @@
     }
     var btn = this;
     btn.disabled = true;
-    api('/companies', { method:'POST', body: JSON.stringify({ name:name, type:type }) })
+    api('/companies', { method:'POST', body: JSON.stringify({ name:name, type:type, registrationNo:registrationNo, address:address }) })
       .then(function(){
         closeCompanyModal();
         renderActivityLog();
@@ -3362,6 +3743,117 @@
           renderStaffRow();
           renderCompanyGridSafe();
         });
+      })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // ============ EDIT COMPANY (profile + letterhead) ============
+  var editCompanyModalId = null;
+  function openEditCompanyModal(companyId){
+    editCompanyModalId = companyId;
+    document.getElementById('edit-company-modal-error').hidden = true;
+    document.getElementById('edit-company-modal-success').hidden = true;
+    document.getElementById('edit-company-letterhead-input').value = '';
+    document.getElementById('edit-company-letterhead-preview').innerHTML = t('loading');
+    document.getElementById('edit-company-letterhead-remove').hidden = true;
+    document.getElementById('edit-company-modal-backdrop').hidden = false;
+
+    api('/companies/' + companyId + '/profile').then(function(p){
+      document.getElementById('edit-company-modal-title').textContent = t('edit_company_title') + ' — ' + p.name;
+      document.getElementById('edit-company-name').value = p.name || '';
+      document.getElementById('edit-company-type').value = p.type || '';
+      document.getElementById('edit-company-reg-no').value = p.registration_no || '';
+      document.getElementById('edit-company-address').value = p.address || '';
+      var preview = document.getElementById('edit-company-letterhead-preview');
+      if(p.letterhead_data_url){
+        preview.innerHTML = '<img src="' + p.letterhead_data_url + '" style="max-width:200px;max-height:100px;border:1px solid var(--border);border-radius:6px;" />';
+        document.getElementById('edit-company-letterhead-remove').hidden = false;
+      } else {
+        preview.textContent = t('no_letterhead_yet');
+      }
+    }).catch(function(err){
+      document.getElementById('edit-company-modal-error').textContent = err.message;
+      document.getElementById('edit-company-modal-error').hidden = false;
+    });
+  }
+  function closeEditCompanyModal(){
+    document.getElementById('edit-company-modal-backdrop').hidden = true;
+    editCompanyModalId = null;
+  }
+  document.getElementById('edit-company-modal-close').addEventListener('click', closeEditCompanyModal);
+  document.getElementById('edit-company-cancel').addEventListener('click', closeEditCompanyModal);
+  document.getElementById('edit-company-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeEditCompanyModal(); });
+
+  document.getElementById('edit-company-submit').addEventListener('click', function(){
+    if(!editCompanyModalId) return;
+    var name = document.getElementById('edit-company-name').value.trim();
+    var type = document.getElementById('edit-company-type').value.trim();
+    var registrationNo = document.getElementById('edit-company-reg-no').value.trim();
+    var address = document.getElementById('edit-company-address').value.trim();
+    var errEl = document.getElementById('edit-company-modal-error');
+    var okEl = document.getElementById('edit-company-modal-success');
+    errEl.hidden = true;
+    okEl.hidden = true;
+    if(!name){
+      errEl.textContent = t('field_company_name') + ' — required.';
+      errEl.hidden = false;
+      return;
+    }
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + editCompanyModalId, { method:'PATCH', body: JSON.stringify({ name:name, type:type, registrationNo:registrationNo, address:address }) })
+      .then(function(){
+        okEl.textContent = t('company_updated_success');
+        okEl.hidden = false;
+        renderActivityLog();
+        return loadCompanies().then(function(){
+          renderQueueTable();
+          renderStaffRow();
+          renderCompanyGridSafe();
+        });
+      })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById('edit-company-letterhead-input').addEventListener('change', function(){
+    if(!editCompanyModalId || !this.files[0]) return;
+    var errEl = document.getElementById('edit-company-modal-error');
+    var okEl = document.getElementById('edit-company-modal-success');
+    errEl.hidden = true;
+    okEl.hidden = true;
+    var formData = new FormData();
+    formData.append('file', this.files[0]);
+    var input = this;
+    input.disabled = true;
+    fetch('/api/companies/' + editCompanyModalId + '/letterhead', { method:'POST', body:formData })
+      .then(function(res){
+        if(!res.ok) return res.json().then(function(body){ throw new Error(body.error || 'Upload failed'); });
+        return res.json();
+      })
+      .then(function(){
+        okEl.textContent = t('letterhead_uploaded_success');
+        okEl.hidden = false;
+        openEditCompanyModal(editCompanyModalId);
+      })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ input.disabled = false; });
+  });
+
+  document.getElementById('edit-company-letterhead-remove').addEventListener('click', function(){
+    if(!editCompanyModalId) return;
+    var errEl = document.getElementById('edit-company-modal-error');
+    var okEl = document.getElementById('edit-company-modal-success');
+    errEl.hidden = true;
+    okEl.hidden = true;
+    var btn = this;
+    btn.disabled = true;
+    api('/companies/' + editCompanyModalId + '/letterhead', { method:'DELETE' })
+      .then(function(){
+        okEl.textContent = t('letterhead_removed_success');
+        okEl.hidden = false;
+        openEditCompanyModal(editCompanyModalId);
       })
       .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
       .finally(function(){ btn.disabled = false; });
@@ -3412,7 +3904,8 @@
     { key:'panel-purchases', labelKey:'nav_purchases_bill' },
     { key:'panel-claim', labelKey:'nav_claim_bill' },
     { key:'panel-petty', labelKey:'nav_petty_record' },
-    { key:'panel-merchant', labelKey:'nav_merchant_report' }
+    { key:'panel-merchant', labelKey:'nav_merchant_report' },
+    { key:'panel-payroll', labelKey:'nav_payroll' }
   ];
   var featuresModalCompanyId = null;
   function openFeaturesModal(companyName){
@@ -3636,6 +4129,19 @@
       });
     }).catch(function(){ mineTbody.innerHTML = emptyRowSafe(4, t('could_not_load_home')); });
   }
+
+  // ============ REPORT DOWNLOADS (letterhead PDF exports) ============
+  function downloadReport(reportType){
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    window.open('/api/companies/' + companyId + '/' + reportType + '/export.pdf', '_blank');
+  }
+  ['sales','bank','purchases','claim','petty','merchant'].forEach(function(type){
+    var btn = document.getElementById(type + '-export-btn');
+    if(!btn) return;
+    var apiType = type === 'claim' ? 'claims' : type;
+    btn.addEventListener('click', function(){ downloadReport(apiType); });
+  });
 
   // ============ AUTH BOOTSTRAP ============
   function onAuthenticated(profile){

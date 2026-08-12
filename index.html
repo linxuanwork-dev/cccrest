@@ -596,10 +596,6 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
         <span class="nav-label" data-i18n="nav_bank_statement">Bank Statement</span>
       </button>
-      <button class="nav-item" id="nav-recon" data-panel="panel-recon" data-roles="admin staff manager" hidden>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-        <span class="nav-label" data-i18n="nav_reconciliation">Dwi Danga Sales Summary</span>
-      </button>
       <button class="nav-item" data-panel="panel-purchases">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
         <span class="nav-label" data-i18n="nav_purchases_bill">Purchases Bill</span>
@@ -2159,7 +2155,15 @@
       navItems.forEach(function(b){ b.classList.remove('active'); });
       btn.classList.add('active');
       document.querySelectorAll('.panel').forEach(function(p){ p.hidden = true; });
-      document.getElementById(btn.dataset.panel).hidden = false;
+      // Own Laundry Sdn Bhd's "sales" are tracked entirely through the
+      // DuitNow/FIUU gateway reconciliation, so its Sales Summary click
+      // shows Dwi Danga Sales Summary (panel-recon) instead of the
+      // generic sales table every other company uses.
+      var targetPanel = btn.dataset.panel;
+      if(targetPanel === 'panel-sales' && currentCompany === RECON_ONLY_COMPANY){
+        targetPanel = 'panel-recon';
+      }
+      document.getElementById(targetPanel).hidden = false;
       document.body.classList.remove('sidebar-open');
     });
   });
@@ -2817,8 +2821,8 @@
         document.getElementById('recon-context').classList.add('visible');
         selectCompany(cust.name, { navigate: cust.name !== RECON_ONLY_COMPANY });
         if(cust.name === RECON_ONLY_COMPANY){
-          var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
-          if(reconNav) reconNav.click();
+          var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
+          if(salesNav) salesNav.click();
         }
       });
     });
@@ -3429,8 +3433,8 @@
 
   document.getElementById('home-upload-btn').addEventListener('click', function(){
     if(currentCompany !== RECON_ONLY_COMPANY) return;
-    var reconNav = document.querySelector('.nav-item[data-panel="panel-recon"]');
-    if(reconNav) reconNav.click();
+    var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
+    if(salesNav) salesNav.click();
   });
 
   function renderAllCompanyPanels(){
@@ -3559,14 +3563,15 @@
   // Dwi Danga Sales Summary (DuitNow/FIUU reconciliation) is specific to
   // Own Laundry Sdn Bhd's payment gateway setup — no other company has this.
   var RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.';
+  // If Dwi Danga Sales Summary is currently showing (only reachable via the
+  // Sales Summary nav item for Own Laundry) and the company changes away
+  // from Own Laundry without a fresh nav click, re-route back to the normal
+  // Sales Summary view instead of leaving inapplicable content on screen.
   function updateReconNavVisibility(){
-    var btn = document.getElementById('nav-recon');
-    if(!btn) return;
-    var applicable = currentCompany === RECON_ONLY_COMPANY;
-    btn.hidden = !applicable;
-    if(!applicable && btn.classList.contains('active')){
-      var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
-      if(homeNav) homeNav.click();
+    var reconPanel = document.getElementById('panel-recon');
+    if(reconPanel && !reconPanel.hidden && currentCompany !== RECON_ONLY_COMPANY){
+      var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
+      if(salesNav) salesNav.click();
     }
   }
 

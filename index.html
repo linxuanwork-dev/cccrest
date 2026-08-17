@@ -743,7 +743,16 @@
           <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
         </div>
 
+        <div id="dm-sales-picker" hidden style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px;">
+          <button type="button" class="btn-row" id="dm-sales-outlet-reg-mod" style="text-align:left;padding:14px 16px;font-size:14px;" data-i18n="outlet_dm_reg_mod">DM Reg &amp; Mod</button>
+          <button type="button" class="btn-row" disabled style="text-align:left;padding:14px 16px;font-size:14px;opacity:0.5;cursor:not-allowed;display:flex;justify-content:space-between;align-items:center;">
+            <span data-i18n="outlet_dm_fees">DM Fees</span>
+            <span style="font-size:11px;font-weight:600;color:var(--primary-soft);" data-i18n="coming_soon">Coming soon</span>
+          </button>
+        </div>
+
         <div class="recon-card" id="dm-invoice-card" hidden style="margin-bottom:22px;">
+          <button type="button" class="btn-ghost" id="dm-invoice-back-btn" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="back_to_report_list">← Back</button>
           <div class="recon-step-label" data-i18n="dm_invoice_title">Registration &amp; Modul Invoice</div>
           <div class="upload-zone" id="dm-invoice-upload-zone" tabindex="0" role="button" data-i18n-aria="dm_invoice_upload_aria" aria-label="Upload DM REG and MOD bill">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
@@ -1143,6 +1152,7 @@
 
       <!-- ---- RECONCILIATION (oltdanalysis) ---- -->
       <section class="panel" id="panel-recon" hidden>
+        <button type="button" class="btn-ghost" id="recon-back-btn" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="back_to_report_list">← Back</button>
         <div class="content-header">
           <h2 data-i18n="h_monthly_reconciliation">Dwi Danga Sales Summary</h2>
           <span class="sub" data-i18n="sub_monthly_reconciliation">DuitNow / FIUU → Bukku import</span>
@@ -1813,6 +1823,7 @@
       dm_reading_bill:"Reading bill…", dm_extraction_failed:"Extraction failed",
       dm_invoice_generated_success:"Invoice file generated and downloaded.", dm_missing_code_note:"Missing — enter code",
       dm_no_customers_yet:"No customers saved for this branch yet.", dm_customer_added_success:"Customer added.",
+      outlet_dm_reg_mod:"DM Reg & Mod", outlet_dm_fees:"DM Fees", back_to_report_list:"← Back",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
       edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
@@ -2003,6 +2014,7 @@
       dm_reading_bill:"正在读取账单…", dm_extraction_failed:"提取失败",
       dm_invoice_generated_success:"发票文件已生成并下载。", dm_missing_code_note:"缺失 — 请输入代码",
       dm_no_customers_yet:"该分行尚未保存任何客户。", dm_customer_added_success:"客户已添加。",
+      outlet_dm_reg_mod:"DM 注册与模块", outlet_dm_fees:"DM 费用", back_to_report_list:"← 返回",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
       edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
@@ -3049,17 +3061,23 @@
     var tbody = document.getElementById('sales-tbody');
     var ring = document.getElementById('sales-ring-circle');
     var filenameEl = document.getElementById('sales-export-filename');
-    var picker = document.getElementById('sales-outlet-picker');
     var normalSections = [document.getElementById('sales-export-row'), document.getElementById('sales-kpi-row'), document.getElementById('sales-table-card')];
-    document.getElementById('dm-invoice-card').hidden = currentCompany !== DM_INVOICE_COMPANY;
 
-    if(currentCompany === RECON_ONLY_COMPANY){
-      picker.hidden = false;
+    // Every company's Sales Summary picker/drill-in panel (if any) gets hidden
+    // first, then only the current company's own override (if it has one) is
+    // shown — keeps each company's panel fully independent of the others.
+    Object.keys(SALES_SUMMARY_OVERRIDES).forEach(function(companyName){
+      document.getElementById(SALES_SUMMARY_OVERRIDES[companyName].pickerId).hidden = true;
+    });
+    document.getElementById('dm-invoice-card').hidden = true;
+
+    var override = SALES_SUMMARY_OVERRIDES[currentCompany];
+    if(override){
+      document.getElementById(override.pickerId).hidden = false;
       normalSections.forEach(function(el){ el.hidden = true; });
       sub.textContent = currentCompany + ' · ' + t('period_aug2026');
       return;
     }
-    picker.hidden = true;
     normalSections.forEach(function(el){ el.hidden = false; });
 
     if(!currentCompany){
@@ -3408,6 +3426,23 @@
       errEl.textContent = err.message;
       errEl.hidden = false;
     }).finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById('dm-sales-outlet-reg-mod').addEventListener('click', function(){
+    document.getElementById('dm-sales-picker').hidden = true;
+    document.getElementById('dm-invoice-card').hidden = false;
+  });
+  document.getElementById('dm-invoice-back-btn').addEventListener('click', function(){
+    document.getElementById('dm-invoice-card').hidden = true;
+    document.getElementById('dm-sales-picker').hidden = false;
+    dmInvoiceCurrentData = null;
+    document.getElementById('dm-invoice-review').hidden = true;
+    document.getElementById('dm-invoice-file-input').value = '';
+  });
+
+  document.getElementById('recon-back-btn').addEventListener('click', function(){
+    var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
+    if(salesNav) salesNav.click();
   });
 
   // ---- Manage Customer Codes modal ----
@@ -3893,6 +3928,13 @@
   // Own Laundry Sdn Bhd's payment gateway setup — no other company has this.
   var RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.';
   var DM_INVOICE_COMPANY = 'DIDIK MULIA SDN. BHD.';
+  // Every company can have its own distinct Sales Summary picker in place of
+  // the generic sales table — add an entry here (company name -> the id of
+  // its picker element) plus the matching picker HTML/logic to give another
+  // company its own panel. Companies with no entry just see the normal table.
+  var SALES_SUMMARY_OVERRIDES = {};
+  SALES_SUMMARY_OVERRIDES[RECON_ONLY_COMPANY] = { pickerId: 'sales-outlet-picker' };
+  SALES_SUMMARY_OVERRIDES[DM_INVOICE_COMPANY] = { pickerId: 'dm-sales-picker' };
   // If Dwi Danga Sales Summary is currently showing (only reachable via the
   // Sales Summary nav item for Own Laundry) and the company changes away
   // from Own Laundry without a fresh nav click, re-route back to the normal

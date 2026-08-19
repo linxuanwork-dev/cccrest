@@ -4577,7 +4577,9 @@
     document.getElementById('login-screen').hidden = true;
     document.getElementById('app-shell').hidden = false;
     return onAuthenticated(profile);
-  }).catch(function(){ /* not signed in — login screen stays visible */ });
+  }).catch(function(err){
+    console.error('[DEBUG boot] error during session resume / onAuthenticated:', err, err && err.stack);
+  });
 </script>
 </body>
 </html>

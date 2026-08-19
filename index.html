@@ -3966,8 +3966,10 @@
   // ============ WORKFLOW (owner-only) ============
   function renderWorkflow(){
     var staffTbody = document.getElementById('workflow-staff-tbody');
-    if(!staffTbody || CURRENT_ROLE !== 'admin') return;
+    console.log('[DEBUG renderWorkflow] called. staffTbody exists:', !!staffTbody, 'CURRENT_ROLE:', CURRENT_ROLE);
+    if(!staffTbody || CURRENT_ROLE !== 'admin'){ console.log('[DEBUG renderWorkflow] early return'); return; }
     api('/workflow/overview').then(function(data){
+      console.log('[DEBUG renderWorkflow] got data, staff.length=', data.staff.length, JSON.stringify(data));
       staffTbody.innerHTML = data.staff.length === 0 ? emptyRowSafe(7, '—') : data.staff.map(function(s){
         return '<tr>' +
           '<td>' + s.name + '</td>' +
@@ -4014,6 +4016,8 @@
           btn.addEventListener('click', function(){ openTeamModal(btn.dataset.editTeam, btn.dataset.managerName); });
         });
       }
+    }).catch(function(err){
+      console.error('[DEBUG renderWorkflow] ERROR:', err);
     });
   }
 

@@ -942,32 +942,70 @@
       <!-- ---- MERCHANT REPORT ---- -->
       <section class="panel" id="panel-merchant" hidden>
         <div class="content-header"><h2 data-i18n="nav_merchant_report">Merchant Report</h2><span class="sub" id="merchant-sub">Select a company · DuitNow / FIUU settlement</span></div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="merchant-export-btn" data-i18n="download">Download</button></div>
 
-        <div class="kpi-row">
-          <div class="kpi-card">
-            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
-            <div><div class="kpi-label" data-i18n="kpi_total_transactions">Total Transactions</div><div class="kpi-value num" id="merchant-kpi-txns">—</div></div>
+        <div class="recon-card" id="ol-tng-card" hidden style="margin-bottom:22px;">
+          <div class="recon-step-label" data-i18n="ol_tng_title">OL-TNG Daily Settlement Report</div>
+          <div class="upload-zone" id="ol-tng-upload-zone" tabindex="0" role="button" data-i18n-aria="ol_tng_upload_aria" aria-label="Upload MMSDO settlement report">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            <div class="upload-text" id="ol-tng-upload-text" data-i18n-html="ol_tng_upload_text">Drop the <strong>MMSDO settlement report</strong> here, or <span class="upload-browse">browse</span></div>
+            <div class="upload-hint" data-i18n="ol_tng_upload_hint">.xlsx — monthly TNG / DuitNow QR settlement export</div>
+            <input type="file" id="ol-tng-file-input" accept=".xlsx" hidden />
           </div>
-          <div class="kpi-card">
-            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
-            <div><div class="kpi-label" data-i18n="kpi_approved_amount">Approved Amount</div><div class="kpi-value num" id="merchant-kpi-approved">—</div></div>
+          <div id="ol-tng-file-name" style="margin-top:10px;font-size:12.5px;color:var(--primary-soft);"></div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;">
+            <div class="field">
+              <label for="ol-tng-created-by" data-i18n="field_created_by">Created By</label>
+              <input type="text" id="ol-tng-created-by" />
+            </div>
+            <div class="field">
+              <label for="ol-tng-created-date" data-i18n="field_created_date">Created Date</label>
+              <input type="date" id="ol-tng-created-date" />
+            </div>
+            <div class="field">
+              <label for="ol-tng-approved-by" data-i18n="field_approved_by">Approved By</label>
+              <input type="text" id="ol-tng-approved-by" />
+            </div>
+            <div class="field">
+              <label for="ol-tng-approved-date" data-i18n="field_approved_date">Approved Date</label>
+              <input type="date" id="ol-tng-approved-date" />
+            </div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
-            <div><div class="kpi-label" data-i18n="kpi_gateway_fees">Gateway Fees</div><div class="kpi-value num" id="merchant-kpi-fees">—</div></div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
-            <div><div class="kpi-label" data-i18n="kpi_net_settlement">Net Settlement</div><div class="kpi-value num" id="merchant-kpi-net">—</div></div>
+
+          <div id="ol-tng-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:14px;"></div>
+          <div style="margin-top:16px;">
+            <button type="button" class="btn-primary" id="ol-tng-generate-btn" style="width:auto;padding:10px 18px;" data-i18n="ol_tng_generate_btn">Generate Report</button>
           </div>
         </div>
 
-        <div class="table-card">
-          <table>
-            <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_total_txns">Total Txns</th><th data-i18n="th_approved_amt">Approved Amt</th><th data-i18n="th_failed_cancelled">Failed / Cancelled</th><th data-i18n="th_gateway_fee">Gateway Fee</th><th data-i18n="th_net_settlement">Net Settlement</th></tr></thead>
-            <tbody id="merchant-tbody"></tbody>
-          </table>
+        <div id="merchant-normal-section">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="merchant-export-btn" data-i18n="download">Download</button></div>
+
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
+              <div><div class="kpi-label" data-i18n="kpi_total_transactions">Total Transactions</div><div class="kpi-value num" id="merchant-kpi-txns">—</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <div><div class="kpi-label" data-i18n="kpi_approved_amount">Approved Amount</div><div class="kpi-value num" id="merchant-kpi-approved">—</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+              <div><div class="kpi-label" data-i18n="kpi_gateway_fees">Gateway Fees</div><div class="kpi-value num" id="merchant-kpi-fees">—</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6M5 10v9M19 10v9M3 21h18"/></svg></div>
+              <div><div class="kpi-label" data-i18n="kpi_net_settlement">Net Settlement</div><div class="kpi-value num" id="merchant-kpi-net">—</div></div>
+            </div>
+          </div>
+
+          <div class="table-card">
+            <table>
+              <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_total_txns">Total Txns</th><th data-i18n="th_approved_amt">Approved Amt</th><th data-i18n="th_failed_cancelled">Failed / Cancelled</th><th data-i18n="th_gateway_fee">Gateway Fee</th><th data-i18n="th_net_settlement">Net Settlement</th></tr></thead>
+              <tbody id="merchant-tbody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -1824,6 +1862,14 @@
       dm_invoice_generated_success:"Invoice file generated and downloaded.", dm_missing_code_note:"Missing — enter code",
       dm_no_customers_yet:"No customers saved for this branch yet.", dm_customer_added_success:"Customer added.",
       outlet_dm_reg_mod:"DM Reg & Mod", outlet_dm_fees:"DM Fees", back_to_report_list:"← Back",
+      ol_tng_title:"OL-TNG Daily Settlement Report", ol_tng_upload_aria:"Upload MMSDO settlement report",
+      ol_tng_upload_text:"Drop the <strong>MMSDO settlement report</strong> here, or <span class=\"upload-browse\">browse</span>",
+      ol_tng_upload_hint:".xlsx — monthly TNG / DuitNow QR settlement export",
+      field_created_by:"Created By", field_created_date:"Created Date",
+      field_approved_by:"Approved By", field_approved_date:"Approved Date",
+      ol_tng_generate_btn:"Generate Report", ol_tng_generated_success:"Report generated and downloaded.",
+      ol_tng_missing_file:"Please upload an MMSDO settlement report first.",
+      ol_tng_missing_signoff:"Created By, Approved By, and Approved Date are required.",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
       edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
@@ -2015,6 +2061,14 @@
       dm_invoice_generated_success:"发票文件已生成并下载。", dm_missing_code_note:"缺失 — 请输入代码",
       dm_no_customers_yet:"该分行尚未保存任何客户。", dm_customer_added_success:"客户已添加。",
       outlet_dm_reg_mod:"DM 注册与模块", outlet_dm_fees:"DM 费用", back_to_report_list:"← 返回",
+      ol_tng_title:"OL-TNG 每日结算报告", ol_tng_upload_aria:"上传 MMSDO 结算报告",
+      ol_tng_upload_text:"将 <strong>MMSDO 结算报告</strong> 拖到此处，或<span class=\"upload-browse\">浏览</span>",
+      ol_tng_upload_hint:".xlsx — 每月 TNG / DuitNow QR 结算导出文件",
+      field_created_by:"制表人", field_created_date:"制表日期",
+      field_approved_by:"核准人", field_approved_date:"核准日期",
+      ol_tng_generate_btn:"生成报告", ol_tng_generated_success:"报告已生成并下载。",
+      ol_tng_missing_file:"请先上传 MMSDO 结算报告。",
+      ol_tng_missing_signoff:"制表人、核准人及核准日期为必填项。",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
       edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
@@ -3440,6 +3494,90 @@
     document.getElementById('dm-invoice-file-input').value = '';
   });
 
+  // ============ OL-TNG DAILY SETTLEMENT REPORT (Own Laundry only) ============
+  var olTngFile = null;
+
+  var olTngUploadZone = document.getElementById('ol-tng-upload-zone');
+  var olTngFileInput = document.getElementById('ol-tng-file-input');
+  olTngUploadZone.addEventListener('click', function(){ if(currentCompany) olTngFileInput.click(); });
+  olTngUploadZone.addEventListener('keydown', function(e){ if((e.key === 'Enter' || e.key === ' ') && currentCompany){ e.preventDefault(); olTngFileInput.click(); } });
+  ['dragover','dragenter'].forEach(function(evt){
+    olTngUploadZone.addEventListener(evt, function(e){ e.preventDefault(); olTngUploadZone.classList.add('dragover'); });
+  });
+  ['dragleave','dragend'].forEach(function(evt){
+    olTngUploadZone.addEventListener(evt, function(){ olTngUploadZone.classList.remove('dragover'); });
+  });
+  olTngUploadZone.addEventListener('drop', function(e){
+    e.preventDefault();
+    olTngUploadZone.classList.remove('dragover');
+    if(currentCompany && e.dataTransfer.files[0]) setOlTngFile(e.dataTransfer.files[0]);
+  });
+  olTngFileInput.addEventListener('change', function(){ if(this.files[0]) setOlTngFile(this.files[0]); });
+
+  function setOlTngFile(file){
+    olTngFile = file;
+    olTngUploadZone.classList.add('has-file');
+    document.getElementById('ol-tng-file-name').textContent = file.name;
+    document.getElementById('ol-tng-error').hidden = true;
+    if(!document.getElementById('ol-tng-created-date').value){
+      document.getElementById('ol-tng-created-date').value = new Date().toISOString().slice(0,10);
+    }
+  }
+
+  document.getElementById('ol-tng-generate-btn').addEventListener('click', function(){
+    var companyId = customerRecordId(currentCompany);
+    var errEl = document.getElementById('ol-tng-error');
+    if(!companyId || !olTngFile){
+      errEl.textContent = t('ol_tng_missing_file');
+      errEl.hidden = false;
+      return;
+    }
+    var createdBy = document.getElementById('ol-tng-created-by').value.trim();
+    var createdDate = document.getElementById('ol-tng-created-date').value;
+    var approvedBy = document.getElementById('ol-tng-approved-by').value.trim();
+    var approvedDate = document.getElementById('ol-tng-approved-date').value;
+    if(!createdBy || !approvedBy || !approvedDate){
+      errEl.textContent = t('ol_tng_missing_signoff');
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
+    var btn = this;
+    btn.disabled = true;
+    var formData = new FormData();
+    formData.append('file', olTngFile);
+    formData.append('createdBy', createdBy);
+    formData.append('createdDate', createdDate);
+    formData.append('approvedBy', approvedBy);
+    formData.append('approvedDate', approvedDate);
+    fetch('/api/companies/' + companyId + '/ol-tng-report/generate', { method:'POST', body: formData })
+      .then(function(res){
+        if(!res.ok) return res.json().then(function(body){ throw new Error(body.error || 'Generate failed'); });
+        var cd = res.headers.get('Content-Disposition') || '';
+        var match = cd.match(/filename="([^"]+)"/);
+        var filename = match ? match[1] : 'OL-TNG.xlsx';
+        return res.blob().then(function(blob){
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+      }).then(function(){
+        alert(t('ol_tng_generated_success'));
+        olTngFile = null;
+        olTngUploadZone.classList.remove('has-file');
+        document.getElementById('ol-tng-file-name').textContent = '';
+        document.getElementById('ol-tng-file-input').value = '';
+      }).catch(function(err){
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      }).finally(function(){ btn.disabled = false; });
+  });
+
   document.getElementById('recon-back-btn').addEventListener('click', function(){
     var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
     if(salesNav) salesNav.click();
@@ -3554,6 +3692,15 @@
   function renderMerchant(){
     var sub = document.getElementById('merchant-sub');
     var tbody = document.getElementById('merchant-tbody');
+
+    var override = MERCHANT_REPORT_OVERRIDES[currentCompany];
+    document.getElementById('ol-tng-card').hidden = !override;
+    document.getElementById('merchant-normal-section').hidden = !!override;
+    if(override){
+      sub.textContent = currentCompany + ' · ' + t('period_aug2026');
+      return;
+    }
+
     if(!currentCompany){
       sub.textContent = t('sub_merchant_settlement');
       tbody.innerHTML = emptyRow(6, t('empty_merchant'));
@@ -3935,6 +4082,9 @@
   var SALES_SUMMARY_OVERRIDES = {};
   SALES_SUMMARY_OVERRIDES[RECON_ONLY_COMPANY] = { pickerId: 'sales-outlet-picker' };
   SALES_SUMMARY_OVERRIDES[DM_INVOICE_COMPANY] = { pickerId: 'dm-sales-picker' };
+
+  var MERCHANT_REPORT_OVERRIDES = {};
+  MERCHANT_REPORT_OVERRIDES[RECON_ONLY_COMPANY] = { cardId: 'ol-tng-card' };
   // If Dwi Danga Sales Summary is currently showing (only reachable via the
   // Sales Summary nav item for Own Laundry) and the company changes away
   // from Own Laundry without a fresh nav click, re-route back to the normal

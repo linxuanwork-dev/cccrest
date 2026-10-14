@@ -218,6 +218,21 @@
     padding:2px 7px; border-radius:20px; flex-shrink:0;
   }
   .nav-item.active .nav-badge{ background:var(--danger); color:#fff; }
+  /* Services split into Bookkeeping / HR groups */
+  .nav-service-btn{
+    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+    background:none; border:none; color:rgba(255,255,255,0.92); cursor:pointer;
+    padding:10px 12px; border-radius:6px; font-size:14.5px; font-weight:700; font-family:var(--font-display);
+    transition:background var(--dur), color var(--dur);
+  }
+  .nav-service-btn:hover{ background:rgba(255,255,255,0.08); color:var(--white); }
+  .nav-service-btn svg{ flex-shrink:0; opacity:0.9; }
+  .nav-service-btn .nav-chevron{ transition:transform var(--dur); }
+  .nav-service-btn.open .nav-chevron{ transform:rotate(90deg); }
+  .nav-service-btn[hidden]{ display:none; }
+  .nav-sub{ display:flex; flex-direction:column; gap:2px; margin:2px 0 8px 16px; padding-left:8px; border-left:1px solid rgba(255,255,255,0.18); }
+  .nav-sub[hidden]{ display:none; }
+  .nav-sub .nav-item{ font-size:13.5px; padding:8px 10px; }
   .sidebar-foot{ margin-top:auto; padding-top:18px; border-top:1px solid rgba(255,255,255,0.15); }
   .sidebar-foot-text{ font-size:11px; color:rgba(255,255,255,0.5); padding:6px 12px 0; }
 
@@ -610,34 +625,48 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
         <span class="nav-label" data-i18n="nav_company_home">Dashboard</span>
       </button>
-      <button class="nav-item" data-panel="panel-sales">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
-        <span class="nav-label" data-i18n="nav_sales_summary">Sales Summary</span>
+      <button type="button" class="nav-service-btn" data-service="bookkeeping" aria-expanded="false">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="nav-label" data-i18n="nav_service_bookkeeping">Bookkeeping</span>
+        <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
       </button>
-      <button class="nav-item" data-panel="panel-bank">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
-        <span class="nav-label" data-i18n="nav_bank_statement">Bank Statement</span>
+      <div class="nav-sub" id="nav-sub-bookkeeping" hidden>
+        <button class="nav-item" data-panel="panel-sales">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+          <span class="nav-label" data-i18n="nav_sales_summary">Sales Summary</span>
+        </button>
+        <button class="nav-item" data-panel="panel-purchases">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+          <span class="nav-label" data-i18n="nav_purchases_bill">Purchases Bill</span>
+        </button>
+        <button class="nav-item" data-panel="panel-bank">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
+          <span class="nav-label" data-i18n="nav_bank_statement">Bank Statement</span>
+        </button>
+        <button class="nav-item" data-panel="panel-claim">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 8h6M9 12h6"/></svg>
+          <span class="nav-label" data-i18n="nav_claim_bill">Claim Bill</span>
+        </button>
+        <button class="nav-item" data-panel="panel-petty">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14.5 6a6 6 0 0 1 0 12"/><path d="M7 9h4"/></svg>
+          <span class="nav-label" data-i18n="nav_petty_record">Petty Record</span>
+        </button>
+        <button class="nav-item" data-panel="panel-merchant">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
+          <span class="nav-label" data-i18n="nav_merchant_report">Merchant Report</span>
+        </button>
+      </div>
+      <button type="button" class="nav-service-btn" data-service="hr" aria-expanded="false">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="nav-label" data-i18n="nav_service_hr">HR</span>
+        <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
       </button>
-      <button class="nav-item" data-panel="panel-purchases">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
-        <span class="nav-label" data-i18n="nav_purchases_bill">Purchases Bill</span>
-      </button>
-      <button class="nav-item" data-panel="panel-claim">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 8h6M9 12h6"/></svg>
-        <span class="nav-label" data-i18n="nav_claim_bill">Claim Bill</span>
-      </button>
-      <button class="nav-item" data-panel="panel-petty">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14.5 6a6 6 0 0 1 0 12"/><path d="M7 9h4"/></svg>
-        <span class="nav-label" data-i18n="nav_petty_record">Petty Record</span>
-      </button>
-      <button class="nav-item" data-panel="panel-merchant">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
-        <span class="nav-label" data-i18n="nav_merchant_report">Merchant Report</span>
-      </button>
-      <button class="nav-item" data-panel="panel-payroll">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><circle cx="12" cy="13" r="2"/></svg>
-        <span class="nav-label" data-i18n="nav_payroll">Payroll</span>
-      </button>
+      <div class="nav-sub" id="nav-sub-hr" hidden>
+        <button class="nav-item" data-panel="panel-payroll">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><circle cx="12" cy="13" r="2"/></svg>
+          <span class="nav-label" data-i18n="nav_payroll">Payroll</span>
+        </button>
+      </div>
     </nav>
 
     <div class="nav-group-label" id="nav-group-tools-label" data-roles="admin staff manager" style="margin-top:20px;" data-i18n="nav_group_tools">Tools</div>
@@ -721,6 +750,8 @@
           <h2 data-i18n="h_choose_company">Choose a Company</h2>
           <span class="sub" data-i18n="sub_choose_company">Search or browse your 50 clients to start working</span>
         </div>
+
+        <div id="picker-service-hint" hidden style="font-size:12.5px;font-weight:600;color:var(--accent);margin:-6px 0 14px;"></div>
 
         <div class="company-search-wrap large" id="landing-search-wrap">
           <svg class="company-search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -1926,6 +1957,7 @@
         btn.hidden = enabled.indexOf(btn.dataset.panel) === -1;
       });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
+      refreshServiceGroups();
       var firstEnabled = document.querySelector('#nav-group-bookkeeping .nav-item[data-panel]:not([hidden])');
       if(firstEnabled) firstEnabled.click();
     } else {
@@ -1934,6 +1966,8 @@
       document.getElementById('topbar-user-role').textContent =
         role === 'admin' ? t('role_admin') : role === 'manager' ? t('role_manager') : t('role_staff');
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){ btn.hidden = false; });
+      serviceMode = 'bookkeeping';
+      refreshServiceGroups();
       var pickerNav = document.querySelector('.nav-item[data-panel="panel-company-picker"]');
       if(pickerNav) pickerNav.click();
     }
@@ -2028,6 +2062,8 @@
       dsi_new_branch_title:"Add branch", dsi_new_branch_sub:"Creates the same daily entry, settings, menu and special prices for a new branch.",
       dsi_f_menu_lines:"Menu — one item per line: Product name | price", dsi_create_branch_btn:"Create branch", dsi_branch_created:"Branch created.",
       dsi_menu_line_bad:"Can't read this menu line (use 'Product name | price'):",
+      nav_service_bookkeeping:"Bookkeeping", nav_service_hr:"HR",
+      picker_service_hint:"Service: {service} — choose a company to continue",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
       edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
@@ -2247,6 +2283,8 @@
       dsi_new_branch_title:"新增分店", dsi_new_branch_sub:"为新分店建立同样的进单页、设定、菜单和特价。",
       dsi_f_menu_lines:"菜单 — 每行一个项目：Product 名字 | 单价", dsi_create_branch_btn:"建立分店", dsi_branch_created:"分店已建立。",
       dsi_menu_line_bad:"无法读取此菜单行（格式：Product 名字 | 单价）：",
+      nav_service_bookkeeping:"记账 Bookkeeping", nav_service_hr:"人事 HR",
+      picker_service_hint:"服务：{service} — 请选择公司以继续",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
       edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
@@ -2452,6 +2490,7 @@
 
   function refreshDynamicContent(){
     if(!CURRENT_ROLE) return;
+    refreshServiceGroups();
     renderCompanyGrid();
     renderKpiRow();
     renderStaffRow();
@@ -2512,6 +2551,52 @@
       document.querySelectorAll('.panel').forEach(function(p){ p.hidden = true; });
       document.getElementById(btn.dataset.panel).hidden = false;
       document.body.classList.remove('sidebar-open');
+      // Keep the service group that contains the page you're on open.
+      var owner = btn.closest('.nav-sub');
+      if(owner) serviceMode = owner.id.replace('nav-sub-', '');
+      refreshServiceGroups();
+    });
+  });
+
+  // ---- Services: Bookkeeping / HR ----
+  // serviceMode = which service the user is working in. Choosing a company lands on that
+  // service's first page (Bookkeeping -> Sales Summary, HR -> Payroll). Defaults to Bookkeeping.
+  var serviceMode = 'bookkeeping';
+
+  function serviceGroupItems(svc){
+    return Array.prototype.filter.call(document.querySelectorAll('#nav-sub-' + svc + ' .nav-item[data-panel]'), function(b){ return !b.hidden; });
+  }
+
+  function refreshServiceGroups(){
+    document.querySelectorAll('.nav-service-btn').forEach(function(hdr){
+      var svc = hdr.dataset.service;
+      var sub = document.getElementById('nav-sub-' + svc);
+      var items = serviceGroupItems(svc);
+      hdr.hidden = items.length === 0;                       // e.g. a client with no HR features enabled
+      var open = items.length > 0 && (serviceMode === svc || !!sub.querySelector('.nav-item.active'));
+      sub.hidden = !open;
+      hdr.classList.toggle('open', open);
+      hdr.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    var hint = document.getElementById('picker-service-hint');
+    if(hint){
+      var pickerActive = document.querySelector('.nav-item.active[data-panel="panel-company-picker"]');
+      hint.hidden = !(pickerActive && serviceMode);
+      if(serviceMode) hint.textContent = t('picker_service_hint').replace('{service}', t('nav_service_' + serviceMode));
+    }
+  }
+
+  document.querySelectorAll('.nav-service-btn').forEach(function(hdr){
+    hdr.addEventListener('click', function(){
+      serviceMode = hdr.dataset.service;
+      var items = serviceGroupItems(serviceMode);
+      if(!items.length){ refreshServiceGroups(); return; }
+      if(CURRENT_ROLE !== 'client' && !currentCompany){
+        // Choose a company first; picking one then opens this service's first page.
+        document.querySelector('.nav-item[data-panel="panel-company-picker"]').click();
+      } else {
+        items[0].click();
+      }
     });
   });
 
@@ -4805,8 +4890,10 @@
     renderAllCompanyPanels();
     updateReconNavVisibility();
     if(opts.navigate){
-      var homeNav = document.querySelector('.nav-item[data-panel="panel-company-home"]');
-      if(homeNav) homeNav.click();
+      // Land on the first page of the service being worked in (Bookkeeping -> Sales Summary, HR -> Payroll).
+      var serviceItems = serviceMode ? serviceGroupItems(serviceMode) : [];
+      var landing = serviceItems[0] || document.querySelector('.nav-item[data-panel="panel-company-home"]');
+      if(landing) landing.click();
     }
   }
 

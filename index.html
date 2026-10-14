@@ -182,6 +182,26 @@
   .nav-item[hidden]{ display:none; }
   #dm-sales-picker[hidden], #sales-outlet-picker[hidden]{ display:none !important; }
   .export-row[hidden], .kpi-row[hidden], .recon-flag-note[hidden]{ display:none; }
+
+  /* Daily Sales -> Bukku Sales Invoice */
+  .dsi-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:22px; }
+  .dsi-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin:16px 0 14px; }
+  .dsi-tab{ border:1px solid var(--border); background:var(--surface-card); color:inherit; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .dsi-tab.active{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
+  .dsi-grid-wrap{ overflow:auto; max-height:68vh; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-card); }
+  .dsi-grid{ border-collapse:separate; border-spacing:0; font-size:12px; }
+  .dsi-grid th, .dsi-grid td{ border-bottom:1px solid var(--border); border-right:1px solid var(--border); text-align:center; white-space:nowrap; padding:0; }
+  .dsi-grid th{ position:sticky; top:0; z-index:2; background:var(--surface-alt); padding:5px 2px; font-size:11px; min-width:48px; }
+  .dsi-grid .dsi-name{ position:sticky; left:0; z-index:1; background:var(--surface-card); text-align:left; padding:6px 10px; min-width:230px; max-width:260px; white-space:normal; }
+  .dsi-grid th.dsi-name{ z-index:3; background:var(--surface-alt); }
+  .dsi-grid .dsi-weekend{ background:rgba(128,128,128,0.08); }
+  .dsi-grid td.dsi-special{ background:rgba(232,140,30,0.30); }
+  .dsi-grid input{ width:48px; border:0; background:transparent; text-align:center; padding:7px 0; font:inherit; color:inherit; }
+  .dsi-grid input:focus{ outline:2px solid var(--accent); background:var(--surface-card); }
+  .dsi-grid input.dsi-bad{ outline:2px solid var(--danger); }
+  .dsi-grid input:disabled{ opacity:0.55; cursor:not-allowed; }
+  .dsi-grid tfoot td{ position:sticky; bottom:0; z-index:2; background:var(--surface-alt); font-weight:700; padding:6px 2px; font-size:11px; }
+  .dsi-grid tfoot td.dsi-name{ z-index:3; }
   .nav-item{
     display:flex; align-items:center; gap:11px; width:100%; text-align:left;
     background:none; border:none; color:rgba(255,255,255,0.82);
@@ -743,6 +763,85 @@
         <div class="content-header">
           <h2 data-i18n="nav_sales_summary">Sales Summary</h2>
           <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
+        </div>
+
+        <!-- Daily Sales -> Bukku Sales Invoice (Madam Lua / UK Lua branches). Branch list comes from the server. -->
+        <div id="dsi-picker" hidden>
+          <div class="dsi-list" id="dsi-picker-list"></div>
+        </div>
+
+        <div class="recon-card" id="dsi-card" hidden style="margin-bottom:22px;">
+          <button type="button" class="btn-ghost" id="dsi-back-btn" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="back_to_report_list">← Back</button>
+          <div class="recon-step-label" id="dsi-title"></div>
+
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="field" style="margin:0;"><label for="dsi-year" data-i18n="dsi_year">Year</label><select id="dsi-year"></select></div>
+            <div class="field" style="margin:0;"><label for="dsi-month" data-i18n="dsi_month">Month</label><select id="dsi-month"></select></div>
+            <span id="dsi-save-status" style="font-size:12px;color:var(--primary-soft);padding-bottom:12px;"></span>
+          </div>
+
+          <div class="dsi-tabs" id="dsi-tabs">
+            <button type="button" class="dsi-tab active" data-dsi-tab="entry" data-i18n="dsi_tab_entry">Daily entry</button>
+            <button type="button" class="dsi-tab" data-dsi-tab="specials" data-i18n="dsi_tab_specials">Special prices</button>
+            <button type="button" class="dsi-tab" data-dsi-tab="menu" data-i18n="dsi_tab_menu">Menu</button>
+            <button type="button" class="dsi-tab" data-dsi-tab="settings" data-i18n="dsi_tab_settings">Settings</button>
+          </div>
+
+          <div id="dsi-pane-entry">
+            <div style="font-size:12px;color:var(--primary-soft);margin-bottom:8px;" data-i18n="dsi_entry_hint">Enter the quantity sold per item per day. Blank = 0. Orange cells use a special price.</div>
+            <div class="dsi-grid-wrap" id="dsi-entry-wrap"></div>
+          </div>
+
+          <div id="dsi-pane-specials" hidden>
+            <div style="font-size:12px;color:var(--primary-soft);margin-bottom:8px;" data-i18n="dsi_specials_title">Special prices — only fill a cell when that day's price differs; blank = menu price.</div>
+            <div id="dsi-specials-note" style="font-size:12px;color:var(--danger);margin-bottom:8px;" hidden></div>
+            <div class="dsi-grid-wrap" id="dsi-specials-wrap"></div>
+          </div>
+
+          <div id="dsi-pane-menu" hidden>
+            <div id="dsi-menu-note" style="font-size:12px;color:var(--danger);margin-bottom:8px;" hidden></div>
+            <div class="table-card" style="overflow-x:auto;">
+              <table>
+                <thead><tr><th>#</th><th data-i18n="dsi_th_product">Product</th><th data-i18n="dsi_th_price">Unit price RM</th><th></th></tr></thead>
+                <tbody id="dsi-menu-tbody"></tbody>
+              </table>
+            </div>
+            <div id="dsi-menu-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:10px;"></div>
+            <div style="display:flex;gap:10px;margin-top:12px;" id="dsi-menu-actions">
+              <button type="button" class="btn-ghost" id="dsi-menu-add" data-i18n="dsi_add_item">+ Add item</button>
+              <button type="button" class="btn-primary" id="dsi-menu-save" style="width:auto;padding:10px 18px;" data-i18n="dsi_save_menu">Save menu</button>
+            </div>
+          </div>
+
+          <div id="dsi-pane-settings" hidden>
+            <div id="dsi-settings-note" style="font-size:12px;color:var(--danger);margin-bottom:8px;" hidden></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 16px;">
+              <div class="field"><label for="dsi-s-companyName" data-i18n="dsi_f_company_name">Company name</label><input type="text" id="dsi-s-companyName" /></div>
+              <div class="field"><label for="dsi-s-regNo" data-i18n="dsi_f_reg_no">Reg No.</label><input type="text" id="dsi-s-regNo" /></div>
+              <div class="field" style="grid-column:1/-1;"><label for="dsi-s-address" data-i18n="dsi_f_address">Address</label><input type="text" id="dsi-s-address" /></div>
+              <div class="field"><label for="dsi-s-reportPrefix" data-i18n="dsi_f_report_prefix">Report prefix</label><input type="text" id="dsi-s-reportPrefix" /></div>
+              <div class="field"><label for="dsi-s-contactCode" data-i18n="dsi_f_contact_code">Contact Code</label><input type="text" id="dsi-s-contactCode" /></div>
+              <div class="field"><label for="dsi-s-legalName" data-i18n="dsi_f_legal_name">Legal Name</label><input type="text" id="dsi-s-legalName" /></div>
+              <div class="field"><label for="dsi-s-invoicePrefix" data-i18n="dsi_f_invoice_prefix">Invoice no. prefix</label><input type="text" id="dsi-s-invoicePrefix" /></div>
+              <div class="field"><label for="dsi-s-invoiceSuffix" data-i18n="dsi_f_invoice_suffix">Invoice no. suffix</label><input type="text" id="dsi-s-invoiceSuffix" /></div>
+              <div class="field"><label for="dsi-s-paymentTerm" data-i18n="dsi_f_payment_term">Payment Term</label><input type="text" id="dsi-s-paymentTerm" /></div>
+              <div class="field"><label for="dsi-s-tags" data-i18n="dsi_f_tags">Tags</label><input type="text" id="dsi-s-tags" /></div>
+              <div class="field"><label for="dsi-s-accountCode" data-i18n="dsi_f_account_code">Account Code</label><input type="text" id="dsi-s-accountCode" /></div>
+              <div class="field"><label for="dsi-s-includeZero" data-i18n="dsi_f_include_zero">Include 0-quantity items</label>
+                <select id="dsi-s-includeZero"><option value="N">N</option><option value="Y">Y</option></select>
+              </div>
+            </div>
+            <div id="dsi-settings-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
+            <button type="button" class="btn-primary" id="dsi-settings-save" style="width:auto;padding:10px 18px;" data-i18n="dsi_save_settings">Save settings</button>
+          </div>
+
+          <div style="border-top:1px solid var(--border);margin-top:22px;padding-top:16px;">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field" style="margin:0;min-width:220px;"><label for="dsi-prepared-by" data-i18n="dsi_prepared_by">Prepared by</label><input type="text" id="dsi-prepared-by" /></div>
+              <button type="button" class="btn-primary" id="dsi-generate-btn" style="width:auto;padding:10px 18px;" data-i18n="dsi_generate_btn">Generate Excel + PDF</button>
+            </div>
+            <div id="dsi-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:12px;"></div>
+          </div>
         </div>
 
         <div id="dm-sales-picker" hidden style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px;">
@@ -1713,6 +1812,43 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="dsi-branch-modal-backdrop" hidden>
+    <div class="modal-card" style="max-width:660px;">
+      <div class="modal-header">
+        <div>
+          <h3 data-i18n="dsi_new_branch_title">Add branch</h3>
+          <div class="modal-sub" data-i18n="dsi_new_branch_sub">Creates the same daily entry, settings, menu and special prices for a new branch.</div>
+        </div>
+        <button type="button" class="modal-close" id="dsi-branch-modal-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="max-height:68vh;overflow-y:auto;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px;">
+          <div class="field"><label for="dsi-nb-code" data-i18n="dsi_f_code">Branch code</label><input type="text" id="dsi-nb-code" maxlength="6" placeholder="XX" /></div>
+          <div class="field"><label for="dsi-nb-prefix" data-i18n="dsi_f_report_prefix">Report prefix</label><input type="text" id="dsi-nb-prefix" placeholder="UK-XX" /></div>
+          <div class="field"><label for="dsi-nb-company" data-i18n="dsi_f_company_name">Company name</label><input type="text" id="dsi-nb-company" /></div>
+          <div class="field"><label for="dsi-nb-reg" data-i18n="dsi_f_reg_no">Reg No.</label><input type="text" id="dsi-nb-reg" /></div>
+          <div class="field" style="grid-column:1/-1;"><label for="dsi-nb-address" data-i18n="dsi_f_address">Address</label><input type="text" id="dsi-nb-address" /></div>
+          <div class="field"><label for="dsi-nb-contact" data-i18n="dsi_f_contact_code">Contact Code</label><input type="text" id="dsi-nb-contact" /></div>
+          <div class="field"><label for="dsi-nb-legal" data-i18n="dsi_f_legal_name">Legal Name</label><input type="text" id="dsi-nb-legal" /></div>
+          <div class="field"><label for="dsi-nb-term" data-i18n="dsi_f_payment_term">Payment Term</label><input type="text" id="dsi-nb-term" /></div>
+          <div class="field"><label for="dsi-nb-account" data-i18n="dsi_f_account_code">Account Code</label><input type="text" id="dsi-nb-account" /></div>
+          <div class="field"><label for="dsi-nb-tags" data-i18n="dsi_f_tags">Tags</label><input type="text" id="dsi-nb-tags" /></div>
+        </div>
+        <div class="field">
+          <label for="dsi-nb-menu" data-i18n="dsi_f_menu_lines">Menu — one item per line: Product name | price</label>
+          <textarea id="dsi-nb-menu" rows="7" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:9px 12px;background:var(--surface-alt);color:inherit;font-family:inherit;font-size:13px;" placeholder="NOODLE (SMALL) 面（小） | 8.00"></textarea>
+        </div>
+        <div id="dsi-nb-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="dsi-nb-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="dsi-nb-create" style="width:auto;padding:10px 18px;" data-i18n="dsi_create_branch_btn">Create branch</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="client-login-modal-backdrop" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -1872,6 +2008,26 @@
       ol_tng_generate_btn:"Generate Report", ol_tng_generated_success:"Report generated and downloaded.",
       ol_tng_missing_file:"Please upload an MMSDO settlement report first.",
       ol_tng_missing_signoff:"Created By, Approved By, and Approved Date are required.",
+      dsi_picker_label:"Daily Sales → Bukku Invoice", dsi_no_branches:"No branches are set up for this company yet.", dsi_add_branch:"+ Add branch",
+      dsi_title:"Daily Sales Entry — Bukku Sales Invoice", dsi_year:"Year", dsi_month:"Month",
+      dsi_tab_entry:"Daily entry", dsi_tab_specials:"Special prices", dsi_tab_menu:"Menu", dsi_tab_settings:"Settings",
+      dsi_entry_hint:"Enter the quantity sold per item per day. Blank = 0. A day with nothing entered gets no invoice. Orange cells use a special price.",
+      dsi_specials_title:"Special prices — only fill a cell when that day's price differs; blank = menu price.",
+      dsi_manager_only:"Only a Manager can change this.",
+      dsi_th_product:"Product", dsi_th_price:"Unit price RM", dsi_total_rm:"Total RM",
+      dsi_loading:"Loading…", dsi_saving:"Saving…", dsi_saved:"All changes saved ✓", dsi_save_failed:"Could not save",
+      dsi_add_item:"+ Add item", dsi_save_menu:"Save menu", dsi_menu_saved:"Menu saved.",
+      dsi_delete_item_confirm:"Remove this item? Its saved quantities and special prices will be deleted too.",
+      dsi_save_settings:"Save settings", dsi_settings_saved:"Settings saved.",
+      dsi_f_company_name:"Company name", dsi_f_reg_no:"Reg No.", dsi_f_address:"Address", dsi_f_report_prefix:"Report prefix",
+      dsi_f_contact_code:"Contact Code", dsi_f_legal_name:"Legal Name", dsi_f_invoice_prefix:"Invoice no. prefix", dsi_f_invoice_suffix:"Invoice no. suffix",
+      dsi_f_payment_term:"Payment Term", dsi_f_tags:"Tags", dsi_f_account_code:"Account Code", dsi_f_include_zero:"Include 0-quantity items", dsi_f_code:"Branch code",
+      dsi_prepared_by:"Prepared by", dsi_generate_btn:"Generate Excel + PDF", dsi_checking:"Checking…", dsi_generating:"Generating files…",
+      dsi_generated_ok:"Excel and PDF downloaded ✓", dsi_check_failed:"Cannot generate yet — please fix:",
+      dsi_bad_cells:"Some cells have invalid values (red outline). Quantities must be 0 or a whole number.",
+      dsi_new_branch_title:"Add branch", dsi_new_branch_sub:"Creates the same daily entry, settings, menu and special prices for a new branch.",
+      dsi_f_menu_lines:"Menu — one item per line: Product name | price", dsi_create_branch_btn:"Create branch", dsi_branch_created:"Branch created.",
+      dsi_menu_line_bad:"Can't read this menu line (use 'Product name | price'):",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
       edit_company_title:"Edit Company", edit_company_sub:"Update profile details and letterhead used on reports.",
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
@@ -2071,6 +2227,26 @@
       ol_tng_generate_btn:"生成报告", ol_tng_generated_success:"报告已生成并下载。",
       ol_tng_missing_file:"请先上传 MMSDO 结算报告。",
       ol_tng_missing_signoff:"制表人、核准人及核准日期为必填项。",
+      dsi_picker_label:"每日销售 → Bukku 发票", dsi_no_branches:"此公司尚未设置任何分店。", dsi_add_branch:"+ 新增分店",
+      dsi_title:"每日销售进单 — Bukku Sales Invoice", dsi_year:"年份", dsi_month:"月份",
+      dsi_tab_entry:"每日进单", dsi_tab_specials:"特价", dsi_tab_menu:"菜单", dsi_tab_settings:"设定",
+      dsi_entry_hint:"输入每天每个项目卖出的数量。空白 = 0；整天都没填就不开单。橙色格子表示该日用了特价。",
+      dsi_specials_title:"特价 — 某一天价钱不同才填；留空 = 用菜单价",
+      dsi_manager_only:"此项目只有 Manager 可以修改",
+      dsi_th_product:"项目", dsi_th_price:"单价 RM", dsi_total_rm:"合计 RM",
+      dsi_loading:"载入中…", dsi_saving:"保存中…", dsi_saved:"已全部保存 ✓", dsi_save_failed:"保存失败",
+      dsi_add_item:"+ 新增项目", dsi_save_menu:"保存菜单", dsi_menu_saved:"菜单已保存。",
+      dsi_delete_item_confirm:"确定删除此项目？它已保存的数量和特价也会一并删除。",
+      dsi_save_settings:"保存设定", dsi_settings_saved:"设定已保存。",
+      dsi_f_company_name:"公司名", dsi_f_reg_no:"Reg No.", dsi_f_address:"地址", dsi_f_report_prefix:"报告前缀",
+      dsi_f_contact_code:"Contact Code", dsi_f_legal_name:"Legal Name", dsi_f_invoice_prefix:"单号前缀", dsi_f_invoice_suffix:"单号后缀",
+      dsi_f_payment_term:"Payment Term", dsi_f_tags:"Tags", dsi_f_account_code:"Account Code", dsi_f_include_zero:"包括 0 数量项目", dsi_f_code:"分店代号",
+      dsi_prepared_by:"输入者（Prepared by）", dsi_generate_btn:"生成 Excel + PDF", dsi_checking:"检查中…", dsi_generating:"正在生成文件…",
+      dsi_generated_ok:"Excel 和 PDF 已下载 ✓", dsi_check_failed:"暂时不能生成，请先处理：",
+      dsi_bad_cells:"有些格子的值无效（红框）。数量只能是 0 或正整数。",
+      dsi_new_branch_title:"新增分店", dsi_new_branch_sub:"为新分店建立同样的进单页、设定、菜单和特价。",
+      dsi_f_menu_lines:"菜单 — 每行一个项目：Product 名字 | 单价", dsi_create_branch_btn:"建立分店", dsi_branch_created:"分店已建立。",
+      dsi_menu_line_bad:"无法读取此菜单行（格式：Product 名字 | 单价）：",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
       edit_company_title:"编辑公司", edit_company_sub:"更新公司资料及报告使用的信头。",
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
@@ -3127,10 +3303,12 @@
       document.getElementById(SALES_SUMMARY_OVERRIDES[companyName].pickerId).hidden = true;
     });
     document.getElementById('dm-invoice-card').hidden = true;
+    document.getElementById('dsi-card').hidden = true;
 
-    var override = SALES_SUMMARY_OVERRIDES[currentCompany];
+    var override = SALES_SUMMARY_OVERRIDES[normCompany(currentCompany)];
     if(override){
       document.getElementById(override.pickerId).hidden = false;
+      if(override.onShow) override.onShow();
       normalSections.forEach(function(el){ el.hidden = true; });
       sub.textContent = currentCompany + ' · ' + t('period_aug2026');
       return;
@@ -3495,6 +3673,520 @@
     dmInvoiceCurrentData = null;
     document.getElementById('dm-invoice-review').hidden = true;
     document.getElementById('dm-invoice-file-input').value = '';
+  });
+
+  // ============ DAILY SALES -> BUKKU SALES INVOICE (Madam Lua / UK Lua branches) ============
+  // Branches, menus, quantities and special prices all live on the server; the card below only edits them.
+  var dsi = { companyId:null, branches:[], branch:null, year:0, month:0, qty:{}, specials:{}, dirtyQty:{}, dirtySp:{}, timer:null, queue:null, loadToken:0, menuDraft:[] };
+  var DSI_SETTING_FIELDS = ['companyName','regNo','address','reportPrefix','contactCode','legalName','invoicePrefix','invoiceSuffix','paymentTerm','tags','accountCode'];
+
+  function dsiCanEdit(){ return CURRENT_ROLE === 'admin' || CURRENT_ROLE === 'manager'; }
+  function dsiBaseFor(companyId){ return '/companies/' + companyId + '/dsi'; }
+  function dsiEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function dsiDaysIn(y, m){ return new Date(y, m, 0).getDate(); }
+  function dsiWeekdayLabel(wd){ return (LANG === 'zh' ? ['日','一','二','三','四','五','六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'])[wd]; }
+  function dsiSetStatus(text, isError){
+    var el = document.getElementById('dsi-save-status');
+    el.textContent = text || '';
+    el.style.color = isError ? 'var(--danger)' : 'var(--primary-soft)';
+  }
+  function dsiFmt(cents){ return (cents / 100).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+
+  function dsiLoadBranches(){
+    var companyId = customerRecordId(currentCompany);
+    if(!companyId) return;
+    api(dsiBaseFor(companyId) + '/branches').then(function(list){
+      if(customerRecordId(currentCompany) !== companyId) return;
+      dsi.branches = list;
+      renderDsiPicker();
+    }).catch(function(err){
+      document.getElementById('dsi-picker-list').innerHTML = '<div style="color:var(--danger);font-size:12.5px;">' + dsiEsc(err.message) + '</div>';
+    });
+  }
+
+  function renderDsiPicker(){
+    var host = document.getElementById('dsi-picker-list');
+    var html = dsi.branches.map(function(b){
+      return '<button type="button" class="btn-row" data-dsi-open="' + b.id + '" style="text-align:left;padding:14px 16px;font-size:14px;">' + dsiEsc(b.reportPrefix) + ' — ' + t('dsi_picker_label') + '</button>';
+    }).join('');
+    if(!dsi.branches.length) html = '<div style="font-size:13px;color:var(--primary-soft);">' + t('dsi_no_branches') + '</div>';
+    if(dsiCanEdit()) html += '<button type="button" class="btn-ghost" id="dsi-add-branch-btn" style="align-self:flex-start;">' + t('dsi_add_branch') + '</button>';
+    host.innerHTML = html;
+    host.querySelectorAll('[data-dsi-open]').forEach(function(btn){
+      btn.addEventListener('click', function(){ openDsiBranch(Number(btn.dataset.dsiOpen)); });
+    });
+    var add = document.getElementById('dsi-add-branch-btn');
+    if(add) add.addEventListener('click', openDsiBranchModal);
+  }
+
+  function dsiFillPeriodSelects(){
+    var ySel = document.getElementById('dsi-year');
+    var mSel = document.getElementById('dsi-month');
+    var yHtml = '';
+    for(var y = 2025; y <= 2035; y++) yHtml += '<option value="' + y + '">' + y + '</option>';
+    var mHtml = '';
+    for(var m = 1; m <= 12; m++) mHtml += '<option value="' + m + '">' + m + '</option>';
+    ySel.innerHTML = yHtml;
+    mSel.innerHTML = mHtml;
+    ySel.value = String(dsi.year);
+    mSel.value = String(dsi.month);
+  }
+
+  function openDsiBranch(branchId){
+    var b = dsi.branches.find(function(x){ return x.id === branchId; });
+    if(!b) return;
+    dsi.companyId = customerRecordId(currentCompany);
+    dsi.branch = b;
+    var now = new Date();
+    dsi.year = Math.min(2035, Math.max(2025, now.getFullYear()));
+    dsi.month = now.getMonth() + 1;
+    dsiFillPeriodSelects();
+    document.getElementById('dsi-title').textContent = b.code + ' — ' + t('dsi_title');
+    document.getElementById('dsi-prepared-by').value = (CURRENT_USER && (CURRENT_USER.displayName || CURRENT_USER.companyName)) || '';
+    document.getElementById('dsi-error').hidden = true;
+    dsiSetStatus('');
+    renderDsiSettings();
+    renderDsiMenu();
+    document.getElementById('dsi-picker').hidden = true;
+    document.getElementById('dsi-card').hidden = false;
+    dsiShowTab('entry');
+    dsiLoadMonth();
+  }
+
+  function dsiShowTab(tab){
+    document.querySelectorAll('#dsi-tabs .dsi-tab').forEach(function(btn){ btn.classList.toggle('active', btn.dataset.dsiTab === tab); });
+    ['entry','specials','menu','settings'].forEach(function(name){ document.getElementById('dsi-pane-' + name).hidden = name !== tab; });
+    if(tab === 'entry') renderDsiGrid();
+    if(tab === 'specials') renderDsiSpecials();
+  }
+
+  // Replace both grids with a placeholder while a month loads, so nothing can be typed
+  // into the previous month's cells and then saved against the new month.
+  function dsiShowLoading(){
+    var html = '<div style="padding:22px;color:var(--primary-soft);font-size:13px;">' + t('dsi_loading') + '</div>';
+    document.getElementById('dsi-entry-wrap').innerHTML = html;
+    document.getElementById('dsi-specials-wrap').innerHTML = html;
+  }
+
+  function dsiLoadMonth(){
+    var b = dsi.branch;
+    if(!b) return;
+    var token = ++dsi.loadToken;
+    dsiShowLoading();
+    dsiSetStatus(t('dsi_loading'));
+    api(dsiBaseFor(dsi.companyId) + '/branches/' + b.id + '/month?year=' + dsi.year + '&month=' + dsi.month).then(function(data){
+      if(token !== dsi.loadToken) return;
+      dsi.qty = data.qty;
+      dsi.specials = data.specials;
+      dsi.dirtyQty = {};
+      dsi.dirtySp = {};
+      dsiSetStatus('');
+      renderDsiGrid();
+      renderDsiSpecials();
+    }).catch(function(err){
+      if(token !== dsi.loadToken) return;
+      dsiSetStatus(err.message, true);
+      var html = '<div style="padding:22px;color:var(--danger);font-size:13px;">' + dsiEsc(err.message) + '</div>';
+      document.getElementById('dsi-entry-wrap').innerHTML = html;
+      document.getElementById('dsi-specials-wrap').innerHTML = html;
+    });
+  }
+
+  // kind: 'qty' (daily entry) or 'sp' (special prices)
+  function dsiGridHtml(kind){
+    var b = dsi.branch;
+    var days = dsiDaysIn(dsi.year, dsi.month);
+    var editable = kind === 'qty' || dsiCanEdit();
+    var html = '<table class="dsi-grid"><thead><tr><th class="dsi-name">' + t('dsi_th_product') + '</th>';
+    for(var d = 1; d <= days; d++){
+      var wd = new Date(dsi.year, dsi.month - 1, d).getDay();
+      html += '<th class="' + ((wd === 0 || wd === 6) ? 'dsi-weekend' : '') + '">' + d + '<br><span style="font-weight:400;color:var(--primary-soft);">' + dsiWeekdayLabel(wd) + '</span></th>';
+    }
+    html += '</tr></thead><tbody>';
+    b.menu.forEach(function(it){
+      html += '<tr><td class="dsi-name">' + dsiEsc(it.product) + '<div style="font-size:11px;color:var(--primary-soft);">RM ' + Number(it.unitPrice).toFixed(2) + '</div></td>';
+      for(var day = 1; day <= days; day++){
+        var key = day + ':' + it.id;
+        var wk = new Date(dsi.year, dsi.month - 1, day).getDay();
+        var cls = (wk === 0 || wk === 6) ? 'dsi-weekend' : '';
+        var hasSpecial = dsi.specials[key] != null;
+        var val = kind === 'qty' ? dsi.qty[key] : dsi.specials[key];
+        if(kind === 'qty' && hasSpecial) cls += ' dsi-special';
+        html += '<td class="' + cls + '"' + ((kind === 'qty' && hasSpecial) ? ' title="RM ' + Number(dsi.specials[key]).toFixed(2) + '"' : '') + '>' +
+          '<input type="number" min="0" step="' + (kind === 'qty' ? '1' : '0.01') + '" data-dsi-k="' + kind + '" data-dsi-key="' + key + '" value="' + (val == null ? '' : val) + '"' + (editable ? '' : ' disabled') + ' /></td>';
+      }
+      html += '</tr>';
+    });
+    html += '</tbody>';
+    if(kind === 'qty'){
+      html += '<tfoot><tr><td class="dsi-name">' + t('dsi_total_rm') + ' <span id="dsi-month-total"></span></td>';
+      for(var dd = 1; dd <= days; dd++) html += '<td id="dsi-total-' + dd + '"></td>';
+      html += '</tr></tfoot>';
+    }
+    return html + '</table>';
+  }
+
+  function renderDsiGrid(){
+    if(!dsi.branch) return;
+    document.getElementById('dsi-entry-wrap').innerHTML = dsiGridHtml('qty');
+    dsiUpdateTotals();
+  }
+
+  function renderDsiSpecials(){
+    if(!dsi.branch) return;
+    var note = document.getElementById('dsi-specials-note');
+    note.hidden = dsiCanEdit();
+    note.textContent = t('dsi_manager_only');
+    document.getElementById('dsi-specials-wrap').innerHTML = dsiGridHtml('sp');
+  }
+
+  function dsiDayCents(d){
+    var sum = 0;
+    dsi.branch.menu.forEach(function(it){
+      var key = d + ':' + it.id;
+      var q = dsi.qty[key] || 0;
+      if(!q) return;
+      var price = dsi.specials[key] != null ? dsi.specials[key] : it.unitPrice;
+      sum += q * Math.round(price * 100);
+    });
+    return sum;
+  }
+
+  function dsiUpdateTotals(){
+    if(!dsi.branch) return;
+    var days = dsiDaysIn(dsi.year, dsi.month);
+    var month = 0;
+    for(var d = 1; d <= days; d++){
+      var c = dsiDayCents(d);
+      month += c;
+      var el = document.getElementById('dsi-total-' + d);
+      if(el) el.textContent = c ? (c / 100).toFixed(2) : '';
+    }
+    var mt = document.getElementById('dsi-month-total');
+    if(mt) mt.textContent = '(' + dsiFmt(month) + ')';
+  }
+
+  function dsiOnCellInput(e){
+    var inp = e.target;
+    if(!inp.dataset || !inp.dataset.dsiKey) return;
+    var kind = inp.dataset.dsiK;
+    var key = inp.dataset.dsiKey;
+    var v = inp.value.trim();
+    var ok = true;
+    var val = null;
+    if(v !== ''){
+      ok = kind === 'qty' ? /^\d+$/.test(v) : /^\d+(\.\d{1,2})?$/.test(v);
+      if(ok) val = Number(v);
+    }
+    inp.classList.toggle('dsi-bad', !ok);
+    if(!ok) return;
+    if(kind === 'qty'){
+      if(val == null || val === 0) delete dsi.qty[key]; else dsi.qty[key] = val;
+      dsi.dirtyQty[key] = val == null ? '' : val;
+    } else {
+      if(val == null) delete dsi.specials[key]; else dsi.specials[key] = val;
+      dsi.dirtySp[key] = val == null ? '' : val;
+    }
+    dsiUpdateTotals();
+    dsiSchedule();
+  }
+  document.getElementById('dsi-entry-wrap').addEventListener('input', dsiOnCellInput);
+  document.getElementById('dsi-specials-wrap').addEventListener('input', dsiOnCellInput);
+
+  function dsiSchedule(){
+    dsiSetStatus(t('dsi_saving'));
+    clearTimeout(dsi.timer);
+    dsi.timer = setTimeout(dsiFlush, 700);
+  }
+
+  // Saves are chained so two flushes can never reach the server out of order.
+  function dsiFlush(){
+    clearTimeout(dsi.timer);
+    dsi.queue = (dsi.queue || Promise.resolve()).then(dsiDoFlush);
+    return dsi.queue;
+  }
+
+  function dsiDoFlush(){
+    var b = dsi.branch;
+    if(!b) return true;
+    var q = dsi.dirtyQty;
+    var s = dsi.dirtySp;
+    var qc = Object.keys(q).map(function(k){ var p = k.split(':'); return { day:Number(p[0]), itemId:Number(p[1]), qty:q[k] }; });
+    var sc = Object.keys(s).map(function(k){ var p = k.split(':'); return { day:Number(p[0]), itemId:Number(p[1]), price:s[k] }; });
+    if(!qc.length && !sc.length) return true;
+    dsi.dirtyQty = {};
+    dsi.dirtySp = {};
+    var y = dsi.year;
+    var m = dsi.month;
+    var base = dsiBaseFor(dsi.companyId) + '/branches/' + b.id;
+    dsiSetStatus(t('dsi_saving'));
+    var p = Promise.resolve();
+    if(qc.length) p = p.then(function(){ return api(base + '/quantities', { method:'PUT', body: JSON.stringify({ year:y, month:m, cells:qc }) }); });
+    if(sc.length) p = p.then(function(){ return api(base + '/specials', { method:'PUT', body: JSON.stringify({ year:y, month:m, cells:sc }) }); });
+    return p.then(function(){
+      dsiSetStatus(t('dsi_saved'));
+      return true;
+    }).catch(function(err){
+      Object.keys(q).forEach(function(k){ if(!(k in dsi.dirtyQty)) dsi.dirtyQty[k] = q[k]; });
+      Object.keys(s).forEach(function(k){ if(!(k in dsi.dirtySp)) dsi.dirtySp[k] = s[k]; });
+      dsiSetStatus(t('dsi_save_failed') + ': ' + err.message, true);
+      return false;
+    });
+  }
+
+  // ---- Settings tab ----
+  function renderDsiSettings(){
+    var b = dsi.branch;
+    var edit = dsiCanEdit();
+    DSI_SETTING_FIELDS.forEach(function(f){
+      var el = document.getElementById('dsi-s-' + f);
+      el.value = b[f] == null ? '' : b[f];
+      el.disabled = !edit;
+    });
+    var zero = document.getElementById('dsi-s-includeZero');
+    zero.value = b.includeZero ? 'Y' : 'N';
+    zero.disabled = !edit;
+    document.getElementById('dsi-settings-save').hidden = !edit;
+    var note = document.getElementById('dsi-settings-note');
+    note.hidden = edit;
+    note.textContent = t('dsi_manager_only');
+    document.getElementById('dsi-settings-error').hidden = true;
+  }
+
+  document.getElementById('dsi-settings-save').addEventListener('click', function(){
+    var b = dsi.branch;
+    var errEl = document.getElementById('dsi-settings-error');
+    var body = { includeZero: document.getElementById('dsi-s-includeZero').value === 'Y' };
+    DSI_SETTING_FIELDS.forEach(function(f){ body[f] = document.getElementById('dsi-s-' + f).value; });
+    var btn = this;
+    btn.disabled = true;
+    errEl.hidden = true;
+    api(dsiBaseFor(dsi.companyId) + '/branches/' + b.id, { method:'PATCH', body: JSON.stringify(body) }).then(function(updated){
+      var idx = dsi.branches.findIndex(function(x){ return x.id === updated.id; });
+      if(idx !== -1) dsi.branches[idx] = updated;
+      dsi.branch = updated;
+      renderDsiSettings();
+      dsiSetStatus(t('dsi_settings_saved'));
+    }).catch(function(err){
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    }).finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Menu tab ----
+  function renderDsiMenu(){
+    dsi.menuDraft = dsi.branch.menu.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; });
+    var edit = dsiCanEdit();
+    document.getElementById('dsi-menu-actions').hidden = !edit;
+    var note = document.getElementById('dsi-menu-note');
+    note.hidden = edit;
+    note.textContent = t('dsi_manager_only');
+    document.getElementById('dsi-menu-error').hidden = true;
+    dsiDrawMenuRows();
+  }
+
+  function dsiDrawMenuRows(){
+    var edit = dsiCanEdit();
+    var inputStyle = 'border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--surface-alt);color:inherit;font-family:inherit;';
+    var tbody = document.getElementById('dsi-menu-tbody');
+    tbody.innerHTML = dsi.menuDraft.map(function(m, i){
+      var price = m.unitPrice === '' || m.unitPrice == null ? '' : Number(m.unitPrice).toFixed(2);
+      return '<tr><td>' + (i + 1) + '</td>' +
+        '<td>' + (edit ? '<input type="text" data-dsi-mp="' + i + '" value="' + dsiEsc(m.product) + '" style="' + inputStyle + 'width:100%;min-width:260px;" />' : dsiEsc(m.product)) + '</td>' +
+        '<td class="num">' + (edit ? '<input type="number" step="0.01" min="0" data-dsi-mu="' + i + '" value="' + price + '" style="' + inputStyle + 'width:100px;" />' : price) + '</td>' +
+        '<td>' + (edit ? '<div style="display:flex;gap:4px;"><button type="button" class="btn-row" data-dsi-up="' + i + '">↑</button><button type="button" class="btn-row" data-dsi-down="' + i + '">↓</button><button type="button" class="btn-row" data-dsi-del="' + i + '">✕</button></div>' : '') + '</td></tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-dsi-mp]').forEach(function(inp){
+      inp.addEventListener('input', function(){ dsi.menuDraft[Number(inp.dataset.dsiMp)].product = inp.value; });
+    });
+    tbody.querySelectorAll('[data-dsi-mu]').forEach(function(inp){
+      inp.addEventListener('input', function(){ dsi.menuDraft[Number(inp.dataset.dsiMu)].unitPrice = inp.value; });
+    });
+    tbody.querySelectorAll('[data-dsi-up]').forEach(function(btn){
+      btn.addEventListener('click', function(){ var i = Number(btn.dataset.dsiUp); if(i > 0){ var x = dsi.menuDraft.splice(i, 1)[0]; dsi.menuDraft.splice(i - 1, 0, x); dsiDrawMenuRows(); } });
+    });
+    tbody.querySelectorAll('[data-dsi-down]').forEach(function(btn){
+      btn.addEventListener('click', function(){ var i = Number(btn.dataset.dsiDown); if(i < dsi.menuDraft.length - 1){ var x = dsi.menuDraft.splice(i, 1)[0]; dsi.menuDraft.splice(i + 1, 0, x); dsiDrawMenuRows(); } });
+    });
+    tbody.querySelectorAll('[data-dsi-del]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var i = Number(btn.dataset.dsiDel);
+        if(dsi.menuDraft[i].id && !confirm(t('dsi_delete_item_confirm'))) return;
+        dsi.menuDraft.splice(i, 1);
+        dsiDrawMenuRows();
+      });
+    });
+  }
+
+  document.getElementById('dsi-menu-add').addEventListener('click', function(){
+    dsi.menuDraft.push({ id:null, product:'', unitPrice:'' });
+    dsiDrawMenuRows();
+  });
+
+  document.getElementById('dsi-menu-save').addEventListener('click', function(){
+    var b = dsi.branch;
+    var errEl = document.getElementById('dsi-menu-error');
+    var btn = this;
+    btn.disabled = true;
+    errEl.hidden = true;
+    dsiFlush().then(function(){
+      var body = { menu: dsi.menuDraft.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; }) };
+      return api(dsiBaseFor(dsi.companyId) + '/branches/' + b.id + '/menu', { method:'PUT', body: JSON.stringify(body) });
+    }).then(function(updated){
+      var idx = dsi.branches.findIndex(function(x){ return x.id === updated.id; });
+      if(idx !== -1) dsi.branches[idx] = updated;
+      dsi.branch = updated;
+      renderDsiMenu();
+      renderDsiSettings();
+      dsiLoadMonth();
+      dsiSetStatus(t('dsi_menu_saved'));
+    }).catch(function(err){
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    }).finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Navigation / period / tabs ----
+  document.querySelectorAll('#dsi-tabs .dsi-tab').forEach(function(btn){
+    btn.addEventListener('click', function(){ dsiShowTab(btn.dataset.dsiTab); });
+  });
+
+  function dsiOnPeriodChange(){
+    var y = Number(document.getElementById('dsi-year').value);
+    var m = Number(document.getElementById('dsi-month').value);
+    dsiShowLoading();
+    dsiFlush().then(function(){
+      dsi.year = y;
+      dsi.month = m;
+      dsiLoadMonth();
+    });
+  }
+  document.getElementById('dsi-year').addEventListener('change', dsiOnPeriodChange);
+  document.getElementById('dsi-month').addEventListener('change', dsiOnPeriodChange);
+
+  document.getElementById('dsi-back-btn').addEventListener('click', function(){
+    dsiFlush().then(function(){
+      document.getElementById('dsi-card').hidden = true;
+      document.getElementById('dsi-picker').hidden = false;
+    });
+  });
+
+  // ---- Generate (check -> Excel -> PDF) ----
+  function dsiDownload(url){
+    return fetch('/api' + url).then(function(res){
+      if(!res.ok) return res.json().then(function(body){ throw new Error(body.error || 'Download failed'); });
+      var cd = res.headers.get('Content-Disposition') || '';
+      var match = cd.match(/filename="([^"]+)"/);
+      var filename = match ? match[1] : 'report';
+      return res.blob().then(function(blob){
+        var objUrl = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = objUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objUrl);
+      });
+    });
+  }
+
+  document.getElementById('dsi-generate-btn').addEventListener('click', function(){
+    var b = dsi.branch;
+    var errEl = document.getElementById('dsi-error');
+    var btn = this;
+    errEl.hidden = true;
+    if(document.querySelector('#dsi-card input.dsi-bad')){
+      errEl.textContent = t('dsi_bad_cells');
+      errEl.hidden = false;
+      return;
+    }
+    var base = dsiBaseFor(dsi.companyId) + '/branches/' + b.id;
+    var qs = '?year=' + dsi.year + '&month=' + dsi.month;
+    var prepared = document.getElementById('dsi-prepared-by').value.trim();
+    btn.disabled = true;
+    dsiSetStatus(t('dsi_checking'));
+    dsiFlush().then(function(ok){
+      if(!ok) throw new Error(t('dsi_save_failed'));
+      return api(base + '/check', { method:'POST', body: JSON.stringify({ year:dsi.year, month:dsi.month }) });
+    }).then(function(res){
+      if(!res.ok){
+        errEl.innerHTML = '<strong>' + t('dsi_check_failed') + '</strong><ul style="margin:6px 0 0 18px;">' + res.errors.map(function(e){ return '<li>' + dsiEsc(e) + '</li>'; }).join('') + '</ul>';
+        errEl.hidden = false;
+        throw new Error('__handled');
+      }
+      dsiSetStatus(t('dsi_generating'));
+      return dsiDownload(base + '/report.xlsx' + qs).then(function(){
+        return dsiDownload(base + '/report.pdf' + qs + '&preparedBy=' + encodeURIComponent(prepared));
+      });
+    }).then(function(){
+      dsiSetStatus(t('dsi_generated_ok'));
+    }).catch(function(err){
+      if(err.message !== '__handled'){
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      }
+      dsiSetStatus('');
+    }).finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Add branch (Manager) ----
+  function openDsiBranchModal(){
+    var ref = dsi.branches[0];
+    var set = function(id, v){ document.getElementById(id).value = v || ''; };
+    set('dsi-nb-code', '');
+    set('dsi-nb-prefix', '');
+    set('dsi-nb-company', ref ? ref.companyName : currentCompany);
+    set('dsi-nb-reg', ref ? ref.regNo : '');
+    set('dsi-nb-address', ref ? ref.address : '');
+    set('dsi-nb-contact', ref ? ref.contactCode : 'C-C0001');
+    set('dsi-nb-legal', ref ? ref.legalName : 'Cash Sales');
+    set('dsi-nb-term', ref ? ref.paymentTerm : 'NET30');
+    set('dsi-nb-account', ref ? ref.accountCode : '5000');
+    set('dsi-nb-tags', '');
+    set('dsi-nb-menu', '');
+    document.getElementById('dsi-nb-error').hidden = true;
+    document.getElementById('dsi-branch-modal-backdrop').hidden = false;
+  }
+  function closeDsiBranchModal(){ document.getElementById('dsi-branch-modal-backdrop').hidden = true; }
+  document.getElementById('dsi-branch-modal-close').addEventListener('click', closeDsiBranchModal);
+  document.getElementById('dsi-nb-cancel').addEventListener('click', closeDsiBranchModal);
+  document.getElementById('dsi-branch-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeDsiBranchModal(); });
+
+  function dsiParseMenuLines(text){
+    var items = [];
+    var lines = text.split(/\r?\n/);
+    for(var i = 0; i < lines.length; i++){
+      var line = lines[i].trim();
+      if(!line) continue;
+      var m = line.match(/^(.*?)\s*(?:\||\t)\s*([0-9]+(?:\.[0-9]+)?)\s*$/) || line.match(/^(.+?)\s+([0-9]+(?:\.[0-9]{1,2})?)\s*$/);
+      if(!m) return { error: t('dsi_menu_line_bad') + ' ' + line };
+      items.push({ product: m[1].trim(), unitPrice: m[2] });
+    }
+    return { items: items };
+  }
+
+  document.getElementById('dsi-nb-create').addEventListener('click', function(){
+    var errEl = document.getElementById('dsi-nb-error');
+    var val = function(id){ return document.getElementById(id).value; };
+    var parsed = dsiParseMenuLines(val('dsi-nb-menu'));
+    if(parsed.error){ errEl.textContent = parsed.error; errEl.hidden = false; return; }
+    var companyId = customerRecordId(currentCompany);
+    var btn = this;
+    btn.disabled = true;
+    errEl.hidden = true;
+    api(dsiBaseFor(companyId) + '/branches', { method:'POST', body: JSON.stringify({
+      code: val('dsi-nb-code'), reportPrefix: val('dsi-nb-prefix'), companyName: val('dsi-nb-company'), regNo: val('dsi-nb-reg'),
+      address: val('dsi-nb-address'), contactCode: val('dsi-nb-contact'), legalName: val('dsi-nb-legal'), paymentTerm: val('dsi-nb-term'),
+      accountCode: val('dsi-nb-account'), tags: val('dsi-nb-tags'), menu: parsed.items
+    }) }).then(function(){
+      closeDsiBranchModal();
+      dsiLoadBranches();
+      alert(t('dsi_branch_created'));
+    }).catch(function(err){
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    }).finally(function(){ btn.disabled = false; });
   });
 
   // ============ OL-TNG DAILY SETTLEMENT REPORT (Own Laundry only) ============
@@ -4076,6 +4768,8 @@
 
   // Dwi Danga Sales Summary (DuitNow/FIUU reconciliation) is specific to
   // Own Laundry Sdn Bhd's payment gateway setup — no other company has this.
+  // Company names are matched case/whitespace-insensitively (e.g. the DB has "MADAM LUA  WANTONMEE" with two spaces).
+  function normCompany(name){ return String(name || '').replace(/\s+/g, ' ').trim().toUpperCase(); }
   var RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.';
   var DM_INVOICE_COMPANY = 'DIDIK MULIA SDN. BHD.';
   // Every company can have its own distinct Sales Summary picker in place of
@@ -4085,6 +4779,9 @@
   var SALES_SUMMARY_OVERRIDES = {};
   SALES_SUMMARY_OVERRIDES[RECON_ONLY_COMPANY] = { pickerId: 'sales-outlet-picker' };
   SALES_SUMMARY_OVERRIDES[DM_INVOICE_COMPANY] = { pickerId: 'dm-sales-picker' };
+  // Madam Lua + UK Lua: monthly daily-sales entry -> Bukku sales invoice (branches are loaded from the server).
+  SALES_SUMMARY_OVERRIDES[normCompany('MADAM LUA WANTONMEE')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
+  SALES_SUMMARY_OVERRIDES[normCompany('UK LUA WANTONMEE ENTERPRISE')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
 
   var MERCHANT_REPORT_OVERRIDES = {};
   MERCHANT_REPORT_OVERRIDES[RECON_ONLY_COMPANY] = { cardId: 'ol-tng-card' };

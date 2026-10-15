@@ -122,6 +122,76 @@ function parseMenuInput(menu) {
   return { items };
 }
 
+// ============ HISTORY ============
+// Every change is written as language-neutral rows { field, label, from, to } so the page can show them in
+// either language; "who" is stored as the user's name at the time.
+
+async function userNameOf(req) {
+  const { rows } = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.sub]);
+  return rows[0] ? rows[0].display_name : 'Unknown';
+}
+
+// db is the pool or an open transaction client.
+async function addHistory(db, req, { branchId, recordId = null, channel, action, details = [] }) {
+  const name = await userNameOf(req);
+  await db.query(
+    'INSERT INTO dsi_history (branch_id, record_id, channel, action, details, user_id, user_name) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+    [branchId, recordId, channel, action, JSON.stringify(details), req.user.sub, name]
+  );
+}
+
+// What each submitted cell changes, compared with what is saved now (cells that end up unchanged are skipped).
+async function diffCells(db, kind, ops, menu, ym) {
+  if (!ops.length) return [];
+  const table = kind === 'qty' ? 'dsi_quantities' : 'dsi_specials';
+  const col = kind === 'qty' ? 'qty' : 'price';
+  const { start, end } = monthRange(ym.year, ym.month);
+  const { rows } = await db.query(
+    `SELECT item_id, entry_date::text AS d, ${col}::float AS v FROM ${table}
+     WHERE item_id = ANY($1) AND entry_date >= $2 AND entry_date < $3`,
+    [[...new Set(ops.map((o) => o.itemId))], start, end]
+  );
+  const before = {};
+  rows.forEach((r) => { before[`${r.item_id}|${r.d}`] = r.v; });
+  const names = {};
+  menu.forEach((m) => { names[m.id] = m.product; });
+  const out = [];
+  ops.forEach((op) => {
+    const old = before[`${op.itemId}|${op.date}`];
+    const was = old === undefined ? null : old;
+    if (was === op.value) return;
+    out.push({ field: kind === 'qty' ? 'qty' : 'special', label: `${Number(op.date.slice(8, 10))}/${ym.month} · ${names[op.itemId]}`, from: was, to: op.value });
+  });
+  return out;
+}
+
+function diffMenu(existing, items) {
+  const details = [];
+  const keptIds = new Set(items.filter((i) => i.id).map((i) => i.id));
+  existing.forEach((m) => { if (!keptIds.has(m.id)) details.push({ field: 'item_removed', label: m.product, from: m.unit_price, to: null }); });
+  items.forEach((it) => {
+    if (!it.id) { details.push({ field: 'item_added', label: it.product, from: null, to: it.unitPrice }); return; }
+    const old = existing.find((m) => m.id === it.id);
+    if (old.product !== it.product) details.push({ field: 'item_renamed', label: it.product, from: old.product, to: it.product });
+    if (Math.round(old.unit_price * 100) !== Math.round(it.unitPrice * 100)) details.push({ field: 'item_price', label: it.product, from: old.unit_price, to: it.unitPrice });
+  });
+  const oldOrder = existing.filter((m) => keptIds.has(m.id)).map((m) => m.id).join(',');
+  const newOrder = items.filter((i) => i.id).map((i) => i.id).join(',');
+  if (oldOrder !== newOrder) details.push({ field: 'item_order', label: '', from: null, to: null });
+  return details;
+}
+
+const SETTING_KEYS = {
+  report_prefix: 'reportPrefix', company_name: 'companyName', reg_no: 'regNo', address: 'address', contact_code: 'contactCode',
+  legal_name: 'legalName', invoice_prefix: 'invoicePrefix', invoice_suffix: 'invoiceSuffix', payment_term: 'paymentTerm',
+  tags: 'tags', account_code: 'accountCode', include_zero: 'includeZero'
+};
+function diffSettings(before, next) {
+  return Object.keys(SETTING_KEYS)
+    .filter((col) => String(before[col]) !== String(next[col]))
+    .map((col) => ({ field: 'setting', label: SETTING_KEYS[col], from: before[col], to: next[col] }));
+}
+
 // ============ BRANCHES ============
 
 router.get(`${BASE}/branches`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
@@ -207,6 +277,8 @@ router.patch(`${BASE}/branches/:branchId`, requireAuth, scopeToCompany, needAcce
     [next.report_prefix, next.company_name, next.reg_no, next.address, next.contact_code, next.legal_name, next.invoice_prefix,
       next.invoice_suffix, next.payment_term, next.tags, next.account_code, next.include_zero, b.id]
   );
+  const settingChanges = diffSettings(b, next);
+  if (settingChanges.length) await addHistory(pool, req, { branchId: b.id, channel: 'settings', action: 'settings_updated', details: settingChanges });
   const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Updated daily-sales settings', co[0].name, rows[0].report_prefix);
   res.json(publicBranch(rows[0], await getMenu(b.id)));
@@ -248,6 +320,8 @@ router.put(`${BASE}/branches/:branchId/menu`, requireAuth, scopeToCompany, needA
   } finally {
     client.release();
   }
+  const menuChanges = diffMenu(existing, parsed.items);
+  if (menuChanges.length) await addHistory(pool, req, { branchId: b.id, channel: 'menu', action: 'menu_updated', details: menuChanges });
   const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Updated daily-sales menu', co[0].name, b.report_prefix);
   res.json(publicBranch(b, await getMenu(b.id)));
@@ -356,6 +430,7 @@ router.post(`${BASE}/records`, requireAuth, scopeToCompany, needAccess, async (r
       existingId: ex[0].id, existingStatus: ex[0].status
     });
   }
+  await addHistory(pool, req, { branchId: b.id, recordId: rows[0].id, channel: 'record', action: 'created' });
   await logActivity(req.user.sub, 'Created daily-sales record', await companyName(req.params.companyId), `${b.report_prefix} ${ym.year}-${rules.pad2(ym.month)}`);
   res.status(201).json((await fetchRecords(req, rows[0].id))[0]);
 });
@@ -372,6 +447,19 @@ router.get(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, needAccess,
     specials: specialMap,
     access: publicAccess(req.access)
   });
+});
+
+// This month's history, plus the branch's menu / settings changes (those apply to every month).
+router.get(`${BASE}/records/:recordId/history`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
+  const rec = await getRecordRow(req.params.companyId, req.params.recordId);
+  if (!rec) return res.status(404).json({ error: 'Not found' });
+  const { rows } = await pool.query(
+    `SELECT id, channel, action, details, user_name, created_at FROM dsi_history
+     WHERE record_id = $1 OR (branch_id = $2 AND record_id IS NULL)
+     ORDER BY created_at DESC, id DESC LIMIT 200`,
+    [rec.id, rec.branch_id]
+  );
+  res.json({ history: rows.map((r) => ({ id: r.id, channel: r.channel, action: r.action, details: r.details, user: r.user_name, createdAt: r.created_at })) });
 });
 
 // Parses client cells into DB operations. kind: 'qty' | 'price'
@@ -438,9 +526,13 @@ router.put(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, needAccess,
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const changes = [...(await diffCells(client, 'qty', q.ops, menu, ym)), ...(await diffCells(client, 'price', s.ops, menu, ym))];
     await applyOps(client, 'qty', q.ops);
     await applyOps(client, 'price', s.ops);
     await client.query('UPDATE dsi_records SET saved_by = $1, saved_at = now() WHERE id = $2', [req.user.sub, rec.id]);
+    if (changes.length) {
+      await addHistory(client, req, { branchId: rec.branch_id, recordId: rec.id, channel: 'record', action: rec.status === 'checked' ? 'amended' : 'updated', details: changes });
+    }
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
@@ -479,9 +571,11 @@ router.patch(`${BASE}/records/:recordId/status`, requireAuth, scopeToCompany, ne
     if (!flags.canApprove) return res.status(403).json({ error: NO_APPROVE_MSG });
     if (ctx.errors.length) return res.status(422).json({ error: `不能审核：${ctx.errors.join(' ')}`, errors: ctx.errors });
     await pool.query('UPDATE dsi_records SET status = $1, checked_by = $2, checked_at = now() WHERE id = $3', ['checked', req.user.sub, ctx.rec.id]);
+    await addHistory(pool, req, { branchId: ctx.rec.branch_id, recordId: ctx.rec.id, channel: 'record', action: 'approved' });
   } else {
     if (!flags.canRevert) return res.status(403).json({ error: CHECKED_MSG });
     await pool.query('UPDATE dsi_records SET status = $1, checked_by = NULL, checked_at = NULL WHERE id = $2', ['pending', ctx.rec.id]);
+    await addHistory(pool, req, { branchId: ctx.rec.branch_id, recordId: ctx.rec.id, channel: 'record', action: 'unlocked' });
   }
   await logActivity(req.user.sub, status === 'checked' ? 'Approved daily-sales record (locked)' : 'Set approved daily-sales record back to pending',
     await companyName(req.params.companyId), `${ctx.branch.report_prefix} ${ctx.year}-${rules.pad2(ctx.month)}`);

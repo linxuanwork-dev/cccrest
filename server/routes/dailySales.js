@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
+const { isManagerLevel } = require('../lib/companyLevel');
 const { logActivity } = require('../lib/activity');
 const rules = require('../lib/dailySalesRules');
 const { buildInvoiceWorkbook } = require('../lib/dailySalesExcel');
@@ -8,6 +9,8 @@ const { buildReportPdf } = require('../lib/dailySalesPdf');
 
 const router = express.Router();
 const BASE = '/companies/:companyId/dsi';
+const MANAGER_ONLY_MSG = '此项目只有 Manager 可以修改';
+const CHECKED_MSG = '此记录已标记为 Checked，只有 Manager 可以修改';
 
 // Express 4 doesn't forward rejected promises from async handlers; wrap them so a
 // failure becomes a JSON 500 (see the error handler at the bottom) instead of a hung request.
@@ -17,15 +20,10 @@ const BASE = '/companies/:companyId/dsi';
     (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
   )));
 });
-const MANAGER_ONLY_MSG = '此项目只有 Manager 可以修改';
 
-function canEditConfig(req) {
-  return req.user.role === 'admin' || req.user.role === 'manager';
-}
-
-function requireConfigEditor(req, res, next) {
-  if (!canEditConfig(req)) return res.status(403).json({ error: MANAGER_ONLY_MSG });
-  next();
+async function requireConfigEditor(req, res, next) {
+  if (await isManagerLevel(req)) return next();
+  res.status(403).json({ error: MANAGER_ONLY_MSG });
 }
 
 async function getBranch(companyId, branchId) {
@@ -110,9 +108,9 @@ function parseMenuInput(menu) {
 
 router.get(`${BASE}/branches`, requireAuth, scopeToCompany, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM dsi_branches WHERE company_id = $1 ORDER BY sort_order, id', [req.params.companyId]);
-  const out = [];
-  for (const b of rows) out.push(publicBranch(b, await getMenu(b.id)));
-  res.json(out);
+  const branches = [];
+  for (const b of rows) branches.push(publicBranch(b, await getMenu(b.id)));
+  res.json({ canManage: await isManagerLevel(req), branches });
 });
 
 router.post(`${BASE}/branches`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
@@ -237,65 +235,172 @@ router.put(`${BASE}/branches/:branchId/menu`, requireAuth, scopeToCompany, requi
   res.json(publicBranch(b, await getMenu(b.id)));
 });
 
-// ============ MONTH DATA (quantities + specials) ============
+// ============ RECORDS (one per branch + month) ============
 
-router.get(`${BASE}/branches/:branchId/month`, requireAuth, scopeToCompany, async (req, res) => {
-  const b = await getBranch(req.params.companyId, req.params.branchId);
-  if (!b) return res.status(404).json({ error: 'Not found' });
-  const ym = parseYearMonth(req.query);
-  if (!ym) return res.status(400).json({ error: '请先选择有效的年份和月份。' });
-  const { qtyMap, specialMap } = await getMonthData(b.id, ym.year, ym.month);
-  res.json({ year: ym.year, month: ym.month, qty: qtyMap, specials: specialMap });
+// Totals are computed live from the saved quantities, so they can never go stale after a menu price change.
+const RECORD_SELECT = `
+  SELECT r.id, r.branch_id, b.code AS branch_code, b.report_prefix, r.year, r.month, r.status,
+         r.created_at, r.saved_at, r.checked_at,
+         su.display_name AS saved_by_name, cu.display_name AS checked_by_name,
+         COALESCE(t.total, 0)::float AS total, COALESCE(t.days, 0)::int AS invoice_days
+  FROM dsi_records r
+  JOIN dsi_branches b ON b.id = r.branch_id
+  LEFT JOIN users su ON su.id = r.saved_by
+  LEFT JOIN users cu ON cu.id = r.checked_by
+  LEFT JOIN LATERAL (
+    SELECT SUM(dt.day_total) AS total, COUNT(*) FILTER (WHERE dt.day_total > 0) AS days
+    FROM (
+      SELECT q.entry_date, SUM(q.qty * COALESCE(s.price, i.unit_price)) AS day_total
+      FROM dsi_menu_items i
+      JOIN dsi_quantities q ON q.item_id = i.id
+        AND q.entry_date >= make_date(r.year, r.month, 1)
+        AND q.entry_date < (make_date(r.year, r.month, 1) + interval '1 month')
+      LEFT JOIN dsi_specials s ON s.item_id = i.id AND s.entry_date = q.entry_date
+      WHERE i.branch_id = r.branch_id
+      GROUP BY q.entry_date
+    ) dt
+  ) t ON true
+  WHERE b.company_id = $1`;
+
+function publicRecord(r) {
+  return {
+    id: r.id, branchId: r.branch_id, branchCode: r.branch_code, reportPrefix: r.report_prefix,
+    year: r.year, month: r.month, status: r.status,
+    invoiceDays: r.invoice_days, totalCents: Math.round(r.total * 100),
+    createdAt: r.created_at, savedAt: r.saved_at, savedBy: r.saved_by_name,
+    checkedAt: r.checked_at, checkedBy: r.checked_by_name
+  };
+}
+
+async function fetchRecords(companyId, recordId) {
+  const sql = RECORD_SELECT + (recordId ? ' AND r.id = $2' : '') + ' ORDER BY r.year DESC, r.month DESC, b.sort_order, b.id';
+  const { rows } = await pool.query(sql, recordId ? [companyId, recordId] : [companyId]);
+  return rows.map(publicRecord);
+}
+
+async function getRecordRow(companyId, recordId) {
+  const { rows } = await pool.query(
+    `SELECT r.* FROM dsi_records r JOIN dsi_branches b ON b.id = r.branch_id WHERE r.id = $1 AND b.company_id = $2`,
+    [recordId, companyId]
+  );
+  return rows[0] || null;
+}
+
+async function companyName(companyId) {
+  const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [companyId]);
+  return rows[0].name;
+}
+
+router.get(`${BASE}/records`, requireAuth, scopeToCompany, async (req, res) => {
+  res.json({ canManage: await isManagerLevel(req), records: await fetchRecords(req.params.companyId) });
 });
 
-async function saveCells(req, res, kind) {
-  const b = await getBranch(req.params.companyId, req.params.branchId);
-  if (!b) return res.status(404).json({ error: 'Not found' });
+router.post(`${BASE}/records`, requireAuth, scopeToCompany, async (req, res) => {
   const body = req.body || {};
+  const b = await getBranch(req.params.companyId, Number(body.branchId));
+  if (!b) return res.status(400).json({ error: '请选择分店。' });
   const ym = parseYearMonth(body);
-  if (!ym) return res.status(400).json({ error: '请先选择有效的年份和月份。' });
-  const cells = Array.isArray(body.cells) ? body.cells : [];
-  if (cells.length > 5000) return res.status(400).json({ error: 'Too many cells in one request.' });
+  if (!ym) return res.status(400).json({ error: '请先选择有效的年份和月份（2025–2035）。' });
 
-  const menu = await getMenu(b.id);
-  const itemIds = new Set(menu.map((m) => m.id));
+  const { rows } = await pool.query(
+    `INSERT INTO dsi_records (branch_id, year, month, created_by) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (branch_id, year, month) DO NOTHING RETURNING id`,
+    [b.id, ym.year, ym.month, req.user.sub]
+  );
+  if (!rows[0]) {
+    const { rows: ex } = await pool.query('SELECT id, status FROM dsi_records WHERE branch_id = $1 AND year = $2 AND month = $3', [b.id, ym.year, ym.month]);
+    return res.status(409).json({
+      error: `${b.report_prefix} 已经有 ${ym.year}-${rules.pad2(ym.month)} 的记录（状态：${ex[0].status}），同一个月份不能重复。请打开现有记录。`,
+      existingId: ex[0].id, existingStatus: ex[0].status
+    });
+  }
+  await logActivity(req.user.sub, 'Created daily-sales record', await companyName(req.params.companyId), `${b.report_prefix} ${ym.year}-${rules.pad2(ym.month)}`);
+  res.status(201).json((await fetchRecords(req.params.companyId, rows[0].id))[0]);
+});
+
+router.get(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, async (req, res) => {
+  const rec = await getRecordRow(req.params.companyId, req.params.recordId);
+  if (!rec) return res.status(404).json({ error: 'Not found' });
+  const branch = await getBranch(req.params.companyId, rec.branch_id);
+  const { qtyMap, specialMap } = await getMonthData(rec.branch_id, rec.year, rec.month);
+  const manager = await isManagerLevel(req);
+  res.json({
+    record: (await fetchRecords(req.params.companyId, rec.id))[0],
+    branch: publicBranch(branch, await getMenu(branch.id)),
+    qty: qtyMap,
+    specials: specialMap,
+    canManage: manager,
+    locked: rec.status === 'checked' && !manager
+  });
+});
+
+// Parses client cells into DB operations. kind: 'qty' | 'price'
+function parseCells(cells, kind, ym, itemIds) {
   const lastDay = rules.daysInMonth(ym.year, ym.month);
   const ops = [];
-
   for (const c of cells) {
     const day = Number(c.day);
     const itemId = Number(c.itemId);
-    if (!Number.isInteger(day) || day < 1 || day > lastDay) return res.status(400).json({ error: `日期无效：${c.day}` });
-    if (!itemIds.has(itemId)) return res.status(400).json({ error: '菜单项目无效。' });
+    if (!Number.isInteger(day) || day < 1 || day > lastDay) return { error: `日期无效：${c.day}` };
+    if (!itemIds.has(itemId)) return { error: '菜单项目无效。' };
     const date = `${ym.year}-${rules.pad2(ym.month)}-${rules.pad2(day)}`;
     const raw = kind === 'qty' ? c.qty : c.price;
     if (raw === '' || raw == null) { ops.push({ date, itemId, value: null }); continue; }
     const num = Number(raw);
     if (kind === 'qty') {
-      if (!Number.isInteger(num) || num < 0) return res.status(400).json({ error: '数量只能是 0 或正整数。' });
+      if (!Number.isInteger(num) || num < 0) return { error: '数量只能是 0 或正整数。' };
       ops.push({ date, itemId, value: num === 0 ? null : num });
     } else {
-      if (isNaN(num) || num < 0) return res.status(400).json({ error: '特价必须是 ≥ 0 的数字。' });
+      if (isNaN(num) || num < 0) return { error: '特价必须是 ≥ 0 的数字。' };
       ops.push({ date, itemId, value: Math.round(num * 100) / 100 });
     }
   }
+  return { ops };
+}
 
+async function applyOps(client, kind, ops) {
   const table = kind === 'qty' ? 'dsi_quantities' : 'dsi_specials';
   const col = kind === 'qty' ? 'qty' : 'price';
+  for (const op of ops) {
+    if (op.value == null) {
+      await client.query(`DELETE FROM ${table} WHERE item_id = $1 AND entry_date = $2`, [op.itemId, op.date]);
+    } else {
+      await client.query(
+        `INSERT INTO ${table} (item_id, entry_date, ${col}) VALUES ($1,$2,$3)
+         ON CONFLICT (item_id, entry_date) DO UPDATE SET ${col} = EXCLUDED.${col}`,
+        [op.itemId, op.date, op.value]
+      );
+    }
+  }
+}
+
+// Explicit save: writes every changed cell, then stamps who saved and when.
+router.put(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, async (req, res) => {
+  const rec = await getRecordRow(req.params.companyId, req.params.recordId);
+  if (!rec) return res.status(404).json({ error: 'Not found' });
+  const manager = await isManagerLevel(req);
+  if (rec.status === 'checked' && !manager) return res.status(403).json({ error: CHECKED_MSG });
+
+  const body = req.body || {};
+  const qtyCells = Array.isArray(body.qtyCells) ? body.qtyCells : [];
+  const specialCells = Array.isArray(body.specialCells) ? body.specialCells : [];
+  if (qtyCells.length + specialCells.length > 5000) return res.status(400).json({ error: 'Too many changes in one save.' });
+  if (specialCells.length && !manager) return res.status(403).json({ error: MANAGER_ONLY_MSG });
+
+  const ym = { year: rec.year, month: rec.month };
+  const menu = await getMenu(rec.branch_id);
+  const itemIds = new Set(menu.map((m) => m.id));
+  const q = parseCells(qtyCells, 'qty', ym, itemIds);
+  if (q.error) return res.status(400).json({ error: q.error });
+  const s = parseCells(specialCells, 'price', ym, itemIds);
+  if (s.error) return res.status(400).json({ error: s.error });
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const op of ops) {
-      if (op.value == null) {
-        await client.query(`DELETE FROM ${table} WHERE item_id = $1 AND entry_date = $2`, [op.itemId, op.date]);
-      } else {
-        await client.query(
-          `INSERT INTO ${table} (item_id, entry_date, ${col}) VALUES ($1,$2,$3)
-           ON CONFLICT (item_id, entry_date) DO UPDATE SET ${col} = EXCLUDED.${col}`,
-          [op.itemId, op.date, op.value]
-        );
-      }
-    }
+    await applyOps(client, 'qty', q.ops);
+    await applyOps(client, 'price', s.ops);
+    await client.query('UPDATE dsi_records SET saved_by = $1, saved_at = now() WHERE id = $2', [req.user.sub, rec.id]);
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
@@ -303,28 +408,74 @@ async function saveCells(req, res, kind) {
   } finally {
     client.release();
   }
-  res.json({ saved: ops.length });
+
+  const record = (await fetchRecords(req.params.companyId, rec.id))[0];
+  await logActivity(req.user.sub, rec.status === 'checked' ? 'Amended checked daily-sales record' : 'Saved daily-sales record',
+    await companyName(req.params.companyId), `${record.reportPrefix} ${rec.year}-${rules.pad2(rec.month)} — RM ${rules.formatCents(record.totalCents)}`);
+  res.json(record);
+});
+
+async function loadReportContext(req, res) {
+  const rec = await getRecordRow(req.params.companyId, req.params.recordId);
+  if (!rec) { res.status(404).json({ error: 'Not found' }); return null; }
+  const branch = await getBranch(req.params.companyId, rec.branch_id);
+  const menu = await getMenu(branch.id);
+  const { qtyMap, specialMap } = await getMonthData(branch.id, rec.year, rec.month);
+  const built = rules.buildMonth(branch, menu, qtyMap, specialMap, rec.year, rec.month);
+  const errors = rules.runChecks(branch, menu, built, rec.year, rec.month);
+  return { rec, branch, menu, built, errors, year: rec.year, month: rec.month };
 }
 
-router.put(`${BASE}/branches/:branchId/quantities`, requireAuth, scopeToCompany, (req, res) => saveCells(req, res, 'qty'));
-router.put(`${BASE}/branches/:branchId/specials`, requireAuth, scopeToCompany, requireConfigEditor, (req, res) => saveCells(req, res, 'price'));
+// Manager level only: mark as checked (locks staff out of editing) or back to pending.
+router.patch(`${BASE}/records/:recordId/status`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+  const status = (req.body || {}).status;
+  if (!['pending', 'checked'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  const ctx = await loadReportContext(req, res);
+  if (!ctx) return;
 
-// ============ CHECK + REPORTS ============
+  if (status === 'checked') {
+    if (ctx.errors.length) return res.status(422).json({ error: `不能标记为 Checked：${ctx.errors.join(' ')}`, errors: ctx.errors });
+    await pool.query('UPDATE dsi_records SET status = $1, checked_by = $2, checked_at = now() WHERE id = $3', ['checked', req.user.sub, ctx.rec.id]);
+  } else {
+    await pool.query('UPDATE dsi_records SET status = $1, checked_by = NULL, checked_at = NULL WHERE id = $2', ['pending', ctx.rec.id]);
+  }
+  await logActivity(req.user.sub, status === 'checked' ? 'Marked daily-sales record as checked' : 'Set daily-sales record back to pending',
+    await companyName(req.params.companyId), `${ctx.branch.report_prefix} ${ctx.year}-${rules.pad2(ctx.month)}`);
+  res.json((await fetchRecords(req.params.companyId, ctx.rec.id))[0]);
+});
 
-async function prepareReport(req, res, source) {
-  const b = await getBranch(req.params.companyId, req.params.branchId);
-  if (!b) { res.status(404).json({ error: 'Not found' }); return null; }
-  const ym = parseYearMonth(source);
-  if (!ym) { res.status(400).json({ error: '请先选择有效的年份和月份。' }); return null; }
-  const menu = await getMenu(b.id);
-  const { qtyMap, specialMap } = await getMonthData(b.id, ym.year, ym.month);
-  const built = rules.buildMonth(b, menu, qtyMap, specialMap, ym.year, ym.month);
-  const errors = rules.runChecks(b, menu, built, ym.year, ym.month);
-  return { branch: b, menu, built, errors, ...ym };
-}
+// Manager level only: removes the record AND that month's saved quantities/special prices.
+router.delete(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+  const rec = await getRecordRow(req.params.companyId, req.params.recordId);
+  if (!rec) return res.status(404).json({ error: 'Not found' });
+  const { start, end } = monthRange(rec.year, rec.month);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const table of ['dsi_quantities', 'dsi_specials']) {
+      await client.query(
+        `DELETE FROM ${table} WHERE entry_date >= $2 AND entry_date < $3
+           AND item_id IN (SELECT id FROM dsi_menu_items WHERE branch_id = $1)`,
+        [rec.branch_id, start, end]
+      );
+    }
+    await client.query('DELETE FROM dsi_records WHERE id = $1', [rec.id]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  const branch = await getBranch(req.params.companyId, rec.branch_id);
+  await logActivity(req.user.sub, 'Deleted daily-sales record', await companyName(req.params.companyId), `${branch.report_prefix} ${rec.year}-${rules.pad2(rec.month)}`);
+  res.json({ ok: true });
+});
 
-router.post(`${BASE}/branches/:branchId/check`, requireAuth, scopeToCompany, async (req, res) => {
-  const ctx = await prepareReport(req, res, req.body || {});
+// ============ CHECK + DOWNLOADS (from the saved record) ============
+
+router.post(`${BASE}/records/:recordId/check`, requireAuth, scopeToCompany, async (req, res) => {
+  const ctx = await loadReportContext(req, res);
   if (!ctx) return;
   res.json({
     ok: ctx.errors.length === 0,
@@ -333,14 +484,13 @@ router.post(`${BASE}/branches/:branchId/check`, requireAuth, scopeToCompany, asy
   });
 });
 
-router.get(`${BASE}/branches/:branchId/report.xlsx`, requireAuth, scopeToCompany, async (req, res) => {
-  const ctx = await prepareReport(req, res, req.query);
+router.get(`${BASE}/records/:recordId/report.xlsx`, requireAuth, scopeToCompany, async (req, res) => {
+  const ctx = await loadReportContext(req, res);
   if (!ctx) return;
   if (ctx.errors.length) return res.status(422).json({ error: ctx.errors.join(' '), errors: ctx.errors });
 
   const wb = await buildInvoiceWorkbook(ctx.branch, ctx.built);
-  const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
-  await logActivity(req.user.sub, 'Generated daily-sales Bukku invoice file', co[0].name,
+  await logActivity(req.user.sub, 'Downloaded daily-sales Bukku invoice file', await companyName(req.params.companyId),
     `${ctx.branch.report_prefix} ${rules.pad2(ctx.month)}/${ctx.year} — ${ctx.built.invoices.length} invoices, RM ${rules.formatCents(ctx.built.monthTotalCents)}`);
 
   const filename = `${rules.reportFileBase(ctx.branch, ctx.year, ctx.month)}.xlsx`;
@@ -350,8 +500,8 @@ router.get(`${BASE}/branches/:branchId/report.xlsx`, requireAuth, scopeToCompany
   res.end();
 });
 
-router.get(`${BASE}/branches/:branchId/report.pdf`, requireAuth, scopeToCompany, async (req, res) => {
-  const ctx = await prepareReport(req, res, req.query);
+router.get(`${BASE}/records/:recordId/report.pdf`, requireAuth, scopeToCompany, async (req, res) => {
+  const ctx = await loadReportContext(req, res);
   if (!ctx) return;
   if (ctx.errors.length) return res.status(422).json({ error: ctx.errors.join(' '), errors: ctx.errors });
 

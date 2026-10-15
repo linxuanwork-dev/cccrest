@@ -180,7 +180,7 @@
   .sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
   .sidebar-nav[hidden]{ display:none; }
   .nav-item[hidden]{ display:none; }
-  #dm-sales-picker[hidden], #sales-outlet-picker[hidden]{ display:none !important; }
+  #dm-sales-picker[hidden], #sales-outlet-picker[hidden], #dsi-menu-actions[hidden]{ display:none !important; }
   .export-row[hidden], .kpi-row[hidden], .recon-flag-note[hidden]{ display:none; }
 
   /* Daily Sales -> Bukku Sales Invoice */
@@ -796,19 +796,57 @@
           <span class="sub" id="sales-sub">Select a company · Aug 2026</span>
         </div>
 
-        <!-- Daily Sales -> Bukku Sales Invoice (Madam Lua / UK Lua branches). Branch list comes from the server. -->
+        <!-- Daily Sales -> Bukku Sales Invoice (Madam Lua / UK Lua). Branches, records and users all come from the server. -->
         <div id="dsi-picker" hidden>
           <div class="dsi-list" id="dsi-picker-list"></div>
         </div>
 
+        <div class="recon-card" id="dsi-records" hidden style="margin-bottom:22px;">
+          <button type="button" class="btn-ghost" id="dsi-records-back" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="back_to_report_list">← Back</button>
+          <div class="recon-step-label" data-i18n="dsi_records_title">Sales Summary records</div>
+
+          <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;background:var(--surface-alt);">
+            <div style="font-size:12.5px;font-weight:700;margin-bottom:10px;" data-i18n="dsi_new_month_title">Start a new month</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field" style="margin:0;"><label for="dsi-new-branch" data-i18n="dsi_branch">Branch</label><select id="dsi-new-branch"></select></div>
+              <div class="field" style="margin:0;"><label for="dsi-new-year" data-i18n="dsi_year">Year</label><select id="dsi-new-year"></select></div>
+              <div class="field" style="margin:0;"><label for="dsi-new-month" data-i18n="dsi_month">Month</label><select id="dsi-new-month"></select></div>
+              <button type="button" class="btn-primary" id="dsi-new-create" style="width:auto;padding:10px 18px;" data-i18n="dsi_new_month_btn">Create</button>
+            </div>
+            <div id="dsi-new-warn" hidden style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(232,140,30,0.18);font-size:12.5px;"></div>
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+            <div class="field" style="margin:0;"><label for="dsi-f-branch" data-i18n="dsi_branch">Branch</label><select id="dsi-f-branch"></select></div>
+            <div class="field" style="margin:0;"><label for="dsi-f-status" data-i18n="dsi_status">Status</label><select id="dsi-f-status"></select></div>
+            <div class="field" style="margin:0;"><label for="dsi-f-year" data-i18n="dsi_year">Year</label><select id="dsi-f-year"></select></div>
+          </div>
+          <div class="table-card" style="overflow-x:auto;">
+            <table>
+              <thead><tr>
+                <th data-i18n="dsi_branch">Branch</th><th data-i18n="dsi_th_month">Month</th><th data-i18n="dsi_status">Status</th>
+                <th data-i18n="dsi_th_days">Invoice days</th><th data-i18n="dsi_th_total">Total RM</th>
+                <th data-i18n="dsi_th_saved">Last saved</th><th data-i18n="dsi_th_checked">Checked</th><th></th>
+              </tr></thead>
+              <tbody id="dsi-records-tbody"></tbody>
+            </table>
+          </div>
+          <div id="dsi-records-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:10px;"></div>
+        </div>
+
         <div class="recon-card" id="dsi-card" hidden style="margin-bottom:22px;">
-          <button type="button" class="btn-ghost" id="dsi-back-btn" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="back_to_report_list">← Back</button>
+          <button type="button" class="btn-ghost" id="dsi-back-btn" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="dsi_back_to_records">← Records</button>
           <div class="recon-step-label" id="dsi-title"></div>
 
-          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
-            <div class="field" style="margin:0;"><label for="dsi-year" data-i18n="dsi_year">Year</label><select id="dsi-year"></select></div>
-            <div class="field" style="margin:0;"><label for="dsi-month" data-i18n="dsi_month">Month</label><select id="dsi-month"></select></div>
-            <span id="dsi-save-status" style="font-size:12px;color:var(--primary-soft);padding-bottom:12px;"></span>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+            <span id="dsi-period" style="font-size:17px;font-weight:700;"></span>
+            <span id="dsi-status-badge" class="badge"></span>
+            <span id="dsi-save-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
+          </div>
+          <div id="dsi-lock-banner" hidden style="margin:10px 0;padding:10px 12px;border-radius:8px;background:rgba(232,140,30,0.18);font-size:12.5px;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+            <button type="button" class="btn-primary" id="dsi-save-btn" style="width:auto;padding:10px 22px;" data-i18n="dsi_save_btn">Save</button>
+            <button type="button" class="btn-ghost" id="dsi-check-btn" hidden></button>
           </div>
 
           <div class="dsi-tabs" id="dsi-tabs">
@@ -867,9 +905,11 @@
           </div>
 
           <div style="border-top:1px solid var(--border);margin-top:22px;padding-top:16px;">
-            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div id="dsi-dl-msg" style="font-size:12.5px;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
               <div class="field" style="margin:0;min-width:220px;"><label for="dsi-prepared-by" data-i18n="dsi_prepared_by">Prepared by</label><input type="text" id="dsi-prepared-by" /></div>
-              <button type="button" class="btn-primary" id="dsi-generate-btn" style="width:auto;padding:10px 18px;" data-i18n="dsi_generate_btn">Generate Excel + PDF</button>
+              <button type="button" class="btn-ghost" id="dsi-dl-xlsx" data-i18n="dsi_download_xlsx">Download Excel</button>
+              <button type="button" class="btn-ghost" id="dsi-dl-pdf" data-i18n="dsi_download_pdf">Download PDF</button>
             </div>
             <div id="dsi-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:12px;"></div>
           </div>
@@ -1880,52 +1920,46 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="client-login-modal-backdrop" hidden>
-    <div class="modal-card">
+  <div class="modal-backdrop" id="cu-modal-backdrop" hidden>
+    <div class="modal-card" style="max-width:860px;">
       <div class="modal-header">
         <div>
-          <h3 id="client-login-modal-company" data-i18n="client_login_title">Client Login</h3>
-          <div class="modal-sub" data-i18n="client_login_sub">Owner only — manage this company's own login.</div>
+          <h3 id="cu-modal-title" data-i18n="cu_title">Users</h3>
+          <div class="modal-sub" data-i18n="cu_sub">People who can sign in for this company, and their level.</div>
         </div>
-        <button type="button" class="modal-close" id="client-login-modal-close" data-i18n-aria="close" aria-label="Close">
+        <button type="button" class="modal-close" id="cu-modal-close" data-i18n-aria="close" aria-label="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
-      <div class="modal-body">
-        <div id="client-login-loading" data-i18n="loading">Loading…</div>
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+        <div style="font-size:12px;color:var(--primary-soft);margin-bottom:14px;" data-i18n="cu_level_help">Staff: enter data and download. Manager: also edit menu / settings / special prices, mark records as Checked, amend Checked records, delete records and manage users.</div>
 
-        <div id="client-login-create-form" hidden>
-          <div class="field">
-            <label for="client-login-new-id" data-i18n="field_login_id">Login ID</label>
-            <input type="text" id="client-login-new-id" placeholder="e.g. own-laundry-sdn-bhd" />
-          </div>
-          <div class="field">
-            <label for="client-login-new-password" data-i18n="field_password">Password</label>
-            <input type="password" id="client-login-new-password" placeholder="••••••••" />
+        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;background:var(--surface-alt);">
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:10px;" data-i18n="cu_add_title">Add a user</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 14px;align-items:end;">
+            <div class="field" style="margin-bottom:10px;"><label for="cu-new-login" data-i18n="field_login_id">Login ID</label><input type="text" id="cu-new-login" autocomplete="off" /></div>
+            <div class="field" style="margin-bottom:10px;"><label for="cu-new-name" data-i18n="cu_th_name">Name</label><input type="text" id="cu-new-name" autocomplete="off" /></div>
+            <div class="field" style="margin-bottom:10px;"><label for="cu-new-password" data-i18n="field_password">Password</label><input type="password" id="cu-new-password" autocomplete="new-password" /></div>
+            <div class="field" style="margin-bottom:10px;"><label for="cu-new-level" data-i18n="cu_th_level">Level</label>
+              <select id="cu-new-level"><option value="staff" data-i18n="level_staff">Staff</option><option value="manager" data-i18n="level_manager">Manager</option></select>
+            </div>
+            <button type="button" class="btn-primary" id="cu-add-btn" style="width:auto;padding:10px 18px;margin-bottom:10px;" data-i18n="cu_add_btn">Add user</button>
           </div>
         </div>
 
-        <div id="client-login-existing" hidden>
-          <div class="field">
-            <label data-i18n="field_login_id">Login ID</label>
-            <div id="client-login-existing-id" style="padding:9px 0;font-weight:600;"></div>
-          </div>
-          <div class="field">
-            <label data-i18n="th_access">Access</label>
-            <div id="client-login-existing-status" style="padding:9px 0;font-weight:600;"></div>
-          </div>
-          <div class="field">
-            <label for="client-login-reset-password" data-i18n="reset_password_label">Reset Password (optional)</label>
-            <input type="password" id="client-login-reset-password" placeholder="Leave blank to keep current password" />
-          </div>
+        <div id="cu-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
+        <div class="table-card" style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th data-i18n="field_login_id">Login ID</th><th data-i18n="cu_th_name">Name</th><th data-i18n="cu_th_level">Level</th>
+              <th data-i18n="cu_th_active">Active</th><th data-i18n="cu_th_password">New password</th><th></th>
+            </tr></thead>
+            <tbody id="cu-tbody"></tbody>
+          </table>
         </div>
-
-        <div id="client-login-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-ghost" id="client-login-cancel" data-i18n="close">Close</button>
-        <button type="button" class="btn-ghost" id="client-login-toggle-active" hidden style="width:auto;padding:10px 18px;"></button>
-        <button type="button" class="btn-primary" id="client-login-submit" style="width:auto;padding:10px 18px;"></button>
+        <button type="button" class="btn-ghost" id="cu-close-btn" data-i18n="close">Close</button>
       </div>
     </div>
   </div>
@@ -2012,8 +2046,8 @@
       add_company_title:"Add Company", add_company_sub:"Add a new client company.", field_company_name:"Company Name",
       field_company_type:"Type (optional)",
       add_company_btn:"+ Add Company",
-      client_login_btn:"Login", client_login_title:"Client Login", client_login_sub:"Owner only — manage this company's own login.",
-      loading:"Loading…", reset_password_label:"Reset Password (optional)", create_login_btn:"Create Login",
+      client_login_btn:"Users",
+      loading:"Loading…",
       no_login_yet:"No login exists for this company yet.", deactivate_btn:"Deactivate", reactivate_btn:"Reactivate",
       login_created_success:"Login created.", login_updated_success:"Updated.",
       add_user_title:"Add User", add_user_sub:"Create a login and choose its role.", field_role:"Role",
@@ -2049,19 +2083,34 @@
       dsi_specials_title:"Special prices — only fill a cell when that day's price differs; blank = menu price.",
       dsi_manager_only:"Only a Manager can change this.",
       dsi_th_product:"Product", dsi_th_price:"Unit price RM", dsi_total_rm:"Total RM",
-      dsi_loading:"Loading…", dsi_saving:"Saving…", dsi_saved:"All changes saved ✓", dsi_save_failed:"Could not save",
       dsi_add_item:"+ Add item", dsi_save_menu:"Save menu", dsi_menu_saved:"Menu saved.",
       dsi_delete_item_confirm:"Remove this item? Its saved quantities and special prices will be deleted too.",
       dsi_save_settings:"Save settings", dsi_settings_saved:"Settings saved.",
       dsi_f_company_name:"Company name", dsi_f_reg_no:"Reg No.", dsi_f_address:"Address", dsi_f_report_prefix:"Report prefix",
       dsi_f_contact_code:"Contact Code", dsi_f_legal_name:"Legal Name", dsi_f_invoice_prefix:"Invoice no. prefix", dsi_f_invoice_suffix:"Invoice no. suffix",
       dsi_f_payment_term:"Payment Term", dsi_f_tags:"Tags", dsi_f_account_code:"Account Code", dsi_f_include_zero:"Include 0-quantity items", dsi_f_code:"Branch code",
-      dsi_prepared_by:"Prepared by", dsi_generate_btn:"Generate Excel + PDF", dsi_checking:"Checking…", dsi_generating:"Generating files…",
-      dsi_generated_ok:"Excel and PDF downloaded ✓", dsi_check_failed:"Cannot generate yet — please fix:",
+      dsi_prepared_by:"Prepared by", dsi_check_failed:"Cannot download yet — please fix:",
       dsi_bad_cells:"Some cells have invalid values (red outline). Quantities must be 0 or a whole number.",
       dsi_new_branch_title:"Add branch", dsi_new_branch_sub:"Creates the same daily entry, settings, menu and special prices for a new branch.",
       dsi_f_menu_lines:"Menu — one item per line: Product name | price", dsi_create_branch_btn:"Create branch", dsi_branch_created:"Branch created.",
       dsi_menu_line_bad:"Can't read this menu line (use 'Product name | price'):",
+      dsi_records_title:"Sales Summary records", dsi_all_records:"All records", dsi_new_month_title:"Start a new month", dsi_new_month_btn:"Create",
+      dsi_branch:"Branch", dsi_all:"All", dsi_status:"Status", dsi_status_pending:"Pending", dsi_status_checked:"Checked",
+      dsi_th_month:"Month", dsi_th_days:"Invoice days", dsi_th_total:"Total RM", dsi_th_saved:"Last saved", dsi_th_checked:"Checked",
+      dsi_open:"Open", dsi_mark_checked:"Mark as checked", dsi_mark_pending:"Mark as pending", dsi_delete:"Delete",
+      dsi_delete_record_confirm:"Delete {record}? This also deletes that month's saved quantities and special prices.",
+      dsi_dup_warn:"{branch} already has a record for {month} (status: {status}). The same month can't be created twice — open the existing record instead.",
+      dsi_open_existing:"Open existing record", dsi_no_records:"No records yet.", dsi_back_to_records:"← Records",
+      dsi_save_btn:"Save", dsi_unsaved:"● Unsaved changes", dsi_saved_now:"Saved ✓", dsi_save_first:"Please save your changes first.",
+      dsi_download_xlsx:"Download Excel", dsi_download_pdf:"Download PDF",
+      dsi_dl_ready:"Saved ✓ — you can now download the Excel or PDF.", dsi_dl_need_save:"Save first to download.",
+      dsi_locked_banner:"This record is marked Checked. Only a Manager can amend it.",
+      dsi_checked_manager_banner:"Checked by {name}. As a Manager you can still amend it.",
+      dsi_discard_confirm:"You have unsaved changes. Leave without saving?", dsi_manage_users:"Users",
+      cu_title:"Users", cu_sub:"People who can sign in for this company, and their level.",
+      cu_level_help:"Staff: enter data and download. Manager: also edit menu / settings / special prices, mark records as Checked, amend Checked records, delete records and manage users.",
+      cu_add_title:"Add a user", cu_add_btn:"Add user", cu_th_name:"Name", cu_th_level:"Level", cu_th_active:"Active", cu_th_password:"New password",
+      cu_pw_placeholder:"Leave blank to keep", cu_you:"you", cu_none:"No users yet.", level_staff:"Staff", level_manager:"Manager",
       nav_service_bookkeeping:"Bookkeeping", nav_service_hr:"HR",
       picker_service_hint:"Service: {service} — choose a company to continue",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
@@ -2233,8 +2282,8 @@
       add_company_title:"添加公司", add_company_sub:"添加一个新的客户公司。", field_company_name:"公司名称",
       field_company_type:"类型（可选）",
       add_company_btn:"+ 添加公司",
-      client_login_btn:"登录账号", client_login_title:"客户登录账号", client_login_sub:"仅限东主 · 管理此公司自己的登录账号。",
-      loading:"加载中…", reset_password_label:"重置密码（可选）", create_login_btn:"创建登录账号",
+      client_login_btn:"用户",
+      loading:"加载中…",
       no_login_yet:"该公司尚未创建登录账号。", deactivate_btn:"停用", reactivate_btn:"启用",
       login_created_success:"登录账号已创建。", login_updated_success:"已更新。",
       add_user_title:"添加用户", add_user_sub:"创建登录账号并选择角色。", field_role:"角色",
@@ -2270,19 +2319,34 @@
       dsi_specials_title:"特价 — 某一天价钱不同才填；留空 = 用菜单价",
       dsi_manager_only:"此项目只有 Manager 可以修改",
       dsi_th_product:"项目", dsi_th_price:"单价 RM", dsi_total_rm:"合计 RM",
-      dsi_loading:"载入中…", dsi_saving:"保存中…", dsi_saved:"已全部保存 ✓", dsi_save_failed:"保存失败",
       dsi_add_item:"+ 新增项目", dsi_save_menu:"保存菜单", dsi_menu_saved:"菜单已保存。",
       dsi_delete_item_confirm:"确定删除此项目？它已保存的数量和特价也会一并删除。",
       dsi_save_settings:"保存设定", dsi_settings_saved:"设定已保存。",
       dsi_f_company_name:"公司名", dsi_f_reg_no:"Reg No.", dsi_f_address:"地址", dsi_f_report_prefix:"报告前缀",
       dsi_f_contact_code:"Contact Code", dsi_f_legal_name:"Legal Name", dsi_f_invoice_prefix:"单号前缀", dsi_f_invoice_suffix:"单号后缀",
       dsi_f_payment_term:"Payment Term", dsi_f_tags:"Tags", dsi_f_account_code:"Account Code", dsi_f_include_zero:"包括 0 数量项目", dsi_f_code:"分店代号",
-      dsi_prepared_by:"输入者（Prepared by）", dsi_generate_btn:"生成 Excel + PDF", dsi_checking:"检查中…", dsi_generating:"正在生成文件…",
-      dsi_generated_ok:"Excel 和 PDF 已下载 ✓", dsi_check_failed:"暂时不能生成，请先处理：",
+      dsi_prepared_by:"输入者（Prepared by）", dsi_check_failed:"暂时不能下载，请先处理：",
       dsi_bad_cells:"有些格子的值无效（红框）。数量只能是 0 或正整数。",
       dsi_new_branch_title:"新增分店", dsi_new_branch_sub:"为新分店建立同样的进单页、设定、菜单和特价。",
       dsi_f_menu_lines:"菜单 — 每行一个项目：Product 名字 | 单价", dsi_create_branch_btn:"建立分店", dsi_branch_created:"分店已建立。",
       dsi_menu_line_bad:"无法读取此菜单行（格式：Product 名字 | 单价）：",
+      dsi_records_title:"销售汇总记录", dsi_all_records:"所有记录", dsi_new_month_title:"新建月份", dsi_new_month_btn:"建立",
+      dsi_branch:"分店", dsi_all:"全部", dsi_status:"状态", dsi_status_pending:"待审核 Pending", dsi_status_checked:"已审核 Checked",
+      dsi_th_month:"月份", dsi_th_days:"开单天数", dsi_th_total:"合计 RM", dsi_th_saved:"最后保存", dsi_th_checked:"审核",
+      dsi_open:"打开", dsi_mark_checked:"标记为 Checked", dsi_mark_pending:"改回 Pending", dsi_delete:"删除",
+      dsi_delete_record_confirm:"确定删除 {record}？该月份已保存的数量和特价也会一并删除。",
+      dsi_dup_warn:"{branch} 已经有 {month} 的记录（状态：{status}）。同一个月份不能重复建立，请打开现有记录。",
+      dsi_open_existing:"打开现有记录", dsi_no_records:"还没有记录。", dsi_back_to_records:"← 记录",
+      dsi_save_btn:"保存", dsi_unsaved:"● 有未保存的更改", dsi_saved_now:"已保存 ✓", dsi_save_first:"请先保存更改。",
+      dsi_download_xlsx:"下载 Excel", dsi_download_pdf:"下载 PDF",
+      dsi_dl_ready:"已保存 ✓ — 现在可以下载 Excel 或 PDF。", dsi_dl_need_save:"请先保存才能下载。",
+      dsi_locked_banner:"此记录已标记为 Checked，只有 Manager 可以修改。",
+      dsi_checked_manager_banner:"已由 {name} 审核（Checked）。你是 Manager，仍可修改。",
+      dsi_discard_confirm:"有未保存的更改，确定要离开吗？", dsi_manage_users:"用户",
+      cu_title:"用户", cu_sub:"可以登录此公司的人员及其级别。",
+      cu_level_help:"Staff：可输入数据和下载。Manager：还可修改菜单／设定／特价、标记 Checked、修改已 Checked 的记录、删除记录和管理用户。",
+      cu_add_title:"新增用户", cu_add_btn:"新增用户", cu_th_name:"姓名", cu_th_level:"级别", cu_th_active:"启用", cu_th_password:"新密码",
+      cu_pw_placeholder:"留空 = 不改", cu_you:"你", cu_none:"还没有用户。", level_staff:"Staff 员工", level_manager:"Manager 经理",
       nav_service_bookkeeping:"记账 Bookkeeping", nav_service_hr:"人事 HR",
       picker_service_hint:"服务：{service} — 请选择公司以继续",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
@@ -3274,7 +3338,7 @@
 
     tbody.querySelectorAll('[data-client-login]').forEach(function(btn){
       btn.addEventListener('click', function(){
-        openClientLoginModal(Number(btn.dataset.clientLogin), btn.dataset.clientLoginName);
+        openCompanyUsersModal(Number(btn.dataset.clientLogin), btn.dataset.clientLoginName);
       });
     });
 
@@ -3380,6 +3444,7 @@
     var ring = document.getElementById('sales-ring-circle');
     var filenameEl = document.getElementById('sales-export-filename');
     var normalSections = [document.getElementById('sales-export-row'), document.getElementById('sales-kpi-row'), document.getElementById('sales-table-card')];
+    if(dsiKeepOpen()) return;   // an open Daily Sales worksheet / records page stays as it is (e.g. on a language switch)
 
     // Every company's Sales Summary picker/drill-in panel (if any) gets hidden
     // first, then only the current company's own override (if it has one) is
@@ -3389,6 +3454,7 @@
     });
     document.getElementById('dm-invoice-card').hidden = true;
     document.getElementById('dsi-card').hidden = true;
+    document.getElementById('dsi-records').hidden = true;
 
     var override = SALES_SUMMARY_OVERRIDES[normCompany(currentCompany)];
     if(override){
@@ -3761,130 +3827,298 @@
   });
 
   // ============ DAILY SALES -> BUKKU SALES INVOICE (Madam Lua / UK Lua branches) ============
-  // Branches, menus, quantities and special prices all live on the server; the card below only edits them.
-  var dsi = { companyId:null, branches:[], branch:null, year:0, month:0, qty:{}, specials:{}, dirtyQty:{}, dirtySp:{}, timer:null, queue:null, loadToken:0, menuDraft:[] };
+  // Branches, records (one per branch + month), menus, quantities and special prices all live on the
+  // server. A worksheet only changes the database when Save is pressed.
+  var dsi = {
+    companyId:null, canManage:false, branches:[], records:[], filter:{ branchId:'', status:'', year:'' },
+    branch:null, record:null, locked:false, qty:{}, specials:{}, dirtyQty:{}, dirtySp:{}, menuDraft:[], savedText:''
+  };
   var DSI_SETTING_FIELDS = ['companyName','regNo','address','reportPrefix','contactCode','legalName','invoicePrefix','invoiceSuffix','paymentTerm','tags','accountCode'];
+  var DSI_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-  function dsiCanEdit(){ return CURRENT_ROLE === 'admin' || CURRENT_ROLE === 'manager'; }
-  function dsiBaseFor(companyId){ return '/companies/' + companyId + '/dsi'; }
+  function dsiBase(){ return '/companies/' + dsi.companyId + '/dsi'; }
   function dsiEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function dsiDaysIn(y, m){ return new Date(y, m, 0).getDate(); }
   function dsiWeekdayLabel(wd){ return (LANG === 'zh' ? ['日','一','二','三','四','五','六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'])[wd]; }
-  function dsiSetStatus(text, isError){
-    var el = document.getElementById('dsi-save-status');
-    el.textContent = text || '';
-    el.style.color = isError ? 'var(--danger)' : 'var(--primary-soft)';
-  }
   function dsiFmt(cents){ return (cents / 100).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+  function dsiMonthKey(y, m){ return y + '-' + (m < 10 ? '0' : '') + m; }
+  function dsiPeriodLabel(y, m){ return LANG === 'zh' ? (y + '年' + m + '月') : (DSI_MONTH_NAMES[m - 1] + ' ' + y); }
+  function dsiStamp(iso){ return iso ? new Date(iso).toLocaleString('en-GB', { timeZone:'Asia/Kuala_Lumpur', dateStyle:'short', timeStyle:'short' }) : '—'; }
+  function dsiIsDirty(){ return Object.keys(dsi.dirtyQty).length + Object.keys(dsi.dirtySp).length > 0; }
+  function dsiById(id){ return document.getElementById(id); }
 
+  // picker -> records list -> worksheet
+  function dsiShowView(view){
+    dsiById('dsi-picker').hidden = view !== 'picker';
+    dsiById('dsi-records').hidden = view !== 'records';
+    dsiById('dsi-card').hidden = view !== 'card';
+  }
+
+  // renderSales() runs again on a language switch; don't throw away an open worksheet when it does.
+  function dsiKeepOpen(){
+    var open = !dsiById('dsi-card').hidden || !dsiById('dsi-records').hidden;
+    return open && !!dsi.companyId && dsi.companyId === customerRecordId(currentCompany);
+  }
+
+  // Called before switching company: unsaved worksheet edits would be lost.
+  function dsiConfirmLeave(nextCompanyName){
+    if(!dsiIsDirty() || !dsi.companyId || dsi.companyId === customerRecordId(nextCompanyName)) return true;
+    return confirm(t('dsi_discard_confirm'));
+  }
+  window.addEventListener('beforeunload', function(e){
+    if(dsiIsDirty()){ e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // ---- Picker ----
   function dsiLoadBranches(){
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
-    api(dsiBaseFor(companyId) + '/branches').then(function(list){
+    api('/companies/' + companyId + '/dsi/branches').then(function(res){
       if(customerRecordId(currentCompany) !== companyId) return;
-      dsi.branches = list;
+      dsi.companyId = companyId;
+      dsi.canManage = res.canManage;
+      dsi.branches = res.branches;
       renderDsiPicker();
     }).catch(function(err){
-      document.getElementById('dsi-picker-list').innerHTML = '<div style="color:var(--danger);font-size:12.5px;">' + dsiEsc(err.message) + '</div>';
+      dsiById('dsi-picker-list').innerHTML = '<div style="color:var(--danger);font-size:12.5px;">' + dsiEsc(err.message) + '</div>';
     });
   }
 
   function renderDsiPicker(){
-    var host = document.getElementById('dsi-picker-list');
+    var host = dsiById('dsi-picker-list');
     var html = dsi.branches.map(function(b){
-      return '<button type="button" class="btn-row" data-dsi-open="' + b.id + '" style="text-align:left;padding:14px 16px;font-size:14px;">' + dsiEsc(b.reportPrefix) + ' — ' + t('dsi_picker_label') + '</button>';
+      return '<button type="button" class="btn-row" data-dsi-branch="' + b.id + '" style="text-align:left;padding:14px 16px;font-size:14px;">' + dsiEsc(b.reportPrefix) + ' — ' + t('dsi_picker_label') + '</button>';
     }).join('');
     if(!dsi.branches.length) html = '<div style="font-size:13px;color:var(--primary-soft);">' + t('dsi_no_branches') + '</div>';
-    if(dsiCanEdit()) html += '<button type="button" class="btn-ghost" id="dsi-add-branch-btn" style="align-self:flex-start;">' + t('dsi_add_branch') + '</button>';
+    html += '<button type="button" class="btn-ghost" id="dsi-all-records" style="align-self:flex-start;">' + t('dsi_all_records') + '</button>';
+    if(dsi.canManage){
+      html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        '<button type="button" class="btn-ghost" id="dsi-add-branch-btn">' + t('dsi_add_branch') + '</button>' +
+        '<button type="button" class="btn-ghost" id="dsi-users-btn">' + t('dsi_manage_users') + '</button></div>';
+    }
     host.innerHTML = html;
-    host.querySelectorAll('[data-dsi-open]').forEach(function(btn){
-      btn.addEventListener('click', function(){ openDsiBranch(Number(btn.dataset.dsiOpen)); });
+    host.querySelectorAll('[data-dsi-branch]').forEach(function(btn){
+      btn.addEventListener('click', function(){ dsiShowRecords(btn.dataset.dsiBranch); });
     });
-    var add = document.getElementById('dsi-add-branch-btn');
+    dsiById('dsi-all-records').addEventListener('click', function(){ dsiShowRecords(''); });
+    var add = dsiById('dsi-add-branch-btn');
     if(add) add.addEventListener('click', openDsiBranchModal);
+    var users = dsiById('dsi-users-btn');
+    if(users) users.addEventListener('click', function(){ openCompanyUsersModal(dsi.companyId, currentCompany); });
   }
 
-  function dsiFillPeriodSelects(){
-    var ySel = document.getElementById('dsi-year');
-    var mSel = document.getElementById('dsi-month');
-    var yHtml = '';
-    for(var y = 2025; y <= 2035; y++) yHtml += '<option value="' + y + '">' + y + '</option>';
-    var mHtml = '';
-    for(var m = 1; m <= 12; m++) mHtml += '<option value="' + m + '">' + m + '</option>';
-    ySel.innerHTML = yHtml;
-    mSel.innerHTML = mHtml;
-    ySel.value = String(dsi.year);
-    mSel.value = String(dsi.month);
+  // ---- Records page ----
+  function dsiOptions(from, to, selected, allLabel){
+    var html = allLabel ? '<option value="">' + allLabel + '</option>' : '';
+    for(var v = from; v <= to; v++) html += '<option value="' + v + '"' + (String(v) === String(selected) ? ' selected' : '') + '>' + v + '</option>';
+    return html;
   }
 
-  function openDsiBranch(branchId){
-    var b = dsi.branches.find(function(x){ return x.id === branchId; });
-    if(!b) return;
-    dsi.companyId = customerRecordId(currentCompany);
-    dsi.branch = b;
+  function dsiFillRecordControls(){
     var now = new Date();
-    dsi.year = Math.min(2035, Math.max(2025, now.getFullYear()));
-    dsi.month = now.getMonth() + 1;
-    dsiFillPeriodSelects();
-    document.getElementById('dsi-title').textContent = b.code + ' — ' + t('dsi_title');
-    document.getElementById('dsi-prepared-by').value = (CURRENT_USER && (CURRENT_USER.displayName || CURRENT_USER.companyName)) || '';
-    document.getElementById('dsi-error').hidden = true;
-    dsiSetStatus('');
-    renderDsiSettings();
-    renderDsiMenu();
-    document.getElementById('dsi-picker').hidden = true;
-    document.getElementById('dsi-card').hidden = false;
-    dsiShowTab('entry');
-    dsiLoadMonth();
+    var branchOpts = dsi.branches.map(function(b){ return '<option value="' + b.id + '">' + dsiEsc(b.reportPrefix) + '</option>'; }).join('');
+    dsiById('dsi-new-branch').innerHTML = branchOpts;
+    if(dsi.filter.branchId) dsiById('dsi-new-branch').value = dsi.filter.branchId;
+    dsiById('dsi-new-year').innerHTML = dsiOptions(2025, 2035, Math.min(2035, Math.max(2025, now.getFullYear())));
+    dsiById('dsi-new-month').innerHTML = dsiOptions(1, 12, now.getMonth() + 1);
+    dsiById('dsi-f-branch').innerHTML = '<option value="">' + t('dsi_all') + '</option>' + branchOpts;
+    dsiById('dsi-f-branch').value = dsi.filter.branchId;
+    dsiById('dsi-f-status').innerHTML = '<option value="">' + t('dsi_all') + '</option><option value="pending">' + t('dsi_status_pending') + '</option><option value="checked">' + t('dsi_status_checked') + '</option>';
+    dsiById('dsi-f-status').value = dsi.filter.status;
+    dsiById('dsi-f-year').innerHTML = dsiOptions(2025, 2035, dsi.filter.year, t('dsi_all'));
+  }
+
+  function dsiShowRecords(branchId){
+    dsi.filter.branchId = branchId ? String(branchId) : '';
+    dsiShowView('records');
+    dsiById('dsi-records-error').hidden = true;
+    dsiFillRecordControls();
+    dsiLoadRecords();
+  }
+
+  function dsiLoadRecords(){
+    api(dsiBase() + '/records').then(function(res){
+      dsi.records = res.records;
+      dsi.canManage = res.canManage;
+      renderDsiRecords();
+      dsiCheckDuplicate();
+    }).catch(function(err){
+      dsiById('dsi-records-error').textContent = err.message;
+      dsiById('dsi-records-error').hidden = false;
+    });
+  }
+
+  function dsiStatusBadge(status){
+    return '<span class="badge ' + (status === 'checked' ? 'synced' : 'pending') + '">' + t('dsi_status_' + status) + '</span>';
+  }
+
+  function renderDsiRecords(){
+    var f = dsi.filter;
+    var rows = dsi.records.filter(function(r){
+      return (!f.branchId || String(r.branchId) === f.branchId) && (!f.status || r.status === f.status) && (!f.year || String(r.year) === f.year);
+    });
+    var tbody = dsiById('dsi-records-tbody');
+    if(!rows.length){ tbody.innerHTML = emptyRow(8, t('dsi_no_records')); return; }
+    tbody.innerHTML = rows.map(function(r){
+      var canDownload = r.invoiceDays > 0;
+      var actions = '<button type="button" class="btn-row" data-dsi-open="' + r.id + '">' + t('dsi_open') + '</button>' +
+        '<button type="button" class="btn-row" data-dsi-dl="xlsx:' + r.id + '"' + (canDownload ? '' : ' disabled') + '>Excel</button>' +
+        '<button type="button" class="btn-row" data-dsi-dl="pdf:' + r.id + '"' + (canDownload ? '' : ' disabled') + '>PDF</button>';
+      if(dsi.canManage){
+        actions += '<button type="button" class="btn-row" data-dsi-status="' + r.id + ':' + (r.status === 'checked' ? 'pending' : 'checked') + '">' + t(r.status === 'checked' ? 'dsi_mark_pending' : 'dsi_mark_checked') + '</button>' +
+          '<button type="button" class="btn-row" data-dsi-del="' + r.id + '">' + t('dsi_delete') + '</button>';
+      }
+      return '<tr><td>' + dsiEsc(r.reportPrefix) + '</td><td class="num">' + dsiMonthKey(r.year, r.month) + '</td><td>' + dsiStatusBadge(r.status) + '</td>' +
+        '<td class="num">' + r.invoiceDays + '</td><td class="num">' + money(r.totalCents / 100) + '</td>' +
+        '<td>' + dsiStamp(r.savedAt) + (r.savedBy ? '<div style="font-size:11px;color:var(--primary-soft);">' + dsiEsc(r.savedBy) + '</div>' : '') + '</td>' +
+        '<td>' + (r.checkedAt ? dsiStamp(r.checkedAt) + '<div style="font-size:11px;color:var(--primary-soft);">' + dsiEsc(r.checkedBy || '') + '</div>' : '—') + '</td>' +
+        '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + actions + '</div></td></tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-dsi-open]').forEach(function(b){ b.addEventListener('click', function(){ dsiOpenRecord(Number(b.dataset.dsiOpen)); }); });
+    tbody.querySelectorAll('[data-dsi-dl]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var p = b.dataset.dsiDl.split(':');
+        dsiDownloadRecord(Number(p[1]), p[0], dsiById('dsi-records-error'));
+      });
+    });
+    tbody.querySelectorAll('[data-dsi-status]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var p = b.dataset.dsiStatus.split(':');
+        dsiSetStatus(Number(p[0]), p[1], dsiById('dsi-records-error')).then(dsiLoadRecords);
+      });
+    });
+    tbody.querySelectorAll('[data-dsi-del]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var rec = dsi.records.find(function(r){ return r.id === Number(b.dataset.dsiDel); });
+        if(!rec || !confirm(t('dsi_delete_record_confirm').replace('{record}', rec.reportPrefix + ' ' + dsiMonthKey(rec.year, rec.month)))) return;
+        api(dsiBase() + '/records/' + rec.id, { method:'DELETE' }).then(dsiLoadRecords).catch(function(err){
+          dsiById('dsi-records-error').textContent = err.message;
+          dsiById('dsi-records-error').hidden = false;
+        });
+      });
+    });
+  }
+
+  ['dsi-f-branch','dsi-f-status','dsi-f-year'].forEach(function(id){
+    dsiById(id).addEventListener('change', function(){
+      dsi.filter.branchId = dsiById('dsi-f-branch').value;
+      dsi.filter.status = dsiById('dsi-f-status').value;
+      dsi.filter.year = dsiById('dsi-f-year').value;
+      renderDsiRecords();
+    });
+  });
+
+  // The same branch can't have two records for one month.
+  function dsiCheckDuplicate(){
+    var b = Number(dsiById('dsi-new-branch').value);
+    var y = Number(dsiById('dsi-new-year').value);
+    var m = Number(dsiById('dsi-new-month').value);
+    var ex = dsi.records.find(function(r){ return r.branchId === b && r.year === y && r.month === m; });
+    var warn = dsiById('dsi-new-warn');
+    var btn = dsiById('dsi-new-create');
+    if(!ex){ warn.hidden = true; btn.disabled = false; return; }
+    warn.innerHTML = '⚠ ' + t('dsi_dup_warn').replace('{branch}', dsiEsc(ex.reportPrefix)).replace('{month}', dsiMonthKey(y, m)).replace('{status}', t('dsi_status_' + ex.status)) +
+      ' <button type="button" class="btn-row" id="dsi-open-existing">' + t('dsi_open_existing') + '</button>';
+    warn.hidden = false;
+    btn.disabled = true;
+    dsiById('dsi-open-existing').addEventListener('click', function(){ dsiOpenRecord(ex.id); });
+  }
+  ['dsi-new-branch','dsi-new-year','dsi-new-month'].forEach(function(id){ dsiById(id).addEventListener('change', dsiCheckDuplicate); });
+
+  dsiById('dsi-new-create').addEventListener('click', function(){
+    var body = { branchId:Number(dsiById('dsi-new-branch').value), year:Number(dsiById('dsi-new-year').value), month:Number(dsiById('dsi-new-month').value) };
+    var btn = this;
+    btn.disabled = true;
+    fetch('/api' + dsiBase() + '/records', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) })
+      .then(function(res){ return res.json().then(function(data){ return { ok:res.ok, status:res.status, data:data }; }); })
+      .then(function(res){
+        if(res.ok){ dsiOpenRecord(res.data.id); return; }
+        var warn = dsiById('dsi-new-warn');
+        warn.textContent = '⚠ ' + (res.data.error || 'Could not create');
+        warn.hidden = false;
+        if(res.status === 409) dsiLoadRecords(); else btn.disabled = false;
+      })
+      .catch(function(err){ dsiById('dsi-records-error').textContent = err.message; dsiById('dsi-records-error').hidden = false; btn.disabled = false; });
+  });
+
+  dsiById('dsi-records-back').addEventListener('click', function(){ dsiShowView('picker'); });
+
+  // ---- Worksheet ----
+  function dsiOpenRecord(recordId){
+    api(dsiBase() + '/records/' + recordId).then(function(data){
+      dsi.record = data.record;
+      dsi.branch = data.branch;
+      dsi.qty = data.qty;
+      dsi.specials = data.specials;
+      dsi.canManage = data.canManage;
+      dsi.locked = data.locked;
+      dsi.dirtyQty = {};
+      dsi.dirtySp = {};
+      dsi.savedText = '';
+      dsiById('dsi-error').hidden = true;
+      dsiRenderHeader();
+      renderDsiSettings();
+      renderDsiMenu();
+      dsiShowView('card');
+      dsiShowTab('entry');
+      dsiSetDirtyUi();
+    }).catch(function(err){
+      var box = dsiById('dsi-records-error');
+      box.textContent = err.message;
+      box.hidden = false;
+    });
+  }
+
+  function dsiRenderHeader(){
+    var rec = dsi.record;
+    dsiById('dsi-title').textContent = dsi.branch.code + ' — ' + t('dsi_title');
+    dsiById('dsi-period').textContent = dsiPeriodLabel(rec.year, rec.month);
+    var badge = dsiById('dsi-status-badge');
+    badge.className = 'badge ' + (rec.status === 'checked' ? 'synced' : 'pending');
+    badge.textContent = t('dsi_status_' + rec.status);
+
+    var banner = dsiById('dsi-lock-banner');
+    if(rec.status === 'checked'){
+      banner.textContent = dsi.locked ? t('dsi_locked_banner') : t('dsi_checked_manager_banner').replace('{name}', rec.checkedBy || '—');
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+    dsiById('dsi-save-btn').hidden = dsi.locked;
+    var checkBtn = dsiById('dsi-check-btn');
+    checkBtn.hidden = !dsi.canManage;
+    checkBtn.textContent = t(rec.status === 'checked' ? 'dsi_mark_pending' : 'dsi_mark_checked');
+  }
+
+  // Unsaved changes: show it, and make downloads wait until the sheet has been saved.
+  function dsiSetDirtyUi(){
+    var dirty = dsiIsDirty();
+    var status = dsiById('dsi-save-status');
+    status.textContent = dirty ? t('dsi_unsaved') : dsi.savedText;
+    status.style.color = dirty ? 'var(--danger)' : 'var(--primary-soft)';
+    dsiById('dsi-dl-xlsx').disabled = dirty;
+    dsiById('dsi-dl-pdf').disabled = dirty;
+    var msg = dsiById('dsi-dl-msg');
+    msg.textContent = dirty ? t('dsi_dl_need_save') : (dsi.savedText ? t('dsi_dl_ready') : '');
+    msg.style.color = dirty ? 'var(--danger)' : 'var(--accent)';
   }
 
   function dsiShowTab(tab){
     document.querySelectorAll('#dsi-tabs .dsi-tab').forEach(function(btn){ btn.classList.toggle('active', btn.dataset.dsiTab === tab); });
-    ['entry','specials','menu','settings'].forEach(function(name){ document.getElementById('dsi-pane-' + name).hidden = name !== tab; });
+    ['entry','specials','menu','settings'].forEach(function(name){ dsiById('dsi-pane-' + name).hidden = name !== tab; });
     if(tab === 'entry') renderDsiGrid();
     if(tab === 'specials') renderDsiSpecials();
-  }
-
-  // Replace both grids with a placeholder while a month loads, so nothing can be typed
-  // into the previous month's cells and then saved against the new month.
-  function dsiShowLoading(){
-    var html = '<div style="padding:22px;color:var(--primary-soft);font-size:13px;">' + t('dsi_loading') + '</div>';
-    document.getElementById('dsi-entry-wrap').innerHTML = html;
-    document.getElementById('dsi-specials-wrap').innerHTML = html;
-  }
-
-  function dsiLoadMonth(){
-    var b = dsi.branch;
-    if(!b) return;
-    var token = ++dsi.loadToken;
-    dsiShowLoading();
-    dsiSetStatus(t('dsi_loading'));
-    api(dsiBaseFor(dsi.companyId) + '/branches/' + b.id + '/month?year=' + dsi.year + '&month=' + dsi.month).then(function(data){
-      if(token !== dsi.loadToken) return;
-      dsi.qty = data.qty;
-      dsi.specials = data.specials;
-      dsi.dirtyQty = {};
-      dsi.dirtySp = {};
-      dsiSetStatus('');
-      renderDsiGrid();
-      renderDsiSpecials();
-    }).catch(function(err){
-      if(token !== dsi.loadToken) return;
-      dsiSetStatus(err.message, true);
-      var html = '<div style="padding:22px;color:var(--danger);font-size:13px;">' + dsiEsc(err.message) + '</div>';
-      document.getElementById('dsi-entry-wrap').innerHTML = html;
-      document.getElementById('dsi-specials-wrap').innerHTML = html;
-    });
   }
 
   // kind: 'qty' (daily entry) or 'sp' (special prices)
   function dsiGridHtml(kind){
     var b = dsi.branch;
-    var days = dsiDaysIn(dsi.year, dsi.month);
-    var editable = kind === 'qty' || dsiCanEdit();
+    var rec = dsi.record;
+    var days = dsiDaysIn(rec.year, rec.month);
+    var editable = kind === 'qty' ? !dsi.locked : (dsi.canManage && !dsi.locked);
     var html = '<table class="dsi-grid"><thead><tr><th class="dsi-name">' + t('dsi_th_product') + '</th>';
     for(var d = 1; d <= days; d++){
-      var wd = new Date(dsi.year, dsi.month - 1, d).getDay();
+      var wd = new Date(rec.year, rec.month - 1, d).getDay();
       html += '<th class="' + ((wd === 0 || wd === 6) ? 'dsi-weekend' : '') + '">' + d + '<br><span style="font-weight:400;color:var(--primary-soft);">' + dsiWeekdayLabel(wd) + '</span></th>';
     }
     html += '</tr></thead><tbody>';
@@ -3892,7 +4126,7 @@
       html += '<tr><td class="dsi-name">' + dsiEsc(it.product) + '<div style="font-size:11px;color:var(--primary-soft);">RM ' + Number(it.unitPrice).toFixed(2) + '</div></td>';
       for(var day = 1; day <= days; day++){
         var key = day + ':' + it.id;
-        var wk = new Date(dsi.year, dsi.month - 1, day).getDay();
+        var wk = new Date(rec.year, rec.month - 1, day).getDay();
         var cls = (wk === 0 || wk === 6) ? 'dsi-weekend' : '';
         var hasSpecial = dsi.specials[key] != null;
         var val = kind === 'qty' ? dsi.qty[key] : dsi.specials[key];
@@ -3913,16 +4147,16 @@
 
   function renderDsiGrid(){
     if(!dsi.branch) return;
-    document.getElementById('dsi-entry-wrap').innerHTML = dsiGridHtml('qty');
+    dsiById('dsi-entry-wrap').innerHTML = dsiGridHtml('qty');
     dsiUpdateTotals();
   }
 
   function renderDsiSpecials(){
     if(!dsi.branch) return;
-    var note = document.getElementById('dsi-specials-note');
-    note.hidden = dsiCanEdit();
+    var note = dsiById('dsi-specials-note');
+    note.hidden = dsi.canManage;
     note.textContent = t('dsi_manager_only');
-    document.getElementById('dsi-specials-wrap').innerHTML = dsiGridHtml('sp');
+    dsiById('dsi-specials-wrap').innerHTML = dsiGridHtml('sp');
   }
 
   function dsiDayCents(d){
@@ -3939,15 +4173,15 @@
 
   function dsiUpdateTotals(){
     if(!dsi.branch) return;
-    var days = dsiDaysIn(dsi.year, dsi.month);
+    var days = dsiDaysIn(dsi.record.year, dsi.record.month);
     var month = 0;
     for(var d = 1; d <= days; d++){
       var c = dsiDayCents(d);
       month += c;
-      var el = document.getElementById('dsi-total-' + d);
+      var el = dsiById('dsi-total-' + d);
       if(el) el.textContent = c ? (c / 100).toFixed(2) : '';
     }
-    var mt = document.getElementById('dsi-month-total');
+    var mt = dsiById('dsi-month-total');
     if(mt) mt.textContent = '(' + dsiFmt(month) + ')';
   }
 
@@ -3973,107 +4207,187 @@
       dsi.dirtySp[key] = val == null ? '' : val;
     }
     dsiUpdateTotals();
-    dsiSchedule();
+    dsiSetDirtyUi();
   }
-  document.getElementById('dsi-entry-wrap').addEventListener('input', dsiOnCellInput);
-  document.getElementById('dsi-specials-wrap').addEventListener('input', dsiOnCellInput);
+  dsiById('dsi-entry-wrap').addEventListener('input', dsiOnCellInput);
+  dsiById('dsi-specials-wrap').addEventListener('input', dsiOnCellInput);
 
-  function dsiSchedule(){
-    dsiSetStatus(t('dsi_saving'));
-    clearTimeout(dsi.timer);
-    dsi.timer = setTimeout(dsiFlush, 700);
-  }
-
-  // Saves are chained so two flushes can never reach the server out of order.
-  function dsiFlush(){
-    clearTimeout(dsi.timer);
-    dsi.queue = (dsi.queue || Promise.resolve()).then(dsiDoFlush);
-    return dsi.queue;
-  }
-
-  function dsiDoFlush(){
-    var b = dsi.branch;
-    if(!b) return true;
-    var q = dsi.dirtyQty;
-    var s = dsi.dirtySp;
-    var qc = Object.keys(q).map(function(k){ var p = k.split(':'); return { day:Number(p[0]), itemId:Number(p[1]), qty:q[k] }; });
-    var sc = Object.keys(s).map(function(k){ var p = k.split(':'); return { day:Number(p[0]), itemId:Number(p[1]), price:s[k] }; });
-    if(!qc.length && !sc.length) return true;
-    dsi.dirtyQty = {};
-    dsi.dirtySp = {};
-    var y = dsi.year;
-    var m = dsi.month;
-    var base = dsiBaseFor(dsi.companyId) + '/branches/' + b.id;
-    dsiSetStatus(t('dsi_saving'));
-    var p = Promise.resolve();
-    if(qc.length) p = p.then(function(){ return api(base + '/quantities', { method:'PUT', body: JSON.stringify({ year:y, month:m, cells:qc }) }); });
-    if(sc.length) p = p.then(function(){ return api(base + '/specials', { method:'PUT', body: JSON.stringify({ year:y, month:m, cells:sc }) }); });
-    return p.then(function(){
-      dsiSetStatus(t('dsi_saved'));
-      return true;
-    }).catch(function(err){
-      Object.keys(q).forEach(function(k){ if(!(k in dsi.dirtyQty)) dsi.dirtyQty[k] = q[k]; });
-      Object.keys(s).forEach(function(k){ if(!(k in dsi.dirtySp)) dsi.dirtySp[k] = s[k]; });
-      dsiSetStatus(t('dsi_save_failed') + ': ' + err.message, true);
-      return false;
+  function dsiCells(map, field){
+    return Object.keys(map).map(function(k){
+      var p = k.split(':');
+      var cell = { day:Number(p[0]), itemId:Number(p[1]) };
+      cell[field] = map[k];
+      return cell;
     });
   }
 
-  // ---- Settings tab ----
+  dsiById('dsi-save-btn').addEventListener('click', function(){
+    var btn = this;
+    var errEl = dsiById('dsi-error');
+    errEl.hidden = true;
+    if(document.querySelector('#dsi-card input.dsi-bad')){
+      errEl.textContent = t('dsi_bad_cells');
+      errEl.hidden = false;
+      return;
+    }
+    var sentQ = Object.assign({}, dsi.dirtyQty);
+    var sentS = Object.assign({}, dsi.dirtySp);
+    btn.disabled = true;
+    api(dsiBase() + '/records/' + dsi.record.id, { method:'PUT', body: JSON.stringify({ qtyCells: dsiCells(sentQ, 'qty'), specialCells: dsiCells(sentS, 'price') }) })
+      .then(function(rec){
+        // Keep anything typed while the request was in flight as still-unsaved.
+        Object.keys(sentQ).forEach(function(k){ if(dsi.dirtyQty[k] === sentQ[k]) delete dsi.dirtyQty[k]; });
+        Object.keys(sentS).forEach(function(k){ if(dsi.dirtySp[k] === sentS[k]) delete dsi.dirtySp[k]; });
+        dsi.record = rec;
+        dsi.savedText = t('dsi_saved_now') + ' ' + new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+        dsiRenderHeader();
+        dsiSetDirtyUi();
+      })
+      .catch(function(err){
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // Manager level: mark the record Checked (locks staff out) or back to Pending.
+  function dsiSetStatus(recordId, status, errEl){
+    errEl.hidden = true;
+    return api(dsiBase() + '/records/' + recordId + '/status', { method:'PATCH', body: JSON.stringify({ status:status }) }).catch(function(err){
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    });
+  }
+
+  dsiById('dsi-check-btn').addEventListener('click', function(){
+    var errEl = dsiById('dsi-error');
+    if(dsiIsDirty()){ errEl.textContent = t('dsi_save_first'); errEl.hidden = false; return; }
+    var btn = this;
+    btn.disabled = true;
+    dsiSetStatus(dsi.record.id, dsi.record.status === 'checked' ? 'pending' : 'checked', errEl).then(function(rec){
+      if(rec){
+        dsi.record = rec;
+        dsi.locked = false;
+        dsiRenderHeader();
+        renderDsiGrid();
+        renderDsiSpecials();
+      }
+    }).finally(function(){ btn.disabled = false; });
+  });
+
+  // ---- Downloads (always from the saved record) ----
+  function dsiDownloadFile(url){
+    return fetch('/api' + url).then(function(res){
+      if(!res.ok) return res.json().then(function(body){ throw new Error(body.error || 'Download failed'); });
+      var cd = res.headers.get('Content-Disposition') || '';
+      var match = cd.match(/filename="([^"]+)"/);
+      var filename = match ? match[1] : 'report';
+      return res.blob().then(function(blob){
+        var objUrl = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = objUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objUrl);
+      });
+    });
+  }
+
+  function dsiDownloadRecord(recordId, kind, errEl){
+    errEl.hidden = true;
+    var prepared = dsiById('dsi-prepared-by').value.trim() || (CURRENT_USER && (CURRENT_USER.displayName || CURRENT_USER.companyName)) || '';
+    var url = dsiBase() + '/records/' + recordId + '/report.' + kind + (kind === 'pdf' ? '?preparedBy=' + encodeURIComponent(prepared) : '');
+    return dsiDownloadFile(url).catch(function(err){
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    });
+  }
+
+  ['xlsx','pdf'].forEach(function(kind){
+    dsiById('dsi-dl-' + kind).addEventListener('click', function(){
+      var errEl = dsiById('dsi-error');
+      if(dsiIsDirty()){ errEl.textContent = t('dsi_save_first'); errEl.hidden = false; return; }
+      var btn = this;
+      btn.disabled = true;
+      api(dsiBase() + '/records/' + dsi.record.id + '/check', { method:'POST', body: JSON.stringify({}) }).then(function(res){
+        if(!res.ok){
+          errEl.innerHTML = '<strong>' + t('dsi_check_failed') + '</strong><ul style="margin:6px 0 0 18px;">' + res.errors.map(function(e){ return '<li>' + dsiEsc(e) + '</li>'; }).join('') + '</ul>';
+          errEl.hidden = false;
+          return null;
+        }
+        return dsiDownloadRecord(dsi.record.id, kind, errEl);
+      }).catch(function(err){
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      }).finally(function(){ btn.disabled = dsiIsDirty(); });
+    });
+  });
+
+  dsiById('dsi-back-btn').addEventListener('click', function(){
+    if(dsiIsDirty() && !confirm(t('dsi_discard_confirm'))) return;
+    dsi.dirtyQty = {};
+    dsi.dirtySp = {};
+    dsiShowRecords(dsi.filter.branchId);
+  });
+
+  // ---- Settings tab (Manager level) ----
   function renderDsiSettings(){
     var b = dsi.branch;
-    var edit = dsiCanEdit();
+    var edit = dsi.canManage;
     DSI_SETTING_FIELDS.forEach(function(f){
-      var el = document.getElementById('dsi-s-' + f);
+      var el = dsiById('dsi-s-' + f);
       el.value = b[f] == null ? '' : b[f];
       el.disabled = !edit;
     });
-    var zero = document.getElementById('dsi-s-includeZero');
+    var zero = dsiById('dsi-s-includeZero');
     zero.value = b.includeZero ? 'Y' : 'N';
     zero.disabled = !edit;
-    document.getElementById('dsi-settings-save').hidden = !edit;
-    var note = document.getElementById('dsi-settings-note');
+    dsiById('dsi-settings-save').hidden = !edit;
+    var note = dsiById('dsi-settings-note');
     note.hidden = edit;
     note.textContent = t('dsi_manager_only');
-    document.getElementById('dsi-settings-error').hidden = true;
+    dsiById('dsi-settings-error').hidden = true;
   }
 
-  document.getElementById('dsi-settings-save').addEventListener('click', function(){
+  dsiById('dsi-settings-save').addEventListener('click', function(){
     var b = dsi.branch;
-    var errEl = document.getElementById('dsi-settings-error');
-    var body = { includeZero: document.getElementById('dsi-s-includeZero').value === 'Y' };
-    DSI_SETTING_FIELDS.forEach(function(f){ body[f] = document.getElementById('dsi-s-' + f).value; });
+    var errEl = dsiById('dsi-settings-error');
+    var body = { includeZero: dsiById('dsi-s-includeZero').value === 'Y' };
+    DSI_SETTING_FIELDS.forEach(function(f){ body[f] = dsiById('dsi-s-' + f).value; });
     var btn = this;
     btn.disabled = true;
     errEl.hidden = true;
-    api(dsiBaseFor(dsi.companyId) + '/branches/' + b.id, { method:'PATCH', body: JSON.stringify(body) }).then(function(updated){
+    api(dsiBase() + '/branches/' + b.id, { method:'PATCH', body: JSON.stringify(body) }).then(function(updated){
       var idx = dsi.branches.findIndex(function(x){ return x.id === updated.id; });
       if(idx !== -1) dsi.branches[idx] = updated;
       dsi.branch = updated;
       renderDsiSettings();
-      dsiSetStatus(t('dsi_settings_saved'));
+      dsi.savedText = t('dsi_settings_saved');
+      dsiSetDirtyUi();
     }).catch(function(err){
       errEl.textContent = err.message;
       errEl.hidden = false;
     }).finally(function(){ btn.disabled = false; });
   });
 
-  // ---- Menu tab ----
+  // ---- Menu tab (Manager level) ----
   function renderDsiMenu(){
     dsi.menuDraft = dsi.branch.menu.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; });
-    var edit = dsiCanEdit();
-    document.getElementById('dsi-menu-actions').hidden = !edit;
-    var note = document.getElementById('dsi-menu-note');
+    var edit = dsi.canManage;
+    dsiById('dsi-menu-actions').hidden = !edit;
+    var note = dsiById('dsi-menu-note');
     note.hidden = edit;
     note.textContent = t('dsi_manager_only');
-    document.getElementById('dsi-menu-error').hidden = true;
+    dsiById('dsi-menu-error').hidden = true;
     dsiDrawMenuRows();
   }
 
   function dsiDrawMenuRows(){
-    var edit = dsiCanEdit();
+    var edit = dsi.canManage;
     var inputStyle = 'border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--surface-alt);color:inherit;font-family:inherit;';
-    var tbody = document.getElementById('dsi-menu-tbody');
+    var tbody = dsiById('dsi-menu-tbody');
     tbody.innerHTML = dsi.menuDraft.map(function(m, i){
       var price = m.unitPrice === '' || m.unitPrice == null ? '' : Number(m.unitPrice).toFixed(2);
       return '<tr><td>' + (i + 1) + '</td>' +
@@ -4103,122 +4417,48 @@
     });
   }
 
-  document.getElementById('dsi-menu-add').addEventListener('click', function(){
+  dsiById('dsi-menu-add').addEventListener('click', function(){
     dsi.menuDraft.push({ id:null, product:'', unitPrice:'' });
     dsiDrawMenuRows();
   });
 
-  document.getElementById('dsi-menu-save').addEventListener('click', function(){
+  dsiById('dsi-menu-save').addEventListener('click', function(){
     var b = dsi.branch;
-    var errEl = document.getElementById('dsi-menu-error');
+    var errEl = dsiById('dsi-menu-error');
+    if(dsiIsDirty()){ errEl.textContent = t('dsi_save_first'); errEl.hidden = false; return; }
     var btn = this;
     btn.disabled = true;
     errEl.hidden = true;
-    dsiFlush().then(function(){
-      var body = { menu: dsi.menuDraft.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; }) };
-      return api(dsiBaseFor(dsi.companyId) + '/branches/' + b.id + '/menu', { method:'PUT', body: JSON.stringify(body) });
-    }).then(function(updated){
+    var body = { menu: dsi.menuDraft.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; }) };
+    api(dsiBase() + '/branches/' + b.id + '/menu', { method:'PUT', body: JSON.stringify(body) }).then(function(updated){
       var idx = dsi.branches.findIndex(function(x){ return x.id === updated.id; });
       if(idx !== -1) dsi.branches[idx] = updated;
-      dsi.branch = updated;
+      return api(dsiBase() + '/records/' + dsi.record.id);
+    }).then(function(data){
+      dsi.record = data.record;
+      dsi.branch = data.branch;
+      dsi.qty = data.qty;
+      dsi.specials = data.specials;
       renderDsiMenu();
       renderDsiSettings();
-      dsiLoadMonth();
-      dsiSetStatus(t('dsi_menu_saved'));
+      renderDsiGrid();
+      renderDsiSpecials();
+      dsi.savedText = t('dsi_menu_saved');
+      dsiSetDirtyUi();
     }).catch(function(err){
       errEl.textContent = err.message;
       errEl.hidden = false;
     }).finally(function(){ btn.disabled = false; });
   });
 
-  // ---- Navigation / period / tabs ----
   document.querySelectorAll('#dsi-tabs .dsi-tab').forEach(function(btn){
     btn.addEventListener('click', function(){ dsiShowTab(btn.dataset.dsiTab); });
-  });
-
-  function dsiOnPeriodChange(){
-    var y = Number(document.getElementById('dsi-year').value);
-    var m = Number(document.getElementById('dsi-month').value);
-    dsiShowLoading();
-    dsiFlush().then(function(){
-      dsi.year = y;
-      dsi.month = m;
-      dsiLoadMonth();
-    });
-  }
-  document.getElementById('dsi-year').addEventListener('change', dsiOnPeriodChange);
-  document.getElementById('dsi-month').addEventListener('change', dsiOnPeriodChange);
-
-  document.getElementById('dsi-back-btn').addEventListener('click', function(){
-    dsiFlush().then(function(){
-      document.getElementById('dsi-card').hidden = true;
-      document.getElementById('dsi-picker').hidden = false;
-    });
-  });
-
-  // ---- Generate (check -> Excel -> PDF) ----
-  function dsiDownload(url){
-    return fetch('/api' + url).then(function(res){
-      if(!res.ok) return res.json().then(function(body){ throw new Error(body.error || 'Download failed'); });
-      var cd = res.headers.get('Content-Disposition') || '';
-      var match = cd.match(/filename="([^"]+)"/);
-      var filename = match ? match[1] : 'report';
-      return res.blob().then(function(blob){
-        var objUrl = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = objUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(objUrl);
-      });
-    });
-  }
-
-  document.getElementById('dsi-generate-btn').addEventListener('click', function(){
-    var b = dsi.branch;
-    var errEl = document.getElementById('dsi-error');
-    var btn = this;
-    errEl.hidden = true;
-    if(document.querySelector('#dsi-card input.dsi-bad')){
-      errEl.textContent = t('dsi_bad_cells');
-      errEl.hidden = false;
-      return;
-    }
-    var base = dsiBaseFor(dsi.companyId) + '/branches/' + b.id;
-    var qs = '?year=' + dsi.year + '&month=' + dsi.month;
-    var prepared = document.getElementById('dsi-prepared-by').value.trim();
-    btn.disabled = true;
-    dsiSetStatus(t('dsi_checking'));
-    dsiFlush().then(function(ok){
-      if(!ok) throw new Error(t('dsi_save_failed'));
-      return api(base + '/check', { method:'POST', body: JSON.stringify({ year:dsi.year, month:dsi.month }) });
-    }).then(function(res){
-      if(!res.ok){
-        errEl.innerHTML = '<strong>' + t('dsi_check_failed') + '</strong><ul style="margin:6px 0 0 18px;">' + res.errors.map(function(e){ return '<li>' + dsiEsc(e) + '</li>'; }).join('') + '</ul>';
-        errEl.hidden = false;
-        throw new Error('__handled');
-      }
-      dsiSetStatus(t('dsi_generating'));
-      return dsiDownload(base + '/report.xlsx' + qs).then(function(){
-        return dsiDownload(base + '/report.pdf' + qs + '&preparedBy=' + encodeURIComponent(prepared));
-      });
-    }).then(function(){
-      dsiSetStatus(t('dsi_generated_ok'));
-    }).catch(function(err){
-      if(err.message !== '__handled'){
-        errEl.textContent = err.message;
-        errEl.hidden = false;
-      }
-      dsiSetStatus('');
-    }).finally(function(){ btn.disabled = false; });
   });
 
   // ---- Add branch (Manager) ----
   function openDsiBranchModal(){
     var ref = dsi.branches[0];
-    var set = function(id, v){ document.getElementById(id).value = v || ''; };
+    var set = function(id, v){ dsiById(id).value = v || ''; };
     set('dsi-nb-code', '');
     set('dsi-nb-prefix', '');
     set('dsi-nb-company', ref ? ref.companyName : currentCompany);
@@ -4230,13 +4470,13 @@
     set('dsi-nb-account', ref ? ref.accountCode : '5000');
     set('dsi-nb-tags', '');
     set('dsi-nb-menu', '');
-    document.getElementById('dsi-nb-error').hidden = true;
-    document.getElementById('dsi-branch-modal-backdrop').hidden = false;
+    dsiById('dsi-nb-error').hidden = true;
+    dsiById('dsi-branch-modal-backdrop').hidden = false;
   }
-  function closeDsiBranchModal(){ document.getElementById('dsi-branch-modal-backdrop').hidden = true; }
-  document.getElementById('dsi-branch-modal-close').addEventListener('click', closeDsiBranchModal);
-  document.getElementById('dsi-nb-cancel').addEventListener('click', closeDsiBranchModal);
-  document.getElementById('dsi-branch-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeDsiBranchModal(); });
+  function closeDsiBranchModal(){ dsiById('dsi-branch-modal-backdrop').hidden = true; }
+  dsiById('dsi-branch-modal-close').addEventListener('click', closeDsiBranchModal);
+  dsiById('dsi-nb-cancel').addEventListener('click', closeDsiBranchModal);
+  dsiById('dsi-branch-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeDsiBranchModal(); });
 
   function dsiParseMenuLines(text){
     var items = [];
@@ -4251,16 +4491,15 @@
     return { items: items };
   }
 
-  document.getElementById('dsi-nb-create').addEventListener('click', function(){
-    var errEl = document.getElementById('dsi-nb-error');
-    var val = function(id){ return document.getElementById(id).value; };
+  dsiById('dsi-nb-create').addEventListener('click', function(){
+    var errEl = dsiById('dsi-nb-error');
+    var val = function(id){ return dsiById(id).value; };
     var parsed = dsiParseMenuLines(val('dsi-nb-menu'));
     if(parsed.error){ errEl.textContent = parsed.error; errEl.hidden = false; return; }
-    var companyId = customerRecordId(currentCompany);
     var btn = this;
     btn.disabled = true;
     errEl.hidden = true;
-    api(dsiBaseFor(companyId) + '/branches', { method:'POST', body: JSON.stringify({
+    api(dsiBase() + '/branches', { method:'POST', body: JSON.stringify({
       code: val('dsi-nb-code'), reportPrefix: val('dsi-nb-prefix'), companyName: val('dsi-nb-company'), regNo: val('dsi-nb-reg'),
       address: val('dsi-nb-address'), contactCode: val('dsi-nb-contact'), legalName: val('dsi-nb-legal'), paymentTerm: val('dsi-nb-term'),
       accountCode: val('dsi-nb-account'), tags: val('dsi-nb-tags'), menu: parsed.items
@@ -4884,6 +5123,7 @@
 
   function selectCompany(name, opts){
     opts = opts || {};
+    if(!dsiConfirmLeave(name)) return;
     currentCompany = name;
     if(topbarTypeahead) topbarTypeahead.setValue(name);
     if(landingTypeahead) landingTypeahead.setValue(name);
@@ -5270,94 +5510,94 @@
       .finally(function(){ btn.disabled = false; });
   });
 
-  // ============ CLIENT LOGIN (Owner only) ============
-  var clientLoginModalCompanyId = null;
+  // ============ COMPANY USERS (Owner / Manager level) ============
+  // Each company can have several sign-ins, each with a level: Staff or Manager.
+  var cuState = { companyId:null, currentUserId:null };
 
-  function openClientLoginModal(companyId, companyName){
-    clientLoginModalCompanyId = companyId;
-    document.getElementById('client-login-modal-company').textContent = t('client_login_title') + ' — ' + companyName;
-    document.getElementById('client-login-error').hidden = true;
-    document.getElementById('client-login-loading').hidden = false;
-    document.getElementById('client-login-create-form').hidden = true;
-    document.getElementById('client-login-existing').hidden = true;
-    document.getElementById('client-login-toggle-active').hidden = true;
-    document.getElementById('client-login-submit').hidden = false;
-    document.getElementById('client-login-modal-backdrop').hidden = false;
-
-    api('/companies/' + companyId + '/client-login').then(function(login){
-      document.getElementById('client-login-loading').hidden = true;
-      if(login){
-        document.getElementById('client-login-existing').hidden = false;
-        document.getElementById('client-login-existing-id').textContent = login.login_id;
-        document.getElementById('client-login-existing-status').textContent = login.active ? t('status_active') : t('status_suspended');
-        document.getElementById('client-login-reset-password').value = '';
-        var toggleBtn = document.getElementById('client-login-toggle-active');
-        toggleBtn.hidden = false;
-        toggleBtn.textContent = login.active ? t('deactivate_btn') : t('reactivate_btn');
-        toggleBtn.dataset.nextActive = login.active ? '0' : '1';
-        document.getElementById('client-login-submit').textContent = t('save_btn');
-      } else {
-        document.getElementById('client-login-create-form').hidden = false;
-        document.getElementById('client-login-new-id').value = '';
-        document.getElementById('client-login-new-password').value = '';
-        document.getElementById('client-login-submit').textContent = t('create_login_btn');
-      }
-    }).catch(function(err){
-      document.getElementById('client-login-loading').hidden = true;
-      document.getElementById('client-login-error').textContent = err.message;
-      document.getElementById('client-login-error').hidden = false;
-    });
+  function openCompanyUsersModal(companyId, companyName){
+    cuState.companyId = companyId;
+    dsiById('cu-modal-title').textContent = t('cu_title') + ' — ' + companyName;
+    dsiById('cu-error').hidden = true;
+    ['cu-new-login','cu-new-name','cu-new-password'].forEach(function(id){ dsiById(id).value = ''; });
+    dsiById('cu-new-level').value = 'staff';
+    dsiById('cu-tbody').innerHTML = emptyRow(6, t('loading'));
+    dsiById('cu-modal-backdrop').hidden = false;
+    loadCompanyUsers();
   }
 
-  function closeClientLoginModal(){
-    document.getElementById('client-login-modal-backdrop').hidden = true;
-    clientLoginModalCompanyId = null;
+  function closeCompanyUsersModal(){
+    dsiById('cu-modal-backdrop').hidden = true;
+    cuState.companyId = null;
   }
-  document.getElementById('client-login-modal-close').addEventListener('click', closeClientLoginModal);
-  document.getElementById('client-login-cancel').addEventListener('click', closeClientLoginModal);
-  document.getElementById('client-login-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeClientLoginModal(); });
 
-  document.getElementById('client-login-toggle-active').addEventListener('click', function(){
-    if(!clientLoginModalCompanyId) return;
-    var nextActive = this.dataset.nextActive === '1';
-    var errEl = document.getElementById('client-login-error');
+  function cuShowError(msg){
+    var el = dsiById('cu-error');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+
+  function loadCompanyUsers(){
+    var companyId = cuState.companyId;
+    api('/companies/' + companyId + '/users').then(function(res){
+      if(cuState.companyId !== companyId) return;
+      cuState.currentUserId = res.currentUserId;
+      var tbody = dsiById('cu-tbody');
+      if(!res.users.length){ tbody.innerHTML = emptyRow(6, t('cu_none')); return; }
+      var inputStyle = 'border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--surface-alt);color:inherit;font-family:inherit;width:100%;';
+      tbody.innerHTML = res.users.map(function(u){
+        var self = u.id === cuState.currentUserId;
+        return '<tr data-cu-row="' + u.id + '">' +
+          '<td style="font-weight:600;">' + dsiEsc(u.loginId) + (self ? ' <span style="font-size:11px;color:var(--primary-soft);">(' + t('cu_you') + ')</span>' : '') + '</td>' +
+          '<td><input type="text" data-cu-name value="' + dsiEsc(u.displayName) + '" style="' + inputStyle + 'min-width:140px;" /></td>' +
+          '<td><select data-cu-level style="' + inputStyle + '"' + (self ? ' disabled' : '') + '>' +
+            '<option value="staff"' + (u.level === 'staff' ? ' selected' : '') + '>' + t('level_staff') + '</option>' +
+            '<option value="manager"' + (u.level === 'manager' ? ' selected' : '') + '>' + t('level_manager') + '</option></select></td>' +
+          '<td style="text-align:center;"><input type="checkbox" data-cu-active' + (u.active ? ' checked' : '') + (self ? ' disabled' : '') + ' style="width:16px;height:16px;accent-color:var(--accent);" /></td>' +
+          '<td><input type="password" data-cu-pass autocomplete="new-password" placeholder="' + t('cu_pw_placeholder') + '" style="' + inputStyle + 'min-width:130px;" /></td>' +
+          '<td><button type="button" class="btn-row" data-cu-save="' + u.id + '">' + t('save_btn') + '</button></td></tr>';
+      }).join('');
+      tbody.querySelectorAll('[data-cu-save]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var row = btn.closest('tr');
+          var body = {
+            displayName: row.querySelector('[data-cu-name]').value,
+            level: row.querySelector('[data-cu-level]').value,
+            active: row.querySelector('[data-cu-active]').checked
+          };
+          var pw = row.querySelector('[data-cu-pass]').value;
+          if(pw) body.password = pw;
+          btn.disabled = true;
+          cuShowError('');
+          api('/companies/' + companyId + '/users/' + btn.dataset.cuSave, { method:'PATCH', body: JSON.stringify(body) })
+            .then(function(){ renderActivityLog(); loadCompanyUsers(); })
+            .catch(function(err){ cuShowError(err.message); })
+            .finally(function(){ btn.disabled = false; });
+        });
+      });
+    }).catch(function(err){ cuShowError(err.message); });
+  }
+
+  dsiById('cu-add-btn').addEventListener('click', function(){
+    var companyId = cuState.companyId;
     var btn = this;
     btn.disabled = true;
-    api('/companies/' + clientLoginModalCompanyId + '/client-login', { method:'PATCH', body: JSON.stringify({ active: nextActive }) })
-      .then(function(){ closeClientLoginModal(); renderActivityLog(); })
-      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+    cuShowError('');
+    api('/companies/' + companyId + '/users', { method:'POST', body: JSON.stringify({
+      loginId: dsiById('cu-new-login').value,
+      displayName: dsiById('cu-new-name').value,
+      password: dsiById('cu-new-password').value,
+      level: dsiById('cu-new-level').value
+    }) }).then(function(){
+      ['cu-new-login','cu-new-name','cu-new-password'].forEach(function(id){ dsiById(id).value = ''; });
+      renderActivityLog();
+      loadCompanyUsers();
+    }).catch(function(err){ cuShowError(err.message); })
       .finally(function(){ btn.disabled = false; });
   });
 
-  document.getElementById('client-login-submit').addEventListener('click', function(){
-    if(!clientLoginModalCompanyId) return;
-    var errEl = document.getElementById('client-login-error');
-    errEl.hidden = true;
-    var creating = !document.getElementById('client-login-create-form').hidden;
-    var btn = this;
-    btn.disabled = true;
-
-    if(creating){
-      var loginId = document.getElementById('client-login-new-id').value.trim();
-      var password = document.getElementById('client-login-new-password').value;
-      if(!loginId || !password){
-        errEl.textContent = t('field_login_id') + ' / ' + t('field_password') + ' — all required.';
-        errEl.hidden = false;
-        btn.disabled = false;
-        return;
-      }
-      api('/companies/' + clientLoginModalCompanyId + '/client-login', { method:'POST', body: JSON.stringify({ loginId:loginId, password:password }) })
-        .then(function(){ closeClientLoginModal(); renderActivityLog(); })
-        .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
-        .finally(function(){ btn.disabled = false; });
-    } else {
-      var newPassword = document.getElementById('client-login-reset-password').value;
-      api('/companies/' + clientLoginModalCompanyId + '/client-login', { method:'PATCH', body: JSON.stringify(newPassword ? { password:newPassword } : {}) })
-        .then(function(){ closeClientLoginModal(); renderActivityLog(); })
-        .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
-        .finally(function(){ btn.disabled = false; });
-    }
-  });
+  dsiById('cu-modal-close').addEventListener('click', closeCompanyUsersModal);
+  dsiById('cu-close-btn').addEventListener('click', closeCompanyUsersModal);
+  dsiById('cu-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeCompanyUsersModal(); });
 
   // ============ MY JOBS (staff / manager / admin) ============
   function jobStatusBadgeClass(status){
@@ -5488,6 +5728,9 @@
     applyRole(profile.role, profile);
     updateReconNavVisibility();
     return loadCompanies().then(function(){
+      // A company login lands straight on its own panels, which applyRole() rendered before the
+      // company list existed (so they came out empty) — render them again now that it has loaded.
+      if(profile.role === 'client') renderAllCompanyPanels();
       renderCompanyGrid();
       renderKpiRow();
       renderStaffRow();

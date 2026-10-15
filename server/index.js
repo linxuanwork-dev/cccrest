@@ -25,6 +25,7 @@ app.use('/api', require('./routes/payroll'));
 app.use('/api', require('./routes/dmInvoice'));
 app.use('/api', require('./routes/olTngReport'));
 app.use('/api', require('./routes/dailySales'));
+app.use('/api', require('./routes/companyUsers'));
 
 // Everything else is the single-page app.
 app.get('*', (req, res) => {

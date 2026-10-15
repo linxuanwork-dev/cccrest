@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
-const { isManagerLevel } = require('../lib/companyLevel');
+const { getAccess } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const rules = require('../lib/dailySalesRules');
 const { buildInvoiceWorkbook } = require('../lib/dailySalesExcel');
@@ -9,8 +9,14 @@ const { buildReportPdf } = require('../lib/dailySalesPdf');
 
 const router = express.Router();
 const BASE = '/companies/:companyId/dsi';
-const MANAGER_ONLY_MSG = '此项目只有 Manager 可以修改';
-const CHECKED_MSG = '此记录已标记为 Checked，只有 Manager 可以修改';
+const PAGE = 'sales';
+
+const NO_ACCESS_MSG = '你没有权限使用这个页面';
+const NO_CREATE_MSG = '你的权限（L1 Read Only）不能新建记录';
+const NEED_L4_MSG = '需要 L4 Full Access 才能修改这个项目';
+const NO_EDIT_MSG = '你没有修改此记录的权限';
+const CHECKED_MSG = '此记录已审核并锁定，只有审核人和 CC CREST 可以修改';
+const NO_APPROVE_MSG = '只有被指定的审核人可以审核';
 
 // Express 4 doesn't forward rejected promises from async handlers; wrap them so a
 // failure becomes a JSON 500 (see the error handler at the bottom) instead of a hung request.
@@ -21,9 +27,21 @@ const CHECKED_MSG = '此记录已标记为 Checked，只有 Manager 可以修改
   )));
 });
 
-async function requireConfigEditor(req, res, next) {
-  if (await isManagerLevel(req)) return next();
-  res.status(403).json({ error: MANAGER_ONLY_MSG });
+// Resolves the user's level on Sales Summary once per request (kept on req.access).
+async function needAccess(req, res, next) {
+  req.access = await getAccess(req, PAGE);
+  if (req.access.level < 1) return res.status(403).json({ error: NO_ACCESS_MSG });
+  next();
+}
+
+// L4 Full Access (or CC CREST's own admin / manager accounts): branches, menu, settings, special prices.
+function requireConfigEditor(req, res, next) {
+  if (req.access.level >= 4) return next();
+  res.status(403).json({ error: NEED_L4_MSG });
+}
+
+function publicAccess(access) {
+  return { level: access.level, canCreate: access.level >= 2, canConfigure: access.level >= 4, canApprove: access.canApprove };
 }
 
 async function getBranch(companyId, branchId) {
@@ -106,14 +124,14 @@ function parseMenuInput(menu) {
 
 // ============ BRANCHES ============
 
-router.get(`${BASE}/branches`, requireAuth, scopeToCompany, async (req, res) => {
+router.get(`${BASE}/branches`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM dsi_branches WHERE company_id = $1 ORDER BY sort_order, id', [req.params.companyId]);
   const branches = [];
   for (const b of rows) branches.push(publicBranch(b, await getMenu(b.id)));
-  res.json({ canManage: await isManagerLevel(req), branches });
+  res.json({ access: publicAccess(req.access), branches });
 });
 
-router.post(`${BASE}/branches`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+router.post(`${BASE}/branches`, requireAuth, scopeToCompany, needAccess, requireConfigEditor, async (req, res) => {
   const body = req.body || {};
   const code = cleanText(body.code, 10).toUpperCase();
   if (!/^[A-Z0-9]{1,6}$/.test(code)) return res.status(400).json({ error: '分店代号只能是英文字母或数字（最多 6 个）。' });
@@ -157,7 +175,7 @@ router.post(`${BASE}/branches`, requireAuth, scopeToCompany, requireConfigEditor
   }
 });
 
-router.patch(`${BASE}/branches/:branchId`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+router.patch(`${BASE}/branches/:branchId`, requireAuth, scopeToCompany, needAccess, requireConfigEditor, async (req, res) => {
   const b = await getBranch(req.params.companyId, req.params.branchId);
   if (!b) return res.status(404).json({ error: 'Not found' });
   const body = req.body || {};
@@ -196,7 +214,7 @@ router.patch(`${BASE}/branches/:branchId`, requireAuth, scopeToCompany, requireC
 
 // Replace the whole menu. Items with an id are updated in place (keeping their saved quantities);
 // ids not present in the request are deleted, along with their quantities/specials.
-router.put(`${BASE}/branches/:branchId/menu`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+router.put(`${BASE}/branches/:branchId/menu`, requireAuth, scopeToCompany, needAccess, requireConfigEditor, async (req, res) => {
   const b = await getBranch(req.params.companyId, req.params.branchId);
   if (!b) return res.status(404).json({ error: 'Not found' });
   const parsed = parseMenuInput((req.body || {}).menu);
@@ -240,7 +258,7 @@ router.put(`${BASE}/branches/:branchId/menu`, requireAuth, scopeToCompany, requi
 // Totals are computed live from the saved quantities, so they can never go stale after a menu price change.
 const RECORD_SELECT = `
   SELECT r.id, r.branch_id, b.code AS branch_code, b.report_prefix, r.year, r.month, r.status,
-         r.created_at, r.saved_at, r.checked_at,
+         r.created_by, r.checked_by, r.created_at, r.saved_at, r.checked_at,
          su.display_name AS saved_by_name, cu.display_name AS checked_by_name,
          COALESCE(t.total, 0)::float AS total, COALESCE(t.days, 0)::int AS invoice_days
   FROM dsi_records r
@@ -262,20 +280,43 @@ const RECORD_SELECT = `
   ) t ON true
   WHERE b.company_id = $1`;
 
-function publicRecord(r) {
+// What the signed-in user may do with one record. The page only follows these flags; every route re-checks them.
+//   - L2 Create: may create months and fill in the ones they created (while pending)
+//   - L3 Create & Update: may edit any pending record
+//   - L4 Full Access: also special prices, and deleting records
+//   - approving needs the named-approver flag (set by the CC CREST Owner)
+//   - once approved (Checked) only the approver and CC CREST's own accounts may amend, set it back, or delete it
+function recordFlags(access, rec, userId) {
+  const checked = rec.status === 'checked';
+  const mayAmendChecked = access.ccCrest || (rec.checked_by === userId && access.level >= 3);
+  const mayEditPending = access.level >= 3 || (access.level === 2 && rec.created_by === userId);
+  const canEdit = checked ? mayAmendChecked : mayEditPending;
   return {
+    canEdit,
+    canEditSpecials: canEdit && access.level >= 4,
+    canApprove: !checked && access.canApprove,
+    canRevert: checked && mayAmendChecked,
+    canDelete: access.level >= 4 && (!checked || mayAmendChecked)
+  };
+}
+
+function publicRecord(r, ctx) {
+  const out = {
     id: r.id, branchId: r.branch_id, branchCode: r.branch_code, reportPrefix: r.report_prefix,
     year: r.year, month: r.month, status: r.status,
     invoiceDays: r.invoice_days, totalCents: Math.round(r.total * 100),
     createdAt: r.created_at, savedAt: r.saved_at, savedBy: r.saved_by_name,
     checkedAt: r.checked_at, checkedBy: r.checked_by_name
   };
+  if (ctx) out.flags = recordFlags(ctx.access, r, ctx.userId);
+  return out;
 }
 
-async function fetchRecords(companyId, recordId) {
+async function fetchRecords(req, recordId) {
   const sql = RECORD_SELECT + (recordId ? ' AND r.id = $2' : '') + ' ORDER BY r.year DESC, r.month DESC, b.sort_order, b.id';
-  const { rows } = await pool.query(sql, recordId ? [companyId, recordId] : [companyId]);
-  return rows.map(publicRecord);
+  const { rows } = await pool.query(sql, recordId ? [req.params.companyId, recordId] : [req.params.companyId]);
+  const ctx = { access: req.access, userId: req.user.sub };
+  return rows.map((r) => publicRecord(r, ctx));
 }
 
 async function getRecordRow(companyId, recordId) {
@@ -291,11 +332,12 @@ async function companyName(companyId) {
   return rows[0].name;
 }
 
-router.get(`${BASE}/records`, requireAuth, scopeToCompany, async (req, res) => {
-  res.json({ canManage: await isManagerLevel(req), records: await fetchRecords(req.params.companyId) });
+router.get(`${BASE}/records`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
+  res.json({ access: publicAccess(req.access), records: await fetchRecords(req) });
 });
 
-router.post(`${BASE}/records`, requireAuth, scopeToCompany, async (req, res) => {
+router.post(`${BASE}/records`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
+  if (req.access.level < 2) return res.status(403).json({ error: NO_CREATE_MSG });
   const body = req.body || {};
   const b = await getBranch(req.params.companyId, Number(body.branchId));
   if (!b) return res.status(400).json({ error: '请选择分店。' });
@@ -315,22 +357,20 @@ router.post(`${BASE}/records`, requireAuth, scopeToCompany, async (req, res) => 
     });
   }
   await logActivity(req.user.sub, 'Created daily-sales record', await companyName(req.params.companyId), `${b.report_prefix} ${ym.year}-${rules.pad2(ym.month)}`);
-  res.status(201).json((await fetchRecords(req.params.companyId, rows[0].id))[0]);
+  res.status(201).json((await fetchRecords(req, rows[0].id))[0]);
 });
 
-router.get(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, async (req, res) => {
+router.get(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const rec = await getRecordRow(req.params.companyId, req.params.recordId);
   if (!rec) return res.status(404).json({ error: 'Not found' });
   const branch = await getBranch(req.params.companyId, rec.branch_id);
   const { qtyMap, specialMap } = await getMonthData(rec.branch_id, rec.year, rec.month);
-  const manager = await isManagerLevel(req);
   res.json({
-    record: (await fetchRecords(req.params.companyId, rec.id))[0],
+    record: (await fetchRecords(req, rec.id))[0],
     branch: publicBranch(branch, await getMenu(branch.id)),
     qty: qtyMap,
     specials: specialMap,
-    canManage: manager,
-    locked: rec.status === 'checked' && !manager
+    access: publicAccess(req.access)
   });
 });
 
@@ -375,17 +415,17 @@ async function applyOps(client, kind, ops) {
 }
 
 // Explicit save: writes every changed cell, then stamps who saved and when.
-router.put(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, async (req, res) => {
+router.put(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const rec = await getRecordRow(req.params.companyId, req.params.recordId);
   if (!rec) return res.status(404).json({ error: 'Not found' });
-  const manager = await isManagerLevel(req);
-  if (rec.status === 'checked' && !manager) return res.status(403).json({ error: CHECKED_MSG });
+  const flags = recordFlags(req.access, rec, req.user.sub);
+  if (!flags.canEdit) return res.status(403).json({ error: rec.status === 'checked' ? CHECKED_MSG : NO_EDIT_MSG });
 
   const body = req.body || {};
   const qtyCells = Array.isArray(body.qtyCells) ? body.qtyCells : [];
   const specialCells = Array.isArray(body.specialCells) ? body.specialCells : [];
   if (qtyCells.length + specialCells.length > 5000) return res.status(400).json({ error: 'Too many changes in one save.' });
-  if (specialCells.length && !manager) return res.status(403).json({ error: MANAGER_ONLY_MSG });
+  if (specialCells.length && !flags.canEditSpecials) return res.status(403).json({ error: NEED_L4_MSG });
 
   const ym = { year: rec.year, month: rec.month };
   const menu = await getMenu(rec.branch_id);
@@ -409,8 +449,8 @@ router.put(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, async (req,
     client.release();
   }
 
-  const record = (await fetchRecords(req.params.companyId, rec.id))[0];
-  await logActivity(req.user.sub, rec.status === 'checked' ? 'Amended checked daily-sales record' : 'Saved daily-sales record',
+  const record = (await fetchRecords(req, rec.id))[0];
+  await logActivity(req.user.sub, rec.status === 'checked' ? 'Amended approved daily-sales record' : 'Saved daily-sales record',
     await companyName(req.params.companyId), `${record.reportPrefix} ${rec.year}-${rules.pad2(rec.month)} — RM ${rules.formatCents(record.totalCents)}`);
   res.json(record);
 });
@@ -426,28 +466,35 @@ async function loadReportContext(req, res) {
   return { rec, branch, menu, built, errors, year: rec.year, month: rec.month };
 }
 
-// Manager level only: mark as checked (locks staff out of editing) or back to pending.
-router.patch(`${BASE}/records/:recordId/status`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+// Approve (mark Checked, which locks the record) — named approvers only — or set it back to Pending
+// (only the approver and CC CREST's own accounts).
+router.patch(`${BASE}/records/:recordId/status`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const status = (req.body || {}).status;
   if (!['pending', 'checked'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   const ctx = await loadReportContext(req, res);
   if (!ctx) return;
+  const flags = recordFlags(req.access, ctx.rec, req.user.sub);
 
   if (status === 'checked') {
-    if (ctx.errors.length) return res.status(422).json({ error: `不能标记为 Checked：${ctx.errors.join(' ')}`, errors: ctx.errors });
+    if (!flags.canApprove) return res.status(403).json({ error: NO_APPROVE_MSG });
+    if (ctx.errors.length) return res.status(422).json({ error: `不能审核：${ctx.errors.join(' ')}`, errors: ctx.errors });
     await pool.query('UPDATE dsi_records SET status = $1, checked_by = $2, checked_at = now() WHERE id = $3', ['checked', req.user.sub, ctx.rec.id]);
   } else {
+    if (!flags.canRevert) return res.status(403).json({ error: CHECKED_MSG });
     await pool.query('UPDATE dsi_records SET status = $1, checked_by = NULL, checked_at = NULL WHERE id = $2', ['pending', ctx.rec.id]);
   }
-  await logActivity(req.user.sub, status === 'checked' ? 'Marked daily-sales record as checked' : 'Set daily-sales record back to pending',
+  await logActivity(req.user.sub, status === 'checked' ? 'Approved daily-sales record (locked)' : 'Set approved daily-sales record back to pending',
     await companyName(req.params.companyId), `${ctx.branch.report_prefix} ${ctx.year}-${rules.pad2(ctx.month)}`);
-  res.json((await fetchRecords(req.params.companyId, ctx.rec.id))[0]);
+  res.json((await fetchRecords(req, ctx.rec.id))[0]);
 });
 
-// Manager level only: removes the record AND that month's saved quantities/special prices.
-router.delete(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, requireConfigEditor, async (req, res) => {
+// Removes the record AND that month's saved quantities/special prices (L4 Full Access).
+router.delete(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const rec = await getRecordRow(req.params.companyId, req.params.recordId);
   if (!rec) return res.status(404).json({ error: 'Not found' });
+  const flags = recordFlags(req.access, rec, req.user.sub);
+  if (!flags.canDelete) return res.status(403).json({ error: req.access.level < 4 ? NEED_L4_MSG : CHECKED_MSG });
+
   const { start, end } = monthRange(rec.year, rec.month);
   const client = await pool.connect();
   try {
@@ -474,7 +521,7 @@ router.delete(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, requireC
 
 // ============ CHECK + DOWNLOADS (from the saved record) ============
 
-router.post(`${BASE}/records/:recordId/check`, requireAuth, scopeToCompany, async (req, res) => {
+router.post(`${BASE}/records/:recordId/check`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const ctx = await loadReportContext(req, res);
   if (!ctx) return;
   res.json({
@@ -484,7 +531,7 @@ router.post(`${BASE}/records/:recordId/check`, requireAuth, scopeToCompany, asyn
   });
 });
 
-router.get(`${BASE}/records/:recordId/report.xlsx`, requireAuth, scopeToCompany, async (req, res) => {
+router.get(`${BASE}/records/:recordId/report.xlsx`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const ctx = await loadReportContext(req, res);
   if (!ctx) return;
   if (ctx.errors.length) return res.status(422).json({ error: ctx.errors.join(' '), errors: ctx.errors });
@@ -500,15 +547,22 @@ router.get(`${BASE}/records/:recordId/report.xlsx`, requireAuth, scopeToCompany,
   res.end();
 });
 
-router.get(`${BASE}/records/:recordId/report.pdf`, requireAuth, scopeToCompany, async (req, res) => {
+router.get(`${BASE}/records/:recordId/report.pdf`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
   const ctx = await loadReportContext(req, res);
   if (!ctx) return;
   if (ctx.errors.length) return res.status(422).json({ error: ctx.errors.join(' '), errors: ctx.errors });
 
+  // Once approved, the PDF shows who approved it and when.
+  let approvedBy = '';
+  if (ctx.rec.status === 'checked' && ctx.rec.checked_by) {
+    const { rows } = await pool.query('SELECT display_name FROM users WHERE id = $1', [ctx.rec.checked_by]);
+    if (rows[0]) approvedBy = `${rows[0].display_name} (${new Date(ctx.rec.checked_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Kuala_Lumpur' })})`;
+  }
+
   const filename = `${rules.reportFileBase(ctx.branch, ctx.year, ctx.month)}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  const doc = buildReportPdf(ctx.branch, ctx.menu, ctx.built, cleanText(req.query.preparedBy, 100));
+  const doc = buildReportPdf(ctx.branch, ctx.menu, ctx.built, cleanText(req.query.preparedBy, 100), approvedBy);
   doc.pipe(res);
   doc.end();
 });

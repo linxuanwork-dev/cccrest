@@ -73,7 +73,7 @@ function nowKL() {
   return new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour12: false });
 }
 
-function buildReportPdf(branch, menu, built, preparedBy) {
+function buildReportPdf(branch, menu, built, preparedBy, approvedBy) {
   const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
   doc.registerFont('CJK', CJK_FONT_PATH);
 
@@ -156,7 +156,9 @@ function buildReportPdf(branch, menu, built, preparedBy) {
     doc.fillColor('#555555');
     setFont(doc, `Prepared by: ${preparedBy || ''}`, false, 8);
     doc.text(`Prepared by: ${preparedBy || ''}`, MARGIN, y, { width: 200, lineBreak: false });
-    doc.font('Helvetica').fontSize(8).text('Checked & Approved by: ____________________', MARGIN + 210, y, { width: 200, lineBreak: false });
+    const approvedText = approvedBy ? 'Checked & Approved by: ' + approvedBy : 'Checked & Approved by: ____________________';
+    setFont(doc, approvedText, false, 8);
+    doc.text(approvedText, MARGIN + 210, y, { width: 200, lineBreak: false });
     doc.text(`Page ${i - range.start + 1} / ${range.count}`, MARGIN + usableWidth(doc) - 70, y, { width: 70, align: 'right', lineBreak: false });
     doc.page.margins.bottom = oldBottom;
   }

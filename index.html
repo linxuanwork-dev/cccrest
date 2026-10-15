@@ -180,7 +180,7 @@
   .sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
   .sidebar-nav[hidden]{ display:none; }
   .nav-item[hidden]{ display:none; }
-  #dm-sales-picker[hidden], #sales-outlet-picker[hidden], #dsi-menu-actions[hidden]{ display:none !important; }
+  #dm-sales-picker[hidden], #sales-outlet-picker[hidden], #dsi-menu-actions[hidden], #cu-active-wrap[hidden]{ display:none !important; }
   .export-row[hidden], .kpi-row[hidden], .recon-flag-note[hidden]{ display:none; }
 
   /* Daily Sales -> Bukku Sales Invoice */
@@ -805,7 +805,7 @@
           <button type="button" class="btn-ghost" id="dsi-records-back" style="margin-bottom:14px;padding:6px 12px;font-size:12.5px;" data-i18n="back_to_report_list">← Back</button>
           <div class="recon-step-label" data-i18n="dsi_records_title">Sales Summary records</div>
 
-          <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;background:var(--surface-alt);">
+          <div id="dsi-new-box" style="border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;background:var(--surface-alt);">
             <div style="font-size:12.5px;font-weight:700;margin-bottom:10px;" data-i18n="dsi_new_month_title">Start a new month</div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
               <div class="field" style="margin:0;"><label for="dsi-new-branch" data-i18n="dsi_branch">Branch</label><select id="dsi-new-branch"></select></div>
@@ -1921,41 +1921,63 @@
   </div>
 
   <div class="modal-backdrop" id="cu-modal-backdrop" hidden>
-    <div class="modal-card" style="max-width:860px;">
+    <div class="modal-card" style="max-width:920px;">
       <div class="modal-header">
         <div>
           <h3 id="cu-modal-title" data-i18n="cu_title">Users</h3>
-          <div class="modal-sub" data-i18n="cu_sub">People who can sign in for this company, and their level.</div>
+          <div class="modal-sub" data-i18n="cu_sub">Only the CC CREST Owner can add users and set what each one may do.</div>
         </div>
         <button type="button" class="modal-close" id="cu-modal-close" data-i18n-aria="close" aria-label="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
-      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
-        <div style="font-size:12px;color:var(--primary-soft);margin-bottom:14px;" data-i18n="cu_level_help">Staff: enter data and download. Manager: also edit menu / settings / special prices, mark records as Checked, amend Checked records, delete records and manage users.</div>
-
-        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;background:var(--surface-alt);">
-          <div style="font-size:12.5px;font-weight:700;margin-bottom:10px;" data-i18n="cu_add_title">Add a user</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 14px;align-items:end;">
-            <div class="field" style="margin-bottom:10px;"><label for="cu-new-login" data-i18n="field_login_id">Login ID</label><input type="text" id="cu-new-login" autocomplete="off" /></div>
-            <div class="field" style="margin-bottom:10px;"><label for="cu-new-name" data-i18n="cu_th_name">Name</label><input type="text" id="cu-new-name" autocomplete="off" /></div>
-            <div class="field" style="margin-bottom:10px;"><label for="cu-new-password" data-i18n="field_password">Password</label><input type="password" id="cu-new-password" autocomplete="new-password" /></div>
-            <div class="field" style="margin-bottom:10px;"><label for="cu-new-level" data-i18n="cu_th_level">Level</label>
-              <select id="cu-new-level"><option value="staff" data-i18n="level_staff">Staff</option><option value="manager" data-i18n="level_manager">Manager</option></select>
-            </div>
-            <button type="button" class="btn-primary" id="cu-add-btn" style="width:auto;padding:10px 18px;margin-bottom:10px;" data-i18n="cu_add_btn">Add user</button>
-          </div>
-        </div>
-
-        <div id="cu-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
-        <div class="table-card" style="overflow-x:auto;">
+      <div class="modal-body" style="max-height:72vh;overflow-y:auto;">
+        <div class="table-card" style="overflow-x:auto;margin-bottom:18px;">
           <table>
             <thead><tr>
-              <th data-i18n="field_login_id">Login ID</th><th data-i18n="cu_th_name">Name</th><th data-i18n="cu_th_level">Level</th>
-              <th data-i18n="cu_th_active">Active</th><th data-i18n="cu_th_password">New password</th><th></th>
+              <th data-i18n="field_login_id">Login ID</th><th data-i18n="cu_th_name">Name</th><th data-i18n="cu_th_type">Type</th>
+              <th data-i18n="cu_th_approver">Approver</th><th data-i18n="cu_th_active">Active</th><th></th>
             </tr></thead>
             <tbody id="cu-tbody"></tbody>
           </table>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;background:var(--surface-alt);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div id="cu-form-title" style="font-size:13.5px;font-weight:700;"></div>
+            <button type="button" class="btn-ghost" id="cu-form-new" style="padding:6px 12px;font-size:12.5px;" data-i18n="cu_new_user">+ New user</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 16px;">
+            <div class="field" style="margin-bottom:12px;"><label for="cu-login" data-i18n="field_login_id">Login ID</label><input type="text" id="cu-login" autocomplete="off" /></div>
+            <div class="field" style="margin-bottom:12px;"><label for="cu-name" data-i18n="cu_th_name">Name</label><input type="text" id="cu-name" autocomplete="off" /></div>
+            <div class="field" style="margin-bottom:12px;"><label for="cu-password" id="cu-password-label" data-i18n="field_password">Password</label><input type="password" id="cu-password" autocomplete="new-password" /></div>
+          </div>
+
+          <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px;">
+            <div style="font-size:12.5px;font-weight:700;padding-top:9px;min-width:60px;"><span style="color:var(--danger);">*</span> <span data-i18n="cu_th_type">Type</span></div>
+            <div class="format-toggle" id="cu-type-toggle">
+              <button type="button" class="format-option active" data-cu-type="user" data-i18n="cu_type_user">User</button>
+              <button type="button" class="format-option" data-cu-type="administrator" data-i18n="cu_type_admin">Administrator</button>
+            </div>
+            <div id="cu-type-help" style="flex:1;min-width:220px;font-size:12px;color:var(--primary-soft);line-height:1.6;"></div>
+          </div>
+
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;" data-i18n="cu_perms_title">Manage permissions</div>
+          <div style="font-size:12px;color:var(--primary-soft);margin-bottom:10px;line-height:1.6;" data-i18n="cu_perms_note">Levels take effect on Sales Summary today (L1 view and download · L2 create a month and fill in your own · L3 edit any pending month · L4 also special prices, menu, settings, branches and delete). The other pages are view-only for company users for now.</div>
+          <div id="cu-perms" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 18px;margin-bottom:14px;"></div>
+
+          <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" id="cu-approver" style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent);" />
+            <span><strong data-i18n="cu_approver_label">Can approve</strong><br><span style="font-size:12px;color:var(--primary-soft);" data-i18n="cu_approver_help">Named approver: can approve (Check) a record, which locks it. Needs Sales Summary at L3 or above. After approval only this person and CC CREST can amend it.</span></span>
+          </label>
+          <label id="cu-active-wrap" style="display:flex;gap:9px;align-items:center;font-size:13px;margin-bottom:14px;cursor:pointer;">
+            <input type="checkbox" id="cu-active" checked style="width:16px;height:16px;accent-color:var(--accent);" />
+            <span data-i18n="cu_active_label">Active (can sign in)</span>
+          </label>
+
+          <div id="cu-error" hidden style="color:var(--danger);font-size:12.5px;margin-bottom:10px;"></div>
+          <button type="button" class="btn-primary" id="cu-save-btn" style="width:auto;padding:10px 22px;" data-i18n="cu_save_user">Save user</button>
         </div>
       </div>
       <div class="modal-footer">
@@ -2081,7 +2103,6 @@
       dsi_tab_entry:"Daily entry", dsi_tab_specials:"Special prices", dsi_tab_menu:"Menu", dsi_tab_settings:"Settings",
       dsi_entry_hint:"Enter the quantity sold per item per day. Blank = 0. A day with nothing entered gets no invoice. Orange cells use a special price.",
       dsi_specials_title:"Special prices — only fill a cell when that day's price differs; blank = menu price.",
-      dsi_manager_only:"Only a Manager can change this.",
       dsi_th_product:"Product", dsi_th_price:"Unit price RM", dsi_total_rm:"Total RM",
       dsi_add_item:"+ Add item", dsi_save_menu:"Save menu", dsi_menu_saved:"Menu saved.",
       dsi_delete_item_confirm:"Remove this item? Its saved quantities and special prices will be deleted too.",
@@ -2097,20 +2118,32 @@
       dsi_records_title:"Sales Summary records", dsi_all_records:"All records", dsi_new_month_title:"Start a new month", dsi_new_month_btn:"Create",
       dsi_branch:"Branch", dsi_all:"All", dsi_status:"Status", dsi_status_pending:"Pending", dsi_status_checked:"Checked",
       dsi_th_month:"Month", dsi_th_days:"Invoice days", dsi_th_total:"Total RM", dsi_th_saved:"Last saved", dsi_th_checked:"Checked",
-      dsi_open:"Open", dsi_mark_checked:"Mark as checked", dsi_mark_pending:"Mark as pending", dsi_delete:"Delete",
+      dsi_open:"Open", dsi_delete:"Delete",
       dsi_delete_record_confirm:"Delete {record}? This also deletes that month's saved quantities and special prices.",
       dsi_dup_warn:"{branch} already has a record for {month} (status: {status}). The same month can't be created twice — open the existing record instead.",
       dsi_open_existing:"Open existing record", dsi_no_records:"No records yet.", dsi_back_to_records:"← Records",
       dsi_save_btn:"Save", dsi_unsaved:"● Unsaved changes", dsi_saved_now:"Saved ✓", dsi_save_first:"Please save your changes first.",
       dsi_download_xlsx:"Download Excel", dsi_download_pdf:"Download PDF",
       dsi_dl_ready:"Saved ✓ — you can now download the Excel or PDF.", dsi_dl_need_save:"Save first to download.",
-      dsi_locked_banner:"This record is marked Checked. Only a Manager can amend it.",
-      dsi_checked_manager_banner:"Checked by {name}. As a Manager you can still amend it.",
-      dsi_discard_confirm:"You have unsaved changes. Leave without saving?", dsi_manage_users:"Users",
-      cu_title:"Users", cu_sub:"People who can sign in for this company, and their level.",
-      cu_level_help:"Staff: enter data and download. Manager: also edit menu / settings / special prices, mark records as Checked, amend Checked records, delete records and manage users.",
-      cu_add_title:"Add a user", cu_add_btn:"Add user", cu_th_name:"Name", cu_th_level:"Level", cu_th_active:"Active", cu_th_password:"New password",
-      cu_pw_placeholder:"Leave blank to keep", cu_you:"you", cu_none:"No users yet.", level_staff:"Staff", level_manager:"Manager",
+      
+      dsi_discard_confirm:"You have unsaved changes. Leave without saving?", 
+      cu_title:"Users", 
+      cu_th_name:"Name", cu_th_active:"Active", 
+      cu_none:"No users yet.", 
+      dsi_mark_checked:"Approve & lock", dsi_mark_pending:"Unlock (back to pending)", dsi_need_l4:"This needs L4 Full Access.",
+      dsi_locked_banner:"Approved by {name} and locked. Only {name} and CC CREST can amend it.",
+      dsi_checked_amend_banner:"Approved by {name} (locked). You are allowed to amend it.",
+      dsi_read_only_banner:"You can view and download this record but not change it.",
+      cu_sub:"Only the CC CREST Owner can add users and set what each one may do.",
+      cu_th_type:"Type", cu_th_approver:"Approver", cu_new_user:"+ New user", cu_new_title:"New user", cu_edit_title:"Edit user",
+      cu_type_user:"User", cu_type_admin:"Administrator",
+      cu_type_user_help:"permissions are set manually per page.", cu_type_admin_help:"Full Access (L4) on every page.",
+      cu_perms_title:"Manage permissions",
+      cu_perms_note:"Levels take effect on Sales Summary today (L1 view and download · L2 create a month and fill in your own · L3 edit any pending month · L4 also special prices, menu, settings, branches and delete). The other pages are view-only for company users for now.",
+      cu_level_1:"L1  Read Only", cu_level_2:"L2  Create", cu_level_3:"L3  Create & Update", cu_level_4:"L4  Full Access",
+      cu_approver_label:"Can approve",
+      cu_approver_help:"Named approver: can approve (Check) a record, which locks it. Needs Sales Summary at L3 or above. After approval only this person and CC CREST can amend it.",
+      cu_active_label:"Active (can sign in)", cu_save_user:"Save user", cu_pw_keep:"Leave blank to keep",
       nav_service_bookkeeping:"Bookkeeping", nav_service_hr:"HR",
       picker_service_hint:"Service: {service} — choose a company to continue",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
@@ -2317,7 +2350,6 @@
       dsi_tab_entry:"每日进单", dsi_tab_specials:"特价", dsi_tab_menu:"菜单", dsi_tab_settings:"设定",
       dsi_entry_hint:"输入每天每个项目卖出的数量。空白 = 0；整天都没填就不开单。橙色格子表示该日用了特价。",
       dsi_specials_title:"特价 — 某一天价钱不同才填；留空 = 用菜单价",
-      dsi_manager_only:"此项目只有 Manager 可以修改",
       dsi_th_product:"项目", dsi_th_price:"单价 RM", dsi_total_rm:"合计 RM",
       dsi_add_item:"+ 新增项目", dsi_save_menu:"保存菜单", dsi_menu_saved:"菜单已保存。",
       dsi_delete_item_confirm:"确定删除此项目？它已保存的数量和特价也会一并删除。",
@@ -2333,20 +2365,32 @@
       dsi_records_title:"销售汇总记录", dsi_all_records:"所有记录", dsi_new_month_title:"新建月份", dsi_new_month_btn:"建立",
       dsi_branch:"分店", dsi_all:"全部", dsi_status:"状态", dsi_status_pending:"待审核 Pending", dsi_status_checked:"已审核 Checked",
       dsi_th_month:"月份", dsi_th_days:"开单天数", dsi_th_total:"合计 RM", dsi_th_saved:"最后保存", dsi_th_checked:"审核",
-      dsi_open:"打开", dsi_mark_checked:"标记为 Checked", dsi_mark_pending:"改回 Pending", dsi_delete:"删除",
+      dsi_open:"打开", dsi_delete:"删除",
       dsi_delete_record_confirm:"确定删除 {record}？该月份已保存的数量和特价也会一并删除。",
       dsi_dup_warn:"{branch} 已经有 {month} 的记录（状态：{status}）。同一个月份不能重复建立，请打开现有记录。",
       dsi_open_existing:"打开现有记录", dsi_no_records:"还没有记录。", dsi_back_to_records:"← 记录",
       dsi_save_btn:"保存", dsi_unsaved:"● 有未保存的更改", dsi_saved_now:"已保存 ✓", dsi_save_first:"请先保存更改。",
       dsi_download_xlsx:"下载 Excel", dsi_download_pdf:"下载 PDF",
       dsi_dl_ready:"已保存 ✓ — 现在可以下载 Excel 或 PDF。", dsi_dl_need_save:"请先保存才能下载。",
-      dsi_locked_banner:"此记录已标记为 Checked，只有 Manager 可以修改。",
-      dsi_checked_manager_banner:"已由 {name} 审核（Checked）。你是 Manager，仍可修改。",
-      dsi_discard_confirm:"有未保存的更改，确定要离开吗？", dsi_manage_users:"用户",
-      cu_title:"用户", cu_sub:"可以登录此公司的人员及其级别。",
-      cu_level_help:"Staff：可输入数据和下载。Manager：还可修改菜单／设定／特价、标记 Checked、修改已 Checked 的记录、删除记录和管理用户。",
-      cu_add_title:"新增用户", cu_add_btn:"新增用户", cu_th_name:"姓名", cu_th_level:"级别", cu_th_active:"启用", cu_th_password:"新密码",
-      cu_pw_placeholder:"留空 = 不改", cu_you:"你", cu_none:"还没有用户。", level_staff:"Staff 员工", level_manager:"Manager 经理",
+      
+      dsi_discard_confirm:"有未保存的更改，确定要离开吗？", 
+      cu_title:"用户", 
+      cu_th_name:"姓名", cu_th_active:"启用", 
+      cu_none:"还没有用户。", 
+      dsi_mark_checked:"审核并锁定", dsi_mark_pending:"解锁（改回 Pending）", dsi_need_l4:"需要 L4 Full Access 才能修改。",
+      dsi_locked_banner:"已由 {name} 审核并锁定，只有 {name} 和 CC CREST 可以修改。",
+      dsi_checked_amend_banner:"已由 {name} 审核（已锁定）。你有权限修改。",
+      dsi_read_only_banner:"你可以查看和下载此记录，但不能修改。",
+      cu_sub:"只有 CC CREST 东主可以新增用户并设定每个人的权限。",
+      cu_th_type:"类型", cu_th_approver:"审核人", cu_new_user:"+ 新用户", cu_new_title:"新用户", cu_edit_title:"编辑用户",
+      cu_type_user:"User 用户", cu_type_admin:"Administrator 管理员",
+      cu_type_user_help:"按每个页面手动设定权限。", cu_type_admin_help:"所有页面都是 L4 Full Access。",
+      cu_perms_title:"权限设定",
+      cu_perms_note:"目前级别在 Sales Summary 生效（L1 查看和下载 · L2 新建月份并填写自己建立的 · L3 修改任何 Pending 月份 · L4 另可改特价、菜单、设定、分店及删除）。其他页面对公司用户暂时只能查看。",
+      cu_level_1:"L1  Read Only 只读", cu_level_2:"L2  Create 新建", cu_level_3:"L3  Create & Update 新建和修改", cu_level_4:"L4  Full Access 完全权限",
+      cu_approver_label:"可以审核",
+      cu_approver_help:"指定审核人：可以审核（Checked）记录并将其锁定。Sales Summary 需至少 L3。审核后只有此人和 CC CREST 可以修改。",
+      cu_active_label:"启用（可登录）", cu_save_user:"保存用户", cu_pw_keep:"留空 = 不改",
       nav_service_bookkeeping:"记账 Bookkeeping", nav_service_hr:"人事 HR",
       picker_service_hint:"服务：{service} — 请选择公司以继续",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
@@ -3830,8 +3874,9 @@
   // Branches, records (one per branch + month), menus, quantities and special prices all live on the
   // server. A worksheet only changes the database when Save is pressed.
   var dsi = {
-    companyId:null, canManage:false, branches:[], records:[], filter:{ branchId:'', status:'', year:'' },
-    branch:null, record:null, locked:false, qty:{}, specials:{}, dirtyQty:{}, dirtySp:{}, menuDraft:[], savedText:''
+    companyId:null, access:{ level:0, canCreate:false, canConfigure:false, canApprove:false }, branches:[], records:[], filter:{ branchId:'', status:'', year:'' },
+    branch:null, record:null, flags:{ canEdit:false, canEditSpecials:false, canApprove:false, canRevert:false, canDelete:false },
+    qty:{}, specials:{}, dirtyQty:{}, dirtySp:{}, menuDraft:[], savedText:''
   };
   var DSI_SETTING_FIELDS = ['companyName','regNo','address','reportPrefix','contactCode','legalName','invoicePrefix','invoiceSuffix','paymentTerm','tags','accountCode'];
   var DSI_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -3881,7 +3926,7 @@
     api('/companies/' + companyId + '/dsi/branches').then(function(res){
       if(customerRecordId(currentCompany) !== companyId) return;
       dsi.companyId = companyId;
-      dsi.canManage = res.canManage;
+      dsi.access = res.access;
       dsi.branches = res.branches;
       renderDsiPicker();
     }).catch(function(err){
@@ -3896,11 +3941,7 @@
     }).join('');
     if(!dsi.branches.length) html = '<div style="font-size:13px;color:var(--primary-soft);">' + t('dsi_no_branches') + '</div>';
     html += '<button type="button" class="btn-ghost" id="dsi-all-records" style="align-self:flex-start;">' + t('dsi_all_records') + '</button>';
-    if(dsi.canManage){
-      html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-        '<button type="button" class="btn-ghost" id="dsi-add-branch-btn">' + t('dsi_add_branch') + '</button>' +
-        '<button type="button" class="btn-ghost" id="dsi-users-btn">' + t('dsi_manage_users') + '</button></div>';
-    }
+    if(dsi.access.canConfigure) html += '<button type="button" class="btn-ghost" id="dsi-add-branch-btn" style="align-self:flex-start;">' + t('dsi_add_branch') + '</button>';
     host.innerHTML = html;
     host.querySelectorAll('[data-dsi-branch]').forEach(function(btn){
       btn.addEventListener('click', function(){ dsiShowRecords(btn.dataset.dsiBranch); });
@@ -3908,8 +3949,6 @@
     dsiById('dsi-all-records').addEventListener('click', function(){ dsiShowRecords(''); });
     var add = dsiById('dsi-add-branch-btn');
     if(add) add.addEventListener('click', openDsiBranchModal);
-    var users = dsiById('dsi-users-btn');
-    if(users) users.addEventListener('click', function(){ openCompanyUsersModal(dsi.companyId, currentCompany); });
   }
 
   // ---- Records page ----
@@ -3924,6 +3963,7 @@
     var branchOpts = dsi.branches.map(function(b){ return '<option value="' + b.id + '">' + dsiEsc(b.reportPrefix) + '</option>'; }).join('');
     dsiById('dsi-new-branch').innerHTML = branchOpts;
     if(dsi.filter.branchId) dsiById('dsi-new-branch').value = dsi.filter.branchId;
+    dsiById('dsi-new-box').hidden = !dsi.access.canCreate;
     dsiById('dsi-new-year').innerHTML = dsiOptions(2025, 2035, Math.min(2035, Math.max(2025, now.getFullYear())));
     dsiById('dsi-new-month').innerHTML = dsiOptions(1, 12, now.getMonth() + 1);
     dsiById('dsi-f-branch').innerHTML = '<option value="">' + t('dsi_all') + '</option>' + branchOpts;
@@ -3944,7 +3984,7 @@
   function dsiLoadRecords(){
     api(dsiBase() + '/records').then(function(res){
       dsi.records = res.records;
-      dsi.canManage = res.canManage;
+      dsi.access = res.access;
       renderDsiRecords();
       dsiCheckDuplicate();
     }).catch(function(err){
@@ -3969,10 +4009,9 @@
       var actions = '<button type="button" class="btn-row" data-dsi-open="' + r.id + '">' + t('dsi_open') + '</button>' +
         '<button type="button" class="btn-row" data-dsi-dl="xlsx:' + r.id + '"' + (canDownload ? '' : ' disabled') + '>Excel</button>' +
         '<button type="button" class="btn-row" data-dsi-dl="pdf:' + r.id + '"' + (canDownload ? '' : ' disabled') + '>PDF</button>';
-      if(dsi.canManage){
-        actions += '<button type="button" class="btn-row" data-dsi-status="' + r.id + ':' + (r.status === 'checked' ? 'pending' : 'checked') + '">' + t(r.status === 'checked' ? 'dsi_mark_pending' : 'dsi_mark_checked') + '</button>' +
-          '<button type="button" class="btn-row" data-dsi-del="' + r.id + '">' + t('dsi_delete') + '</button>';
-      }
+      if(r.flags.canApprove) actions += '<button type="button" class="btn-row" data-dsi-status="' + r.id + ':checked">' + t('dsi_mark_checked') + '</button>';
+      if(r.flags.canRevert) actions += '<button type="button" class="btn-row" data-dsi-status="' + r.id + ':pending">' + t('dsi_mark_pending') + '</button>';
+      if(r.flags.canDelete) actions += '<button type="button" class="btn-row" data-dsi-del="' + r.id + '">' + t('dsi_delete') + '</button>';
       return '<tr><td>' + dsiEsc(r.reportPrefix) + '</td><td class="num">' + dsiMonthKey(r.year, r.month) + '</td><td>' + dsiStatusBadge(r.status) + '</td>' +
         '<td class="num">' + r.invoiceDays + '</td><td class="num">' + money(r.totalCents / 100) + '</td>' +
         '<td>' + dsiStamp(r.savedAt) + (r.savedBy ? '<div style="font-size:11px;color:var(--primary-soft);">' + dsiEsc(r.savedBy) + '</div>' : '') + '</td>' +
@@ -4055,8 +4094,8 @@
       dsi.branch = data.branch;
       dsi.qty = data.qty;
       dsi.specials = data.specials;
-      dsi.canManage = data.canManage;
-      dsi.locked = data.locked;
+      dsi.access = data.access;
+      dsi.flags = data.record.flags;
       dsi.dirtyQty = {};
       dsi.dirtySp = {};
       dsi.savedText = '';
@@ -4084,14 +4123,17 @@
 
     var banner = dsiById('dsi-lock-banner');
     if(rec.status === 'checked'){
-      banner.textContent = dsi.locked ? t('dsi_locked_banner') : t('dsi_checked_manager_banner').replace('{name}', rec.checkedBy || '—');
+      banner.textContent = t(dsi.flags.canEdit ? 'dsi_checked_amend_banner' : 'dsi_locked_banner').split('{name}').join(rec.checkedBy || '—');
+      banner.hidden = false;
+    } else if(!dsi.flags.canEdit){
+      banner.textContent = t('dsi_read_only_banner');
       banner.hidden = false;
     } else {
       banner.hidden = true;
     }
-    dsiById('dsi-save-btn').hidden = dsi.locked;
+    dsiById('dsi-save-btn').hidden = !dsi.flags.canEdit;
     var checkBtn = dsiById('dsi-check-btn');
-    checkBtn.hidden = !dsi.canManage;
+    checkBtn.hidden = !(dsi.flags.canApprove || dsi.flags.canRevert);
     checkBtn.textContent = t(rec.status === 'checked' ? 'dsi_mark_pending' : 'dsi_mark_checked');
   }
 
@@ -4120,7 +4162,7 @@
     var b = dsi.branch;
     var rec = dsi.record;
     var days = dsiDaysIn(rec.year, rec.month);
-    var editable = kind === 'qty' ? !dsi.locked : (dsi.canManage && !dsi.locked);
+    var editable = kind === 'qty' ? dsi.flags.canEdit : dsi.flags.canEditSpecials;
     var html = '<table class="dsi-grid"><thead><tr><th class="dsi-name">' + t('dsi_th_product') + '</th>';
     for(var d = 1; d <= days; d++){
       var wd = new Date(rec.year, rec.month - 1, d).getDay();
@@ -4159,8 +4201,9 @@
   function renderDsiSpecials(){
     if(!dsi.branch) return;
     var note = dsiById('dsi-specials-note');
-    note.hidden = dsi.canManage;
-    note.textContent = t('dsi_manager_only');
+    // Only explain "needs L4" to people below L4; on a locked record the banner above already says why it's read-only.
+    note.hidden = dsi.flags.canEditSpecials || dsi.access.canConfigure;
+    note.textContent = t('dsi_need_l4');
     dsiById('dsi-specials-wrap').innerHTML = dsiGridHtml('sp');
   }
 
@@ -4244,6 +4287,7 @@
         Object.keys(sentQ).forEach(function(k){ if(dsi.dirtyQty[k] === sentQ[k]) delete dsi.dirtyQty[k]; });
         Object.keys(sentS).forEach(function(k){ if(dsi.dirtySp[k] === sentS[k]) delete dsi.dirtySp[k]; });
         dsi.record = rec;
+        dsi.flags = rec.flags;
         dsi.savedText = t('dsi_saved_now') + ' ' + new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
         dsiRenderHeader();
         dsiSetDirtyUi();
@@ -4272,7 +4316,7 @@
     dsiSetStatus(dsi.record.id, dsi.record.status === 'checked' ? 'pending' : 'checked', errEl).then(function(rec){
       if(rec){
         dsi.record = rec;
-        dsi.locked = false;
+        dsi.flags = rec.flags;
         dsiRenderHeader();
         renderDsiGrid();
         renderDsiSpecials();
@@ -4340,7 +4384,7 @@
   // ---- Settings tab (Manager level) ----
   function renderDsiSettings(){
     var b = dsi.branch;
-    var edit = dsi.canManage;
+    var edit = dsi.access.canConfigure;
     DSI_SETTING_FIELDS.forEach(function(f){
       var el = dsiById('dsi-s-' + f);
       el.value = b[f] == null ? '' : b[f];
@@ -4352,7 +4396,7 @@
     dsiById('dsi-settings-save').hidden = !edit;
     var note = dsiById('dsi-settings-note');
     note.hidden = edit;
-    note.textContent = t('dsi_manager_only');
+    note.textContent = t('dsi_need_l4');
     dsiById('dsi-settings-error').hidden = true;
   }
 
@@ -4380,17 +4424,17 @@
   // ---- Menu tab (Manager level) ----
   function renderDsiMenu(){
     dsi.menuDraft = dsi.branch.menu.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; });
-    var edit = dsi.canManage;
+    var edit = dsi.access.canConfigure;
     dsiById('dsi-menu-actions').hidden = !edit;
     var note = dsiById('dsi-menu-note');
     note.hidden = edit;
-    note.textContent = t('dsi_manager_only');
+    note.textContent = t('dsi_need_l4');
     dsiById('dsi-menu-error').hidden = true;
     dsiDrawMenuRows();
   }
 
   function dsiDrawMenuRows(){
-    var edit = dsi.canManage;
+    var edit = dsi.access.canConfigure;
     var inputStyle = 'border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--surface-alt);color:inherit;font-family:inherit;';
     var tbody = dsiById('dsi-menu-tbody');
     tbody.innerHTML = dsi.menuDraft.map(function(m, i){
@@ -4441,6 +4485,7 @@
       return api(dsiBase() + '/records/' + dsi.record.id);
     }).then(function(data){
       dsi.record = data.record;
+      dsi.flags = data.record.flags;
       dsi.branch = data.branch;
       dsi.qty = data.qty;
       dsi.specials = data.specials;
@@ -5515,16 +5560,103 @@
       .finally(function(){ btn.disabled = false; });
   });
 
-  // ============ COMPANY USERS (Owner / Manager level) ============
-  // Each company can have several sign-ins, each with a level: Staff or Manager.
-  var cuState = { companyId:null, currentUserId:null };
+  // ============ COMPANY USERS (CC CREST Owner only, opened from Customer Queue) ============
+  // Bukku-style: a type (User / Administrator), a level per page (L1 Read Only .. L4 Full Access),
+  // and a "can approve" switch for named approvers.
+  var CU_PAGES = [
+    ['sales', 'nav_sales_summary'], ['purchases', 'nav_purchases_bill'], ['bank', 'nav_bank_statement'],
+    ['claim', 'nav_claim_bill'], ['petty', 'nav_petty_record'], ['merchant', 'nav_merchant_report'], ['payroll', 'nav_payroll']
+  ];
+  var CU_DEFAULT_LEVELS = { sales:3, purchases:3, bank:3, claim:3, petty:3, merchant:3, payroll:1 };
+  var cuState = { companyId:null, users:[], editingId:null, type:'user' };
+
+  function cuShowError(msg){
+    var el = dsiById('cu-error');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+
+  function cuBuildPerms(){
+    var selectStyle = 'flex:1;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--surface-card);color:inherit;font-family:inherit;font-size:13px;';
+    dsiById('cu-perms').innerHTML = CU_PAGES.map(function(p){
+      var opts = [1, 2, 3, 4].map(function(l){ return '<option value="' + l + '">' + t('cu_level_' + l) + '</option>'; }).join('');
+      return '<div style="display:flex;align-items:center;gap:10px;"><label style="flex:0 0 132px;font-size:12.5px;">' + t(p[1]) + '</label>' +
+        '<select data-cu-page="' + p[0] + '" style="' + selectStyle + '">' + opts + '</select></div>';
+    }).join('');
+    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.addEventListener('change', cuSyncApprover); });
+  }
+
+  // Approvers need Create & Update (L3) or more on Sales Summary; Administrators always qualify.
+  function cuSyncApprover(){
+    var salesLevel = Number(document.querySelector('#cu-perms [data-cu-page="sales"]').value);
+    var ok = cuState.type === 'administrator' || salesLevel >= 3;
+    var box = dsiById('cu-approver');
+    if(!ok) box.checked = false;
+    box.disabled = !ok;
+  }
+
+  function cuSetType(type){
+    cuState.type = type;
+    document.querySelectorAll('#cu-type-toggle .format-option').forEach(function(b){ b.classList.toggle('active', b.dataset.cuType === type); });
+    dsiById('cu-type-help').innerHTML = '<strong>' + t('cu_type_user') + '</strong>: ' + t('cu_type_user_help') + '<br><strong>' + t('cu_type_admin') + '</strong>: ' + t('cu_type_admin_help');
+    var admin = type === 'administrator';
+    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){
+      if(admin) sel.value = '4';
+      sel.disabled = admin;
+    });
+    cuSyncApprover();
+  }
+
+  function cuFillForm(user){
+    cuState.editingId = user ? user.id : null;
+    cuShowError('');
+    dsiById('cu-form-title').textContent = user ? t('cu_edit_title') + ' — ' + user.loginId : t('cu_new_title');
+    var login = dsiById('cu-login');
+    login.value = user ? user.loginId : '';
+    login.disabled = !!user;
+    dsiById('cu-name').value = user ? user.displayName : '';
+    var pw = dsiById('cu-password');
+    pw.value = '';
+    pw.placeholder = user ? t('cu_pw_keep') : '';
+    var levels = user ? user.permissions : CU_DEFAULT_LEVELS;
+    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.value = String(levels[sel.dataset.cuPage] || 1); });
+    cuSetType(user ? user.userType : 'user');
+    dsiById('cu-approver').checked = user ? user.canApprove : false;
+    cuSyncApprover();
+    dsiById('cu-active').checked = user ? user.active : true;
+    dsiById('cu-active-wrap').hidden = !user;
+  }
+
+  function loadCompanyUsers(){
+    var companyId = cuState.companyId;
+    api('/companies/' + companyId + '/users').then(function(res){
+      if(cuState.companyId !== companyId) return;
+      cuState.users = res.users;
+      var tbody = dsiById('cu-tbody');
+      if(!res.users.length){
+        tbody.innerHTML = emptyRow(6, t('cu_none'));
+        return;
+      }
+      tbody.innerHTML = res.users.map(function(u){
+        return '<tr><td style="font-weight:600;">' + dsiEsc(u.loginId) + '</td><td>' + dsiEsc(u.displayName) + '</td>' +
+          '<td>' + t(u.userType === 'administrator' ? 'cu_type_admin' : 'cu_type_user') + '</td>' +
+          '<td>' + (u.canApprove ? '✓' : '—') + '</td><td>' + (u.active ? '✓' : t('status_suspended')) + '</td>' +
+          '<td><button type="button" class="btn-row" data-cu-edit="' + u.id + '">' + t('edit_btn') + '</button></td></tr>';
+      }).join('');
+      tbody.querySelectorAll('[data-cu-edit]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var u = cuState.users.find(function(x){ return x.id === Number(btn.dataset.cuEdit); });
+          if(u) cuFillForm(u);
+        });
+      });
+    }).catch(function(err){ cuShowError(err.message); });
+  }
 
   function openCompanyUsersModal(companyId, companyName){
     cuState.companyId = companyId;
     dsiById('cu-modal-title').textContent = t('cu_title') + ' — ' + companyName;
-    dsiById('cu-error').hidden = true;
-    ['cu-new-login','cu-new-name','cu-new-password'].forEach(function(id){ dsiById(id).value = ''; });
-    dsiById('cu-new-level').value = 'staff';
+    cuBuildPerms();
+    cuFillForm(null);
     dsiById('cu-tbody').innerHTML = emptyRow(6, t('loading'));
     dsiById('cu-modal-backdrop').hidden = false;
     loadCompanyUsers();
@@ -5535,68 +5667,35 @@
     cuState.companyId = null;
   }
 
-  function cuShowError(msg){
-    var el = dsiById('cu-error');
-    el.textContent = msg;
-    el.hidden = !msg;
-  }
+  document.querySelectorAll('#cu-type-toggle .format-option').forEach(function(btn){
+    btn.addEventListener('click', function(){ cuSetType(btn.dataset.cuType); });
+  });
+  dsiById('cu-form-new').addEventListener('click', function(){ cuFillForm(null); });
 
-  function loadCompanyUsers(){
+  dsiById('cu-save-btn').addEventListener('click', function(){
     var companyId = cuState.companyId;
-    api('/companies/' + companyId + '/users').then(function(res){
-      if(cuState.companyId !== companyId) return;
-      cuState.currentUserId = res.currentUserId;
-      var tbody = dsiById('cu-tbody');
-      if(!res.users.length){ tbody.innerHTML = emptyRow(6, t('cu_none')); return; }
-      var inputStyle = 'border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--surface-alt);color:inherit;font-family:inherit;width:100%;';
-      tbody.innerHTML = res.users.map(function(u){
-        var self = u.id === cuState.currentUserId;
-        return '<tr data-cu-row="' + u.id + '">' +
-          '<td style="font-weight:600;">' + dsiEsc(u.loginId) + (self ? ' <span style="font-size:11px;color:var(--primary-soft);">(' + t('cu_you') + ')</span>' : '') + '</td>' +
-          '<td><input type="text" data-cu-name value="' + dsiEsc(u.displayName) + '" style="' + inputStyle + 'min-width:140px;" /></td>' +
-          '<td><select data-cu-level style="' + inputStyle + '"' + (self ? ' disabled' : '') + '>' +
-            '<option value="staff"' + (u.level === 'staff' ? ' selected' : '') + '>' + t('level_staff') + '</option>' +
-            '<option value="manager"' + (u.level === 'manager' ? ' selected' : '') + '>' + t('level_manager') + '</option></select></td>' +
-          '<td style="text-align:center;"><input type="checkbox" data-cu-active' + (u.active ? ' checked' : '') + (self ? ' disabled' : '') + ' style="width:16px;height:16px;accent-color:var(--accent);" /></td>' +
-          '<td><input type="password" data-cu-pass autocomplete="new-password" placeholder="' + t('cu_pw_placeholder') + '" style="' + inputStyle + 'min-width:130px;" /></td>' +
-          '<td><button type="button" class="btn-row" data-cu-save="' + u.id + '">' + t('save_btn') + '</button></td></tr>';
-      }).join('');
-      tbody.querySelectorAll('[data-cu-save]').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var row = btn.closest('tr');
-          var body = {
-            displayName: row.querySelector('[data-cu-name]').value,
-            level: row.querySelector('[data-cu-level]').value,
-            active: row.querySelector('[data-cu-active]').checked
-          };
-          var pw = row.querySelector('[data-cu-pass]').value;
-          if(pw) body.password = pw;
-          btn.disabled = true;
-          cuShowError('');
-          api('/companies/' + companyId + '/users/' + btn.dataset.cuSave, { method:'PATCH', body: JSON.stringify(body) })
-            .then(function(){ renderActivityLog(); loadCompanyUsers(); })
-            .catch(function(err){ cuShowError(err.message); })
-            .finally(function(){ btn.disabled = false; });
-        });
-      });
-    }).catch(function(err){ cuShowError(err.message); });
-  }
-
-  dsiById('cu-add-btn').addEventListener('click', function(){
-    var companyId = cuState.companyId;
+    var editing = cuState.editingId;
+    var permissions = {};
+    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ permissions[sel.dataset.cuPage] = Number(sel.value); });
+    var body = {
+      displayName: dsiById('cu-name').value,
+      userType: cuState.type,
+      permissions: permissions,
+      canApprove: dsiById('cu-approver').checked
+    };
+    var pw = dsiById('cu-password').value;
+    if(pw || !editing) body.password = pw;
+    if(editing) body.active = dsiById('cu-active').checked; else body.loginId = dsiById('cu-login').value;
     var btn = this;
     btn.disabled = true;
     cuShowError('');
-    api('/companies/' + companyId + '/users', { method:'POST', body: JSON.stringify({
-      loginId: dsiById('cu-new-login').value,
-      displayName: dsiById('cu-new-name').value,
-      password: dsiById('cu-new-password').value,
-      level: dsiById('cu-new-level').value
-    }) }).then(function(){
-      ['cu-new-login','cu-new-name','cu-new-password'].forEach(function(id){ dsiById(id).value = ''; });
-      renderActivityLog();
-      loadCompanyUsers();
-    }).catch(function(err){ cuShowError(err.message); })
+    api('/companies/' + companyId + '/users' + (editing ? '/' + editing : ''), { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(body) })
+      .then(function(){
+        renderActivityLog();
+        cuFillForm(null);
+        loadCompanyUsers();
+      })
+      .catch(function(err){ cuShowError(err.message); })
       .finally(function(){ btn.disabled = false; });
   });
 

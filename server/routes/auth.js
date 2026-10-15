@@ -25,7 +25,7 @@ async function publicProfile(user) {
     companyName,
     enabledFeatures,
     staffId: user.staff_id,
-    level: user.role === 'client' ? user.company_level : null
+    userType: user.role === 'client' ? user.user_type : null
   };
 }
 

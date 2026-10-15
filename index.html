@@ -3873,6 +3873,11 @@
   function dsiLoadBranches(){
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
+    // Switching company: drop the previous company's branch buttons straight away so they can't be clicked while this loads.
+    if(dsi.companyId !== companyId){
+      dsi.branches = [];
+      dsiById('dsi-picker-list').innerHTML = '<div style="font-size:13px;color:var(--primary-soft);">' + t('loading') + '</div>';
+    }
     api('/companies/' + companyId + '/dsi/branches').then(function(res){
       if(customerRecordId(currentCompany) !== companyId) return;
       dsi.companyId = companyId;

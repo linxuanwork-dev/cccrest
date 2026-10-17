@@ -1,11 +1,12 @@
 const express = require('express');
 const { pool } = require('../db');
 const { scopeToCompany, requireAuth } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 
 const router = express.Router();
 
-router.get('/companies/:companyId/employees', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/employees', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT * FROM employees WHERE company_id = $1 ORDER BY name',
     [req.params.companyId]
@@ -13,7 +14,7 @@ router.get('/companies/:companyId/employees', requireAuth, scopeToCompany, async
   res.json(rows);
 });
 
-router.post('/companies/:companyId/employees', requireAuth, scopeToCompany, async (req, res) => {
+router.post('/companies/:companyId/employees', requireAuth, scopeToCompany, requirePage('payroll', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { name, icNo, position, bankName, bankAccount, epfNo, socsoNo, basicSalary } = req.body || {};
   const trimmedName = (name || '').trim();
@@ -34,7 +35,7 @@ router.post('/companies/:companyId/employees', requireAuth, scopeToCompany, asyn
   res.status(201).json(rows[0]);
 });
 
-router.patch('/companies/:companyId/employees/:employeeId', requireAuth, scopeToCompany, async (req, res) => {
+router.patch('/companies/:companyId/employees/:employeeId', requireAuth, scopeToCompany, requirePage('payroll', 3), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { rows: before } = await pool.query(
     'SELECT * FROM employees WHERE id = $1 AND company_id = $2',

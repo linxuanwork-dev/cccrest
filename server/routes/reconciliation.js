@@ -1,12 +1,13 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 
 const router = express.Router();
 const PERIOD = '2026-08';
 
-router.get('/companies/:companyId/reconciliation-batches', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/reconciliation-batches', requireAuth, scopeToCompany, requirePage('sales', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT * FROM reconciliation_batches WHERE company_id = $1 AND period_month = $2',
     [req.params.companyId, PERIOD]
@@ -20,7 +21,7 @@ router.get('/companies/:companyId/reconciliation-batches', requireAuth, scopeToC
   res.json({ batch: rows[0], lines });
 });
 
-router.post('/companies/:companyId/reconciliation-batches/generate-bukku', requireAuth, scopeToCompany, async (req, res) => {
+router.post('/companies/:companyId/reconciliation-batches/generate-bukku', requireAuth, scopeToCompany, requirePage('sales', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
 
   const { rows } = await pool.query(

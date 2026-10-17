@@ -3,6 +3,7 @@ const multer = require('multer');
 const ExcelJS = require('exceljs');
 const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const { parseMmsdoWorkbook, buildDailySettlementWorkbook } = require('../lib/olTngReport');
 
@@ -20,7 +21,7 @@ const upload = multer({
   }
 });
 
-router.post('/companies/:companyId/ol-tng-report/generate', requireAuth, scopeToCompany, upload.single('file'), async (req, res) => {
+router.post('/companies/:companyId/ol-tng-report/generate', requireAuth, scopeToCompany, requirePage('merchant', 2), upload.single('file'), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 

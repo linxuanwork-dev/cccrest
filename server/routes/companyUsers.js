@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 const { requireRole } = require('../auth');
-const { PAGES } = require('../lib/access');
+const { PAGES, normaliseLevels, validLevels } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 
 const router = express.Router();
@@ -19,21 +19,9 @@ const USER_TYPES = ['user', 'administrator'];
 // Company users are managed ONLY by the CC CREST Owner (main admin account), from Customer Queue.
 // Nobody else can list, add or change them.
 
-// Every page always has a level (1 Read Only .. 4 Full Access); anything missing falls back to Read Only.
-function normalisePermissions(input) {
-  const out = {};
-  for (const page of PAGES) {
-    const n = Number(input && input[page]);
-    out[page] = Number.isInteger(n) && n >= 1 && n <= 4 ? n : 1;
-  }
-  return out;
-}
-
-function validPermissions(input) {
-  if (input == null) return true;
-  if (typeof input !== 'object') return false;
-  return Object.keys(input).every((k) => PAGES.includes(k) && Number.isInteger(Number(input[k])) && Number(input[k]) >= 1 && Number(input[k]) <= 4);
-}
+// Company users always have a level on every page (1 Read Only .. 4 Full Access); anything missing is Read Only.
+const normalisePermissions = (input) => normaliseLevels(input, 1, 1);
+const validPermissions = (input) => validLevels(input, 1);
 
 function publicUser(u) {
   return {

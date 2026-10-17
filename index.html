@@ -1514,7 +1514,7 @@
   </div>
 
   <div class="modal-backdrop" id="assign-modal-backdrop" hidden>
-    <div class="modal-card">
+    <div class="modal-card" style="max-width:700px;">
       <div class="modal-header">
         <div>
           <h3 id="assign-modal-company" data-i18n="assign_staff_title">Assign Staff</h3>
@@ -1529,6 +1529,7 @@
         <div class="assign-current" id="assign-current-staff"></div>
         <div class="assign-staff-list" id="assign-staff-list"></div>
         <div class="assign-limit-note" id="assign-limit-note" data-i18n="assign_limit_note">You can select up to 2 staff for one client.</div>
+        <div id="assign-access"></div>
       </div>
 
       <div class="modal-footer">
@@ -2192,6 +2193,7 @@
       dsi_hd_what:"What", dsi_hd_change:"Change", dsi_hd_from:"From", dsi_hd_to:"To",
       dsi_hf_qty:"Quantity", dsi_hf_special:"Special price", dsi_hf_item_added:"Item added", dsi_hf_item_removed:"Item removed",
       dsi_hf_item_renamed:"Item renamed", dsi_hf_item_price:"Price", dsi_hf_item_order:"Menu order changed", dsi_hf_setting:"Setting",
+      assign_access_title:"access on this company", assign_lvl_0:"No access", assign_can_approve:"Can approve Sales Summary records (named approver)", assign_approver_short:"approver",
       nav_service_bookkeeping:"Bookkeeping", nav_service_hr:"HR",
       picker_service_hint:"Service: {service} — choose a company to continue",
       field_registration_no:"Registration No. (optional)", field_address:"Address (optional)",
@@ -2448,6 +2450,7 @@
       dsi_hd_what:"项目", dsi_hd_change:"更改", dsi_hd_from:"原来", dsi_hd_to:"改为",
       dsi_hf_qty:"数量", dsi_hf_special:"特价", dsi_hf_item_added:"新增项目", dsi_hf_item_removed:"删除项目",
       dsi_hf_item_renamed:"项目改名", dsi_hf_item_price:"价钱", dsi_hf_item_order:"菜单顺序更改", dsi_hf_setting:"设定",
+      assign_access_title:"在此公司的权限", assign_lvl_0:"无权限", assign_can_approve:"可审核 Sales Summary 记录（指定审核人）", assign_approver_short:"审核人",
       nav_service_bookkeeping:"记账 Bookkeeping", nav_service_hr:"人事 HR",
       picker_service_hint:"服务：{service} — 请选择公司以继续",
       field_registration_no:"注册号（可选）", field_address:"地址（可选）",
@@ -3167,7 +3170,11 @@
           return '<tr>' +
             '<td>' + r.company + '</td>' +
             '<td class="num">' + r.currentStaff.join(', ') + '</td>' +
-            '<td class="num">' + r.requestedStaff.join(', ') + '</td>' +
+            '<td class="num">' + r.requestedStaff.join(', ') + (r.requestedAccess || []).map(function(a){
+              if(!a.permissions) return '';
+              var line = CU_PAGES.map(function(pg){ var l = a.permissions[pg[0]]; return t(pg[1]).split(' ')[0] + ' ' + (l === 0 ? '—' : 'L' + l); }).join(' · ') + (a.canApprove ? ' · ✓ ' + t('assign_approver_short') : '');
+              return '<div style="font-size:11px;color:var(--primary-soft);font-weight:400;text-align:left;margin-top:4px;"><strong>' + a.name + '</strong>: ' + line + '</div>';
+            }).join('') + '</td>' +
             '<td>' + r.requestedBy + '</td>' +
             '<td class="num">' + formatDate(r.date) + '</td>' +
             '<td><span class="badge ' + badgeClass + '">' + statusLabel(r.status) + '</span></td>' +
@@ -3210,6 +3217,7 @@
 
   var assignModalCompany = null; // full company object, needs .id
   var assignModalSelected = []; // staff ids
+  var assignModalAccess = {};   // staff id -> { permissions: { page: 0..4 }, canApprove }
 
   function openAssignModal(companyName){
     var cust = COMPANIES.find(function(c){ return c.name === companyName; });
@@ -3220,6 +3228,12 @@
     document.getElementById('assign-current-staff').innerHTML = cust.staff.map(function(s){
       return '<span class="assign-current-chip">' + t('currently_label') + ' ' + s + '</span>';
     }).join('');
+
+    // Start from the levels each assigned person already has on this company.
+    assignModalAccess = {};
+    (cust.staffDetail || []).forEach(function(d){
+      assignModalAccess[d.id] = { permissions: Object.assign({}, d.permissions), canApprove: !!d.canApprove };
+    });
 
     loadStaffList().then(function(){
       assignModalSelected = cust.staff.map(staffIdByName).filter(function(id){ return id !== null; });
@@ -3259,12 +3273,55 @@
     });
     document.getElementById('assign-limit-note').textContent =
       assignModalSelected.length >= 2 ? t('max_2_selected') : t('assign_limit_note');
+    renderAssignAccess();
+  }
+
+  // A level for every page, per selected staff member: No access / L1 Read Only .. L4 Full Access, plus "can approve".
+  function assignDefaultAccess(){
+    var p = {};
+    CU_PAGES.forEach(function(pg){ p[pg[0]] = 3; });
+    return { permissions: p, canApprove: false };
+  }
+
+  function renderAssignAccess(){
+    var host = document.getElementById('assign-access');
+    var selStyle = 'flex:1;border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--surface-card);color:inherit;font-family:inherit;font-size:12.5px;';
+    host.innerHTML = assignModalSelected.map(function(id){
+      var s = STAFF_LIST.find(function(x){ return x.id === id; });
+      if(!s) return '';
+      var a = assignModalAccess[id] || (assignModalAccess[id] = assignDefaultAccess());
+      var rows = CU_PAGES.map(function(pg){
+        var opts = [0, 1, 2, 3, 4].map(function(l){
+          return '<option value="' + l + '"' + (a.permissions[pg[0]] === l ? ' selected' : '') + '>' + (l === 0 ? t('assign_lvl_0') : t('cu_level_' + l)) + '</option>';
+        }).join('');
+        return '<div style="display:flex;align-items:center;gap:8px;"><label style="flex:0 0 118px;font-size:12px;">' + t(pg[1]) + '</label>' +
+          '<select data-assign-staff="' + id + '" data-assign-page="' + pg[0] + '" style="' + selStyle + '">' + opts + '</select></div>';
+      }).join('');
+      return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-top:14px;background:var(--surface-alt);">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">' + s.name + ' — ' + t('assign_access_title') + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:6px 14px;margin-bottom:10px;">' + rows + '</div>' +
+        '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;">' +
+          '<input type="checkbox" data-assign-approver="' + id + '"' + (a.canApprove ? ' checked' : '') + (a.permissions.sales < 3 ? ' disabled' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" /> ' + t('assign_can_approve') +
+        '</label></div>';
+    }).join('');
+    host.querySelectorAll('select[data-assign-staff]').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        var a = assignModalAccess[Number(sel.dataset.assignStaff)];
+        a.permissions[sel.dataset.assignPage] = Number(sel.value);
+        if(a.permissions.sales < 3) a.canApprove = false;   // approvers need Sales Summary at L3+
+        renderAssignAccess();
+      });
+    });
+    host.querySelectorAll('input[data-assign-approver]').forEach(function(cb){
+      cb.addEventListener('change', function(){ assignModalAccess[Number(cb.dataset.assignApprover)].canApprove = cb.checked; });
+    });
   }
 
   function closeAssignModal(){
     document.getElementById('assign-modal-backdrop').hidden = true;
     assignModalCompany = null;
     assignModalSelected = [];
+    assignModalAccess = {};
   }
 
   document.getElementById('assign-modal-close').addEventListener('click', closeAssignModal);
@@ -3276,7 +3333,7 @@
     if(!assignModalCompany || assignModalSelected.length === 0) return;
     var btn = e.currentTarget;
     btn.disabled = true;
-    api('/assignment-requests', { method:'POST', body: JSON.stringify({ companyId: assignModalCompany.id, requestedStaffIds: assignModalSelected }) })
+    api('/assignment-requests', { method:'POST', body: JSON.stringify({ companyId: assignModalCompany.id, requestedStaffIds: assignModalSelected, access: assignModalAccess }) })
       .then(function(){
         closeAssignModal();
         renderApprovals();
@@ -3477,7 +3534,8 @@
           status: c.status || 'Not Started',
           updated: formatDate(c.updated_at),
           enabledFeatures: c.enabled_features,
-          staffDetail: c.staff_detail || []
+          staffDetail: c.staff_detail || [],
+          myAccess: c.my_access || null
         };
       });
       return COMPANIES;
@@ -5290,10 +5348,29 @@
     }
   }
 
+  // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll' };
+  function applyPageAccess(){
+    if(CURRENT_ROLE !== 'staff') return;
+    var rec = customerRecord(currentCompany);
+    var perms = rec && rec.myAccess ? rec.myAccess.permissions : null;
+    Object.keys(PAGE_KEY_BY_PANEL).forEach(function(panel){
+      var btn = document.querySelector('.nav-item[data-panel="' + panel + '"]');
+      if(btn) btn.hidden = !!perms && Number(perms[PAGE_KEY_BY_PANEL[panel]]) < 1;
+    });
+    refreshServiceGroups();
+    var active = document.querySelector('.nav-item.active');
+    if(active && active.hidden){
+      var fallback = serviceGroupItems(serviceMode)[0] || document.querySelector('.nav-item[data-panel="panel-company-home"]');
+      if(fallback) fallback.click();
+    }
+  }
+
   function selectCompany(name, opts){
     opts = opts || {};
     if(!dsiConfirmLeave(name)) return;
     currentCompany = name;
+    applyPageAccess();
     if(topbarTypeahead) topbarTypeahead.setValue(name);
     if(landingTypeahead) landingTypeahead.setValue(name);
     renderAllCompanyPanels();

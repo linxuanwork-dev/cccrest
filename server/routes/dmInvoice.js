@@ -4,6 +4,7 @@ const ExcelJS = require('exceljs');
 const path = require('path');
 const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const rules = require('../lib/dmInvoiceRules');
 
@@ -93,7 +94,7 @@ async function extractBillFromPdf(buffer) {
 
 // ============ BILL CONVERSION ============
 
-router.post('/companies/:companyId/dm-invoice/extract', requireAuth, scopeToCompany, pdfUpload.single('file'), async (req, res) => {
+router.post('/companies/:companyId/dm-invoice/extract', requireAuth, scopeToCompany, requirePage('sales', 2), pdfUpload.single('file'), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -140,7 +141,7 @@ router.post('/companies/:companyId/dm-invoice/extract', requireAuth, scopeToComp
   res.json({ branch, year: String(extracted.year || ''), month: String(extracted.month || ''), rows });
 });
 
-router.post('/companies/:companyId/dm-invoice/generate', requireAuth, scopeToCompany, async (req, res) => {
+router.post('/companies/:companyId/dm-invoice/generate', requireAuth, scopeToCompany, requirePage('sales', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { branch, year, month, rows } = req.body || {};
   if (!rules.BRANCHES.includes(branch)) return res.status(400).json({ error: 'branch must be TDA, TST, or BBU' });
@@ -207,7 +208,7 @@ router.post('/companies/:companyId/dm-invoice/generate', requireAuth, scopeToCom
 
 // ============ CUSTOMER LOOKUP MANAGEMENT ============
 
-router.get('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCompany, requirePage('sales', 1), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { branch } = req.query;
   const params = [req.params.companyId];
@@ -220,7 +221,7 @@ router.get('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCom
   res.json(rows);
 });
 
-router.post('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCompany, async (req, res) => {
+router.post('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCompany, requirePage('sales', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { branch, name, customerCode } = req.body || {};
   if (!rules.BRANCHES.includes(branch)) return res.status(400).json({ error: 'branch must be TDA, TST, or BBU' });
@@ -235,7 +236,7 @@ router.post('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCo
   res.status(201).json(rows[0]);
 });
 
-router.patch('/companies/:companyId/dm-invoice/customers/:customerId', requireAuth, scopeToCompany, async (req, res) => {
+router.patch('/companies/:companyId/dm-invoice/customers/:customerId', requireAuth, scopeToCompany, requirePage('sales', 3), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { rows: before } = await pool.query(
     'SELECT * FROM dm_customer_lookup WHERE id = $1 AND company_id = $2',
@@ -255,7 +256,7 @@ router.patch('/companies/:companyId/dm-invoice/customers/:customerId', requireAu
   res.json(rows[0]);
 });
 
-router.delete('/companies/:companyId/dm-invoice/customers/:customerId', requireAuth, scopeToCompany, async (req, res) => {
+router.delete('/companies/:companyId/dm-invoice/customers/:customerId', requireAuth, scopeToCompany, requirePage('sales', 3), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   await pool.query('DELETE FROM dm_customer_lookup WHERE id = $1 AND company_id = $2', [req.params.customerId, req.params.companyId]);
   res.json({ ok: true });
@@ -269,7 +270,7 @@ function findHeaderIndex(headerRow, candidates) {
   return -1;
 }
 
-router.post('/companies/:companyId/dm-invoice/customers/import', requireAuth, scopeToCompany, listUpload.single('file'), async (req, res) => {
+router.post('/companies/:companyId/dm-invoice/customers/import', requireAuth, scopeToCompany, requirePage('sales', 2), listUpload.single('file'), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 

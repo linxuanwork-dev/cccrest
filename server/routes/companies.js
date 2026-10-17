@@ -22,7 +22,7 @@ function baseCompanyQuery(whereClause) {
   return `
     SELECT c.id, c.name, c.type, c.slug, c.enabled_features, c.registration_no, c.address,
       COALESCE(array_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '{}') AS staff,
-      COALESCE(json_agg(DISTINCT jsonb_build_object('id', s.id, 'name', s.name)) FILTER (WHERE s.id IS NOT NULL), '[]') AS staff_detail,
+      COALESCE(json_agg(DISTINCT jsonb_build_object('id', s.id, 'name', s.name, 'permissions', cs.permissions, 'canApprove', cs.can_approve)) FILTER (WHERE s.id IS NOT NULL), '[]') AS staff_detail,
       rb.status, rb.exceptions_count, rb.invoices_count, rb.input_file_name,
       rb.output_summary_ready, rb.output_sales_ready, rb.output_payment_ready,
       rb.updated_at
@@ -49,7 +49,11 @@ router.get('/companies', requireAuth, async (req, res) => {
       baseCompanyQuery('WHERE c.id IN (SELECT company_id FROM company_staff WHERE staff_id = $1)'),
       [staffId]
     );
-    return res.json(rows);
+    // Each staff member is told their own levels on each company, so the app can hide pages they have no access to.
+    return res.json(rows.map((r) => {
+      const me = (r.staff_detail || []).find((s) => s.id === staffId);
+      return Object.assign({}, r, { my_access: me ? { permissions: me.permissions, canApprove: me.canApprove } : null });
+    }));
   }
   if (role === 'manager') {
     const { rows } = await pool.query(

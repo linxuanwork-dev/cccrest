@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireRole, requireAuth } = require('../auth');
 const { logActivity } = require('../lib/activity');
+const { PAGES, LEVEL_NAMES, normaliseLevels, validLevels } = require('../lib/access');
 
 const router = express.Router();
 
@@ -12,11 +13,43 @@ async function namesForIds(ids) {
   return ids.map((id) => byId.get(id)).filter(Boolean);
 }
 
+// Page levels for each staff member being assigned: what the dialog sent, else what they already have on this
+// company, else full Create & Update (the same as every assignment had before levels existed).
+// Returns { resolved: { [staffId]: { permissions, canApprove } } } or { error }.
+function resolveAccess(staffIds, provided, existingRows) {
+  const given = provided && typeof provided === 'object' ? provided : {};
+  const resolved = {};
+  for (const id of staffIds) {
+    const existing = existingRows.find((r) => r.staff_id === id);
+    const g = given[id];
+    if (g && g.permissions !== undefined && !validLevels(g.permissions, 0)) return { error: 'Invalid page level (use 0 No access to 4 Full Access).' };
+    const base = existing ? existing.permissions : normaliseLevels({}, 0, 3);
+    const permissions = normaliseLevels(Object.assign({}, base, g && g.permissions ? g.permissions : {}), 0, 0);
+    const canApprove = g && typeof g.canApprove === 'boolean' ? g.canApprove : (existing ? existing.can_approve : false);
+    if (canApprove && permissions.sales < 3) return { error: 'An approver needs Sales Summary at L3 (Create & Update) or above.' };
+    resolved[id] = { permissions, canApprove };
+  }
+  return { resolved };
+}
+
+// "KAREN: Sales L3, Purchases L1, Payroll No access (approver)" for the activity log.
+function accessText(name, a) {
+  const label = { sales: 'Sales', purchases: 'Purchases', bank: 'Bank', claim: 'Claim', petty: 'Petty', merchant: 'Merchant', payroll: 'Payroll' };
+  const parts = PAGES.map((p) => (a.permissions[p] === 0 ? `${label[p]} ${LEVEL_NAMES[0]}` : `${label[p]} L${a.permissions[p]}`));
+  return `${name}: ${parts.join(', ')}${a.canApprove ? ' (approver)' : ''}`;
+}
+
+async function staffNameMap(ids) {
+  if (!ids || ids.length === 0) return new Map();
+  const { rows } = await pool.query('SELECT id, name FROM staff WHERE id = ANY($1)', [ids]);
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
 router.get('/assignment-requests', requireRole('admin'), async (req, res) => {
   const { rows } = await pool.query(`
     SELECT ar.id, ar.status, ar.created_at, ar.resolved_at,
       c.name AS company, c.id AS company_id,
-      ar.current_staff_ids, ar.requested_staff_ids,
+      ar.current_staff_ids, ar.requested_staff_ids, ar.requested_access,
       u.display_name AS requested_by
     FROM assignment_requests ar
     JOIN companies c ON c.id = ar.company_id
@@ -24,9 +57,14 @@ router.get('/assignment-requests', requireRole('admin'), async (req, res) => {
     ORDER BY (ar.status = 'Pending') DESC, ar.id DESC
   `);
 
+  const names = await staffNameMap([...new Set(rows.flatMap((r) => r.requested_staff_ids))]);
   const out = [];
   for (const r of rows) {
     out.push({
+      requestedAccess: r.requested_staff_ids.map((id) => {
+        const a = (r.requested_access || {})[id];
+        return { name: names.get(id) || '', permissions: a ? a.permissions : null, canApprove: a ? !!a.canApprove : false };
+      }),
       id: r.id,
       status: r.status,
       company: r.company,
@@ -49,7 +87,7 @@ router.post('/assignment-requests', requireRole('admin', 'staff'), async (req, r
     return res.status(400).json({ error: 'Maximum of 2 staff per client' });
   }
 
-  const { rows: currentRows } = await pool.query('SELECT staff_id FROM company_staff WHERE company_id = $1', [companyId]);
+  const { rows: currentRows } = await pool.query('SELECT staff_id, permissions, can_approve FROM company_staff WHERE company_id = $1', [companyId]);
   const currentIds = currentRows.map((r) => r.staff_id);
 
   const newlyAdded = requestedStaffIds.filter((id) => !currentIds.includes(id));
@@ -71,6 +109,10 @@ router.post('/assignment-requests', requireRole('admin', 'staff'), async (req, r
 
   const requestedNames = await namesForIds(requestedStaffIds);
 
+  const access = resolveAccess(requestedStaffIds, (req.body || {}).access, currentRows);
+  if (access.error) return res.status(400).json({ error: access.error });
+  const levelsText = requestedStaffIds.map((id, i) => accessText(requestedNames[i], access.resolved[id])).join(' | ');
+
   // Admin/Owner assignments apply immediately — the approval step exists to
   // give the Owner sign-off over staff-initiated requests, not to make the
   // Owner approve their own actions.
@@ -79,16 +121,17 @@ router.post('/assignment-requests', requireRole('admin', 'staff'), async (req, r
     try {
       await client.query('BEGIN');
       const { rows } = await client.query(
-        `INSERT INTO assignment_requests (company_id, requested_by_user_id, current_staff_ids, requested_staff_ids, status, resolved_at, resolved_by_user_id)
-         VALUES ($1,$2,$3,$4,'Approved',now(),$2) RETURNING id, created_at`,
-        [companyId, req.user.sub, currentIds, requestedStaffIds]
+        `INSERT INTO assignment_requests (company_id, requested_by_user_id, current_staff_ids, requested_staff_ids, requested_access, status, resolved_at, resolved_by_user_id)
+         VALUES ($1,$2,$3,$4,$5,'Approved',now(),$2) RETURNING id, created_at`,
+        [companyId, req.user.sub, currentIds, requestedStaffIds, JSON.stringify(access.resolved)]
       );
       await client.query('DELETE FROM company_staff WHERE company_id = $1', [companyId]);
       for (const staffId of requestedStaffIds) {
-        await client.query('INSERT INTO company_staff (company_id, staff_id) VALUES ($1,$2)', [companyId, staffId]);
+        await client.query('INSERT INTO company_staff (company_id, staff_id, permissions, can_approve) VALUES ($1,$2,$3,$4)',
+          [companyId, staffId, JSON.stringify(access.resolved[staffId].permissions), access.resolved[staffId].canApprove]);
       }
       await client.query('COMMIT');
-      await logActivity(req.user.sub, 'Updated assignment', companyRows[0].name, `Staff: ${requestedNames.join(', ')}`);
+      await logActivity(req.user.sub, 'Updated assignment', companyRows[0].name, `Staff: ${requestedNames.join(', ')} — ${levelsText}`);
       return res.status(201).json({ id: rows[0].id, createdAt: rows[0].created_at, status: 'Approved' });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -99,16 +142,16 @@ router.post('/assignment-requests', requireRole('admin', 'staff'), async (req, r
   }
 
   const { rows } = await pool.query(
-    `INSERT INTO assignment_requests (company_id, requested_by_user_id, current_staff_ids, requested_staff_ids)
-     VALUES ($1,$2,$3,$4) RETURNING id, created_at`,
-    [companyId, req.user.sub, currentIds, requestedStaffIds]
+    `INSERT INTO assignment_requests (company_id, requested_by_user_id, current_staff_ids, requested_staff_ids, requested_access)
+     VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
+    [companyId, req.user.sub, currentIds, requestedStaffIds, JSON.stringify(access.resolved)]
   );
 
   await logActivity(
     req.user.sub,
     'Requested assignment change',
     companyRows[0].name,
-    `Requested staff: ${requestedNames.join(', ')} — awaiting admin approval`
+    `Requested staff: ${requestedNames.join(', ')} — ${levelsText} — awaiting admin approval`
   );
 
   res.status(201).json({ id: rows[0].id, createdAt: rows[0].created_at });
@@ -133,9 +176,15 @@ router.patch('/assignment-requests/:id', requireRole('admin'), async (req, res) 
     }
 
     if (status === 'Approved') {
+      // Apply the levels that were requested (falling back to what the staff member already has here).
+      const { rows: existingRows } = await client.query('SELECT staff_id, permissions, can_approve FROM company_staff WHERE company_id = $1', [request.company_id]);
+      const access = resolveAccess(request.requested_staff_ids, request.requested_access, existingRows);
+      const resolved = access.resolved || {};
       await client.query('DELETE FROM company_staff WHERE company_id = $1', [request.company_id]);
       for (const staffId of request.requested_staff_ids) {
-        await client.query('INSERT INTO company_staff (company_id, staff_id) VALUES ($1,$2)', [request.company_id, staffId]);
+        const a = resolved[staffId] || { permissions: normaliseLevels({}, 0, 3), canApprove: false };
+        await client.query('INSERT INTO company_staff (company_id, staff_id, permissions, can_approve) VALUES ($1,$2,$3,$4)',
+          [request.company_id, staffId, JSON.stringify(a.permissions), a.canApprove]);
       }
     }
 

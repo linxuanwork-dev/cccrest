@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { pool } = require('../db');
 const { scopeToCompany, requireAuth } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const { renderLetterheadHeader, renderTable, PDFDocument } = require('../lib/pdf');
 
@@ -90,7 +91,7 @@ If a field cannot be determined, use null for that field.`;
   return JSON.parse(jsonMatch[0]);
 }
 
-router.get('/companies/:companyId/sales', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/sales', requireAuth, scopeToCompany, requirePage('sales', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, invoice_no, gross, settled, petty_out, status FROM sales_records WHERE company_id = $1 ORDER BY date',
     [req.params.companyId]
@@ -98,7 +99,7 @@ router.get('/companies/:companyId/sales', requireAuth, scopeToCompany, async (re
   res.json(rows);
 });
 
-router.get('/companies/:companyId/sales/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/sales/export.pdf', requireAuth, scopeToCompany, requirePage('sales', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, invoice_no, gross, settled, petty_out, status FROM sales_records WHERE company_id = $1 ORDER BY date',
     [req.params.companyId]
@@ -113,7 +114,7 @@ router.get('/companies/:companyId/sales/export.pdf', requireAuth, scopeToCompany
   ], rows.map((r) => ({ ...r, gross: money(r.gross), settled: money(r.settled), petty_out: money(r.petty_out) })));
 });
 
-router.get('/companies/:companyId/bank', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/bank', requireAuth, scopeToCompany, requirePage('bank', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, description, debit, credit, balance, status FROM bank_statement_entries WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
@@ -121,7 +122,7 @@ router.get('/companies/:companyId/bank', requireAuth, scopeToCompany, async (req
   res.json(rows);
 });
 
-router.get('/companies/:companyId/bank/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/bank/export.pdf', requireAuth, scopeToCompany, requirePage('bank', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, description, debit, credit, balance, status FROM bank_statement_entries WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
@@ -136,7 +137,7 @@ router.get('/companies/:companyId/bank/export.pdf', requireAuth, scopeToCompany,
   ], rows.map((r) => ({ ...r, debit: money(r.debit), credit: money(r.credit), balance: money(r.balance) })));
 });
 
-router.get('/companies/:companyId/purchases', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/purchases', requireAuth, scopeToCompany, requirePage('purchases', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT invoice_no, supplier, amount, date, status FROM purchase_bills WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
@@ -144,7 +145,7 @@ router.get('/companies/:companyId/purchases', requireAuth, scopeToCompany, async
   res.json(rows);
 });
 
-router.get('/companies/:companyId/purchases/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/purchases/export.pdf', requireAuth, scopeToCompany, requirePage('purchases', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT invoice_no, supplier, amount, date, status FROM purchase_bills WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
@@ -158,7 +159,7 @@ router.get('/companies/:companyId/purchases/export.pdf', requireAuth, scopeToCom
   ], rows.map((r) => ({ ...r, amount: money(r.amount) })));
 });
 
-router.get('/companies/:companyId/claims', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/claims', requireAuth, scopeToCompany, requirePage('claim', 1), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cb.claim_no, s.name AS staff_name, cb.category, cb.amount, cb.date, cb.status
      FROM claim_bills cb LEFT JOIN staff s ON s.id = cb.staff_id
@@ -168,7 +169,7 @@ router.get('/companies/:companyId/claims', requireAuth, scopeToCompany, async (r
   res.json(rows);
 });
 
-router.get('/companies/:companyId/claims/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/claims/export.pdf', requireAuth, scopeToCompany, requirePage('claim', 1), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cb.claim_no, s.name AS staff_name, cb.category, cb.amount, cb.date, cb.status
      FROM claim_bills cb LEFT JOIN staff s ON s.id = cb.staff_id
@@ -187,7 +188,7 @@ router.get('/companies/:companyId/claims/export.pdf', requireAuth, scopeToCompan
 
 // Reads an uploaded receipt/invoice via Claude's vision API and returns extracted
 // fields for review — does NOT save anything, that's a separate confirm step.
-router.post('/companies/:companyId/claims/ocr', requireAuth, scopeToCompany, upload.single('file'), async (req, res) => {
+router.post('/companies/:companyId/claims/ocr', requireAuth, scopeToCompany, requirePage('claim', 2), upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
     const extracted = await extractClaimFromImage(req.file.buffer, req.file.mimetype);
@@ -197,7 +198,7 @@ router.post('/companies/:companyId/claims/ocr', requireAuth, scopeToCompany, upl
   }
 });
 
-router.post('/companies/:companyId/claims', requireAuth, scopeToCompany, async (req, res) => {
+router.post('/companies/:companyId/claims', requireAuth, scopeToCompany, requirePage('claim', 2), async (req, res) => {
   const { staffId, category, amount, date, description } = req.body || {};
   if (!staffId || !category || !amount || !date) {
     return res.status(400).json({ error: 'staffId, category, amount, and date are required' });
@@ -234,7 +235,7 @@ router.post('/companies/:companyId/claims', requireAuth, scopeToCompany, async (
   res.status(201).json(rows[0]);
 });
 
-router.get('/companies/:companyId/petty', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/petty', requireAuth, scopeToCompany, requirePage('petty', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, description, amount_in, amount_out, balance FROM petty_cash_entries WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
@@ -242,7 +243,7 @@ router.get('/companies/:companyId/petty', requireAuth, scopeToCompany, async (re
   res.json(rows);
 });
 
-router.get('/companies/:companyId/petty/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/petty/export.pdf', requireAuth, scopeToCompany, requirePage('petty', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, description, amount_in, amount_out, balance FROM petty_cash_entries WHERE company_id = $1 ORDER BY date, id',
     [req.params.companyId]
@@ -256,7 +257,7 @@ router.get('/companies/:companyId/petty/export.pdf', requireAuth, scopeToCompany
   ], rows.map((r) => ({ ...r, amount_in: money(r.amount_in), amount_out: money(r.amount_out), balance: money(r.balance) })));
 });
 
-router.get('/companies/:companyId/merchant', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/merchant', requireAuth, scopeToCompany, requirePage('merchant', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, txns, approved_amt, failed_amt, fee, net FROM merchant_settlements WHERE company_id = $1 ORDER BY date',
     [req.params.companyId]
@@ -264,7 +265,7 @@ router.get('/companies/:companyId/merchant', requireAuth, scopeToCompany, async 
   res.json(rows);
 });
 
-router.get('/companies/:companyId/merchant/export.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/merchant/export.pdf', requireAuth, scopeToCompany, requirePage('merchant', 1), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT date, txns, approved_amt, failed_amt, fee, net FROM merchant_settlements WHERE company_id = $1 ORDER BY date',
     [req.params.companyId]

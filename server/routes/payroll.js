@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { scopeToCompany, requireAuth } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const { renderLetterheadHeader, renderTable, PDFDocument } = require('../lib/pdf');
 
@@ -25,7 +26,7 @@ function suggestStatutory(wage) {
   return { epfEmployee, epfEmployer, socsoEmployee, socsoEmployer, eisEmployee, eisEmployer };
 }
 
-router.get('/companies/:companyId/payroll/suggest', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/payroll/suggest', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { employeeId, allowances } = req.query;
   const { rows } = await pool.query(
@@ -37,7 +38,7 @@ router.get('/companies/:companyId/payroll/suggest', requireAuth, scopeToCompany,
   res.json({ basicSalary: Number(rows[0].basic_salary), ...suggestStatutory(wage) });
 });
 
-router.get('/companies/:companyId/payroll', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/payroll', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   const { period } = req.query;
   const params = [req.params.companyId];
   let where = 'WHERE pe.company_id = $1';
@@ -54,7 +55,7 @@ router.get('/companies/:companyId/payroll', requireAuth, scopeToCompany, async (
   res.json(rows);
 });
 
-router.post('/companies/:companyId/payroll', requireAuth, scopeToCompany, async (req, res) => {
+router.post('/companies/:companyId/payroll', requireAuth, scopeToCompany, requirePage('payroll', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const {
     employeeId, period, basicSalary, allowances,
@@ -93,7 +94,7 @@ router.post('/companies/:companyId/payroll', requireAuth, scopeToCompany, async 
   res.status(201).json(rows[0]);
 });
 
-router.patch('/companies/:companyId/payroll/:entryId', requireAuth, scopeToCompany, async (req, res) => {
+router.patch('/companies/:companyId/payroll/:entryId', requireAuth, scopeToCompany, requirePage('payroll', 3), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { rows: before } = await pool.query(
     'SELECT * FROM payroll_entries WHERE id = $1 AND company_id = $2',
@@ -120,7 +121,7 @@ router.patch('/companies/:companyId/payroll/:entryId', requireAuth, scopeToCompa
   res.json(rows[0]);
 });
 
-router.get('/companies/:companyId/payroll/:entryId/voucher.pdf', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/payroll/:entryId/voucher.pdf', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT pe.*, e.name AS employee_name, e.position, e.bank_name, e.bank_account
      FROM payroll_entries pe JOIN employees e ON e.id = pe.employee_id

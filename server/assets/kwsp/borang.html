@@ -502,6 +502,28 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     }
     return out;
   }
+  let whoPrinted = null;
+  async function printedBy() {
+    if (whoPrinted) return whoPrinted;
+    let name = '';
+    try { const me = await apiCall('/api/me'); name = me.displayName || me.loginId || ''; if (/[^\x20-\xFF]/.test(name)) name = me.loginId || ''; } catch (e) { /* stamp the date only */ }
+    return (whoPrinted = name.replace(/[^\x20-\xFF]/g, '?'));
+  }
+  async function stampPrinted(bytes, kwspPages) {
+    const { PDFDocument, StandardFonts, rgb, degrees } = window.PDFLib;
+    const doc = await PDFDocument.load(bytes);
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const t = new Date(), pad = (n) => String(n).padStart(2, '0');
+    const who = await printedBy();
+    const text = 'Printed ' + pad(t.getDate()) + '/' + pad(t.getMonth() + 1) + '/' + t.getFullYear() + (who ? ' by ' + who : '');
+    doc.getPages().forEach((p, i) => {
+      const w = font.widthOfTextAtSize(text, 6.5);
+      // the KWSP 1 pages have a busy footer, so there the stamp runs up the right edge instead
+      if (i < kwspPages) p.drawText(text, { x: p.getWidth() - 5, y: 28, size: 6.5, font, color: rgb(0.3, 0.3, 0.3), rotate: degrees(90) });
+      else p.drawText(text, { x: p.getWidth() - w - 14, y: 5, size: 6.5, font, color: rgb(0.3, 0.3, 0.3) });
+    });
+    return await doc.save();
+  }
   async function generate() {
     const sel = $$('#formList input:checked').map(b => b.value);
     if (!sel.length) { status('请至少选一份表格。', 'err'); return; }
@@ -511,6 +533,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     try {
       await ensureAssets();
       const r = await F.build(window.PDFLib, templates(), SPEC, d, sel);
+      r.bytes = await stampPrinted(r.bytes, sel.includes('kwsp1') ? 4 : 0);
       r.warnings.unshift(...checkMissing(d, sel));
       lastPdf = r.bytes; lastName = fileName(d);
       const w = $('#warns');

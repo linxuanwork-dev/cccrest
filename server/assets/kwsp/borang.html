@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KWSP & PERKESO 开户表格</title>
+<style>
+/* Layout: data-entry column on the left, sticky "print desk" on the right listing the 8 forms */
+:root {
+  --bg: #eef1f6;
+  --paper: #ffffff;
+  --ink: #17203a;
+  --muted: #5d6680;
+  --line: #d3d9e6;
+  --accent: #23338f;      /* KWSP navy */
+  --accent-ink: #ffffff;
+  --perkeso: #1f8a4c;     /* PERKESO green */
+  --warn: #a5560b;
+  --warn-bg: #fff4e5;
+  --danger: #b4232a;
+  --field: #f7f9fc;
+  --font-display: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151f; --paper: #1a2030; --ink: #e5e9f3; --muted: #9aa3ba; --line: #2e3750;
+    --accent: #8a9cff; --accent-ink: #0f1430; --perkeso: #5cc98a; --warn: #f0b060; --warn-bg: #2d2416;
+    --danger: #ff7a80; --field: #141927; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151f; --paper: #1a2030; --ink: #e5e9f3; --muted: #9aa3ba; --line: #2e3750;
+  --accent: #8a9cff; --accent-ink: #0f1430; --perkeso: #5cc98a; --warn: #f0b060; --warn-bg: #2d2416;
+  --danger: #ff7a80; --field: #141927; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+h1 { font-family: var(--font-display); font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h1 small { display: block; font-family: var(--font-body); font-size: 13px; font-weight: 400; color: var(--muted); margin-top: 2px; letter-spacing: 0; }
+.clients { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.clients select { min-width: 200px; max-width: 100%; }
+button, .btn { font: inherit; font-weight: 500; border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  padding: 7px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.ghost { background: transparent; }
+button.danger { color: var(--danger); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+@media (max-width: 960px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.sample { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; background: var(--warn-bg); color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+.sample b { font-weight: 600; }
+section.card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; }
+section.card > h2 { display: flex; gap: 10px; align-items: baseline; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line);
+  font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+section.card > h2 .ms { font-family: var(--font-body); font-weight: 400; font-size: 12px; color: var(--muted); letter-spacing: 0.02em; text-transform: uppercase; }
+section.card > h2 .tag { margin-left: auto; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--muted); }
+.body { padding: 14px 16px 16px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px 12px; }
+.f { display: flex; flex-direction: column; gap: 4px; min-width: 0; grid-column: span 6; }
+.f.s3 { grid-column: span 3; } .f.s4 { grid-column: span 4; } .f.s8 { grid-column: span 8; } .f.s12 { grid-column: span 12; } .f.s2 { grid-column: span 2; }
+@media (max-width: 640px) { .f, .f.s3, .f.s4, .f.s8, .f.s2 { grid-column: span 12; } .f.half-sm { grid-column: span 6; } }
+label.l { font-size: 12.5px; font-weight: 500; display: flex; justify-content: space-between; gap: 8px; }
+label.l .ms { color: var(--muted); font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+.cnt { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cnt.over { color: var(--danger); font-weight: 500; }
+input, select { font: inherit; width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); }
+input.up { text-transform: uppercase; }
+input.mono { font-family: var(--font-mono); letter-spacing: 0.04em; }
+.check { grid-column: span 12; display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.check input { width: auto; }
+.sub { grid-column: span 12; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.subh { grid-column: span 12; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.hint { grid-column: span 12; font-size: 12px; color: var(--muted); margin: 0; }
+/* employees */
+.emps { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.emp { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px 10px; position: relative; }
+.emp .no { grid-column: span 12; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.emp .no button { padding: 3px 8px; font-size: 12px; }
+.emp .auto { font-size: 11px; color: var(--perkeso); }
+/* side desk */
+aside.desk { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 960px) { aside.desk { position: static; } }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.panel h3 { margin: 0 0 10px; font-family: var(--font-display); font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; }
+.panel h3 button { font-size: 12px; padding: 2px 8px; font-weight: 400; }
+.forms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.forms label { display: grid; grid-template-columns: auto auto minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.forms label:hover { background: var(--field); }
+.forms input { width: auto; }
+.chip { font-family: var(--font-mono); font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 4px; letter-spacing: 0.04em; }
+.chip.kwsp { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.chip.perkeso { background: color-mix(in srgb, var(--perkeso) 16%, transparent); color: var(--perkeso); }
+.pg { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.go { width: 100%; padding: 11px; font-size: 15px; margin-top: 12px; }
+.status { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; min-height: 1em; }
+.status.ok { color: var(--perkeso); } .status.err { color: var(--danger); }
+.warns { margin: 10px 0 0; padding: 8px 10px 8px 26px; background: var(--warn-bg); color: var(--warn); border-radius: 6px; font-size: 12px; }
+.warns li + li { margin-top: 3px; }
+.tip { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+.preview { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow: auto; }
+.preview canvas { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.preview .empty { font-size: 12.5px; color: var(--muted); padding: 18px 8px; text-align: center; border: 1px dashed var(--line); border-radius: 6px; }
+.toast { min-height: 1em; font-size: 12px; color: var(--perkeso); }
+.drop { display: flex; flex-direction: column; gap: 4px; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; cursor: pointer; background: var(--field); }
+.drop:hover, .drop.over { border-color: var(--accent); }
+.found { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 13px; margin-top: 8px; }
+.found dt { color: var(--muted); } .found dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.dirs { overflow-x: auto; }
+.dirs table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 520px; }
+.dirs th, .dirs td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.dirs th { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.dirs td.c, .dirs th.c { text-align: center; }
+.dirs td.mono { font-family: var(--font-mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.dirs input { width: auto; }
+input::placeholder { color: var(--muted); opacity: 0.55; }
+input.need, select.need { border-color: var(--warn); background: var(--warn-bg); }
+.pick { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 10px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>KWSP &amp; PERKESO 开户表格<small id="coName">填一次资料，自动填好 8 份官方表格（全部大写），下载后直接打印</small></h1>
+    <div class="clients">
+      <select id="clientSel" aria-label="已保存的客户"><option value="">— 已保存的客户 —</option></select>
+      <button id="btnSave" type="button">保存客户</button>
+      <button id="btnNew" type="button" class="ghost">新客户</button>
+      <button id="btnDel" type="button" class="ghost danger">删除</button>
+      <button id="btnExport" type="button" class="ghost">导出 .json</button>
+      <label class="btn ghost" id="importLbl" for="importFile">导入 .json</label>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+    </div>
+  </header>
+  <div class="toast" id="toast" role="status"></div>
+
+  <div class="grid">
+    <form id="f" autocomplete="off" onsubmit="return false">
+
+      <section class="card import">
+        <h2>从 SSM 文件导入 <span class="ms">Certificate + Section 14</span><span class="tag">PDF</span></h2>
+        <div class="body">
+          <div class="f s12">
+            <label class="drop" for="ssmFile" id="ssmDrop">
+              <span><b>选择或拖入 SSM Certificate 和 Section 14 的 PDF</b>（可多选，CamScanner 扫描的也可以）</span>
+              <span class="hint" style="margin:0">自动带入公司名称、注册号、成立日期、业务、注册地址、电邮、电话和董事。文件只在这台电脑上读取，不会上传。</span>
+            </label>
+            <input id="ssmFile" type="file" accept="application/pdf,.pdf" multiple hidden>
+          </div>
+          <div class="f s12" id="ssmResult" hidden>
+            <ul class="warns" id="ssmWarns" hidden></ul>
+            <div class="found" id="ssmFound"></div>
+            <div id="dirWrap">
+              <div class="subh" style="margin:8px 0 6px">董事 <span style="font-weight:400;text-transform:none">选择要用哪一位</span></div>
+              <div class="dirs" id="dirList"></div>
+            </div>
+            <div class="subh" style="margin:12px 0 6px">地址 <span style="font-weight:400;text-transform:none">注册地址一定会填进 KWSP「Alamat Berdaftar」，营业和通讯地址由你选</span></div>
+            <div class="pick" id="addrPick"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center">
+              <button type="button" class="primary" id="ssmApply">带入表格</button>
+              <span class="hint" style="margin:0">带入后请核对，文件里没有的资料（电话、员工等）照常手填。</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>1. 公司资料 <span class="ms">Maklumat Majikan</span><span class="tag">KWSP-B · PERKESO-A</span></h2>
+        <div class="body">
+          <div class="f s12"><label class="l" for="c_name">公司全名 <span class="ms">Nama penuh syarikat</span><span class="cnt" data-for="c_name" data-cap="50"></span></label><input id="c_name" data-k="company.name" class="up"></div>
+          <div class="f"><label class="l" for="c_reg">SSM 注册号 <span class="ms">No. pendaftaran</span><span class="cnt" data-for="c_reg" data-cap="12"></span></label><input id="c_reg" data-k="company.reg" class="up mono" placeholder="202401012345"></div>
+          <div class="f s3 half-sm"><label class="l" for="c_inc">成立日期 <span class="ms">Diperbadankan</span></label><input id="c_inc" type="date" data-k="company.incDate"></div>
+          <div class="f s3 half-sm"><label class="l" for="c_emp1">首位员工入职 <span class="ms">Pekerja pertama</span></label><input id="c_emp1" type="date" data-k="company.firstEmpDate"></div>
+          <div class="f s4"><label class="l" for="c_ent">公司类型 <span class="ms">Entiti</span></label>
+            <select id="c_ent" data-k="company.entity">
+              <option value="sdn">Sendirian Berhad (Sdn Bhd)</option>
+              <option value="bhd">Berhad</option>
+              <option value="sole">Pemilik Tunggal (独资)</option>
+              <option value="part">Perkongsian (合伙)</option>
+              <option value="llp">Perkongsian Liabiliti Terhad (PLT)</option>
+              <option value="other">Lain-lain (其他)</option>
+            </select></div>
+          <div class="f s4" id="w_ssm"><label class="l" for="c_ssm">注册机构 <span class="ms">Berdaftar</span></label>
+            <select id="c_ssm" data-k="company.ssm">
+              <option value="ssm">Berdaftar dengan SSM</option>
+              <option value="agency">Berdaftar dengan agensi lain</option>
+              <option value="none">Tidak berdaftar</option>
+            </select></div>
+          <div class="f s4" id="w_other"><label class="l" for="c_other">其他类型说明 <span class="ms">Lain-lain</span></label><input id="c_other" data-k="company.entityOther" class="up"></div>
+          <div class="f s8"><label class="l" for="c_nature">业务性质 <span class="ms">Jenis perniagaan</span></label><input id="c_nature" data-k="company.nature" class="up" placeholder="RESTORAN"></div>
+          <div class="f s4"><label class="l" for="c_nemp">员工人数 <span class="ms">Bil. pekerja</span></label><input id="c_nemp" type="number" min="0" data-k="company.nEmp" class="mono"></div>
+          <div class="f s4"><label class="l" for="c_tel">公司电话 <span class="ms">No. telefon</span></label><input id="c_tel" data-k="company.tel" class="mono" placeholder="07-3341234"></div>
+          <div class="f s4"><label class="l" for="c_mob">公司手机 <span class="ms">No. bimbit</span></label><input id="c_mob" data-k="company.mob" class="mono" placeholder="012-3456789"></div>
+          <div class="f s4"><label class="l" for="c_fax">传真 <span class="ms">No. faks</span></label><input id="c_fax" data-k="company.fax" class="mono"></div>
+          <div class="f s12"><label class="l" for="c_email">公司电邮 <span class="ms">E-mel</span></label><input id="c_email" type="email" data-k="company.email" class="up"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. 地址 <span class="ms">Alamat</span><span class="tag">KWSP-C · PERKESO-A2/A3</span></h2>
+        <div class="body" id="addrBody"></div>
+      </section>
+
+      <section class="card">
+        <h2>3. 分行 <span class="ms">Cawangan</span><span class="tag">KWSP-F</span></h2>
+        <div class="body">
+          <label class="check"><input type="checkbox" id="hasBranch" data-k="hasBranch"> 有其他分行（没有就不勾，KWSP 第 3 页 F 部分留空）</label>
+          <div class="sub" id="branchBox">
+          <div class="f s4"><label class="l" for="b1n">分行 1 名称</label><input id="b1n" data-k="branches.0.name" class="up"></div>
+          <div class="f s8"><label class="l" for="b1a">分行 1 地址</label><input id="b1a" data-k="branches.0.addr" class="up"></div>
+          <div class="f s4"><label class="l" for="b2n">分行 2 名称</label><input id="b2n" data-k="branches.1.name" class="up"></div>
+          <div class="f s8"><label class="l" for="b2a">分行 2 地址</label><input id="b2a" data-k="branches.1.addr" class="up"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>4. 联络人 <span class="ms">Pegawai untuk dihubungi</span><span class="tag">KWSP-D</span></h2>
+        <div class="body">
+          <div class="f s8"><label class="l" for="o_name">全名 <span class="ms">Nama penuh</span></label><input id="o_name" data-k="officer.name" class="up"></div>
+          <div class="f s4"><label class="l" for="o_ic">IC / 护照 <span class="ms">MyKad</span></label><input id="o_ic" data-k="officer.ic" class="up mono" placeholder="880512-01-5678"></div>
+          <div class="f s4"><label class="l" for="o_pos">职位 <span class="ms">Jawatan</span></label><input id="o_pos" data-k="officer.pos" class="up"></div>
+          <div class="f s4"><label class="l" for="o_t1">电话 1</label><input id="o_t1" data-k="officer.tel1" class="mono"></div>
+          <div class="f s4"><label class="l" for="o_t2">电话 2</label><input id="o_t2" data-k="officer.tel2" class="mono"></div>
+          <div class="f s4"><label class="l" for="o_mob">手机 <span class="ms">Bimbit</span></label><input id="o_mob" data-k="officer.mob" class="mono"></div>
+          <div class="f s4"><label class="l" for="o_fax">传真</label><input id="o_fax" data-k="officer.fax" class="mono"></div>
+          <div class="f s4"><label class="l" for="o_email">电邮</label><input id="o_email" data-k="officer.email" class="up"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>5. 东主 / 董事 <span class="ms">Pemilik / Pengarah</span><span class="tag">KWSP-E</span></h2>
+        <div class="body">
+          <div class="f s8"><label class="l" for="w_name">全名</label><input id="w_name" data-k="owner.name" class="up"></div>
+          <div class="f s4"><label class="l" for="w_ic">IC / 护照</label><input id="w_ic" data-k="owner.ic" class="up mono"></div>
+          <div class="f"><label class="l" for="w_pos">职位 <span class="ms">Jawatan</span></label><input id="w_pos" data-k="owner.pos" class="up" placeholder="PENGARAH"></div>
+          <div class="f"><label class="l" for="w_cit">国籍 <span class="ms">Warganegara</span></label><input id="w_cit" data-k="owner.cit" class="up" placeholder="MALAYSIA"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>6. i-Akaun 管理员 &amp; PERKESO Portal 申请人 <span class="ms">Pentadbir</span><span class="tag">KWSP-I · Portal-B</span></h2>
+        <div class="body">
+          <label class="check"><input type="checkbox" id="adminSame" data-k="adminSame"> 同联络人（TAC 号码用联络人手机）</label>
+          <div class="sub" id="adminBox">
+            <div class="f s8"><label class="l" for="a_name">全名</label><input id="a_name" data-k="admin.name" class="up"></div>
+            <div class="f s4"><label class="l" for="a_ic">IC / 护照</label><input id="a_ic" data-k="admin.ic" class="up mono"></div>
+            <div class="f s4"><label class="l" for="a_pos">职位</label><input id="a_pos" data-k="admin.pos" class="up"></div>
+            <div class="f s4"><label class="l" for="a_tel">办公室电话</label><input id="a_tel" data-k="admin.tel" class="mono"></div>
+            <div class="f s4"><label class="l" for="a_mob">手机</label><input id="a_mob" data-k="admin.mob" class="mono"></div>
+            <div class="f s8"><label class="l" for="a_email">电邮</label><input id="a_email" data-k="admin.email" class="up"></div>
+            <div class="f s4"><label class="l" for="a_tac">TAC 手机号</label><input id="a_tac" data-k="admin.tac" class="mono"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>7. 签署人 <span class="ms">Majikan / Wakil Majikan</span><span class="tag">KWSP-J · PERKESO-B</span></h2>
+        <div class="body">
+          <label class="check"><input type="checkbox" id="signSame" data-k="signSame"> 同东主 / 董事</label>
+          <div class="sub" id="signBox">
+            <div class="f s8"><label class="l" for="s_name">全名</label><input id="s_name" data-k="signer.name" class="up"></div>
+            <div class="f s4"><label class="l" for="s_ic">IC (No. KPPN)</label><input id="s_ic" data-k="signer.ic" class="up mono"></div>
+            <div class="f s4"><label class="l" for="s_pos">职位</label><input id="s_pos" data-k="signer.pos" class="up"></div>
+            <div class="f s4"><label class="l" for="s_tel">电话</label><input id="s_tel" data-k="signer.tel" class="mono"></div>
+            <div class="f s4"><label class="l" for="s_email">电邮</label><input id="s_email" data-k="signer.email" class="up"></div>
+          </div>
+          <div class="f s4"><label class="l" for="s_date">签署日期 <span class="ms">Tarikh</span></label><input id="s_date" type="date" data-k="signDate"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>8. PERKESO 设定 <span class="ms">Tetapan</span><span class="tag">Portal · Borang 1 · SIP</span></h2>
+        <div class="body">
+          <div class="f s4"><label class="l" for="p_type">Portal 申请类型</label>
+            <select id="p_type" data-k="socso.portalType"><option value="new">Pendaftaran Baru 新申请</option><option value="update">Kemaskini 更新</option></select></div>
+          <div class="f s4"><label class="l" for="p_cat">雇主类别</label>
+            <select id="p_cat" data-k="socso.portalCat"><option value="main">Utama 总公司</option><option value="branch">Cawangan 分行</option></select></div>
+          <div class="f s4"><label class="l" for="p_pay">缴款方式 <span class="ms">A9</span></label>
+            <select id="p_pay" data-k="socso.pay"><option value="portal">Portal PERKESO</option><option value="ib">Perbankan Internet</option><option value="cd">CD</option><option value="form">Borang Caruman Bulanan (8A)</option></select></div>
+          <div class="f"><label class="l" for="p_code">PERKESO 雇主编号（已有才填）<span class="ms">Kod majikan</span></label><input id="p_code" data-k="socso.code" class="up mono"></div>
+          <div class="f"><label class="l" for="p_kp">Kod Perusahaan（SIP 1A 用）</label><input id="p_kp" data-k="socso.kodPer" class="up mono"></div>
+          <p class="hint">新开户一般留空。Borang 2 / SIP 2 右上角的 “No Kod Majikan / MyCoID” 没有雇主编号时会填 SSM 注册号。</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>9. 员工 <span class="ms">Butiran Pekerja</span><span class="tag" id="empTag">Borang 2 · SIP 2 · SIP 2A</span></h2>
+        <div class="emps" id="emps"></div>
+        <div style="padding: 0 16px 16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+          <button type="button" id="addEmp">+ 加员工</button>
+          <span class="hint" style="margin:0">MyKad 会自动算出生日期和性别。月薪选「超过 RM3,000」只在 Borang 2 打勾；选「超过 RM4,000」三份都打勾。每页 10 人，超过自动加页。</span>
+        </div>
+      </section>
+    </form>
+
+    <aside class="desk">
+      <div class="panel">
+        <h3>要打印的表格 <button type="button" id="toggleAll" class="ghost">全选</button></h3>
+        <ul class="forms" id="formList"></ul>
+        <button type="button" class="primary go" id="btnGen">生成 PDF</button>
+        <p class="status" id="status"></p>
+        <ul class="warns" id="warns" hidden></ul>
+        <p class="tip">打印：用 A4 纸、「实际大小 / 100%」。签名和公司印章打印后亲手补上。</p>
+      </div>
+      <div class="panel">
+        <h3>预览</h3>
+        <div class="preview" id="preview"><div class="empty">按「生成 PDF」后在这里预览</div></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+
+<script src="/api/kwsp/assets/vendor/pdf-lib.min.js"></script>
+<script src="/api/kwsp/assets/vendor/pdf.min.js"></script>
+<script src="/api/kwsp/assets/filler.js"></script>
+<script src="/api/kwsp/assets/ssm.js"></script>
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const F = window.BorangFiller;
+  const STATES = ['JOHOR','KEDAH','KELANTAN','MELAKA','NEGERI SEMBILAN','PAHANG','PULAU PINANG','PERAK','PERLIS','SABAH','SARAWAK','SELANGOR','TERENGGANU','W.P. KUALA LUMPUR','W.P. LABUAN','W.P. PUTRAJAYA'];
+  const RACES = [['01','MELAYU'],['02','CINA'],['03','INDIA'],['04','BUMIPUTERA SABAH'],['05','BUMIPUTERA SARAWAK'],['06','LAIN-LAIN']];
+  const IDT = [['B','B · KPPN Baru (MyKad)'],['L','L · KPPN Lama'],['T','T · KP Tentera'],['P','P · KP Polis'],['PR','PR · Penduduk Tetap'],['SSN','SSN · No. Keselamatan Sosial'],['passport','Pasport 护照（外劳）']];
+
+  /* ---------- address blocks ---------- */
+  function addrFields(prefix, title, ms) {
+    return `<div class="subh">${title} <span style="font-weight:400;text-transform:none">${ms}</span></div>
+      <div class="f s12"><label class="l" for="${prefix}_1">地址第 1 行</label><input id="${prefix}_1" data-k="${prefix}.line1" class="up"></div>
+      <div class="f"><label class="l" for="${prefix}_2">地址第 2 行</label><input id="${prefix}_2" data-k="${prefix}.line2" class="up"></div>
+      <div class="f"><label class="l" for="${prefix}_3">地址第 3 行</label><input id="${prefix}_3" data-k="${prefix}.line3" class="up"></div>
+      <div class="f s4"><label class="l" for="${prefix}_city">城市 <span class="ms">Bandar</span></label><input id="${prefix}_city" data-k="${prefix}.city" class="up"></div>
+      <div class="f s3 half-sm"><label class="l" for="${prefix}_pc">邮区 <span class="ms">Poskod</span></label><input id="${prefix}_pc" data-k="${prefix}.pc" class="mono" inputmode="numeric" maxlength="5"></div>
+      <div class="f s4 half-sm"><label class="l" for="${prefix}_st">州 <span class="ms">Negeri</span></label><select id="${prefix}_st" data-k="${prefix}.state"><option value=""></option>${STATES.map(s => `<option>${s}</option>`).join('')}</select></div>`;
+  }
+  $('#addrBody').innerHTML =
+    addrFields('bizAddr', '营业地址', 'Alamat perniagaan') +
+    `<label class="check"><input type="checkbox" id="regSame" data-k="regSame"> 注册地址同营业地址</label>
+     <div class="sub" id="regBox">${addrFields('regAddr', '注册地址', 'Alamat berdaftar')}</div>
+     <label class="check"><input type="checkbox" id="mailSame" data-k="mailSame"> 通讯地址同营业地址</label>
+     <div class="sub" id="mailBox">${addrFields('mailAddr', '通讯地址', 'Alamat surat-menyurat')}</div>`;
+
+  /* ---------- employees ---------- */
+  let empSeq = 0;
+  function empRow(e = {}) {
+    const i = empSeq++;
+    const div = document.createElement('div');
+    div.className = 'emp';
+    div.innerHTML = `
+      <div class="no"><span>员工 <b class="n"></b></span><button type="button" class="ghost danger rm">移除</button></div>
+      <div class="f s3"><label class="l" for="e${i}_t">证件 <span class="ms">(1)</span></label><select id="e${i}_t" data-e="idType">${IDT.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
+      <div class="f s4"><label class="l" for="e${i}_ic">IC / 护照号</label><input id="e${i}_ic" data-e="ic" class="up mono"></div>
+      <div class="f s3 half-sm"><label class="l" for="e${i}_dob">出生日期 <span class="auto"></span></label><input id="e${i}_dob" type="date" data-e="dob"></div>
+      <div class="f s2 half-sm"><label class="l" for="e${i}_g">性别</label><select id="e${i}_g" data-e="gender"><option value=""></option><option value="L">L 男</option><option value="P">P 女</option></select></div>
+      <div class="f s8"><label class="l" for="e${i}_n">姓名（同 IC）</label><input id="e${i}_n" data-e="name" class="up"></div>
+      <div class="f s4"><label class="l" for="e${i}_r">种族 <span class="ms">(6) Bangsa</span></label><select id="e${i}_r" data-e="race"><option value=""></option>${RACES.map(([c, n]) => `<option value="${c}">${c} ${n}</option>`).join('')}</select></div>
+      <div class="f s3 half-sm"><label class="l" for="e${i}_s">入职日期</label><input id="e${i}_s" type="date" data-e="start"></div>
+      <div class="f s6"><label class="l" for="e${i}_j">职位 <span class="ms">Pekerjaan</span></label><input id="e${i}_j" data-e="job" class="up"></div>
+      <div class="f s3 half-sm"><label class="l" for="e${i}_ov">月薪 <span class="ms">(9)</span></label><select id="e${i}_ov" data-e="over"><option value="">RM3,000 或以下</option><option value="3000">超过 RM3,000</option><option value="4000">超过 RM4,000</option></select></div>`;
+    $$('[data-e]', div).forEach(el => { if (e[el.dataset.e] != null) el.value = e[el.dataset.e]; });
+    if (!e.over && +e.salary > 0) $('[data-e=over]', div).value = +e.salary > 4000 ? '4000' : +e.salary > 3000 ? '3000' : '';
+    const tSel = $('[data-e=idType]', div); if (!tSel.value || e.idType === 'mykad') tSel.value = 'B';
+    const rSel = $('[data-e=race]', div); const rc = { MELAYU: '01', CINA: '02', INDIA: '03', 'BUMIPUTERA SABAH': '04', 'BUMIPUTERA SARAWAK': '05', 'LAIN-LAIN': '06', 'ORANG ASLI': '06' }[(e.race || '').toUpperCase()]; if (rc) rSel.value = rc;
+    $('.rm', div).onclick = () => { div.remove(); renumber(); };
+    const ic = $('[data-e=ic]', div), t = $('[data-e=idType]', div);
+    const auto = () => {
+      const tag = $('.auto', div);
+      if (t.value !== 'B') { tag.textContent = ''; return; }
+      const info = F.icInfo(ic.value);
+      if (info) {
+        $('[data-e=dob]', div).value = info.dob; $('[data-e=gender]', div).value = info.gender;
+        tag.textContent = '自动';
+      } else tag.textContent = '';
+    };
+    ic.addEventListener('input', auto); t.addEventListener('change', auto);
+    if (ic.value && !e.dob) auto();
+    $('#emps').appendChild(div); renumber();
+    return div;
+  }
+  function renumber() {
+    const rows = $$('#emps .emp');
+    rows.forEach((r, i) => $('.n', r).textContent = i + 1);
+    $('#empTag').textContent = `${rows.length} 人 · Borang 2 · SIP 2 · SIP 2A`;
+    updateFormList();
+  }
+  $('#addEmp').onclick = () => { const d = empRow(); $('[data-e=ic]', d).focus(); };
+
+  /* ---------- collect / fill ---------- */
+  function setPath(obj, path, val) {
+    const ks = path.split('.');
+    let o = obj;
+    ks.slice(0, -1).forEach((k, i) => { const nx = /^\d+$/.test(ks[i + 1]) ? [] : {}; o = (o[k] = o[k] || nx); });
+    o[ks[ks.length - 1]] = val;
+  }
+  function getPath(obj, path) { return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj); }
+  function collect() {
+    const d = {};
+    $$('#f [data-k]').forEach(el => setPath(d, el.dataset.k, el.type === 'checkbox' ? el.checked : el.value));
+    d.employees = $$('#emps .emp').map(r => { const e = {}; $$('[data-e]', r).forEach(el => e[el.dataset.e] = el.value); return e; });
+    return d;
+  }
+  function load(d) {
+    $$('#f [data-k]').forEach(el => {
+      const v = getPath(d, el.dataset.k);
+      if (el.type === 'checkbox') el.checked = !!v;
+      else { el.value = v == null ? '' : v; if (el.tagName === 'SELECT' && v && el.value !== v) { const o = Array.from(el.options).find(x => x.value.toUpperCase() === String(v).toUpperCase()); if (o) el.value = o.value; } }
+    });
+    if (!$('#c_ent').value) $('#c_ent').value = 'sdn';
+    $('#emps').innerHTML = ''; empSeq = 0;
+    (d.employees && d.employees.length ? d.employees : [{}]).forEach(e => empRow(e));
+    sync();
+  }
+  const BLANK = { regSame: true, mailSame: true, adminSame: true, signSame: true, company: { entity: 'sdn', ssm: 'ssm' },
+    owner: { cit: 'MALAYSIA', pos: 'PENGARAH' }, socso: { pay: 'portal', portalType: 'new', portalCat: 'main' }, employees: [{}] };
+
+  /* ---------- dynamic visibility & counters ---------- */
+  function sync() {
+    const ent = $('#c_ent').value;
+    $('#w_ssm').hidden = !(ent === 'sole' || ent === 'part');
+    $('#w_other').hidden = ent !== 'other';
+    $('#regBox').hidden = $('#regSame').checked;
+    $('#branchBox').hidden = !$('#hasBranch').checked;
+    $('#mailBox').hidden = $('#mailSame').checked;
+    $('#adminBox').hidden = $('#adminSame').checked;
+    $('#signBox').hidden = $('#signSame').checked;
+    $$('.cnt').forEach(c => {
+      const el = document.getElementById(c.dataset.for), cap = +c.dataset.cap;
+      const n = el.value.trim().length;
+      c.textContent = n ? `${n}/${cap}` : '';
+      c.classList.toggle('over', n > cap);
+      c.title = n > cap ? '超过 PERKESO 表格的格子数，会被截断' : '';
+    });
+  }
+  $('#f').addEventListener('input', (e) => { sync(); if (!e.target.closest('.import')) markDirty(); });
+  $('#f').addEventListener('change', sync);
+
+  /* ---------- form selection ---------- */
+  function updateFormList() {
+    const nEmp = Math.max(1, Math.ceil(($$('#emps .emp').length) / 10));
+    $$('#formList [data-pages]').forEach(s => {
+      const f = F.FORMS.find(x => x.id === s.dataset.pages);
+      const p = f.emp ? nEmp : f.pages;
+      s.textContent = p + ' 页';
+    });
+  }
+  $('#formList').innerHTML = F.FORMS.map(f => `<li><label for="fm_${f.id}">
+      <input type="checkbox" id="fm_${f.id}" value="${f.id}" checked>
+      <span class="chip ${f.agency === 'KWSP' ? 'kwsp' : 'perkeso'}">${f.agency}</span>
+      <span>${f.label}</span><span class="pg" data-pages="${f.id}"></span></label></li>`).join('');
+  $('#toggleAll').onclick = () => {
+    const boxes = $$('#formList input'); const all = boxes.every(b => b.checked);
+    boxes.forEach(b => b.checked = !all); $('#toggleAll').textContent = all ? '全选' : '全不选';
+  };
+
+  /* ---------- templates ---------- */
+  const ASSETS = '/api/kwsp/assets/';
+  let TPL = null, SPEC = null;
+  async function ensureAssets() {
+    if (TPL && SPEC) return;
+    const ids = F.FORMS.map(f => f.pdf).filter((v, i, a) => a.indexOf(v) === i);
+    const [spec, ...pdfs] = await Promise.all([
+      fetch(ASSETS + 'spec.json', { credentials: 'same-origin' }).then(r => { if (!r.ok) throw new Error('spec.json ' + r.status); return r.json(); }),
+      ...ids.map(id => fetch(ASSETS + 'templates/' + id + '.pdf', { credentials: 'same-origin' }).then(r => { if (!r.ok) throw new Error(id + '.pdf ' + r.status); return r.arrayBuffer(); }))
+    ]);
+    SPEC = spec; TPL = {}; ids.forEach((id, i) => { TPL[id] = new Uint8Array(pdfs[i]); });
+  }
+  const templates = () => TPL;
+
+  /* ---------- generate ---------- */
+  let lastPdf = null, lastName = '';
+  const status = (msg, cls = '') => { const s = $('#status'); s.textContent = msg; s.className = 'status ' + cls; };
+  function fileName(d) {
+    const n = (d.company && d.company.name || 'SYARIKAT').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return `${n || 'SYARIKAT'}-KWSP-PERKESO.pdf`;
+  }
+  function checkMissing(d, sel) {
+    const out = [], c = d.company || {};
+    if (!c.tel && !c.mob) out.push('公司电话和手机都没填。');
+    if (!c.email) out.push('公司电邮没填。');
+    const b = d.bizAddr || {};
+    if (!b.line1 || !b.pc || !b.state) out.push('营业地址不完整。');
+    if (sel.some(s => ['b2', 'sip2', 'sip2a'].includes(s))) {
+      $$('#emps .emp').forEach((row, i) => {
+        const v = (k) => ($(`[data-e=${k}]`, row) || {}).value || '';
+        if (!v('name') && !v('ic')) return;
+        const miss = [];
+        if (!v('dob')) miss.push('出生日期');
+        if (sel.some(s => s === 'b2' || s === 'sip2')) { if (!v('gender')) miss.push('性别'); if (!v('race')) miss.push('种族 Bangsa'); if (!v('start')) miss.push('入职日期'); }
+        if (!v('job')) miss.push('职位');
+        if (miss.length) out.push(`员工 ${i + 1}（${(v('name') || v('ic')).toUpperCase()}）没填：${miss.join('、')}`);
+      });
+    }
+    return out;
+  }
+  async function generate() {
+    const sel = $$('#formList input:checked').map(b => b.value);
+    if (!sel.length) { status('请至少选一份表格。', 'err'); return; }
+    if (!window.PDFLib) { status('PDF 组件没有加载成功，请检查网络后重新打开页面。', 'err'); return; }
+    status('生成中…');
+    const d = collect();
+    try {
+      await ensureAssets();
+      const r = await F.build(window.PDFLib, templates(), SPEC, d, sel);
+      r.warnings.unshift(...checkMissing(d, sel));
+      lastPdf = r.bytes; lastName = fileName(d);
+      const w = $('#warns');
+      w.innerHTML = r.warnings.map(x => `<li></li>`).join('');
+      $$('li', w).forEach((li, i) => li.textContent = r.warnings[i]);
+      w.hidden = !r.warnings.length;
+      status(`已生成 ${r.pages} 页，正在下载…`, 'ok');
+      renderPreview(r.bytes);
+      await download(r.bytes, lastName);
+    } catch (err) {
+      console.error(err); status('生成失败：' + (err && err.message || err), 'err');
+    }
+  }
+  $('#btnGen').onclick = generate;
+
+  /* ---------- downloads ---------- */
+  async function saveFile(data, name, mime) {
+    const url = URL.createObjectURL(new Blob([data], { type: mime }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return 'saved';
+  }
+  async function download(bytes, name) {
+    const res = await saveFile(bytes, name, 'application/pdf');
+    if (res === 'saved') status(`已下载 ${name}`, 'ok');
+    else if (res === 'declined') status('已取消下载。可再按「生成 PDF」。');
+    else status('下载没有成功：' + res.slice(6), 'err');
+  }
+
+  /* ---------- preview with pdf.js ---------- */
+  let pdfjsReady = null;
+  function pdfjs() {
+    if (pdfjsReady) return pdfjsReady;
+    const lib = window.pdfjsLib;
+    if (!lib) return (pdfjsReady = Promise.resolve(null));
+    lib.GlobalWorkerOptions.workerSrc = '/api/kwsp/assets/vendor/pdf.worker.min.js';
+    return (pdfjsReady = Promise.resolve(lib));
+  }
+  async function renderPreview(bytes) {
+    const box = $('#preview');
+    const lib = await pdfjs();
+    if (!lib) { box.innerHTML = '<div class="empty">预览组件没有加载，PDF 已正常生成。</div>'; return; }
+    box.innerHTML = '';
+    try {
+      const doc = await lib.getDocument({ data: bytes.slice(0) }).promise;
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const vp = page.getViewport({ scale: 1.6 });
+        const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+        box.appendChild(c);
+        await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      }
+    } catch (e) { console.error(e); box.innerHTML = '<div class="empty">预览失败，但 PDF 已正常生成。</div>'; }
+  }
+
+  /* ---------- saved data sets (stored per company on the server) ---------- */
+  const qs = new URLSearchParams(location.search);
+  const COMPANY_ID = Number(qs.get('company')) || 0;
+  let saved = [], canEdit = false, canDelete = false, companyInfo = { name: '', registrationNo: '' };
+  const apiBase = '/api/companies/' + COMPANY_ID + '/kwsp-forms';
+  async function apiCall(url, opts) {
+    const r = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } }, opts));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  }
+  const toast = (m) => { const t = $('#toast'); t.textContent = m; clearTimeout(toast.t); toast.t = setTimeout(() => t.textContent = '', 4500); };
+  let current = null, confirmDel = false;     // current = saved record id (or null for a new unsaved one)
+  function markDirty() {}
+  function refreshClients() {
+    const sel = $('#clientSel');
+    sel.innerHTML = '<option value="">— 已保存的资料 —</option>';
+    saved.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
+    sel.value = current == null ? '' : String(current);
+    $('#btnSave').hidden = !canEdit; $('#btnDel').hidden = !canDelete; $('#importLbl').hidden = !canEdit;
+  }
+  async function loadSaved() {
+    const j = await apiCall(apiBase);
+    saved = j.forms; canEdit = j.canEdit; canDelete = j.canDelete; companyInfo = j.company;
+    $('#coName').textContent = companyInfo.name + ' · 填一次资料，自动填好 8 份官方表格（全部大写），下载后直接打印';
+  }
+  function blankForCompany() {
+    const d = Object.assign(JSON.parse(JSON.stringify(BLANK)), { signDate: todayISO() });
+    d.company.name = (companyInfo.name || '').toUpperCase();
+    d.company.reg = (companyInfo.registrationNo || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return d;
+  }
+  $('#btnSave').onclick = async () => {
+    const d = collect(); const name = (d.company.name || '').trim().toUpperCase();
+    if (!name) { toast('请先填公司名称再保存。'); $('#c_name').focus(); return; }
+    $('#btnSave').disabled = true;
+    try {
+      const r = await apiCall(apiBase, { method: 'PUT', body: JSON.stringify({ name, data: d }) });
+      await loadSaved(); current = r.id; refreshClients();
+      toast('已保存「' + name + '」');
+    } catch (e) { toast('保存失败：' + e.message); }
+    $('#btnSave').disabled = false;
+  };
+  $('#clientSel').onchange = (e) => {
+    const k = Number(e.target.value); if (!k) return;
+    const s = saved.find(x => x.id === k); if (s) { current = k; load(s.data); toast('已打开「' + s.name + '」'); }
+  };
+  $('#btnNew').onclick = () => { current = null; load(blankForCompany()); refreshClients(); $('#preview').innerHTML = '<div class="empty">按「生成 PDF」后在这里预览</div>'; $('#warns').hidden = true; status(''); $('#c_name').focus(); };
+  $('#btnDel').onclick = async () => {
+    if (current == null) { toast('先从左边选一份已保存的资料。'); return; }
+    if (!confirmDel) { confirmDel = true; $('#btnDel').textContent = '确定删除？'; setTimeout(() => { confirmDel = false; $('#btnDel').textContent = '删除'; }, 4000); return; }
+    confirmDel = false; $('#btnDel').textContent = '删除';
+    try {
+      await apiCall(apiBase + '/' + current, { method: 'DELETE' });
+      current = null; await loadSaved(); refreshClients(); toast('已删除');
+    } catch (e) { toast('删除失败：' + e.message); }
+  };
+  $('#btnExport').onclick = async () => {
+    const d = collect();
+    const name = fileName(d).replace(/\.pdf$/, '.json');
+    const r = await saveFile(JSON.stringify(d, null, 2), name, 'application/json');
+    toast(r === 'saved' ? '已导出 ' + name : '导出失败');
+  };
+  $('#importFile').onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const rd = new FileReader();
+    rd.onload = () => { try { const d = JSON.parse(rd.result); current = null; load(d); refreshClients(); toast('已导入 ' + file.name + '（按「保存」才会存进系统）'); } catch (err) { toast('这个文件不是有效的客户资料 .json'); } };
+    rd.readAsText(file); e.target.value = '';
+  };
+
+  const NEED_IDS = ['c_tel', 'c_mob', 'c_email', 'c_nemp', 'c_emp1', 'bizAddr_1', 'bizAddr_city', 'bizAddr_pc', 'bizAddr_st', 'o_t1', 'o_mob', 'o_email'];
+  function markNeeds() {
+    NEED_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.classList.toggle('need', !el.value.trim()); });
+    if (!$('#mailSame').checked) ['mailAddr_1', 'mailAddr_pc', 'mailAddr_st'].forEach(id => { const el = document.getElementById(id); el.classList.toggle('need', !el.value.trim()); });
+  }
+  $('#f').addEventListener('input', (e) => { if (e.target.classList && e.target.classList.contains('need') && e.target.value.trim()) e.target.classList.remove('need'); });
+  $('#f').addEventListener('change', (e) => { if (e.target.classList && e.target.classList.contains('need') && e.target.value.trim()) e.target.classList.remove('need'); });
+  function todayISO() { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
+  /* ---------- SSM import ---------- */
+  let ssmData = null;
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function readSSM(files) {
+    const lib = await pdfjs();
+    if (!lib) { toast('PDF 读取组件没有加载，请检查网络后重新打开页面。'); return; }
+    const pages = [];
+    for (const f of files) {
+      try { pages.push(...await window.SSMReader.pagesFromPdf(lib, new Uint8Array(await f.arrayBuffer()))); }
+      catch (e) { console.error(e); toast(`读不到 ${f.name}`); }
+    }
+    const textCount = pages.reduce((n, p) => n + p.items.filter(i => i.str.trim()).length, 0);
+    const box = $('#ssmResult'); box.hidden = false;
+    if (!textCount) {
+      ssmData = null;
+      $('#ssmWarns').hidden = false; $('#ssmWarns').innerHTML = '<li>这个 PDF 只有图片、没有文字层，读不到内容。请用 CamScanner 导出 PDF（会带文字识别），或用 SSM 下载的 PDF。</li>';
+      $('#ssmFound').innerHTML = ''; $('#dirWrap').hidden = true; $('#ssmApply').hidden = true; return;
+    }
+    const r = window.SSMReader.parse(pages); ssmData = r;
+    const C = r.company, a = C.regAddr;
+    const rows = [['公司名称', C.name], ['注册号', C.reg], ['成立日期', C.incDate && C.incDate.split('-').reverse().join('/')], ['业务', C.nature],
+      ['注册地址', a && [a.line1, a.line2, a.line3, a.pc + ' ' + a.city, a.state].filter(s => s && s.trim()).join(', ')],
+      ['秘书电邮', C.email && C.email + '（不带入）'], ['秘书电话', C.tel && C.tel + '（不带入）']].filter(([, v]) => v);
+    $('#ssmFound').innerHTML = `<dl class="found">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+    $('#ssmFound').firstElementChild.style.display = 'contents';
+    const w = $('#ssmWarns'); w.hidden = !r.warnings.length; w.innerHTML = r.warnings.map(x => `<li>${esc(x)}</li>`).join('');
+    $('#dirWrap').hidden = !r.directors.length; $('#ssmApply').hidden = false;
+    $('#dirList').innerHTML = `<table><thead><tr><th>姓名</th><th>IC / 护照</th><th>国籍</th><th class="c">东主 / 签署人</th><th class="c">联络人 / i-Akaun</th></tr></thead><tbody>${
+      r.directors.map((d, i) => `<tr><td>${esc(d.name)}</td><td class="mono">${esc(d.ic)}</td><td>${esc(d.nat || '')}</td>
+        <td class="c"><input type="radio" name="pickOwner" value="${i}" ${i === 0 ? 'checked' : ''} aria-label="东主 ${esc(d.name)}"></td>
+        <td class="c"><input type="radio" name="pickOfficer" value="${i}" ${i === 0 ? 'checked' : ''} aria-label="联络人 ${esc(d.name)}"></td></tr>`).join('')
+    }<tr><td colspan="3" class="hint">联络人不是董事（例如公司秘书或会计）</td><td></td><td class="c"><input type="radio" name="pickOfficer" value="-1" aria-label="联络人自己填"></td></tr></tbody></table>`;
+    // address choices
+    const fmtA = (x) => x ? [x.line1, x.line2, x.line3, (x.pc + ' ' + x.city).trim(), x.state].filter(s => s && s.trim()).join(', ') : '';
+    const opts = [];
+    if (C.bizAddr) opts.push(['biz', 'Section 14 营业地址：' + fmtA(C.bizAddr)]);
+    if (C.regAddr) opts.push(['reg', '注册地址（多数是秘书地址）：' + fmtA(C.regAddr)]);
+    r.directors.forEach((dd, i) => { const pa = window.SSMReader.address(dd.addr); dd.addrParsed = pa; if (pa) opts.push(['dir' + i, `董事 ${dd.name}：` + fmtA(pa)]); });
+    const optHtml = (list) => list.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('');
+    $('#addrPick').innerHTML = `
+      <div class="f s12"><label class="l" for="pickBiz">营业地址 <span class="ms">Alamat perniagaan</span></label>
+        <select id="pickBiz">${optHtml([['manual', '自己填（实际营业地点）'], ...opts])}</select></div>
+      <div class="f s12"><label class="l" for="pickMail">通讯地址 <span class="ms">Alamat surat-menyurat</span></label>
+        <select id="pickMail">${optHtml([['same', '同营业地址'], ...opts, ['manual', '自己填']])}</select></div>`;
+    $('#pickBiz').value = C.bizAddr ? 'biz' : 'manual';
+    toast(`已读取 ${files.length} 个文件`);
+  }
+  function applySSM() {
+    if (!ssmData) return;
+    const C = ssmData.company, d = collect();
+    d.company = d.company || {};
+    const set = (o, k, v) => { if (v) o[k] = v; };
+    set(d.company, 'name', C.name); set(d.company, 'reg', C.reg); set(d.company, 'incDate', C.incDate); set(d.company, 'nature', C.nature);
+    if (C.name) d.company.entity = /S[DO0]N\.?\s*BHD/.test(C.name) ? 'sdn' : /BHD/.test(C.name) ? 'bhd' : (/PLT$/.test(C.name) ? 'llp' : d.company.entity);
+    const dirs = ssmData.directors;
+    const pickAddr = (v) => v === 'biz' ? C.bizAddr : v === 'reg' ? C.regAddr : /^dir\d+$/.test(v) ? dirs[+v.slice(3)].addrParsed : null;
+    const bizSel = ($('#pickBiz') || {}).value || 'manual', mailSel = ($('#pickMail') || {}).value || 'same';
+    const blankA = { line1: '', line2: '', line3: '', city: '', pc: '', state: '' };
+    if (bizSel === 'manual') d.bizAddr = d.bizAddr || Object.assign({}, blankA);
+    else d.bizAddr = Object.assign({}, pickAddr(bizSel));
+    if (C.regAddr && bizSel !== 'reg') { d.regAddr = Object.assign({}, C.regAddr); d.regSame = false; } else d.regSame = true;
+    if (mailSel === 'same') d.mailSame = true;
+    else { d.mailSame = false; d.mailAddr = mailSel === 'manual' ? Object.assign({}, blankA) : Object.assign({}, pickAddr(mailSel)); }
+    const ow = dirs[+(($('input[name=pickOwner]:checked') || {}).value || 0)];
+    if (ow) { d.owner = { name: ow.name, ic: ow.ic, pos: 'PENGARAH', cit: ow.nat || 'MALAYSIA' }; d.signSame = true; }
+    const ofIdx = +(($('input[name=pickOfficer]:checked') || {}).value || 0);
+    const of = ofIdx >= 0 ? dirs[ofIdx] : null;
+    if (of) { d.officer = Object.assign({}, d.officer, { name: of.name, ic: of.ic, pos: 'PENGARAH', email: of.email || (d.officer || {}).email || '' }); d.adminSame = true; }
+    if (!d.signDate) d.signDate = todayISO();
+    load(d); markNeeds();
+    toast('已带入 SSM 资料。黄色框是还要填的资料。');
+    $('#c_name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  $('#ssmFile').onchange = (e) => { const fs = Array.from(e.target.files); if (fs.length) readSSM(fs); e.target.value = ''; };
+  const drop = $('#ssmDrop');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { const fs = Array.from(e.dataTransfer.files).filter(f => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)); if (fs.length) readSSM(fs); });
+  $('#ssmApply').onclick = applySSM;
+
+  // theme follows the CC CREST app
+  const applyTheme = (t) => document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+  applyTheme(qs.get('theme'));
+  window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.type === 'kwsp-theme') applyTheme(e.data.theme); });
+
+  load(Object.assign(JSON.parse(JSON.stringify(BLANK)), { signDate: todayISO() }));
+  if (!COMPANY_ID) { toast('缺少公司编号。'); } else {
+    loadSaved().then(() => {
+      if (saved.length) { current = saved[0].id; load(saved[0].data); } else { load(blankForCompany()); }
+      refreshClients();
+    }).catch(e => { toast('读取失败：' + e.message); });
+  }
+})();
+</script>
+</body>
+</html>

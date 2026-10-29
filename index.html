@@ -666,6 +666,10 @@
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><circle cx="12" cy="13" r="2"/></svg>
           <span class="nav-label" data-i18n="nav_payroll">Payroll</span>
         </button>
+        <button class="nav-item" data-panel="panel-kwsp">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+          <span class="nav-label" data-i18n="nav_kwsp">KWSP &amp; PERKESO</span>
+        </button>
       </div>
     </nav>
 
@@ -1224,6 +1228,12 @@
             <tbody id="payroll-tbody"></tbody>
           </table>
         </div>
+      </section>
+
+      <!-- ---- KWSP & PERKESO employer registration forms (HR) ---- -->
+      <section class="panel" id="panel-kwsp" hidden>
+        <div class="content-header"><h2 data-i18n="nav_kwsp">KWSP &amp; PERKESO</h2><span class="sub" id="kwsp-sub" data-i18n="kwsp_sub">Employer registration forms · fill once, print 8 official forms</span></div>
+        <iframe id="kwsp-frame" title="KWSP &amp; PERKESO" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
       </section>
 
       <!-- ---- WORKFLOW (owner-only progress dashboard) ---- -->
@@ -2201,7 +2211,7 @@
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
       no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
-      nav_payroll:"Payroll", payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
+      nav_payroll:"Payroll", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
       employees_label:"Employees", add_employee_btn:"+ Add Employee", payroll_entries_label:"Payroll", run_payroll_btn:"Run Payroll",
       th_name:"Name", th_position:"Position", th_basic_salary:"Basic Salary", th_net_pay:"Net Pay",
       add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.",
@@ -2458,7 +2468,7 @@
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
       no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
-      nav_payroll:"薪资", payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
+      nav_payroll:"薪资", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
       employees_label:"员工", add_employee_btn:"+ 添加员工", payroll_entries_label:"薪资记录", run_payroll_btn:"发放薪资",
       th_name:"姓名", th_position:"职位", th_basic_salary:"基本薪资", th_net_pay:"实发薪资",
       add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。",
@@ -2719,6 +2729,7 @@
       document.querySelectorAll('.panel').forEach(function(p){ p.hidden = true; });
       document.getElementById(btn.dataset.panel).hidden = false;
       document.body.classList.remove('sidebar-open');
+      if(btn.dataset.panel === 'panel-kwsp' && typeof renderKwsp === 'function') renderKwsp();
       // Keep the service group that contains the page you're on open.
       var owner = btn.closest('.nav-sub');
       if(owner) serviceMode = owner.id.replace('nav-sub-', '');
@@ -2906,6 +2917,8 @@
     btn.addEventListener('click', function(){
       var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       applyTheme(next);
+      var kf = document.getElementById('kwsp-frame');
+      if(kf && kf.contentWindow) kf.contentWindow.postMessage({ type:'kwsp-theme', theme:next }, location.origin);
       if(typeof renderStaffRow === 'function') renderStaffRow();
       if(typeof renderCompanyGrid === 'function') renderCompanyGrid();
     });
@@ -5203,6 +5216,19 @@
     renderPetty();
     renderMerchant();
     renderPayroll();
+    renderKwsp();
+  }
+
+  // KWSP & PERKESO: the form page lives in an iframe served by the server; load it only while the panel is open.
+  function renderKwsp(){
+    var frame = document.getElementById('kwsp-frame');
+    var panel = document.getElementById('panel-kwsp');
+    if(!frame || !panel) return;
+    var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    if(!companyId){ frame.removeAttribute('src'); frame.dataset.loadedFor = ''; return; }
+    if(panel.hidden || frame.dataset.loadedFor === String(companyId)) return;
+    frame.dataset.loadedFor = String(companyId);
+    frame.src = '/api/kwsp/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
   }
 
 
@@ -5349,7 +5375,7 @@
   }
 
   // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
-  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll' };
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'payroll' };
   function applyPageAccess(){
     if(CURRENT_ROLE !== 'staff') return;
     var rec = customerRecord(currentCompany);
@@ -5725,7 +5751,8 @@
     { key:'panel-claim', labelKey:'nav_claim_bill' },
     { key:'panel-petty', labelKey:'nav_petty_record' },
     { key:'panel-merchant', labelKey:'nav_merchant_report' },
-    { key:'panel-payroll', labelKey:'nav_payroll' }
+    { key:'panel-payroll', labelKey:'nav_payroll' },
+    { key:'panel-kwsp', labelKey:'nav_kwsp' }
   ];
   var featuresModalCompanyId = null;
   function openFeaturesModal(companyName){

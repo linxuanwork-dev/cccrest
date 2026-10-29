@@ -2060,7 +2060,8 @@
       currentCompany = profile.companyName;
       var enabled = profile.enabledFeatures || [];
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
-        btn.hidden = enabled.indexOf(btn.dataset.panel) === -1;
+        // KWSP & PERKESO is needed by every company, so it is not controlled by the feature switches.
+        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && enabled.indexOf(btn.dataset.panel) === -1;
       });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       refreshServiceGroups();
@@ -5753,8 +5754,7 @@
     { key:'panel-claim', labelKey:'nav_claim_bill' },
     { key:'panel-petty', labelKey:'nav_petty_record' },
     { key:'panel-merchant', labelKey:'nav_merchant_report' },
-    { key:'panel-payroll', labelKey:'nav_payroll' },
-    { key:'panel-kwsp', labelKey:'nav_kwsp' }
+    { key:'panel-payroll', labelKey:'nav_payroll' }
   ];
   var featuresModalCompanyId = null;
   function openFeaturesModal(companyName){

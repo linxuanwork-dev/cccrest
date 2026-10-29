@@ -2662,6 +2662,8 @@
   function setLang(lang){
     LANG = lang;
     localStorage.setItem('crest_lang', lang);
+    var kf = document.getElementById('kwsp-frame');
+    if(kf && kf.contentWindow) kf.contentWindow.postMessage({ type:'kwsp-lang', lang:lang }, location.origin);
     applyTranslations();
     refreshDynamicContent();
   }
@@ -5228,7 +5230,7 @@
     if(!companyId){ frame.removeAttribute('src'); frame.dataset.loadedFor = ''; return; }
     if(panel.hidden || frame.dataset.loadedFor === String(companyId)) return;
     frame.dataset.loadedFor = String(companyId);
-    frame.src = '/api/kwsp/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    frame.src = '/api/kwsp/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light') + '&lang=' + (LANG === 'zh' ? 'zh' : 'en');
   }
 
 

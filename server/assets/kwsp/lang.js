@@ -98,6 +98,7 @@
     '读不到 ': 'Cannot read ',
     '这个 PDF 只有图片、没有文字层，读不到内容。请用 CamScanner 导出 PDF（会带文字识别），或用 SSM 下载的 PDF。':
       'This PDF contains only images, with no text layer, so it cannot be read. Export the PDF from CamScanner (with text recognition) or use the PDF downloaded from SSM.',
+    '读取中… 请稍等': 'Reading… please wait', '读取 SSM 文件失败：': 'Could not read the SSM files: ',
     '没有读到公司名称。': 'Company name not found.', '没有读到董事资料（Particulars of Director）。': 'Director details (Particulars of Director) not found.',
     '公司名称': 'Company name', '注册号': 'Registration no.', '秘书电邮': 'Secretary email', '秘书电话': 'Secretary phone', '（不带入）': ' (not applied)',
     '东主 / 签署人': 'Owner / signatory', '联络人 / i-Akaun': 'Contact officer / i-Akaun',

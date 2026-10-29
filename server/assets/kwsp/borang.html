@@ -648,6 +648,18 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
   let ssmData = null;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   async function readSSM(files) {
+    const box = $('#ssmResult'); box.hidden = false;
+    $('#ssmWarns').hidden = true; $('#dirWrap').hidden = true; $('#ssmApply').hidden = true;
+    $('#ssmFound').innerHTML = '<p class="hint">读取中… 请稍等</p>';
+    box.scrollIntoView({ block: 'nearest' });
+    try { await readSSMFiles(files); }
+    catch (e) {
+      console.error(e);
+      $('#ssmFound').innerHTML = ''; $('#dirWrap').hidden = true; $('#ssmApply').hidden = true;
+      const w = $('#ssmWarns'); w.hidden = false; w.innerHTML = '<li>读取 SSM 文件失败：' + esc((e && e.message) || e) + '</li>';
+    }
+  }
+  async function readSSMFiles(files) {
     const lib = await pdfjs();
     if (!lib) { toast('PDF 读取组件没有加载，请检查网络后重新打开页面。'); return; }
     const pages = [];
@@ -717,7 +729,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     toast('已带入 SSM 资料。黄色框是还要填的资料。');
     $('#c_name').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
-  $('#ssmFile').onchange = (e) => { const fs = Array.from(e.target.files); if (fs.length) readSSM(fs); e.target.value = ''; };
+  $('#ssmFile').onchange = (e) => { const fs = Array.from(e.target.files); e.target.value = ''; if (fs.length) readSSM(fs); };
   const drop = $('#ssmDrop');
   ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));

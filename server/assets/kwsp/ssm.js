@@ -36,7 +36,7 @@
     ['pname', /^propos\w*\s*na\w*/i], ['lodge', /^lodg\w*/i], ['purpose', /^purpose/i], ['ctype', /^company\s*ty\w*/i],
     ['subtype', /^sub\s*ty\w*/i], ['incdate', /^incorpor\w*\s*da\w*/i], ['regno', /^registr\w*\s*n[o0]\.?/i],
     ['nature', /^general\s*natur\w*(\s*of\s*bus\w*)?/i], ['bizdesc', /^business\s*desc\w*/i],
-    ['regaddr', /^regist\w*\s*addr\w*/i], ['bizaddr', /^business\s*addr\w*/i], ['email', /^e\s*-?\s*ma[il1|]{1,3}\b/i],
+    ['regaddr', /^regist\w*\s+(?:\w+\s+)?add\s*r?e?s?s?/i], ['bizaddr', /^business\s*addr\w*/i], ['email', /^e\s*-?\s*ma[il1|]{1,3}\b/i],
     ['office', /^off[il1|]ce\s*n[o0]/i], ['fax', /^fax\s*n\w*/i],
     ['dname', /^director\s*na\w*/i], ['mname', /^member\s*na\w*/i], ['idtype', /^[il1|]d\s*ty\w*/i], ['idno', /^[il1|]dent\w*\s*n[o0]/i],
     ['nat', /^nat[il1|]\w*/i], ['addr', /^address/i], ['dob', /^date\s*of\s*b\s*\w*/i], ['race', /^race/i],
@@ -156,6 +156,10 @@
       if (l.label === 'dname') { mode = 'director'; cur = { name: v.toUpperCase() }; out.directors.push(cur); continue; }
       if (l.label === 'mname') { mode = 'member'; cur = null; continue; }
       if (mode === 'director' && cur) {
+        // the same field twice without a new "Director Name" = the next block is not this director (e.g. a member
+        // whose heading was not read), so stop adding to this director
+        const FIELD = { idtype: 'idType', idno: 'idNo', nat: 'nat', addr: 'addr', dob: 'dob', race: 'race' }[l.label];
+        if (FIELD && cur[FIELD]) { cur = null; mode = 'other'; continue; }
         if (l.label === 'idtype') cur.idType = v.toUpperCase();
         else if (l.label === 'idno') cur.idNo = v;
         else if (l.label === 'nat') cur.nat = v.toUpperCase().replace(/^MALAYS[I1]A$/, 'MALAYSIA');
@@ -179,11 +183,20 @@
         case 'fax': seenFax++; if (afterBizAddr) C.bizFax = phone(v); else C.fax = phone(v); break;
       }
     }
+    // the company name is printed twice (certificate, Section 14); if a scan reads them differently, trust the large
+    // certificate print and say so
+    const cn = certName ? coName(certName) : '';
+    if (cn && /\b(SDN|BHD|BERHAD|PLT|ENTERPRISE)\b/.test(cn)) {
+      if (C.name && C.name !== cn) { out.warnings.push(`公司名称两处读到的不一样：「${C.name}」和「${cn}」，已用证书上的，请核对。`); C.name = cn; }
+      else if (!C.name) C.name = cn;
+    }
     if (!C.name && certName) C.name = coName(certName);
     if (!C.regRaw && certReg) C.regRaw = certReg;
     if (!C.incDate && certDate) C.incDate = certDate;
     if (C.regRaw) {
-      const tok = C.regRaw.replace(/\s/g, '').split('(')[0].toUpperCase();
+      let tok = C.regRaw.replace(/\s/g, '').split('(')[0].toUpperCase();
+      const twelve = /\d{12}/.exec(tok);          // OCR can put stray letters in front of the number
+      if (twelve) tok = twelve[0];
       C.reg = /^\d{4}/.test(fixDigits(tok)) ? fixDigits(tok.slice(0, 4)) + tok.slice(4).replace(/O/g, '0').replace(/[IL|]/g, '1') : tok;
       if (!/^\d{12}$/.test(C.reg)) out.warnings.push(`注册号读到「${C.reg}」，不是 12 位数字，请核对。`);
     }

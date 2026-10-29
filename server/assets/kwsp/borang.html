@@ -149,10 +149,10 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
         <div class="body">
           <div class="f s12">
             <label class="drop" for="ssmFile" id="ssmDrop">
-              <span><b>选择或拖入 SSM Certificate 和 Section 14 的 PDF</b>（可多选，CamScanner 扫描的也可以）</span>
+              <span><b>选择或拖入 SSM Certificate 和 Section 14 的 PDF</b>（可多选；扫描件或手机拍的照片也可以，会自动识别文字）</span>
               <span class="hint" style="margin:0">自动带入公司名称、注册号、成立日期、业务、注册地址、电邮、电话和董事。文件只在这台电脑上读取，不会上传。</span>
             </label>
-            <input id="ssmFile" type="file" accept="application/pdf,.pdf" multiple hidden>
+            <input id="ssmFile" type="file" accept="application/pdf,.pdf,image/*" multiple hidden>
           </div>
           <div class="f s12" id="ssmResult" hidden>
             <ul class="warns" id="ssmWarns" hidden></ul>
@@ -659,12 +659,29 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
       const w = $('#ssmWarns'); w.hidden = false; w.innerHTML = '<li>读取 SSM 文件失败：' + esc((e && e.message) || e) + '</li>';
     }
   }
+  let ocrLoaded = null;
+  const loadOcr = () => ocrLoaded || (ocrLoaded = new Promise((res, rej) => { const s = document.createElement('script'); s.src = ASSETS + 'ocr.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the OCR component')); document.head.appendChild(s); }));
+  async function readOne(lib, f) {
+    const progress = (i, n) => { $('#ssmFound').innerHTML = '<p class="hint">正在识别扫描件（OCR）… 第 ' + i + ' / ' + n + ' 页 · ' + esc(f.name) + '</p>'; };
+    const isImg = /^image\//.test(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name);
+    if (!isImg) {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const p = await window.SSMReader.pagesFromPdf(lib, bytes.slice(0));
+      if (p.some(pg => pg.items.some(i => i.str.trim()))) return p;
+      $('#ssmFound').innerHTML = '<p class="hint">正在加载识别组件（首次约 7 MB）…</p>';
+      await loadOcr();
+      return await window.SSMOcr.pagesFromScannedPdf(lib, bytes, progress);
+    }
+    $('#ssmFound').innerHTML = '<p class="hint">正在加载识别组件（首次约 7 MB）…</p>';
+    await loadOcr();
+    return await window.SSMOcr.pagesFromImage(f, progress);
+  }
   async function readSSMFiles(files) {
     const lib = await pdfjs();
     if (!lib) { toast('PDF 读取组件没有加载，请检查网络后重新打开页面。'); return; }
     const pages = [];
     for (const f of files) {
-      try { pages.push(...await window.SSMReader.pagesFromPdf(lib, new Uint8Array(await f.arrayBuffer()))); }
+      try { pages.push(...await readOne(lib, f)); }
       catch (e) { console.error(e); toast(`读不到 ${f.name}`); }
     }
     const textCount = pages.reduce((n, p) => n + p.items.filter(i => i.str.trim()).length, 0);
@@ -733,7 +750,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
   const drop = $('#ssmDrop');
   ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', (e) => { const fs = Array.from(e.dataTransfer.files).filter(f => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)); if (fs.length) readSSM(fs); });
+  drop.addEventListener('drop', (e) => { const fs = Array.from(e.dataTransfer.files).filter(f => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name) || /^image\//.test(f.type)); if (fs.length) readSSM(fs); });
   $('#ssmApply').onclick = applySSM;
 
   // theme follows the CC CREST app

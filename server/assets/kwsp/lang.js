@@ -7,6 +7,7 @@
 
   // Sentences with numbers / names in them, applied first.
   const RULES = [
+    [/正在识别扫描件（OCR）… 第 (\d+) \/ (\d+) 页/g, 'Reading the scan (OCR)… page $1 / $2'],
     [/已生成 (\d+) 页，正在下载…/g, 'Generated $1 pages, downloading…'],
     [/已保存「(.*)」/g, 'Saved "$1"'],
     [/已打开「(.*)」/g, 'Opened "$1"'],
@@ -25,11 +26,12 @@
     [/\(第 (\d+) 页\)/g, '(page $1)'],
     [/员工 (\d+)（/g, 'Employee $1 ('],
     [/员工 (\d+) /g, 'Employee $1 '],
+    [/公司名称两处读到的不一样：「(.*)」和「(.*)」，已用证书上的，请核对。/g, 'The company name was read differently in two places: "$1" and "$2"; the certificate version was used — please check.'],
     [/注册号读到「(.*)」，不是 12 位数字，请核对。/g, 'Registration no. read as "$1", which is not 12 digits — please check.'],
     [/董事 (\d+)（(.*)）的 IC 读到「(.*)」，请核对。/g, 'Director $1 ($2): IC read as "$3" — please check.'],
     [/董事 (.+)：/g, 'Director $1: '],
-    [/^(\s*)东主 /g, '$1Owner '],
-    [/^(\s*)联络人 /g, '$1Contact officer '],
+    [/^(\s*)东主 (?!\/)/g, '$1Owner '],
+    [/^(\s*)联络人 (?!\/)/g, '$1Contact officer '],
     [/你的权限不足（(?:这个操作|修改已保存的资料)需要 L(\d) 或以上）/g, 'Your access level is not enough (L$1 or above is needed for this).']
   ];
 
@@ -50,7 +52,8 @@
     '保存客户': 'Save', '新客户': 'New', '导出 .json': 'Export .json', '导入 .json': 'Import .json', '确定删除？': 'Confirm delete?',
     '从 SSM 文件导入': 'Import from SSM documents',
     '选择或拖入 SSM Certificate 和 Section 14 的 PDF': 'Choose or drop the SSM Certificate and Section 14 PDFs',
-    '（可多选，CamScanner 扫描的也可以）': '(multiple files OK; CamScanner scans work too)',
+    '（可多选；扫描件或手机拍的照片也可以，会自动识别文字）': '(multiple files OK; scans and phone photos work too — the text is read automatically)',
+    '正在加载识别组件（首次约 7 MB）…': 'Loading the text-recognition component (about 7 MB the first time)…',
     '自动带入公司名称、注册号、成立日期、业务、注册地址、电邮、电话和董事。文件只在这台电脑上读取，不会上传。':
       'Fills in company name, registration no., incorporation date, business, registered address, email, phone and directors. Files are read on this computer only and are not uploaded.',
     '选择要用哪一位': 'choose which one to use',

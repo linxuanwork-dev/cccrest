@@ -18,7 +18,7 @@ const router = express.Router();
 const ASSET_DIR = path.join(__dirname, '..', 'assets', 'kwsp');
 
 // Only these files are ever served from the assets folder (signed-in users only).
-const ASSET_WHITELIST = /^(spec\.json|filler\.js|ssm\.js|lang\.js|templates\/(kwsp1|portal|b1|b2|sip1|sip1a|sip2|sip2a)\.pdf|vendor\/(pdf-lib\.min\.js|pdf\.min\.js|pdf\.worker\.min\.js))$/;
+const ASSET_WHITELIST = /^(spec\.json|filler\.js|ssm\.js|ocr\.js|lang\.js|templates\/(kwsp1|portal|b1|b2|sip1|sip1a|sip2|sip2a)\.pdf|vendor\/(pdf-lib\.min\.js|pdf\.min\.js|pdf\.worker\.min\.js|tesseract\/(tesseract\.min\.js|worker\.min\.js|tesseract-core-lstm\.wasm\.js|tesseract-core-simd-lstm\.wasm\.js|eng\.traineddata\.gz)))$/;
 
 // The form page itself (shown inside the HR > KWSP & PERKESO panel). It reads the company id from its URL and
 // talks to the endpoints below, which do the real permission checks.

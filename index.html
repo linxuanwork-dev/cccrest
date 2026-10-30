@@ -3197,7 +3197,7 @@
       errEl.hidden = false;
       return;
     }
-    if(next.length < 8 || !/[A-Za-z]/.test(next) || !/d/.test(next)){
+    if(next.length < 8 || !/[A-Za-z]/.test(next) || !/[0-9]/.test(next)){
       errEl.textContent = t('password_too_short');
       errEl.hidden = false;
       return;

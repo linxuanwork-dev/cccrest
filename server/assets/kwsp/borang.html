@@ -852,6 +852,14 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     toast('已自动带入 SSM 资料。黄色框是还要填的资料，请核对，有误可直接修改。');
     $('#c_name').scrollIntoView({ behavior: 'smooth', block: 'center' });
     markDirty(); autoSave();
+    // the same readings also go into the company profile (empty profile fields are filled, nothing typed there is overwritten)
+    if (canEdit) {
+      apiCall('/api/companies/' + COMPANY_ID + '/profile/ssm', { method: 'PUT', body: JSON.stringify({
+        company: { name: C.name, reg: C.reg, oldReg: C.oldReg, incDate: C.incDate, nature: C.nature, msicCode: C.msicCode, msicDesc: C.msicDesc },
+        bizAddr: C.bizAddr, regAddr: C.regAddr,
+        directors: dirs.map(x => ({ name: x.name, ic: x.ic, nat: x.nat, email: x.email, addr: x.addr, dob: x.dob, race: x.race }))
+      }) }).then(() => toast('SSM 资料也已存进公司 Profile。')).catch(e => console.warn('profile save failed', e));
+    }
   }
   $('#ssmFile').onchange = (e) => { const fs = Array.from(e.target.files); e.target.value = ''; if (fs.length) readSSM(fs); };
   const drop = $('#ssmDrop');

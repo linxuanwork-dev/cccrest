@@ -101,6 +101,42 @@ router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
   res.json({ id: rows[0].id, name: rows[0].name, updatedAt: rows[0].updated_at });
 });
 
+// What was read from the SSM documents also goes into the company profile: empty profile fields are filled (nothing
+// already typed there is overwritten) and the readings are kept as a snapshot (directors, incorporation date ...).
+const clip = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+function profileAddress(name, a) {
+  if (!a || !(a.line1 || a.pc)) return null;
+  return { name, street: [a.line1, a.line2, a.line3].map((x) => clip(x, 200)).filter(Boolean).join(', '), city: clip(a.city, 80), postcode: clip(a.pc, 10), country: 'Malaysia', state: clip(a.state, 60) };
+}
+router.put('/companies/:companyId/profile/ssm', requireAuth, scopeToCompany, requirePage('payroll', 2), async (req, res) => {
+  const b = req.body || {};
+  const c = b.company || {};
+  const dirs = (Array.isArray(b.directors) ? b.directors : []).slice(0, 20).map((d) => ({
+    name: clip(d.name, 120), ic: clip(d.ic, 30), nat: clip(d.nat, 60), email: clip(d.email, 120), addr: clip(d.addr, 300), dob: clip(d.dob, 12), race: clip(d.race, 40)
+  })).filter((d) => d.name);
+  const addresses = [profileAddress('Business address', b.bizAddr), profileAddress('Registered address', b.regAddr)].filter(Boolean);
+  const first = addresses[0];
+  const snapshot = { name: clip(c.name, 200), reg: clip(c.reg, 40), oldReg: clip(c.oldReg, 40), incDate: clip(c.incDate, 12), nature: clip(c.nature, 200), msicCode: clip(c.msicCode, 10), msicDesc: clip(c.msicDesc, 200), directors: dirs, savedAt: new Date().toISOString() };
+  const { rows } = await pool.query(
+    `UPDATE companies SET
+       legal_name = COALESCE(NULLIF(legal_name, ''), $1),
+       registration_no = COALESCE(NULLIF(registration_no, ''), $2),
+       old_registration_no = COALESCE(NULLIF(old_registration_no, ''), $3),
+       msic_code = COALESCE(NULLIF(msic_code, ''), $4),
+       msic_description = COALESCE(NULLIF(msic_description, ''), $5),
+       addresses = CASE WHEN jsonb_array_length(addresses) = 0 THEN $6::jsonb ELSE addresses END,
+       address = CASE WHEN address IS NULL OR address = '' THEN $7 ELSE address END,
+       ssm_data = $8::jsonb
+     WHERE id = $9 RETURNING name`,
+    [snapshot.name || null, snapshot.reg || null, snapshot.oldReg || null, snapshot.msicCode || null, snapshot.msicDesc || null,
+      JSON.stringify(addresses), first ? [first.street, [first.postcode, first.city].filter(Boolean).join(' '), first.state].filter(Boolean).join(', ') : null,
+      JSON.stringify(snapshot), req.params.companyId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  await logActivity(req.user.sub, 'Saved SSM details to company profile', rows[0].name, snapshot.reg);
+  res.json({ ok: true });
+});
+
 router.delete('/companies/:companyId/kwsp-forms/:formId', requireAuth, scopeToCompany, requirePage('payroll', 3), async (req, res) => {
   const { rows } = await pool.query(
     'DELETE FROM kwsp_forms WHERE id = $1 AND company_id = $2 RETURNING name',

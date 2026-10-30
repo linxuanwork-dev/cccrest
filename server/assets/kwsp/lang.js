@@ -116,6 +116,7 @@
     '生成 KWSP 授权信': 'Generate KWSP authorization letter', '生成授权信中…': 'Generating the letter…', '已生成授权信，正在下载…': 'Letter generated, downloading…',
     '授权信：公司名称没填。': 'Authorization letter: the company name is empty.', '授权信：联络人姓名没填（第 4 项）。': 'Authorization letter: the contact officer name is empty (section 4).',
     '授权信：联络人 IC 没填（第 4 项）。': 'Authorization letter: the contact officer IC is empty (section 4).', '授权信：东主 / 董事姓名没填（第 5 项）。': 'Authorization letter: the owner / director name is empty (section 5).',
+    'SSM 资料也已存进公司 Profile。': 'The SSM details were also saved to the company profile.',
     '读取中… 请稍等': 'Reading… please wait', '读取 SSM 文件失败：': 'Could not read the SSM files: ',
     '没有读到公司名称。': 'Company name not found.', '没有读到董事资料（Particulars of Director）。': 'Director details (Particulars of Director) not found.',
     '公司名称': 'Company name', '注册号': 'Registration no.', '秘书电邮': 'Secretary email', '秘书电话': 'Secretary phone', '（不带入）': ' (not applied)',

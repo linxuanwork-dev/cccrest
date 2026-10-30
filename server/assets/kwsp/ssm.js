@@ -151,6 +151,11 @@
     for (const l of lines) {
       if (/particulars\s*of\s*director/i.test(l.text)) { mode = 'director'; continue; }
       if (/particulars\s*of\s*(member|shareholder)/i.test(l.text)) { mode = 'member'; continue; }
+      // business activity rows under "General nature of business | MSIC Code":  "1  Restaurants and restaurant cum night clubs  56101"
+      if (mode === 'company' && !l.label && C.natureSeen) {
+        const am = /^\d{1,2}\s+(.+?)\s+(\d{5})$/.exec(l.text.trim());
+        if (am) (C.activities = C.activities || []).push({ desc: am[1].trim(), code: am[2] });
+      }
       if (!l.label) continue;
       const v = (l.value || '').trim();
       if (l.label === 'dname') { mode = 'director'; cur = { name: v.toUpperCase() }; out.directors.push(cur); continue; }
@@ -175,7 +180,7 @@
         case 'regno': C.regRaw = v; break;
         case 'incdate': C.incDate = date(v); break;
         case 'bizdesc': C.nature = nil(v).toUpperCase(); break;
-        case 'nature': if (!C.msic) C.msic = v; break;
+        case 'nature': C.natureSeen = true; if (!C.msic) C.msic = v; break;
         case 'regaddr': C.regAddrRaw = v; break;
         case 'bizaddr': C.bizAddrRaw = nil(v); afterBizAddr = true; break;
         case 'email': if (!C.email) C.email = nil(v).toLowerCase().replace(/\s/g, ''); break;
@@ -200,6 +205,9 @@
       C.reg = /^\d{4}/.test(fixDigits(tok)) ? fixDigits(tok.slice(0, 4)) + tok.slice(4).replace(/O/g, '0').replace(/[IL|]/g, '1') : tok;
       if (!/^\d{12}$/.test(C.reg)) out.warnings.push(`注册号读到「${C.reg}」，不是 12 位数字，请核对。`);
     }
+    if (C.activities && C.activities[0]) { C.msicCode = C.activities[0].code; C.msicDesc = C.activities[0].desc; }
+    const oldReg = /\(([^)]+)\)/.exec(C.regRaw || '');       // "202601014239 (1676337-U)"
+    if (oldReg) C.oldReg = oldReg[1].replace(/\s/g, '').toUpperCase();
     C.regAddr = address(C.regAddrRaw);
     C.bizAddr = address(C.bizAddrRaw);
     out.directors.forEach(d => { d.ic = d.idType && /PASS/i.test(d.idType) ? (d.idNo || '').replace(/\s/g, '').toUpperCase() : ic(d.idNo); d.passport = /PASS/i.test(d.idType || ''); d.raceMy = RACE[d.race] || ''; });

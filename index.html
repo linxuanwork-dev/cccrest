@@ -301,6 +301,28 @@
   .content-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:22px; flex-wrap:wrap; gap:8px; }
   .content-header h2{ font-size:23px; color:var(--ink); }
   .content-header .sub{ font-size:12.5px; color:var(--primary-soft); }
+  .pf-section{ display:grid; grid-template-columns:220px minmax(0,1fr); gap:14px 40px; padding:22px 0; border-bottom:1px solid var(--border); }
+  .pf-section h3{ font-size:15px; margin:0 0 4px; color:var(--ink); }
+  .pf-section p.pf-desc{ font-size:12.5px; color:var(--primary-soft); margin:0; }
+  .pf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; align-items:start; }
+  .pf-grid .full{ grid-column:1 / -1; }
+  .pf-grid .field{ margin:0; }
+  .pf-grid input, .pf-grid select, .pf-grid textarea, .pf-addr input, .pf-addr select, .pf-addr textarea{ width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:6px; padding:9px 10px; background:var(--surface-card); color:inherit; font-family:inherit; font-size:13.5px; }
+  .pf-grid textarea, .pf-addr textarea{ min-height:76px; resize:vertical; }
+  .pf-grid input:disabled, .pf-grid select:disabled, .pf-addr input:disabled, .pf-addr select:disabled, .pf-addr textarea:disabled{ background:var(--surface-alt); opacity:.8; }
+  .pf-seg{ display:inline-flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .pf-seg button{ border:0; background:var(--surface-card); color:inherit; padding:9px 16px; font-family:inherit; font-size:13px; cursor:pointer; border-left:1px solid var(--border); }
+  .pf-seg button:first-child{ border-left:0; }
+  .pf-seg button.on{ background:var(--accent); color:#fff; }
+  .pf-seg button:disabled{ cursor:default; opacity:.7; }
+  .pf-addr{ border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; background:var(--surface-card); }
+  .pf-upload{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  .pf-drop{ width:140px; height:140px; border:1px dashed var(--border); border-radius:12px; display:flex; align-items:center; justify-content:center; text-align:center; font-size:13px; color:var(--primary-soft); background:var(--surface-alt); cursor:pointer; overflow:hidden; }
+  .pf-drop img{ max-width:100%; max-height:100%; object-fit:contain; }
+  .pf-paper{ background:#fff; color:#000; border:1px solid var(--border); border-radius:4px; padding:16px 22px; font-family:Arial, Helvetica, sans-serif; max-width:560px; }
+  .pf-paper .nm{ font-size:18px; font-weight:700; } .pf-paper .rg{ font-size:9px; margin-left:4px; } .pf-paper .ad{ font-size:11px; margin-top:2px; }
+  @media (max-width:800px){ .pf-section{ grid-template-columns:1fr; gap:10px; } .pf-grid{ grid-template-columns:1fr; } }
+  #panel-profile [hidden]{ display:none !important; }
 
   .kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:26px; }
   .kpi-card{
@@ -624,6 +646,10 @@
       <button class="nav-item" data-panel="panel-company-home">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
         <span class="nav-label" data-i18n="nav_company_home">Dashboard</span>
+      </button>
+      <button class="nav-item" data-panel="panel-profile">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17c.6-2 2-3 3.5-3s2.9 1 3.5 3"/><path d="M15 9h3M15 13h3"/></svg>
+        <span class="nav-label" data-i18n="nav_profile">Company Profile</span>
       </button>
       <button type="button" class="nav-service-btn" data-service="bookkeeping" aria-expanded="false">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -1227,6 +1253,85 @@
             <thead><tr><th data-i18n="th_name">Name</th><th data-i18n="th_basic_salary">Basic</th><th data-i18n="th_net_pay">Net Pay</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
             <tbody id="payroll-tbody"></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- ---- COMPANY PROFILE ---- -->
+      <section class="panel" id="panel-profile" hidden>
+        <div class="content-header"><h2 data-i18n="nav_profile">Company Profile</h2><span class="sub" id="pf-sub" data-i18n="pf_sub">Legal details, contact, addresses, logo and letterhead</span></div>
+        <div id="pf-empty" style="color:var(--primary-soft);padding:30px 0;" data-i18n="pf_choose">Choose a company first.</div>
+        <div id="pf-body" hidden>
+          <div id="pf-readonly" hidden style="font-size:12.5px;color:var(--primary-soft);margin-bottom:6px;" data-i18n="pf_readonly">You can view this profile; only CC CREST admin / manager can change it.</div>
+
+          <div class="pf-section">
+            <div><h3 data-i18n="pf_info">Company Information</h3><p class="pf-desc" data-i18n="pf_info_desc">Information related to the company.</p></div>
+            <div class="pf-grid">
+              <div class="field"><label for="pf-legal" data-i18n="pf_legal">Legal Name</label><input id="pf-legal" type="text" /></div>
+              <div class="field"><label for="pf-friendly" data-i18n="pf_friendly">Friendly Name</label><input id="pf-friendly" type="text" disabled /></div>
+              <div class="field"><label data-i18n="pf_regtype">Registration No. Type</label>
+                <div class="pf-seg" id="pf-regtype"><button type="button" data-v="BRN">BRN</button><button type="button" data-v="NRIC">NRIC</button><button type="button" data-v="Passport">Passport</button><button type="button" data-v="Army">Army</button></div></div>
+              <div class="field"><label for="pf-regno" data-i18n="pf_regno">Registration No.</label><input id="pf-regno" type="text" /></div>
+              <div class="field"><label for="pf-oldreg" data-i18n="pf_oldreg">Old Registration No.</label><input id="pf-oldreg" type="text" placeholder="1615311-W" /></div>
+              <div class="field"><label for="pf-tin" data-i18n="pf_tin">TIN</label><input id="pf-tin" type="text" placeholder="C59992471030" /></div>
+              <div class="field"><label for="pf-msic" data-i18n="pf_msic">MSIC Code</label><input id="pf-msic" type="text" placeholder="56101" /></div>
+              <div class="field"><label for="pf-msicdesc" data-i18n="pf_msicdesc">MSIC Description</label><input id="pf-msicdesc" type="text" /></div>
+              <div class="field"><label for="pf-tourism" data-i18n="pf_tourism">Tourism Tax Registration No.</label><input id="pf-tourism" type="text" placeholder="123-4567-89012345" /></div>
+              <div class="field"></div>
+              <div class="field"><label data-i18n="pf_country">Home Country</label><input type="text" value="Malaysia" disabled /></div>
+              <div class="field"><label data-i18n="pf_currency">Home Currency</label><input type="text" value="MYR - Malaysian Ringgit" disabled /></div>
+            </div>
+          </div>
+
+          <div class="pf-section">
+            <div><h3 data-i18n="pf_contact_title">Company Contact</h3><p class="pf-desc" data-i18n="pf_contact_desc">The contact information for the company.</p></div>
+            <div class="pf-grid">
+              <div class="field"><label for="pf-contact" data-i18n="pf_contact_no">Contact No.</label><input id="pf-contact" type="text" placeholder="+60 16-557 8742" /></div>
+              <div class="field"><label for="pf-email" data-i18n="pf_email">Email Address</label><input id="pf-email" type="email" placeholder="general@company.com" /></div>
+              <div class="field full"><label for="pf-website" data-i18n="pf_website">Website URL</label><input id="pf-website" type="text" placeholder="https://company.com" /></div>
+            </div>
+          </div>
+
+          <div class="pf-section">
+            <div><h3 data-i18n="pf_addr_title">Company Addresses</h3><p class="pf-desc" data-i18n="pf_addr_desc">The addresses of the company. The first one is used on letters.</p></div>
+            <div>
+              <div id="pf-addresses"></div>
+              <button type="button" class="btn-ghost" id="pf-add-address" data-i18n="pf_addr_add">+ Add address</button>
+            </div>
+          </div>
+
+          <div class="pf-section">
+            <div><h3 data-i18n="pf_logo">Company Logo</h3><p class="pf-desc" data-i18n="pf_logo_desc">The official logo of the business.</p></div>
+            <div class="pf-upload">
+              <label class="pf-drop" for="pf-logo-input" id="pf-logo-preview"><span data-i18n="pf_upload">Upload</span></label>
+              <input type="file" id="pf-logo-input" accept="image/jpeg,image/png,image/webp" hidden />
+              <button type="button" class="btn-ghost" id="pf-logo-remove" hidden data-i18n="remove_btn">Remove</button>
+            </div>
+          </div>
+
+          <div class="pf-section">
+            <div><h3 data-i18n="pf_letterhead">Letterhead</h3><p class="pf-desc" data-i18n="pf_lh_desc">Used on letters. A full-page image becomes the page background; a banner image goes across the top.</p></div>
+            <div>
+              <div class="pf-upload" style="margin-bottom:14px;">
+                <label class="pf-drop" for="pf-lh-input" id="pf-lh-preview"><span data-i18n="pf_upload">Upload</span></label>
+                <input type="file" id="pf-lh-input" accept="image/jpeg,image/png,image/webp" hidden />
+                <button type="button" class="btn-ghost" id="pf-lh-remove" hidden data-i18n="remove_btn">Remove</button>
+              </div>
+              <div id="pf-lh-auto-wrap">
+                <div style="font-size:12.5px;color:var(--primary-soft);margin-bottom:8px;" data-i18n="pf_lh_auto">No letterhead uploaded — letters use this one, built from the company name, registration no. and address:</div>
+                <div class="pf-paper" id="pf-lh-auto"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pf-section" id="pf-ssm-section" hidden>
+            <div><h3 data-i18n="pf_ssm_title">From SSM documents</h3><p class="pf-desc" data-i18n="pf_ssm_desc">Saved when the SSM Certificate / Section 14 is read on the KWSP &amp; PERKESO page.</p></div>
+            <div id="pf-ssm" style="font-size:13px;line-height:1.7;"></div>
+          </div>
+
+          <div style="display:flex;gap:14px;align-items:center;padding:18px 0;flex-wrap:wrap;">
+            <button type="button" class="btn-primary" id="pf-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
+            <span id="pf-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
+          </div>
         </div>
       </section>
 
@@ -2061,7 +2166,7 @@
       var enabled = profile.enabledFeatures || [];
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
         // KWSP & PERKESO is needed by every company, so it is not controlled by the feature switches.
-        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && enabled.indexOf(btn.dataset.panel) === -1;
+        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-profile' && enabled.indexOf(btn.dataset.panel) === -1;
       });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       refreshServiceGroups();
@@ -2212,7 +2317,14 @@
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
       no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
-      nav_payroll:"Payroll", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
+      nav_payroll:"Payroll", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
+      pf_info:"Company Information", pf_info_desc:"Information related to the company.", pf_legal:"Legal Name", pf_friendly:"Friendly Name (as shown in this system)", pf_regtype:"Registration No. Type", pf_regno:"Registration No.", pf_oldreg:"Old Registration No.", pf_tin:"TIN (e-Invoice)", pf_msic:"MSIC Code", pf_msicdesc:"MSIC Description", pf_tourism:"Tourism Tax Registration No.", pf_country:"Home Country", pf_currency:"Home Currency",
+      pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
+      pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
+      pf_logo:"Company Logo", pf_logo_desc:"The official logo of the business.", pf_upload:"Upload", pf_letterhead:"Letterhead", pf_lh_desc:"Used on letters. A full-page image becomes the page background; a banner image goes across the top.", pf_lh_auto:"No letterhead uploaded — letters use this one, built from the company name, registration no. and address:",
+      pf_ssm_title:"From SSM documents", pf_ssm_desc:"Saved when the SSM Certificate / Section 14 is read on the KWSP & PERKESO page.", pf_directors:"Directors", pf_inc_date:"Incorporation date", pf_nature:"Business",
+      pf_saved:"Saved", pf_saving:"Saving…", pf_autosave:"Changes are saved automatically.", pf_unsaved:"Changes pending — saving automatically…", pf_save_failed:"Could not save: ",
+      payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
       employees_label:"Employees", add_employee_btn:"+ Add Employee", payroll_entries_label:"Payroll", run_payroll_btn:"Run Payroll",
       th_name:"Name", th_position:"Position", th_basic_salary:"Basic Salary", th_net_pay:"Net Pay",
       add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.",
@@ -2469,7 +2581,14 @@
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
       no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
-      nav_payroll:"薪资", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
+      nav_payroll:"薪资", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
+      pf_info:"公司信息", pf_info_desc:"公司的基本资料。", pf_legal:"法定名称", pf_friendly:"简称（系统内显示的名称）", pf_regtype:"注册号类型", pf_regno:"注册号", pf_oldreg:"旧注册号", pf_tin:"TIN（电子发票）", pf_msic:"MSIC 行业代码", pf_msicdesc:"行业说明", pf_tourism:"旅游税注册号", pf_country:"所在国家", pf_currency:"本位币",
+      pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
+      pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
+      pf_logo:"公司 Logo", pf_logo_desc:"公司的正式 Logo。", pf_upload:"上传", pf_letterhead:"信头（Letterhead）", pf_lh_desc:"信件使用。整页图片会当作整页底图；横幅图片放在信件顶部。", pf_lh_auto:"没有上传信头 — 信件会用下面这个，由公司名称、注册号和地址自动生成：",
+      pf_ssm_title:"来自 SSM 文件", pf_ssm_desc:"在 KWSP & PERKESO 页读取 SSM Certificate / Section 14 后自动保存。", pf_directors:"董事", pf_inc_date:"成立日期", pf_nature:"业务",
+      pf_saved:"已保存", pf_saving:"保存中…", pf_autosave:"改动会自动保存。", pf_unsaved:"有改动，稍后自动保存…", pf_save_failed:"保存失败：",
+      payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
       employees_label:"员工", add_employee_btn:"+ 添加员工", payroll_entries_label:"薪资记录", run_payroll_btn:"发放薪资",
       th_name:"姓名", th_position:"职位", th_basic_salary:"基本薪资", th_net_pay:"实发薪资",
       add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。",
@@ -2733,6 +2852,7 @@
       document.getElementById(btn.dataset.panel).hidden = false;
       document.body.classList.remove('sidebar-open');
       if(btn.dataset.panel === 'panel-kwsp' && typeof renderKwsp === 'function') renderKwsp();
+      if(btn.dataset.panel === 'panel-profile' && typeof renderProfile === 'function') renderProfile(true);
       // Keep the service group that contains the page you're on open.
       var owner = btn.closest('.nav-sub');
       if(owner) serviceMode = owner.id.replace('nav-sub-', '');
@@ -5220,6 +5340,7 @@
     renderMerchant();
     renderPayroll();
     renderKwsp();
+    renderProfile();
   }
 
   // KWSP & PERKESO: the form page lives in an iframe served by the server; load it only while the panel is open.
@@ -5234,6 +5355,222 @@
     frame.src = '/api/kwsp/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light') + '&lang=' + (LANG === 'zh' ? 'zh' : 'en');
   }
 
+
+  // ============ COMPANY PROFILE (legal details, contact, addresses, logo, letterhead) ============
+  // CC CREST admin / manager edit it; everyone else who can open the company can read it. Changes save automatically.
+  var pf = { companyId:null, canEdit:false, data:null, timer:null, saving:false, pending:false, dirty:false, regType:'BRN' };
+  var PF_STATES = ['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Penang','Perak','Perlis','Sabah','Sarawak','Selangor','Terengganu','Kuala Lumpur','Labuan','Putrajaya'];
+  var PF_TEXT_IDS = ['pf-legal','pf-regno','pf-oldreg','pf-tin','pf-msic','pf-msicdesc','pf-tourism','pf-contact','pf-email','pf-website'];
+  function pfEl(id){ return document.getElementById(id); }
+  function pfEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function pfStatus(msg, err){ var el = pfEl('pf-status'); el.textContent = msg || ''; el.style.color = err ? 'var(--danger)' : 'var(--primary-soft)'; }
+  function pfClock(){ var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function pfNormState(s){
+    var u = String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    var map = { 'W.P. KUALA LUMPUR':'Kuala Lumpur', 'W.P. LABUAN':'Labuan', 'W.P. PUTRAJAYA':'Putrajaya', 'PULAU PINANG':'Penang' };
+    if(map[u]) return map[u];
+    var hit = PF_STATES.filter(function(x){ return x.toUpperCase() === u; })[0];
+    return hit || '';
+  }
+
+  function renderProfile(force){
+    var panel = pfEl('panel-profile');
+    if(!panel) return;
+    var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    pfEl('pf-empty').hidden = !!companyId;
+    pfEl('pf-body').hidden = !companyId;
+    if(!companyId){ pf.companyId = null; return; }
+    if(panel.hidden) return;
+    if(!force && pf.companyId === companyId){
+      // same company (e.g. language switched): redraw the parts built in script
+      pfRenderAddresses(pfCollect().addresses); pfRenderImages(pf.data || {}); pfApplyEditable();
+      return;
+    }
+    if(pf.dirty) pfSaveNow();                       // company changed with an unsaved edit: send it first
+    pf.companyId = companyId;
+    api('/companies/' + companyId + '/profile').then(function(p){
+      if(pf.companyId !== companyId) return;
+      pf.data = p; pfFill(p);
+    }).catch(function(err){ pfStatus(err.message, true); });
+  }
+
+  function pfFill(p){
+    pf.canEdit = !!p.canEdit;
+    pfEl('pf-legal').value = p.legalName || p.name || '';
+    pfEl('pf-friendly').value = p.name || '';
+    pfSetRegType(p.regType || 'BRN');
+    pfEl('pf-regno').value = p.registrationNo || '';
+    pfEl('pf-oldreg').value = p.oldRegistrationNo || '';
+    pfEl('pf-tin').value = p.tin || '';
+    pfEl('pf-msic').value = p.msicCode || '';
+    pfEl('pf-msicdesc').value = p.msicDescription || '';
+    pfEl('pf-tourism').value = p.tourismTaxNo || '';
+    pfEl('pf-contact').value = p.contactNo || '';
+    pfEl('pf-email').value = p.email || '';
+    pfEl('pf-website').value = p.website || '';
+    pfRenderAddresses(p.addresses || []);
+    pfRenderImages(p);
+    pfRenderSsm(p.ssm);
+    pfApplyEditable();
+    pfUpdateAuto();
+    pf.dirty = false;
+    pfStatus(pf.canEdit ? t('pf_autosave') : '');
+  }
+
+  function pfSetRegType(v){
+    pf.regType = v;
+    document.querySelectorAll('#pf-regtype button').forEach(function(b){ b.classList.toggle('on', b.dataset.v === v); });
+  }
+
+  function pfAddrHtml(a, i){
+    var cur = pfNormState(a.state);
+    var stateOpts = '<option value=""></option>' + PF_STATES.map(function(s){ return '<option' + (cur === s ? ' selected' : '') + '>' + s + '</option>'; }).join('');
+    return '<div class="pf-addr" data-i="' + i + '"><div class="pf-grid">' +
+      '<div class="field full"><label>' + t('pf_addr_name') + '</label><div style="display:flex;gap:8px;"><input data-f="name" value="' + pfEsc(a.name || ('Address ' + (i + 1))) + '" /><button type="button" class="btn-ghost pf-addr-del" style="color:var(--danger);width:auto;">✕</button></div></div>' +
+      '<div class="field full"><label>' + t('pf_street') + '</label><textarea data-f="street">' + pfEsc(a.street) + '</textarea></div>' +
+      '<div class="field"><label>' + t('pf_city') + '</label><input data-f="city" value="' + pfEsc(a.city) + '" /></div>' +
+      '<div class="field"><label>' + t('pf_postcode') + '</label><input data-f="postcode" value="' + pfEsc(a.postcode) + '" /></div>' +
+      '<div class="field"><label>Country</label><input data-f="country" value="' + pfEsc(a.country || 'Malaysia') + '" /></div>' +
+      '<div class="field"><label>' + t('pf_state') + '</label><select data-f="state">' + stateOpts + '</select></div>' +
+      '</div></div>';
+  }
+  function pfRenderAddresses(list){
+    pfEl('pf-addresses').innerHTML = (list || []).map(pfAddrHtml).join('');
+  }
+
+  function pfCollect(){
+    var addrs = Array.prototype.map.call(document.querySelectorAll('#pf-addresses .pf-addr'), function(card){
+      var o = {};
+      card.querySelectorAll('[data-f]').forEach(function(el){ o[el.dataset.f] = el.value; });
+      return o;
+    });
+    var v = function(id){ return pfEl(id).value; };
+    return { legalName:v('pf-legal'), regType:pf.regType, registrationNo:v('pf-regno'), oldRegistrationNo:v('pf-oldreg'), tin:v('pf-tin'),
+      msicCode:v('pf-msic'), msicDescription:v('pf-msicdesc'), tourismTaxNo:v('pf-tourism'), contactNo:v('pf-contact'), email:v('pf-email'),
+      website:v('pf-website'), addresses:addrs };
+  }
+
+  function pfSetDrop(dropId, removeId, url){
+    pfEl(dropId).innerHTML = url ? '<img src="' + url + '" alt="" />' : '<span>' + t('pf_upload') + '</span>';
+    pfEl(removeId).hidden = !url || !pf.canEdit;
+  }
+  function pfRenderImages(p){
+    pfSetDrop('pf-logo-preview', 'pf-logo-remove', p.logoDataUrl);
+    pfSetDrop('pf-lh-preview', 'pf-lh-remove', p.letterheadDataUrl);
+    pfEl('pf-lh-auto-wrap').hidden = !!p.letterheadDataUrl;
+  }
+
+  function pfRenderSsm(s){
+    pfEl('pf-ssm-section').hidden = !s;
+    if(!s) return;
+    var rows = [];
+    if(s.incDate) rows.push(t('pf_inc_date') + ': ' + s.incDate.split('-').reverse().join('/'));
+    if(s.nature) rows.push(t('pf_nature') + ': ' + s.nature);
+    var html = rows.map(pfEsc).join('<br>');
+    if(s.directors && s.directors.length){
+      html += '<div style="margin-top:8px;font-weight:700;">' + t('pf_directors') + '</div>' + s.directors.map(function(d){
+        return pfEsc([d.name, d.ic, d.nat].filter(Boolean).join(' · '));
+      }).join('<br>');
+    }
+    pfEl('pf-ssm').innerHTML = html;
+  }
+
+  function pfApplyEditable(){
+    var edit = pf.canEdit;
+    PF_TEXT_IDS.forEach(function(id){ pfEl(id).disabled = !edit; });
+    document.querySelectorAll('#pf-addresses [data-f]').forEach(function(el){ el.disabled = !edit; });
+    document.querySelectorAll('#pf-addresses .pf-addr-del').forEach(function(b){ b.hidden = !edit; });
+    document.querySelectorAll('#pf-regtype button').forEach(function(b){ b.disabled = !edit; });
+    pfEl('pf-logo-input').disabled = !edit; pfEl('pf-lh-input').disabled = !edit;
+    pfEl('pf-logo-preview').style.cursor = edit ? 'pointer' : 'default'; pfEl('pf-lh-preview').style.cursor = edit ? 'pointer' : 'default';
+    if(!edit){ pfEl('pf-logo-remove').hidden = true; pfEl('pf-lh-remove').hidden = true; }
+    pfEl('pf-add-address').hidden = !edit;
+    pfEl('pf-save').hidden = !edit;
+    pfEl('pf-readonly').hidden = edit;
+  }
+
+  // the letterhead letters use when none is uploaded: name (bold) + registration no., then the first address
+  function pfUpdateAuto(){
+    var name = (pfEl('pf-legal').value || pfEl('pf-friendly').value || '').toUpperCase();
+    var reg = pfEl('pf-regno').value.trim(), old = pfEl('pf-oldreg').value.trim();
+    var a = pfCollect().addresses[0] || {};
+    var street = String(a.street || '').split(/\s*\n\s*/).map(function(s){ return s.replace(/[,\s]+$/, ''); }).filter(Boolean).join(', ');
+    var addr = [street, [a.postcode, a.city].filter(Boolean).join(' '), a.state].filter(Boolean).join(', ').toUpperCase();
+    pfEl('pf-lh-auto').innerHTML = '<div><span class="nm">' + pfEsc(name) + '</span><span class="rg">' + pfEsc(reg + (old ? '(' + old + ')' : '')) + '</span></div>' + (addr ? '<div class="ad">' + pfEsc(addr) + '.</div>' : '');
+  }
+
+  function pfMarkDirty(){
+    pfUpdateAuto();
+    if(!pf.canEdit || !pf.companyId) return;
+    pf.dirty = true; pfStatus(t('pf_unsaved'));
+    clearTimeout(pf.timer); pf.timer = setTimeout(pfSaveNow, 1500);
+  }
+  function pfSaveNow(){
+    clearTimeout(pf.timer);
+    if(!pf.canEdit || !pf.companyId || !pf.dirty) return Promise.resolve();
+    if(pf.saving){ pf.pending = true; return Promise.resolve(); }
+    var id = pf.companyId, body = pfCollect();
+    pf.saving = true; pf.dirty = false; pfStatus(t('pf_saving'));
+    return api('/companies/' + id + '/profile', { method:'PUT', body: JSON.stringify(body) })
+      .then(function(p){
+        pf.data = Object.assign({}, pf.data || {}, { legalName:p.legalName, regType:p.regType });
+        pfStatus(t('pf_saved') + ' ' + pfClock());
+        var rec = COMPANIES.find(function(c){ return c.id === id; });
+        if(rec){ rec.registration_no = p.registrationNo || null; rec.address = p.address || null; }
+      })
+      .catch(function(err){ pf.dirty = true; pfStatus(t('pf_save_failed') + err.message, true); })
+      .finally(function(){ pf.saving = false; if(pf.pending){ pf.pending = false; pfSaveNow(); } });
+  }
+
+  pfEl('pf-body').addEventListener('input', function(e){ if(!e.target.closest('.pf-seg')) pfMarkDirty(); });
+  pfEl('pf-body').addEventListener('change', function(e){ if(e.target.type !== 'file') pfMarkDirty(); });
+  document.querySelectorAll('#pf-regtype button').forEach(function(b){
+    b.addEventListener('click', function(){ if(!pf.canEdit) return; pfSetRegType(b.dataset.v); pfMarkDirty(); });
+  });
+  pfEl('pf-add-address').addEventListener('click', function(){
+    var list = pfCollect().addresses; list.push({ name:'Address ' + (list.length + 1), country:'Malaysia' });
+    pfRenderAddresses(list); pfApplyEditable(); pfMarkDirty();
+  });
+  pfEl('pf-addresses').addEventListener('click', function(e){
+    var del = e.target.closest('.pf-addr-del');
+    if(!del || !pf.canEdit) return;
+    var list = pfCollect().addresses; list.splice(+del.closest('.pf-addr').dataset.i, 1);
+    pfRenderAddresses(list); pfApplyEditable(); pfMarkDirty();
+  });
+  pfEl('pf-save').addEventListener('click', function(){ pf.dirty = true; pfSaveNow(); });
+  window.addEventListener('pagehide', function(){
+    if(!pf.dirty || !pf.canEdit || !pf.companyId) return;
+    try { fetch('/api/companies/' + pf.companyId + '/profile', { method:'PUT', credentials:'same-origin', keepalive:true, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(pfCollect()) }); } catch(e) { /* nothing more to do */ }
+  });
+
+  // logo / letterhead images
+  function pfUpload(inputId, path){
+    var input = pfEl(inputId);
+    input.addEventListener('change', function(){
+      if(!pf.companyId || !input.files[0]) return;
+      var fd = new FormData(); fd.append('file', input.files[0]);
+      input.disabled = true;
+      pfStatus(t('pf_saving'));
+      fetch('/api/companies/' + pf.companyId + '/' + path, { method:'POST', body:fd, credentials:'same-origin' })
+        .then(function(res){ return res.json().catch(function(){ return {}; }).then(function(b){ if(!res.ok) throw new Error(b.error || ('HTTP ' + res.status)); return b; }); })
+        .then(function(){ pfStatus(t('pf_saved') + ' ' + pfClock()); return pfFlushThenReload(); })
+        .catch(function(err){ pfStatus(t('pf_save_failed') + err.message, true); })
+        .finally(function(){ input.value = ''; input.disabled = !pf.canEdit; });
+    });
+  }
+  function pfRemove(btnId, path){
+    pfEl(btnId).addEventListener('click', function(){
+      if(!pf.companyId) return;
+      api('/companies/' + pf.companyId + '/' + path, { method:'DELETE' }).then(pfFlushThenReload).catch(function(err){ pfStatus(t('pf_save_failed') + err.message, true); });
+    });
+  }
+  function pfFlushThenReload(){
+    return pfSaveNow().then(function(){ return api('/companies/' + pf.companyId + '/profile'); }).then(function(p){
+      pf.data = p; pfRenderImages(p); pfApplyEditable();
+    });
+  }
+  pfUpload('pf-logo-input', 'logo'); pfUpload('pf-lh-input', 'letterhead');
+  pfRemove('pf-logo-remove', 'logo'); pfRemove('pf-lh-remove', 'letterhead');
 
   // ============ COMPANY SEARCH (typeahead) + LANDING GRID ============
   function matchesQuery(name, q){

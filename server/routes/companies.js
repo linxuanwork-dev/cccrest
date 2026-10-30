@@ -154,7 +154,8 @@ function profileJson(r, canEdit) {
 }
 
 function formatAddress(a) {
-  return [a.street, [a.postcode, a.city].filter(Boolean).join(' '), a.state].map((x) => (x || '').replace(/\s*\n\s*/g, ', ').trim()).filter(Boolean).join(', ');
+  const street = String(a.street || '').split(/\s*\n\s*/).map((s) => s.replace(/[,\s]+$/, '')).filter(Boolean).join(', ');
+  return [street, [a.postcode, a.city].filter(Boolean).join(' '), a.state].map((x) => (x || '').trim()).filter(Boolean).join(', ');
 }
 
 function cleanAddresses(list) {

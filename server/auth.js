@@ -12,7 +12,7 @@ const TOKEN_TTL = '12h';
 
 function signToken(user) {
   return jwt.sign(
-    { sub: user.id, role: user.role, staffId: user.staff_id, companyId: user.company_id },
+    { sub: user.id, role: user.role, staffId: user.staff_id, companyId: user.company_id, tv: user.token_version || 0 },
     JWT_SECRET,
     { expiresIn: TOKEN_TTL }
   );
@@ -43,14 +43,43 @@ async function verifyLogin(loginId, password) {
   return ok ? user : null;
 }
 
-// Attaches req.user if a valid session cookie is present; does not reject otherwise.
-function attachUser(req, res, next) {
+// Whether the account is still switched on, which "session generation" it is on, and whether it must change its
+// password. Looked up for every request (cached for a few seconds) so a password change or a switched-off account
+// takes effect at once instead of when the 12-hour token runs out.
+const stateCache = new Map();
+async function userState(id) {
+  const hit = stateCache.get(id);
+  if (hit && Date.now() - hit.at < 5000) return hit.row;
+  const { rows } = await pool.query('SELECT active, token_version, must_change_password FROM users WHERE id = $1', [id]);
+  const row = rows[0] || null;
+  stateCache.set(id, { at: Date.now(), row });
+  if (stateCache.size > 500) stateCache.clear();
+  return row;
+}
+function forgetUserState(id) { stateCache.delete(id); }
+
+// Attaches req.user if a valid, current session cookie is present; does not reject otherwise.
+async function attachUser(req, res, next) {
   const token = req.cookies && req.cookies[COOKIE_NAME];
   if (!token) return next();
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    const state = await userState(payload.sub);
+    if (state && state.active && (payload.tv || 0) === state.token_version) {
+      req.user = payload;
+      req.user.mustChangePassword = !!state.must_change_password;
+    }
   } catch (err) {
     // expired/invalid token — treat as logged out
+  }
+  next();
+}
+
+// A signed-in user who has to change their password can do nothing else until they have.
+const PASSWORD_CHANGE_ALLOWED = new Set(['/me', '/me/password', '/logout', '/login']);
+function enforcePasswordChange(req, res, next) {
+  if (req.user && req.user.mustChangePassword && !PASSWORD_CHANGE_ALLOWED.has(req.path)) {
+    return res.status(403).json({ error: '请先修改密码。 Please change your password first.', code: 'PASSWORD_CHANGE_REQUIRED' });
   }
   next();
 }
@@ -122,6 +151,8 @@ module.exports = {
   clearSessionCookie,
   verifyLogin,
   attachUser,
+  enforcePasswordChange,
+  forgetUserState,
   requireAuth,
   requireRole,
   scopeToCompany,

@@ -4,6 +4,9 @@ const { pool } = require('../db');
 const { requireRole, staffInManagerTeam } = require('../auth');
 const { logActivity } = require('../lib/activity');
 
+const { checkPassword } = require('../lib/password');
+const { forgetUserState } = require('../auth');
+
 const router = express.Router();
 
 router.get('/staff', requireRole('admin', 'manager'), async (req, res) => {
@@ -36,6 +39,8 @@ router.post('/users', requireRole('admin'), async (req, res) => {
 
   const trimmedName = name.trim();
   const trimmedLoginId = loginId.trim().toLowerCase();
+  const pwProblem = checkPassword(password, trimmedLoginId);
+  if (pwProblem) return res.status(400).json({ error: pwProblem });
   const hash = await bcrypt.hash(password, 10);
 
   if (role === 'staff') {
@@ -48,8 +53,8 @@ router.post('/users', requireRole('admin'), async (req, res) => {
         [trimmedName, limit]
       );
       await client.query(
-        `INSERT INTO users (login_id, password_hash, role, display_name, staff_id, active)
-         VALUES ($1,$2,'staff',$3,$4,true)`,
+        `INSERT INTO users (login_id, password_hash, role, display_name, staff_id, active, must_change_password)
+         VALUES ($1,$2,'staff',$3,$4,true,true)`,
         [trimmedLoginId, hash, trimmedName, staffRows[0].id]
       );
       await client.query('COMMIT');
@@ -66,8 +71,8 @@ router.post('/users', requireRole('admin'), async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO users (login_id, password_hash, role, display_name, active)
-       VALUES ($1,$2,$3,$4,true) RETURNING id, login_id, display_name, role, active`,
+      `INSERT INTO users (login_id, password_hash, role, display_name, active, must_change_password)
+       VALUES ($1,$2,$3,$4,true,true) RETURNING id, login_id, display_name, role, active`,
       [trimmedLoginId, hash, role, trimmedName]
     );
     await logActivity(req.user.sub, 'Created ' + role + ' account', trimmedName, 'Login ID: ' + trimmedLoginId);
@@ -97,6 +102,12 @@ router.patch('/staff/:id', requireRole('admin', 'manager'), async (req, res) => 
     'UPDATE staff SET client_limit = $1, active = $2 WHERE id = $3 RETURNING *',
     [newLimit, newActive, id]
   );
+  if (before[0].active !== newActive) {
+    // a suspended staff member can no longer sign in, and any open session ends at once
+    await pool.query('UPDATE users SET active = $1, token_version = token_version + 1 WHERE staff_id = $2', [newActive, id]);
+    const { rows: ids } = await pool.query('SELECT id FROM users WHERE staff_id = $1', [id]);
+    ids.forEach((r) => forgetUserState(r.id));
+  }
 
   const changes = [];
   if (before[0].client_limit !== newLimit) changes.push(`limit ${before[0].client_limit} → ${newLimit}`);

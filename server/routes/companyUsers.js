@@ -4,6 +4,8 @@ const { pool } = require('../db');
 const { requireRole } = require('../auth');
 const { PAGES, normaliseLevels, validLevels } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const { checkPassword } = require('../lib/password');
+const { forgetUserState } = require('../auth');
 
 const router = express.Router();
 const USER_TYPES = ['user', 'administrator'];
@@ -54,7 +56,8 @@ router.post('/companies/:companyId/users', requireRole('admin'), async (req, res
 
   if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(loginId)) return res.status(400).json({ error: 'Login ID 需为 3–40 个字符（小写字母、数字、. _ -）。' });
   if (!displayName) return res.status(400).json({ error: '请填写姓名。' });
-  if (password.length < 6) return res.status(400).json({ error: '密码至少 6 个字符。' });
+  const pwProblem = checkPassword(password, loginId);
+  if (pwProblem) return res.status(400).json({ error: pwProblem });
   if (!USER_TYPES.includes(userType)) return res.status(400).json({ error: '请选择类型（User 或 Administrator）。' });
   if (!validPermissions(body.permissions)) return res.status(400).json({ error: '权限级别无效（L1–L4）。' });
 
@@ -69,8 +72,8 @@ router.post('/companies/:companyId/users', requireRole('admin'), async (req, res
   const hash = await bcrypt.hash(password, 10);
   try {
     const { rows } = await pool.query(
-      `INSERT INTO users (login_id, password_hash, role, display_name, company_id, user_type, permissions, can_approve, active)
-       VALUES ($1,$2,'client',$3,$4,$5,$6,$7,true)
+      `INSERT INTO users (login_id, password_hash, role, display_name, company_id, user_type, permissions, can_approve, active, must_change_password)
+       VALUES ($1,$2,'client',$3,$4,$5,$6,$7,true,true)
        RETURNING id, login_id, display_name, user_type, permissions, can_approve, active`,
       [loginId, hash, displayName, req.params.companyId, userType, JSON.stringify(permissions), canApprove]
     );
@@ -94,7 +97,10 @@ router.patch('/companies/:companyId/users/:userId', requireRole('admin'), async 
   const userType = body.userType === undefined ? u.user_type : body.userType;
   if (!USER_TYPES.includes(userType)) return res.status(400).json({ error: '类型无效。' });
   if (!validPermissions(body.permissions)) return res.status(400).json({ error: '权限级别无效（L1–L4）。' });
-  if (body.password !== undefined && body.password !== '' && String(body.password).length < 6) return res.status(400).json({ error: '密码至少 6 个字符。' });
+  if (body.password !== undefined && body.password !== '') {
+    const pwProblem = checkPassword(String(body.password), u.login_id);
+    if (pwProblem) return res.status(400).json({ error: pwProblem });
+  }
 
   const permissions = body.permissions === undefined ? normalisePermissions(u.permissions) : normalisePermissions(body.permissions);
   const canApprove = typeof body.canApprove === 'boolean' ? body.canApprove : u.can_approve;
@@ -105,10 +111,14 @@ router.patch('/companies/:companyId/users/:userId', requireRole('admin'), async 
 
   const hash = body.password ? await bcrypt.hash(String(body.password), 10) : u.password_hash;
   const { rows } = await pool.query(
-    `UPDATE users SET display_name = $1, user_type = $2, permissions = $3, can_approve = $4, active = $5, password_hash = $6
+    // a password set by the Owner must be changed at the first login; a reset or a switched-off account ends its open sessions
+    `UPDATE users SET display_name = $1, user_type = $2, permissions = $3, can_approve = $4, active = $5, password_hash = $6,
+       must_change_password = CASE WHEN $8 THEN true ELSE must_change_password END,
+       token_version = CASE WHEN $8 OR ($5 = false AND $9) THEN token_version + 1 ELSE token_version END
      WHERE id = $7 RETURNING id, login_id, display_name, user_type, permissions, can_approve, active`,
-    [displayName, userType, JSON.stringify(permissions), canApprove, active, hash, u.id]
+    [displayName, userType, JSON.stringify(permissions), canApprove, active, hash, u.id, !!body.password, u.active]
   );
+  forgetUserState(u.id);
 
   const changes = [];
   if (userType !== u.user_type) changes.push(`type ${u.user_type} → ${userType}`);

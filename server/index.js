@@ -3,14 +3,38 @@ const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { migrate } = require('./migrate');
-const { attachUser } = require('./auth');
+const { attachUser, enforcePasswordChange } = require('./auth');
+const { pool } = require('./db');
+const { flagDefaultPasswords } = require('./lib/password');
 
 const ROOT = path.join(__dirname, '..');
 const app = express();
 
-app.use(express.json());
+// Behind Railway's proxy: take the real client address from the proxy header (used by the login limits)
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+// Security headers: no framing by other sites, no content-type guessing, HTTPS only, tight referrer / permissions.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'");
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  next();
+});
+// Data from the API is personal: browsers and proxies must not keep a copy (the big program files are cacheable)
+app.use('/api', (req, res, next) => {
+  if (!req.path.startsWith('/kwsp/assets/') && req.path !== '/kwsp/app') res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
+app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(attachUser);
+app.use('/api', enforcePasswordChange);
 
 app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/companies'));
@@ -38,7 +62,9 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 migrate()
-  .then(() => {
+  .then(async () => {
+    const n = await flagDefaultPasswords(pool);
+    if (n) console.log('Accounts that must change a default password:', n);
     app.listen(PORT, () => {
       console.log(`CREST server listening on port ${PORT}`);
     });

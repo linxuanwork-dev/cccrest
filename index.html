@@ -1429,6 +1429,15 @@
             <tbody id="workflow-managers-tbody"></tbody>
           </table>
         </div>
+
+        <div class="section-title" style="margin-top:28px;" data-i18n="acct_title">Team logins</div>
+        <p class="recon-caption" style="margin-top:-2px;" data-i18n="acct_sub">Reset a password, switch a login off or on, or delete it. Owner only.</p>
+        <div class="table-card" style="overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="field_display_name">Display Name</th><th data-i18n="field_login_id">Login ID</th><th data-i18n="field_role">Role</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
+            <tbody id="accounts-tbody"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- ---- MY JOBS (outstanding work + reminders) ---- -->
@@ -1994,6 +2003,32 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="acct-reset-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 data-i18n="acct_reset_title">Reset password</h3>
+          <div class="modal-sub" id="acct-reset-who"></div>
+        </div>
+        <button type="button" class="modal-close" id="acct-reset-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="acct-reset-password" data-i18n="field_new_password">New Password</label>
+          <input type="text" id="acct-reset-password" autocomplete="off" />
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:var(--primary-soft);" data-i18n="acct_reset_note">A temporary password: they must choose their own at the next sign-in (8+ characters, letters and numbers). Their open sessions end now.</div>
+        <div id="acct-reset-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:10px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="acct-reset-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="acct-reset-submit" style="width:auto;padding:10px 18px;" data-i18n="acct_reset_btn">Reset password</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="staff-modal-backdrop" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -2474,6 +2509,12 @@
       sign_in:"Sign In", staff_access_limits:"Staff access limits",
       staff_access_limits_desc:"Max clients each staff member can be assigned, and whether they can currently receive new assignments. Admin-only.",
       staff_workload:"Staff workload",
+      acct_title:"Team logins", acct_sub:"Reset a password, switch a login off or on, or delete it. Owner only.",
+      acct_reset_title:"Reset password", acct_reset_btn:"Reset password", acct_reset_note:"A temporary password: they must choose their own at the next sign-in (8+ characters, letters and numbers). Their open sessions end now.",
+      acct_reset_done:"Password reset. Tell them the temporary password; they will be asked to choose a new one when they sign in.",
+      acct_switch_off:"Switch off", acct_switch_on:"Switch on", acct_delete:"Delete", acct_you:"you", acct_off:"Off", acct_must_change:"must change password",
+      acct_confirm_delete:"Delete this login? This cannot be undone.", acct_confirm_off:"Switch this login off? They are signed out at once.",
+      acct_kept:"This person already has work history, so the record is kept: the login is switched off and removed from all companies.", acct_deleted:"Deleted.",
       status_completed:"Completed", status_in_progress:"In Progress", status_needs_review:"Needs Review", status_not_started:"Not Started",
       status_synced:"Synced", status_pending:"Pending", status_matched:"Matched", status_unmatched:"Unmatched",
       status_paid:"Paid", status_unpaid:"Unpaid", status_approved:"Approved", status_rejected:"Rejected",
@@ -2749,6 +2790,12 @@
       sign_in:"登录", staff_access_limits:"员工访问限制",
       staff_access_limits_desc:"每位员工最多可分配的客户数，以及是否可接受新的分配。仅限管理员。",
       staff_workload:"员工工作量",
+      acct_title:"团队登录账号", acct_sub:"重置密码、停用或启用登录、删除账号。仅限 Owner。",
+      acct_reset_title:"重置密码", acct_reset_btn:"重置密码", acct_reset_note:"这是临时密码：对方下次登录时必须自己设置新密码（至少 8 个字符，含字母和数字）。对方现有的登录会立即结束。",
+      acct_reset_done:"密码已重置。请把临时密码告诉对方，对方登录时会被要求设置新密码。",
+      acct_switch_off:"停用", acct_switch_on:"启用", acct_delete:"删除", acct_you:"你自己", acct_off:"已停用", acct_must_change:"需修改密码",
+      acct_confirm_delete:"确定删除这个登录账号？删除后无法恢复。", acct_confirm_off:"确定停用这个登录账号？对方会立即被登出。",
+      acct_kept:"这个人已经有工作记录，所以资料保留：登录已停用，并已从所有公司移除。", acct_deleted:"已删除。",
       status_completed:"已完成", status_in_progress:"进行中", status_needs_review:"待审核", status_not_started:"未开始",
       status_synced:"已同步", status_pending:"待处理", status_matched:"已匹配", status_unmatched:"未匹配",
       status_paid:"已付款", status_unpaid:"未付款", status_approved:"已批准", status_rejected:"已拒绝",
@@ -6144,6 +6191,7 @@
   function renderWorkflow(){
     var staffTbody = document.getElementById('workflow-staff-tbody');
     if(!staffTbody || CURRENT_ROLE !== 'admin') return;
+    renderAccounts();
     api('/workflow/overview').then(function(data){
       staffTbody.innerHTML = data.staff.length === 0 ? emptyRowSafe(7, '—') : data.staff.map(function(s){
         return '<tr>' +
@@ -6195,6 +6243,73 @@
       console.error('renderWorkflow failed:', err);
     });
   }
+
+  // ---- Team logins: reset password / switch off-on / delete (Owner only) ----
+  function acctEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  var acctResetId = null;
+  function renderAccounts(){
+    var tbody = document.getElementById('accounts-tbody');
+    if(!tbody || CURRENT_ROLE !== 'admin') return;
+    api('/accounts').then(function(rows){
+      tbody.innerHTML = rows.map(function(a){
+        var roleLabel = a.role === 'admin' ? t('role_admin') : a.role === 'manager' ? t('role_manager') : t('role_staff');
+        var status = a.active ? t('status_active') : '<span style="color:var(--danger);">' + t('acct_off') + '</span>';
+        if(a.active && a.mustChangePassword) status += ' <span style="color:var(--primary-soft);font-size:12px;">· ' + t('acct_must_change') + '</span>';
+        var actions = a.isMe
+          ? '<span style="color:var(--primary-soft);font-size:12.5px;">' + t('acct_you') + '</span>'
+          : '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+              '<button type="button" class="btn-row" data-acct-reset="' + a.id + '" data-acct-name="' + acctEsc(a.displayName) + '" data-acct-login="' + acctEsc(a.loginId) + '">' + t('acct_reset_btn') + '</button>' +
+              '<button type="button" class="btn-row" data-acct-toggle="' + a.id + '" data-acct-active="' + (a.active ? '1' : '0') + '">' + (a.active ? t('acct_switch_off') : t('acct_switch_on')) + '</button>' +
+              '<button type="button" class="btn-row" style="color:var(--danger);" data-acct-delete="' + a.id + '">' + t('acct_delete') + '</button>' +
+            '</div>';
+        return '<tr><td>' + acctEsc(a.displayName) + '</td><td class="num">' + acctEsc(a.loginId) + '</td><td>' + roleLabel + '</td><td>' + status + '</td><td>' + actions + '</td></tr>';
+      }).join('');
+
+      tbody.querySelectorAll('[data-acct-reset]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          acctResetId = btn.dataset.acctReset;
+          document.getElementById('acct-reset-who').textContent = btn.dataset.acctName + ' (' + btn.dataset.acctLogin + ')';
+          document.getElementById('acct-reset-password').value = '';
+          document.getElementById('acct-reset-error').hidden = true;
+          document.getElementById('acct-reset-backdrop').hidden = false;
+          document.getElementById('acct-reset-password').focus();
+        });
+      });
+      tbody.querySelectorAll('[data-acct-toggle]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var turnOn = btn.dataset.acctActive !== '1';
+          if(!turnOn && !confirm(t('acct_confirm_off'))) return;
+          btn.disabled = true;
+          api('/accounts/' + btn.dataset.acctToggle, { method:'PATCH', body: JSON.stringify({ active:turnOn }) })
+            .then(function(){ renderAccounts(); renderWorkflow(); renderActivityLog(); })
+            .catch(function(err){ alert(err.message); btn.disabled = false; });
+        });
+      });
+      tbody.querySelectorAll('[data-acct-delete]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          if(!confirm(t('acct_confirm_delete'))) return;
+          btn.disabled = true;
+          api('/accounts/' + btn.dataset.acctDelete, { method:'DELETE' })
+            .then(function(r){ alert(r && r.deleted ? t('acct_deleted') : t('acct_kept')); renderAccounts(); renderWorkflow(); renderActivityLog(); loadCompanies(); })
+            .catch(function(err){ alert(err.message); btn.disabled = false; });
+        });
+      });
+    }).catch(function(err){ console.error('renderAccounts failed:', err); });
+  }
+  function closeAcctReset(){ document.getElementById('acct-reset-backdrop').hidden = true; acctResetId = null; }
+  document.getElementById('acct-reset-close').addEventListener('click', closeAcctReset);
+  document.getElementById('acct-reset-cancel').addEventListener('click', closeAcctReset);
+  document.getElementById('acct-reset-submit').addEventListener('click', function(){
+    if(!acctResetId) return;
+    var errEl = document.getElementById('acct-reset-error');
+    errEl.hidden = true;
+    var btn = this;
+    btn.disabled = true;
+    api('/accounts/' + acctResetId + '/reset-password', { method:'POST', body: JSON.stringify({ password: document.getElementById('acct-reset-password').value }) })
+      .then(function(){ closeAcctReset(); alert(t('acct_reset_done')); renderAccounts(); renderActivityLog(); })
+      .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
+      .finally(function(){ btn.disabled = false; });
+  });
 
   document.getElementById('staff-role').addEventListener('change', function(){
     document.getElementById('staff-client-limit-field').hidden = this.value !== 'staff';

@@ -8,7 +8,11 @@ if (!JWT_SECRET) {
 }
 
 const COOKIE_NAME = 'crest_session';
-const TOKEN_TTL = '12h';
+// A session lasts one hour of inactivity: every request made after the first five minutes hands out a fresh cookie,
+// so an idle browser (or a closed tab) is signed out an hour after its last request.
+const IDLE_MINUTES = 60;
+const TOKEN_TTL = IDLE_MINUTES + 'm';
+const REFRESH_AFTER_SECONDS = 300;
 
 function signToken(user) {
   return jwt.sign(
@@ -25,7 +29,7 @@ function setSessionCookie(res, user) {
     sameSite: 'lax',
     // Secure whenever the request really came in over HTTPS (Railway's proxy says so), not only when NODE_ENV is set
     secure: process.env.NODE_ENV === 'production' || !!(res.req && res.req.secure),
-    maxAge: 12 * 60 * 60 * 1000
+    maxAge: IDLE_MINUTES * 60 * 1000
   });
 }
 
@@ -69,6 +73,9 @@ async function attachUser(req, res, next) {
     if (state && state.active && (payload.tv || 0) === state.token_version) {
       req.user = payload;
       req.user.mustChangePassword = !!state.must_change_password;
+      if (payload.iat && Date.now() / 1000 - payload.iat > REFRESH_AFTER_SECONDS) {
+        setSessionCookie(res, { id: payload.sub, role: payload.role, staff_id: payload.staffId, company_id: payload.companyId, token_version: payload.tv });
+      }
     }
   } catch (err) {
     // expired/invalid token — treat as logged out

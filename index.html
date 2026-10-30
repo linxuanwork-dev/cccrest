@@ -2283,6 +2283,8 @@
     if(!res.ok){
       var body = await res.json().catch(function(){ return {}; });
       if(res.status === 403 && body.code === 'PASSWORD_CHANGE_REQUIRED' && typeof showForcedPasswordChange === 'function') showForcedPasswordChange();
+      // the server ended the session (idle for an hour, password changed elsewhere, account switched off)
+      if(res.status === 401 && path !== '/login' && path !== '/logout' && path !== '/me' && typeof idleSignOut === 'function') idleSignOut();
       throw new Error(body.error || ('Request failed (' + res.status + ')'));
     }
     if(res.status === 204) return null;
@@ -2312,6 +2314,7 @@
       change_password:"Change Password", field_current_password:"Current Password", field_new_password:"New Password",
       field_confirm_password:"Confirm New Password", save_password_btn:"Save Password",
       password_changed_success:"Password changed successfully.", passwords_dont_match:"New password and confirmation don't match.",
+      idle_logged_out:"You were signed out after 1 hour of no activity. Please sign in again.", idle_warning:"No activity for a while — you will be signed out in 1 minute. Move the mouse or press a key to stay signed in.",
       password_too_short:"New password must be at least 8 characters, with letters and numbers.", pw_forced_note:"Your password is a default or temporary one. Choose a new password to continue.", name_changed_success:"Display name updated.",
       add_company_title:"Add Company", add_company_sub:"Add a new client company.", field_company_name:"Company Name",
       field_company_type:"Type (optional)",
@@ -2586,6 +2589,7 @@
       change_password:"修改密码", field_current_password:"当前密码", field_new_password:"新密码",
       field_confirm_password:"确认新密码", save_password_btn:"保存密码",
       password_changed_success:"密码修改成功。", passwords_dont_match:"新密码与确认密码不一致。",
+      idle_logged_out:"超过 1 小时没有操作，系统已自动登出，请重新登录。", idle_warning:"已经有一段时间没有操作，1 分钟后将自动登出。移动鼠标或按任意键即可继续使用。",
       password_too_short:"新密码至少 8 个字符，并同时包含字母和数字。", pw_forced_note:"你的密码是默认或临时密码，请先设置新密码才能继续使用。", name_changed_success:"显示名称已更新。",
       add_company_title:"添加公司", add_company_sub:"添加一个新的客户公司。", field_company_name:"公司名称",
       field_company_type:"类型（可选）",
@@ -3046,8 +3050,68 @@
       currentCompany = '';
       queuePage = 1;
       document.querySelectorAll('[data-roles]').forEach(function(el){ el.hidden = true; });
+      if(idleNotice){
+        var le = document.getElementById('login-error');
+        le.textContent = t('idle_logged_out'); le.hidden = false;
+        idleNotice = false;
+      }
+      hideIdleWarning();
     });
   });
+
+  // ============ AUTO SIGN-OUT AFTER 1 HOUR WITHOUT ACTIVITY ============
+  var IDLE_LIMIT_MS = 60 * 60 * 1000, IDLE_WARN_MS = 59 * 60 * 1000;
+  var idleNotice = false, lastActive = Date.now(), lastStored = 0, idleBanner = null;
+  function appIsOpen(){ return !document.getElementById('app-shell').hidden; }
+  function markActive(){
+    var now = Date.now();
+    lastActive = now;
+    if(idleBanner) hideIdleWarning();
+    // shared with other open tabs so working in one tab keeps the others signed in
+    if(now - lastStored > 15000){ lastStored = now; try{ localStorage.setItem('crest_last_active', String(now)); }catch(e){} }
+  }
+  function lastActivity(){
+    var stored = 0;
+    try{ stored = Number(localStorage.getItem('crest_last_active')) || 0; }catch(e){}
+    return Math.max(lastActive, stored);
+  }
+  function hideIdleWarning(){ if(idleBanner){ idleBanner.remove(); idleBanner = null; } }
+  function showIdleWarning(){
+    if(idleBanner) return;
+    idleBanner = document.createElement('div');
+    idleBanner.setAttribute('role', 'alert');
+    idleBanner.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:100000;max-width:min(520px,calc(100vw - 32px));background:#b45309;color:#fff;padding:12px 16px;border-radius:10px;font-size:13.5px;line-height:1.5;box-shadow:0 6px 24px rgba(0,0,0,0.3);';
+    idleBanner.textContent = t('idle_warning');
+    document.body.appendChild(idleBanner);
+  }
+  function idleSignOut(){
+    if(!appIsOpen()) return;
+    idleNotice = true;
+    document.getElementById('logout-btn').click();
+  }
+  ['mousemove','mousedown','keydown','wheel','touchstart','scroll','click'].forEach(function(ev){
+    document.addEventListener(ev, markActive, { passive:true, capture:true });
+  });
+  // The KWSP & PERKESO form runs in an iframe, whose clicks and keys do not reach this page: listen inside it too.
+  function watchFrames(){
+    document.querySelectorAll('iframe').forEach(function(fr){
+      try{
+        var d = fr.contentDocument;
+        if(d && !d.__crestIdle){
+          d.__crestIdle = true;
+          ['mousemove','mousedown','keydown','wheel','touchstart','scroll','click'].forEach(function(ev){ d.addEventListener(ev, markActive, { passive:true, capture:true }); });
+        }
+      }catch(e){}
+    });
+  }
+  setInterval(function(){
+    if(!appIsOpen()){ hideIdleWarning(); return; }
+    watchFrames();
+    var idle = Date.now() - lastActivity();
+    if(idle >= IDLE_LIMIT_MS) idleSignOut();
+    else if(idle >= IDLE_WARN_MS) showIdleWarning();
+    else hideIdleWarning();
+  }, 10000);
 
   // ============ MY PROFILE / CHANGE PASSWORD ============
   function openProfileModal(){

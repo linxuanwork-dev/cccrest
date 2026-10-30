@@ -8,6 +8,14 @@ const { slugify } = require('../lib/mockGen');
 const router = express.Router();
 const PERIOD = '2026-08';
 
+// Express 4 doesn't catch rejected promises from async handlers — same wrapper as dailySales.js.
+['get', 'put', 'post', 'patch', 'delete'].forEach((method) => {
+  const original = router[method].bind(router);
+  router[method] = (routePath, ...handlers) => original(routePath, ...handlers.map((fn) => (
+    (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
+  )));
+});
+
 const letterheadUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 },
@@ -109,6 +117,16 @@ router.patch('/companies/:companyId', requireRole('admin'), async (req, res) => 
       'UPDATE companies SET name = $1, slug = $2, type = $3, registration_no = $4, address = $5 WHERE id = $6',
       [trimmedName, newSlug, newType, newRegNo, newAddress, req.params.companyId]
     );
+    if (newAddress !== before[0].address) {
+      // keep the profile's first address in step with the single address typed in this older dialog
+      await pool.query(
+        `UPDATE companies SET addresses = CASE
+           WHEN jsonb_array_length(addresses) = 0 THEN jsonb_build_array(jsonb_build_object('name','Address 1','street',$1::text,'city','','postcode','','country','Malaysia','state',''))
+           ELSE jsonb_set(addresses, '{0,street}', to_jsonb($1::text)) END
+         WHERE id = $2`,
+        [newAddress || '', req.params.companyId]
+      );
+    }
     await logActivity(req.user.sub, 'Updated company profile', trimmedName, null);
     const { rows: full } = await pool.query(baseCompanyQuery('WHERE c.id = $1'), [req.params.companyId]);
     res.json(full[0]);
@@ -118,13 +136,84 @@ router.patch('/companies/:companyId', requireRole('admin'), async (req, res) => 
   }
 });
 
-router.get('/companies/:companyId/profile', requireRole('admin'), async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT id, name, type, registration_no, address, letterhead_data_url FROM companies WHERE id = $1',
-    [req.params.companyId]
-  );
+// ---- Company profile (Bukku-style). Anyone who can open the company can read it; CC CREST admin / manager edit it. ----
+const REG_TYPES = ['BRN', 'NRIC', 'Passport', 'Army'];
+const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+function profileJson(r, canEdit) {
+  return {
+    id: r.id, name: r.name, type: r.type, canEdit,
+    // snake_case keys are what the older Edit Company dialog reads
+    registration_no: r.registration_no, address: r.address, letterhead_data_url: r.letterhead_data_url,
+    legalName: r.legal_name || '', regType: r.reg_type, registrationNo: r.registration_no || '', oldRegistrationNo: r.old_registration_no || '',
+    tin: r.tin || '', msicCode: r.msic_code || '', msicDescription: r.msic_description || '', tourismTaxNo: r.tourism_tax_no || '',
+    contactNo: r.contact_no || '', email: r.email || '', website: r.website || '',
+    addresses: Array.isArray(r.addresses) ? r.addresses : [],
+    logoDataUrl: r.logo_data_url || null, letterheadDataUrl: r.letterhead_data_url || null, ssm: r.ssm_data || null
+  };
+}
+
+function formatAddress(a) {
+  return [a.street, [a.postcode, a.city].filter(Boolean).join(' '), a.state].map((x) => (x || '').replace(/\s*\n\s*/g, ', ').trim()).filter(Boolean).join(', ');
+}
+
+function cleanAddresses(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 10).map((a, i) => ({
+    name: text(a && a.name, 80) || `Address ${i + 1}`, street: text(a && a.street, 400), city: text(a && a.city, 80),
+    postcode: text(a && a.postcode, 10), country: text(a && a.country, 60) || 'Malaysia', state: text(a && a.state, 60)
+  })).filter((a) => a.street || a.city || a.postcode);
+}
+
+router.get('/companies/:companyId/profile', requireAuth, scopeToCompany, async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
-  res.json(rows[0]);
+  res.json(profileJson(rows[0], ['admin', 'manager'].includes(req.user.role)));
+});
+
+router.put('/companies/:companyId/profile', requireAuth, scopeToCompany, requireRole('admin', 'manager'), async (req, res) => {
+  const b = req.body || {};
+  const { rows: before } = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.companyId]);
+  if (!before[0]) return res.status(404).json({ error: 'Not found' });
+  const regType = REG_TYPES.includes(b.regType) ? b.regType : before[0].reg_type;
+  const addresses = cleanAddresses(b.addresses);
+  const registrationNo = text(b.registrationNo, 40) || null;
+  const { rows } = await pool.query(
+    `UPDATE companies SET legal_name = $1, reg_type = $2, registration_no = $3, old_registration_no = $4, tin = $5, msic_code = $6,
+       msic_description = $7, tourism_tax_no = $8, contact_no = $9, email = $10, website = $11, addresses = $12, address = $13
+     WHERE id = $14 RETURNING *`,
+    [text(b.legalName, 200) || null, regType, registrationNo, text(b.oldRegistrationNo, 40) || null, text(b.tin, 40) || null,
+      text(b.msicCode, 10) || null, text(b.msicDescription, 200) || null, text(b.tourismTaxNo, 40) || null, text(b.contactNo, 40) || null,
+      text(b.email, 120) || null, text(b.website, 200) || null, JSON.stringify(addresses), addresses[0] ? formatAddress(addresses[0]) : null,
+      req.params.companyId]
+  );
+  await logActivity(req.user.sub, 'Updated company profile', rows[0].name, null);
+  res.json(profileJson(rows[0], true));
+});
+
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) return cb(new Error('Unsupported file type — use JPG, PNG, or WEBP.'));
+    cb(null, true);
+  }
+});
+
+router.post('/companies/:companyId/logo', requireAuth, scopeToCompany, requireRole('admin', 'manager'), logoUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const dataUrl = 'data:' + req.file.mimetype + ';base64,' + req.file.buffer.toString('base64');
+  const { rows } = await pool.query('UPDATE companies SET logo_data_url = $1 WHERE id = $2 RETURNING id, name', [dataUrl, req.params.companyId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  await logActivity(req.user.sub, 'Uploaded company logo', rows[0].name, null);
+  res.json({ ok: true, logoDataUrl: dataUrl });
+});
+
+router.delete('/companies/:companyId/logo', requireAuth, scopeToCompany, requireRole('admin', 'manager'), async (req, res) => {
+  const { rows } = await pool.query('UPDATE companies SET logo_data_url = NULL WHERE id = $1 RETURNING id, name', [req.params.companyId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  await logActivity(req.user.sub, 'Removed company logo', rows[0].name, null);
+  res.json({ ok: true });
 });
 
 router.post('/companies/:companyId/letterhead', requireRole('admin'), letterheadUpload.single('file'), async (req, res) => {

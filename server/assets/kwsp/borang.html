@@ -159,14 +159,14 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
             <ul class="warns" id="ssmWarns" hidden></ul>
             <div class="found" id="ssmFound"></div>
             <div id="dirWrap">
-              <div class="subh" style="margin:8px 0 6px">董事 <span style="font-weight:400;text-transform:none">选择要用哪一位</span></div>
+              <div class="subh" style="margin:8px 0 6px">董事 <span style="font-weight:400;text-transform:none">在下面第 4、5 项选择联络人和东主</span></div>
               <div class="dirs" id="dirList"></div>
             </div>
             <div class="subh" style="margin:12px 0 6px">地址 <span style="font-weight:400;text-transform:none">注册地址一定会填进 KWSP「Alamat Berdaftar」，营业和通讯地址由你选</span></div>
             <div class="pick" id="addrPick"></div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center">
               <button type="button" class="primary" id="ssmApply">按所选重新带入</button>
-              <span class="hint" style="margin:0">读取后已自动填进下面的表格，请核对，有误可直接修改。想换董事或地址，改上面的选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。</span>
+              <span class="hint" style="margin:0">读取后已自动填进下面的表格，请核对，有误可直接修改。想换联络人或东主，在下面第 4、5 项直接选择；想换地址，改上面的地址选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。</span>
             </div>
           </div>
         </div>
@@ -225,6 +225,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
       <section class="card">
         <h2>4. 联络人 <span class="ms">Pegawai untuk dihubungi</span><span class="tag">KWSP-D</span></h2>
         <div class="body">
+          <div class="f s12"><label class="l" for="officerPick">选择联络人 <span class="ms">Pilih pegawai</span></label><select id="officerPick" data-k="officerPick"></select></div>
           <div class="f s8"><label class="l" for="o_name">全名 <span class="ms">Nama penuh</span></label><input id="o_name" data-k="officer.name" class="up"></div>
           <div class="f s4"><label class="l" for="o_ic">IC / 护照 <span class="ms">MyKad</span></label><input id="o_ic" data-k="officer.ic" class="up mono" placeholder="880512-01-5678"></div>
           <div class="f s4"><label class="l" for="o_pos">职位 <span class="ms">Jawatan</span></label><input id="o_pos" data-k="officer.pos" class="up"></div>
@@ -239,6 +240,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
       <section class="card">
         <h2>5. 东主 / 董事 <span class="ms">Pemilik / Pengarah</span><span class="tag">KWSP-E</span></h2>
         <div class="body">
+          <div class="f s12"><label class="l" for="ownerPick">选择东主 / 董事 <span class="ms">Pilih pemilik / pengarah</span></label><select id="ownerPick" data-k="ownerPick"></select></div>
           <div class="f s8"><label class="l" for="w_name">全名</label><input id="w_name" data-k="owner.name" class="up"></div>
           <div class="f s4"><label class="l" for="w_ic">IC / 护照</label><input id="w_ic" data-k="owner.ic" class="up mono"></div>
           <div class="f"><label class="l" for="w_pos">职位 <span class="ms">Jawatan</span></label><input id="w_pos" data-k="owner.pos" class="up" placeholder="PENGARAH"></div>
@@ -307,6 +309,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
         <h3>要打印的表格 <button type="button" id="toggleAll" class="ghost">全选</button></h3>
         <ul class="forms" id="formList"></ul>
         <button type="button" class="primary go" id="btnGen">生成 PDF</button>
+        <button type="button" class="go" id="btnLetter" style="margin-top:8px">生成 KWSP 授权信</button>
         <p class="status" id="status"></p>
         <ul class="warns" id="warns" hidden></ul>
         <p class="tip">打印：用 A4 纸、「实际大小 / 100%」。签名和公司印章打印后亲手补上。</p>
@@ -404,25 +407,55 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     o[ks[ks.length - 1]] = val;
   }
   function getPath(obj, path) { return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj); }
+  /* ---------- directors read from the SSM documents: choose who is the contact officer / owner, or fill it in yourself ---------- */
+  let directors = [];
+  function renderPickers() {
+    ['officerPick', 'ownerPick'].forEach(id => {
+      const sel = document.getElementById(id);
+      sel.closest('.f').hidden = !directors.length;
+      sel.innerHTML = directors.map((d, i) => '<option value="' + i + '">' + String(d.name + (d.ic ? ' · ' + d.ic : '')).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</option>').join('') + '<option value="self">自己填（手动输入）</option>';
+    });
+  }
+  function fillOfficer(i) {
+    const d = directors[i]; if (!d) return;
+    $('#o_name').value = d.name || ''; $('#o_ic').value = d.ic || '';
+    if (!$('#o_pos').value.trim()) $('#o_pos').value = 'PENGARAH';
+    if (d.email) $('#o_email').value = d.email;
+  }
+  function fillOwner(i) {
+    const d = directors[i]; if (!d) return;
+    $('#w_name').value = d.name || ''; $('#w_ic').value = d.ic || ''; $('#w_pos').value = 'PENGARAH'; $('#w_cit').value = d.nat || 'MALAYSIA';
+  }
+  $('#officerPick').addEventListener('change', (e) => { if (e.target.value !== 'self') fillOfficer(+e.target.value); });
+  $('#ownerPick').addEventListener('change', (e) => { if (e.target.value !== 'self') fillOwner(+e.target.value); });
+  // typing over a director's name / IC means it is now filled in by hand
+  [['o_name', 'o_ic', 'officerPick'], ['w_name', 'w_ic', 'ownerPick']].forEach(([a, b, p]) => [a, b].forEach(id => $('#' + id).addEventListener('input', () => {
+    const sel = $('#' + p), d = directors[+sel.value];
+    if (sel.value !== 'self' && d && ($('#' + a).value.trim().toUpperCase() !== (d.name || '').toUpperCase() || $('#' + b).value.trim().toUpperCase() !== (d.ic || '').toUpperCase())) sel.value = 'self';
+  })));
+
   function collect() {
     const d = {};
     $$('#f [data-k]').forEach(el => setPath(d, el.dataset.k, el.type === 'checkbox' ? el.checked : el.value));
     d.employees = $$('#emps .emp').map(r => { const e = {}; $$('[data-e]', r).forEach(el => e[el.dataset.e] = el.value); return e; });
+    d.directors = directors;
     return d;
   }
   function load(d) {
+    directors = Array.isArray(d.directors) ? d.directors : []; renderPickers();
     $$('#f [data-k]').forEach(el => {
       const v = getPath(d, el.dataset.k);
       if (el.type === 'checkbox') el.checked = !!v;
       else { el.value = v == null ? '' : v; if (el.tagName === 'SELECT' && v && el.value !== v) { const o = Array.from(el.options).find(x => x.value.toUpperCase() === String(v).toUpperCase()); if (o) el.value = o.value; } }
     });
     if (!$('#c_ent').value) $('#c_ent').value = 'sdn';
+    ['officerPick', 'ownerPick'].forEach(id => { const s = $('#' + id); if (!s.value) s.value = 'self'; });
     $('#emps').innerHTML = ''; empSeq = 0;
     (d.employees && d.employees.length ? d.employees : [{}]).forEach(e => empRow(e));
     sync();
   }
   const BLANK = { regSame: true, mailSame: true, adminSame: true, signSame: true, company: { entity: 'sdn', ssm: 'ssm' },
-    owner: { cit: 'MALAYSIA', pos: 'PENGARAH' }, socso: { pay: 'portal', portalType: 'new', portalCat: 'main' }, employees: [{}] };
+    officerPick: 'self', ownerPick: 'self', owner: { cit: 'MALAYSIA', pos: 'PENGARAH' }, socso: { pay: 'portal', portalType: 'new', portalCat: 'main' }, employees: [{}] };
 
   /* ---------- dynamic visibility & counters ---------- */
   function sync() {
@@ -527,6 +560,39 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     }
   }
   $('#btnGen').onclick = generate;
+
+  /* ---------- KWSP authorization letter (on the company letterhead, filled from this page) ---------- */
+  let authLoaded = null;
+  const loadAuth = () => authLoaded || (authLoaded = new Promise((res, rej) => { const s = document.createElement('script'); s.src = ASSETS + 'authletter.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the letter component')); document.head.appendChild(s); }));
+  async function whoAndWhen() {
+    let who = '';
+    try { const me = await apiCall('/api/me'); who = me.displayName || me.loginId || ''; if (/[^\x20-\xFF]/.test(who)) who = me.loginId || ''; } catch (e) { /* date only */ }
+    const t = new Date(), pad = (n) => String(n).padStart(2, '0');
+    return 'Printed ' + pad(t.getDate()) + '/' + pad(t.getMonth() + 1) + '/' + t.getFullYear() + (who ? ' by ' + who.replace(/[^\x20-\xFF]/g, '?') : '');
+  }
+  async function generateLetter() {
+    if (!window.PDFLib) { status('PDF 组件没有加载成功，请检查网络后重新打开页面。', 'err'); return; }
+    status('生成授权信中…');
+    if (canEdit) await autoSave().catch(() => {});
+    const d = collect();
+    try {
+      let profile = null;
+      try { profile = await apiCall('/api/companies/' + COMPANY_ID + '/profile'); } catch (e) { /* no profile: the letterhead is built from this page's data */ }
+      await loadAuth();
+      const r = await window.AuthLetter.build(window.PDFLib, d, profile, { stamp: await whoAndWhen() });
+      const w = $('#warns');
+      w.innerHTML = r.warnings.map(x => '<li></li>').join('');
+      $$('li', w).forEach((li, i) => li.textContent = r.warnings[i]);
+      w.hidden = !r.warnings.length;
+      const name = fileName(d).replace(/-KWSP-PERKESO\.pdf$/, '-KWSP-AUTHORIZATION-LETTER.pdf');
+      status('已生成授权信，正在下载…', 'ok');
+      renderPreview(r.bytes);
+      await download(r.bytes, name);
+    } catch (err) {
+      console.error(err); status('生成失败：' + (err && err.message || err), 'err');
+    }
+  }
+  $('#btnLetter').onclick = generateLetter;
 
   /* ---------- downloads ---------- */
   async function saveFile(data, name, mime) {
@@ -738,11 +804,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     $('#ssmFound').firstElementChild.style.display = 'contents';
     const w = $('#ssmWarns'); w.hidden = !r.warnings.length; w.innerHTML = r.warnings.map(x => `<li>${esc(x)}</li>`).join('');
     $('#dirWrap').hidden = !r.directors.length; $('#ssmApply').hidden = false;
-    $('#dirList').innerHTML = `<table><thead><tr><th>姓名</th><th>IC / 护照</th><th>国籍</th><th class="c">东主 / 签署人</th><th class="c">联络人 / i-Akaun</th></tr></thead><tbody>${
-      r.directors.map((d, i) => `<tr><td>${esc(d.name)}</td><td class="mono">${esc(d.ic)}</td><td>${esc(d.nat || '')}</td>
-        <td class="c"><input type="radio" name="pickOwner" value="${i}" ${i === 0 ? 'checked' : ''} aria-label="东主 ${esc(d.name)}"></td>
-        <td class="c"><input type="radio" name="pickOfficer" value="${i}" ${i === 0 ? 'checked' : ''} aria-label="联络人 ${esc(d.name)}"></td></tr>`).join('')
-    }<tr><td colspan="3" class="hint">联络人不是董事（例如公司秘书或会计）</td><td></td><td class="c"><input type="radio" name="pickOfficer" value="-1" aria-label="联络人自己填"></td></tr></tbody></table>`;
+    $('#dirList').innerHTML = `<table><thead><tr><th>姓名</th><th>IC / 护照</th><th>国籍</th></tr></thead><tbody>${r.directors.map(d => `<tr><td>${esc(d.name)}</td><td class="mono">${esc(d.ic)}</td><td>${esc(d.nat || '')}</td></tr>`).join('')}</tbody></table>`;
     // address choices
     const fmtA = (x) => x ? [x.line1, x.line2, x.line3, (x.pc + ' ' + x.city).trim(), x.state].filter(s => s && s.trim()).join(', ') : '';
     const opts = [];
@@ -775,10 +837,15 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     if (C.regAddr && bizSel !== 'reg') { d.regAddr = Object.assign({}, C.regAddr); d.regSame = false; } else d.regSame = true;
     if (mailSel === 'same') d.mailSame = true;
     else { d.mailSame = false; d.mailAddr = mailSel === 'manual' ? Object.assign({}, blankA) : Object.assign({}, pickAddr(mailSel)); }
-    const ow = dirs[+(($('input[name=pickOwner]:checked') || {}).value || 0)];
+    const hadDirectors = directors.length > 0;                // first read: start with the first director in both places
+    const prevOwner = hadDirectors ? $('#ownerPick').value : '0', prevOfficer = hadDirectors ? $('#officerPick').value : '0';
+    directors = dirs.map(x => ({ name: x.name, ic: x.ic, passport: !!x.passport, nat: x.nat || '', email: x.email || '', addr: x.addr || '', dob: x.dob || '', race: x.race || '' }));
+    const pickIdx = (v) => (v === 'self' ? -1 : (/^d+$/.test(v) && +v < dirs.length ? +v : 0));
+    const ownerIdx = pickIdx(prevOwner), officerIdx = pickIdx(prevOfficer);
+    d.directors = directors; d.ownerPick = ownerIdx < 0 ? 'self' : String(ownerIdx); d.officerPick = officerIdx < 0 ? 'self' : String(officerIdx);
+    const ow = ownerIdx >= 0 ? dirs[ownerIdx] : null;
     if (ow) { d.owner = { name: ow.name, ic: ow.ic, pos: 'PENGARAH', cit: ow.nat || 'MALAYSIA' }; d.signSame = true; }
-    const ofIdx = +(($('input[name=pickOfficer]:checked') || {}).value || 0);
-    const of = ofIdx >= 0 ? dirs[ofIdx] : null;
+    const of = officerIdx >= 0 ? dirs[officerIdx] : null;
     if (of) { d.officer = Object.assign({}, d.officer, { name: of.name, ic: of.ic, pos: 'PENGARAH', email: of.email || (d.officer || {}).email || '' }); d.adminSame = true; }
     if (!d.signDate) d.signDate = todayISO();
     load(d); markNeeds();

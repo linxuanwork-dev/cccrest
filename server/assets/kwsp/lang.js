@@ -107,8 +107,15 @@
     '填了公司名称才会自动保存。': 'Auto-save starts once the company name is filled in.', '自动保存失败：': 'Auto-save failed: ',
     '已自动带入 SSM 资料。黄色框是还要填的资料，请核对，有误可直接修改。': 'SSM data filled in automatically. Yellow boxes still need to be filled in — please check, and edit anything that is wrong.',
     '按所选重新带入': 'Re-apply with these choices',
+    '选择联络人': 'Choose the contact officer', '选择东主 / 董事': 'Choose the owner / director', '自己填（手动输入）': 'Fill in myself (type it in)',
+    '在下面第 4、5 项选择联络人和东主': 'choose the contact officer and owner in sections 4 and 5 below',
+    '读取后已自动填进下面的表格，请核对，有误可直接修改。想换联络人或东主，在下面第 4、5 项直接选择；想换地址，改上面的地址选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。':
+      'The form below has been filled in automatically — please check it, and edit anything that is wrong. To use a different contact officer or owner, choose one in sections 4 and 5 below; to use a different address, change the address choices above and press this button. Details not in the documents (phone, employees, etc.) are filled in by hand as usual.',
     '读取后已自动填进下面的表格，请核对，有误可直接修改。想换董事或地址，改上面的选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。':
       'The form below has been filled in automatically — please check it, and edit anything that is wrong. To use a different director or address, change the choices above and press this button. Details not in the documents (phone, employees, etc.) are filled in by hand as usual.',
+    '生成 KWSP 授权信': 'Generate KWSP authorization letter', '生成授权信中…': 'Generating the letter…', '已生成授权信，正在下载…': 'Letter generated, downloading…',
+    '授权信：公司名称没填。': 'Authorization letter: the company name is empty.', '授权信：联络人姓名没填（第 4 项）。': 'Authorization letter: the contact officer name is empty (section 4).',
+    '授权信：联络人 IC 没填（第 4 项）。': 'Authorization letter: the contact officer IC is empty (section 4).', '授权信：东主 / 董事姓名没填（第 5 项）。': 'Authorization letter: the owner / director name is empty (section 5).',
     '读取中… 请稍等': 'Reading… please wait', '读取 SSM 文件失败：': 'Could not read the SSM files: ',
     '没有读到公司名称。': 'Company name not found.', '没有读到董事资料（Particulars of Director）。': 'Director details (Particulars of Director) not found.',
     '公司名称': 'Company name', '注册号': 'Registration no.', '秘书电邮': 'Secretary email', '秘书电话': 'Secretary phone', '（不带入）': ' (not applied)',

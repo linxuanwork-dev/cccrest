@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { scopeToCompany, requireAuth } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
 const { renderLetterheadHeader, renderTable, PDFDocument } = require('../lib/pdf');
 
 const router = express.Router();
@@ -21,12 +22,15 @@ async function streamReportPdf(res, companyId, reportTitle, columns, rows) {
   );
   if (!companyRows[0]) return res.status(404).json({ error: 'Company not found' });
 
-  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+  const base = await docs.fileBase('company_report', companyId, { TITLE: docs.hyphenUpper(reportTitle) }, reportTitle.replace(/\s+/g, '-'));
+  await docs.logEvent(res.req, companyId, 'company_report', base + '.pdf', 'downloaded', []);
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', 'attachment; filename="' + reportTitle.replace(/\s+/g, '-') + '.pdf"');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + base.replace(/"/g, '') + '.pdf"');
   doc.pipe(res);
   renderLetterheadHeader(doc, companyRows[0], reportTitle, PERIOD_LABEL);
   renderTable(doc, columns, rows);
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(res.req)));
   doc.end();
 }
 

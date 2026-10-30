@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
 
 const router = express.Router();
 
@@ -64,7 +65,7 @@ router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
   const id = Number(body.id) || 0;
   const auto = !!body.auto;
   if (id) {
-    const { rows: own } = await pool.query('SELECT id, name FROM kwsp_forms WHERE id = $1 AND company_id = $2', [id, req.params.companyId]);
+    const { rows: own } = await pool.query('SELECT id, name, data FROM kwsp_forms WHERE id = $1 AND company_id = $2', [id, req.params.companyId]);
     if (own[0]) {
       if (req.pageAccess.level < 3) return res.status(403).json({ error: '你的权限不足（修改已保存的资料需要 L3 或以上）' });
       let updated;
@@ -77,6 +78,9 @@ router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
         if (err.code === '23505') return res.status(409).json({ error: 'A saved data set with this name already exists' });
         throw err;
       }
+      const changes = docs.diffObjects(own[0].data, data);
+      if (own[0].name !== name) changes.unshift({ field: 'name', from: own[0].name, to: name });
+      await docs.logUpdate(req, req.params.companyId, 'kwsp_form', name, changes);
       if (!auto || own[0].name !== name) {
         const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
         await logActivity(req.user.sub, 'Updated KWSP & PERKESO form data', companyRows[0].name, name);
@@ -85,7 +89,7 @@ router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
     }
   }
 
-  const { rows: existing } = await pool.query('SELECT id FROM kwsp_forms WHERE company_id = $1 AND name = $2', [req.params.companyId, name]);
+  const { rows: existing } = await pool.query('SELECT id, data FROM kwsp_forms WHERE company_id = $1 AND name = $2', [req.params.companyId, name]);
   if (existing[0] && req.pageAccess.level < 3) {
     return res.status(403).json({ error: '你的权限不足（修改已保存的资料需要 L3 或以上）' });
   }
@@ -97,6 +101,8 @@ router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
     [req.params.companyId, name, JSON.stringify(data), req.user.sub]
   );
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  if (existing[0]) await docs.logUpdate(req, req.params.companyId, 'kwsp_form', name, docs.diffObjects(existing[0].data, data));
+  else await docs.logEvent(req, req.params.companyId, 'kwsp_form', name, 'created', []);
   await logActivity(req.user.sub, existing[0] ? 'Updated KWSP & PERKESO form data' : 'Saved KWSP & PERKESO form data', companyRows[0].name, name);
   res.json({ id: rows[0].id, name: rows[0].name, updatedAt: rows[0].updated_at });
 });
@@ -134,6 +140,7 @@ router.put('/companies/:companyId/profile/ssm', requireAuth, scopeToCompany, req
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await logActivity(req.user.sub, 'Saved SSM details to company profile', rows[0].name, snapshot.reg);
+  await docs.logUpdate(req, req.params.companyId, 'company_profile', rows[0].name, [{ field: 'ssm', from: '', to: 'read from SSM documents' + (snapshot.reg ? ' (' + snapshot.reg + ')' : '') }]);
   res.json({ ok: true });
 });
 
@@ -145,6 +152,7 @@ router.delete('/companies/:companyId/kwsp-forms/:formId', requireAuth, scopeToCo
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Deleted KWSP & PERKESO form data', companyRows[0].name, rows[0].name);
+  await docs.logEvent(req, req.params.companyId, 'kwsp_form', rows[0].name, 'deleted', []);
   res.json({ ok: true });
 });
 

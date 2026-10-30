@@ -6,6 +6,7 @@ const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
 const rules = require('../lib/dmInvoiceRules');
 
 const router = express.Router();
@@ -199,7 +200,10 @@ router.post('/companies/:companyId/dm-invoice/generate', requireAuth, scopeToCom
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Generated Registration & Modul invoice', companyRows[0].name, `${branch} ${mm}/${year} — ${rows.length} rows`);
 
-  const filename = `sales-invoice-${branch}-${mm}${year}.xlsx`;
+  const base = await docs.fileBase('dm_invoice', req.params.companyId, { BRANCH: branch, YYYY: String(year), MM: mm }, `sales-invoice-${branch}-${mm}${year}`);
+  const filename = `${base}.xlsx`;
+  docs.stampWorkbook(wb, docs.stampText(await docs.userNameFor(req)));
+  await docs.logEvent(req, req.params.companyId, 'dm_invoice', filename, 'generated', []);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   await wb.xlsx.write(res);

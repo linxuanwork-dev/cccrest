@@ -3,6 +3,7 @@ const { pool } = require('../db');
 const { scopeToCompany, requireAuth } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
 const { renderLetterheadHeader, renderTable, PDFDocument } = require('../lib/pdf');
 
 const router = express.Router();
@@ -136,9 +137,11 @@ router.get('/companies/:companyId/payroll/:entryId/voucher.pdf', requireAuth, sc
     [req.params.companyId]
   );
 
-  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+  const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: entry.period_month, EMP: docs.hyphenUpper(entry.employee_name) }, 'Salary-Voucher-' + entry.period_month);
+  await docs.logEvent(req, req.params.companyId, 'salary_voucher', base + '.pdf', 'generated', []);
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', 'attachment; filename="Salary-Voucher-' + entry.period_month + '.pdf"');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + base.replace(/"/g, '') + '.pdf"');
   doc.pipe(res);
 
   renderLetterheadHeader(doc, companyRows[0], 'Salary Payment Voucher', entry.period_month);
@@ -180,6 +183,7 @@ router.get('/companies/:companyId/payroll/:entryId/voucher.pdf', requireAuth, sc
   doc.text('_____________________', 420, sigY);
   doc.text('Received by', 420, sigY + 14);
 
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   doc.end();
 });
 

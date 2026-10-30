@@ -5,6 +5,7 @@ const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
 const { parseMmsdoWorkbook, buildDailySettlementWorkbook } = require('../lib/olTngReport');
 
 const router = express.Router();
@@ -61,7 +62,10 @@ router.post('/companies/:companyId/ol-tng-report/generate', requireAuth, scopeTo
   });
 
   const mm = String(parsed.month).padStart(2, '0');
-  const filename = `OL-TNG_${parsed.year}_${mm}.xlsx`;
+  const base = await docs.fileBase('ol_tng_report', req.params.companyId, { YYYY: String(parsed.year), MM: mm }, `OL-TNG_${parsed.year}_${mm}`);
+  const filename = `${base}.xlsx`;
+  docs.stampWorkbook(outWb, docs.stampText(await docs.userNameFor(req)));
+  await docs.logEvent(req, req.params.companyId, 'ol_tng_report', filename, 'generated', []);
 
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Generated OL-TNG Daily Settlement Report', companyRows[0].name, `${mm}/${parsed.year} — ${parsed.transactions.length} transactions`);

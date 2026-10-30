@@ -547,7 +547,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
       await ensureAssets();
       const r = await F.build(window.PDFLib, templates(), SPEC, d, sel);
       r.warnings.unshift(...checkMissing(d, sel));
-      lastPdf = r.bytes; lastName = fileName(d);
+      lastPdf = r.bytes; lastName = await docName('kwsp_forms', fileName(d));
       const w = $('#warns');
       w.innerHTML = r.warnings.map(x => `<li></li>`).join('');
       $$('li', w).forEach((li, i) => li.textContent = r.warnings[i]);
@@ -564,11 +564,13 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
   /* ---------- KWSP authorization letter (on the company letterhead, filled from this page) ---------- */
   let authLoaded = null;
   const loadAuth = () => authLoaded || (authLoaded = new Promise((res, rej) => { const s = document.createElement('script'); s.src = ASSETS + 'authletter.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the letter component')); document.head.appendChild(s); }));
-  async function whoAndWhen() {
-    let who = '';
-    try { const me = await apiCall('/api/me'); who = me.displayName || me.loginId || ''; if (/[^\x20-\xFF]/.test(who)) who = me.loginId || ''; } catch (e) { /* date only */ }
-    const t = new Date(), pad = (n) => String(n).padStart(2, '0');
-    return 'Printed ' + pad(t.getDate()) + '/' + pad(t.getMonth() + 1) + '/' + t.getFullYear() + (who ? ' by ' + who.replace(/[^\x20-\xFF]/g, '?') : '');
+  // the file name comes from the Control Panel's naming pattern for this feature (the built-in name if none is set);
+  // asking for it also writes the "generated" entry in the company's document history
+  async function docName(feature, fallbackName) {
+    try {
+      const r = await apiCall('/api/companies/' + COMPANY_ID + '/documents', { method: 'POST', body: JSON.stringify({ feature, fallback: fallbackName.replace(/\.pdf$/i, '') }) });
+      return r.fileName;
+    } catch (e) { return fallbackName; }
   }
   async function generateLetter() {
     if (!window.PDFLib) { status('PDF 组件没有加载成功，请检查网络后重新打开页面。', 'err'); return; }
@@ -579,12 +581,12 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
       let profile = null;
       try { profile = await apiCall('/api/companies/' + COMPANY_ID + '/profile'); } catch (e) { /* no profile: the letterhead is built from this page's data */ }
       await loadAuth();
-      const r = await window.AuthLetter.build(window.PDFLib, d, profile, { stamp: await whoAndWhen() });
+      const r = await window.AuthLetter.build(window.PDFLib, d, profile, {});     // letters carry no print stamp
       const w = $('#warns');
       w.innerHTML = r.warnings.map(x => '<li></li>').join('');
       $$('li', w).forEach((li, i) => li.textContent = r.warnings[i]);
       w.hidden = !r.warnings.length;
-      const name = fileName(d).replace(/-KWSP-PERKESO\.pdf$/, '-KWSP-AUTHORIZATION-LETTER.pdf');
+      const name = await docName('kwsp_authorization_letter', fileName(d).replace(/-KWSP-PERKESO\.pdf$/, '-KWSP-AUTHORIZATION-LETTER.pdf'));
       status('已生成授权信，正在下载…', 'ok');
       renderPreview(r.bytes);
       await download(r.bytes, name);

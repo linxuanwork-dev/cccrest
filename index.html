@@ -647,6 +647,10 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
         <span class="nav-label" data-i18n="nav_company_home">Dashboard</span>
       </button>
+      <button class="nav-item" data-panel="panel-docs">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+        <span class="nav-label" data-i18n="nav_docs">Documents &amp; History</span>
+      </button>
       <button class="nav-item" data-panel="panel-profile">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17c.6-2 2-3 3.5-3s2.9 1 3.5 3"/><path d="M15 9h3M15 13h3"/></svg>
         <span class="nav-label" data-i18n="nav_profile">Company Profile</span>
@@ -718,6 +722,10 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="nav-label" data-i18n="nav_staff_approvals">Staff Approvals</span>
         <span class="nav-badge" id="approvals-nav-badge" hidden>0</span>
+      </button>
+      <button class="nav-item" data-panel="panel-control" data-roles="admin">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        <span class="nav-label" data-i18n="nav_control">Control Panel</span>
       </button>
       <button class="nav-item" data-panel="panel-activity" data-roles="admin">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 8 4-16 2 8h6"/></svg>
@@ -1276,6 +1284,8 @@
               <div class="field"><label for="pf-msic" data-i18n="pf_msic">MSIC Code</label><input id="pf-msic" type="text" placeholder="56101" /></div>
               <div class="field"><label for="pf-msicdesc" data-i18n="pf_msicdesc">MSIC Description</label><input id="pf-msicdesc" type="text" /></div>
               <div class="field"><label for="pf-tourism" data-i18n="pf_tourism">Tourism Tax Registration No.</label><input id="pf-tourism" type="text" placeholder="123-4567-89012345" /></div>
+              <div class="field"><label for="pf-sst" data-i18n="pf_sst">SST No. (if any)</label><input id="pf-sst" type="text" /></div>
+              <div class="field"><label for="pf-prefix" data-i18n="pf_prefix">File name prefix</label><input id="pf-prefix" type="text" placeholder="UKL" maxlength="20" /></div>
               <div class="field"></div>
               <div class="field"><label data-i18n="pf_country">Home Country</label><input type="text" value="Malaysia" disabled /></div>
               <div class="field"><label data-i18n="pf_currency">Home Currency</label><input type="text" value="MYR - Malaysian Ringgit" disabled /></div>
@@ -1330,8 +1340,45 @@
 
           <div style="display:flex;gap:14px;align-items:center;padding:18px 0;flex-wrap:wrap;">
             <button type="button" class="btn-primary" id="pf-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
+            <button type="button" class="btn-ghost" id="pf-einvoice" data-i18n="pf_einvoice">e-Invoice information (PDF)</button>
             <span id="pf-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
           </div>
+        </div>
+      </section>
+
+      <!-- ---- DOCUMENTS & HISTORY (per company) ---- -->
+      <section class="panel" id="panel-docs" hidden>
+        <div class="content-header"><h2 data-i18n="nav_docs">Documents &amp; History</h2><span class="sub" data-i18n="dh_sub">Every file made for this company and every change to its records</span></div>
+        <div id="dh-empty" style="color:var(--primary-soft);padding:30px 0;" data-i18n="pf_choose">Choose a company first.</div>
+        <div id="dh-body" hidden>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+            <div class="field" style="margin:0;"><label for="dh-type" data-i18n="dh_type">Type</label><select id="dh-type"></select></div>
+            <div class="field" style="margin:0;"><label for="dh-event" data-i18n="dh_event">Event</label><select id="dh-event"></select></div>
+          </div>
+          <div class="table-card" style="overflow-x:auto;">
+            <table>
+              <thead><tr><th data-i18n="dh_when">When</th><th data-i18n="dh_type">Type</th><th data-i18n="dh_ref">File / record</th><th data-i18n="dh_event">Event</th><th data-i18n="dh_who">By</th><th data-i18n="dh_details">What changed</th></tr></thead>
+              <tbody id="dh-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- CONTROL PANEL (Owner) ---- -->
+      <section class="panel" id="panel-control" hidden>
+        <div class="content-header"><h2 data-i18n="nav_control">Control Panel</h2><span class="sub" data-i18n="cp_sub">Owner settings</span></div>
+        <div class="section-title" style="margin-top:6px;" data-i18n="cp_naming_title">File naming</div>
+        <p style="font-size:12.5px;color:var(--primary-soft);margin:6px 0 14px;max-width:780px;" data-i18n="cp_naming_desc">Set how the file of each feature is named. Leave a box empty to keep the built-in name. The company prefix is set on each company's profile.</p>
+        <div style="font-size:12px;color:var(--primary-soft);margin-bottom:14px;line-height:1.7;" id="cp-tokens"></div>
+        <div class="table-card" style="overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="cp_feature">Feature</th><th data-i18n="cp_builtin">Built-in name</th><th data-i18n="cp_pattern">Your naming pattern</th><th data-i18n="cp_example">Example</th></tr></thead>
+            <tbody id="cp-tbody"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:14px;align-items:center;padding:16px 0;flex-wrap:wrap;">
+          <button type="button" class="btn-primary" id="cp-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
+          <span id="cp-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
         </div>
       </section>
 
@@ -2166,7 +2213,7 @@
       var enabled = profile.enabledFeatures || [];
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
         // KWSP & PERKESO is needed by every company, so it is not controlled by the feature switches.
-        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-profile' && enabled.indexOf(btn.dataset.panel) === -1;
+        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-profile' && btn.dataset.panel !== 'panel-docs' && enabled.indexOf(btn.dataset.panel) === -1;
       });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       refreshServiceGroups();
@@ -2323,6 +2370,10 @@
       pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
       pf_logo:"Company Logo", pf_logo_desc:"The official logo of the business.", pf_upload:"Upload", pf_letterhead:"Letterhead", pf_lh_desc:"Used on letters. A full-page image becomes the page background; a banner image goes across the top.", pf_lh_auto:"No letterhead uploaded — letters use this one, built from the company name, registration no. and address:",
       pf_ssm_title:"From SSM documents", pf_ssm_desc:"Saved when the SSM Certificate / Section 14 is read on the KWSP & PERKESO page.", pf_directors:"Directors", pf_inc_date:"Incorporation date", pf_nature:"Business",
+      nav_docs:"Documents & History", dh_sub:"Every file made for this company and every change to its records", dh_type:"Type", dh_event:"Event", dh_when:"When", dh_ref:"File / record", dh_who:"By", dh_details:"What changed", dh_all:"All", dh_none:"Nothing yet.",
+      dh_ev_generated:"Generated", dh_ev_downloaded:"Downloaded", dh_ev_created:"Created", dh_ev_updated:"Updated", dh_ev_deleted:"Deleted", dh_changes:"changes",
+      nav_control:"Control Panel", cp_sub:"Owner settings", cp_naming_title:"File naming", cp_naming_desc:"Set how the file of each feature is named. Leave a box empty to keep the built-in name. The company prefix is set on each company's profile.", cp_feature:"Feature", cp_builtin:"Built-in name", cp_pattern:"Your naming pattern", cp_example:"Example", cp_saved:"Saved.", cp_coming:"coming", cp_letter_note:"letter", cp_tokens:"Placeholders",
+      pf_sst:"SST No. (if any)", pf_prefix:"File name prefix", pf_einvoice:"e-Invoice information (PDF)",
       pf_saved:"Saved", pf_saving:"Saving…", pf_autosave:"Changes are saved automatically.", pf_unsaved:"Changes pending — saving automatically…", pf_save_failed:"Could not save: ",
       payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
       employees_label:"Employees", add_employee_btn:"+ Add Employee", payroll_entries_label:"Payroll", run_payroll_btn:"Run Payroll",
@@ -2587,6 +2638,10 @@
       pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
       pf_logo:"公司 Logo", pf_logo_desc:"公司的正式 Logo。", pf_upload:"上传", pf_letterhead:"信头（Letterhead）", pf_lh_desc:"信件使用。整页图片会当作整页底图；横幅图片放在信件顶部。", pf_lh_auto:"没有上传信头 — 信件会用下面这个，由公司名称、注册号和地址自动生成：",
       pf_ssm_title:"来自 SSM 文件", pf_ssm_desc:"在 KWSP & PERKESO 页读取 SSM Certificate / Section 14 后自动保存。", pf_directors:"董事", pf_inc_date:"成立日期", pf_nature:"业务",
+      nav_docs:"文件与记录", dh_sub:"这间公司做过的所有文件，以及资料的每一次更改", dh_type:"类型", dh_event:"动作", dh_when:"时间", dh_ref:"文件 / 资料", dh_who:"操作人", dh_details:"更改了什么", dh_all:"全部", dh_none:"暂时没有记录。",
+      dh_ev_generated:"生成", dh_ev_downloaded:"下载", dh_ev_created:"新建", dh_ev_updated:"修改", dh_ev_deleted:"删除", dh_changes:"项更改",
+      nav_control:"控制面板", cp_sub:"Owner 设置", cp_naming_title:"文件命名", cp_naming_desc:"设置每个功能的文件名怎么编排。留空就用系统原本的名字。公司前缀在每间公司的 Profile 里设置。", cp_feature:"功能", cp_builtin:"原本的名字", cp_pattern:"你的命名格式", cp_example:"例子", cp_saved:"已保存。", cp_coming:"即将推出", cp_letter_note:"信件", cp_tokens:"可用代码",
+      pf_sst:"SST 号（如有）", pf_prefix:"文件名前缀", pf_einvoice:"e-Invoice 资料页（PDF）",
       pf_saved:"已保存", pf_saving:"保存中…", pf_autosave:"改动会自动保存。", pf_unsaved:"有改动，稍后自动保存…", pf_save_failed:"保存失败：",
       payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
       employees_label:"员工", add_employee_btn:"+ 添加员工", payroll_entries_label:"薪资记录", run_payroll_btn:"发放薪资",
@@ -2853,6 +2908,8 @@
       document.body.classList.remove('sidebar-open');
       if(btn.dataset.panel === 'panel-kwsp' && typeof renderKwsp === 'function') renderKwsp();
       if(btn.dataset.panel === 'panel-profile' && typeof renderProfile === 'function') renderProfile(true);
+      if(btn.dataset.panel === 'panel-docs' && typeof renderDocs === 'function') renderDocs();
+      if(btn.dataset.panel === 'panel-control' && typeof renderControl === 'function') renderControl();
       // Keep the service group that contains the page you're on open.
       var owner = btn.closest('.nav-sub');
       if(owner) serviceMode = owner.id.replace('nav-sub-', '');
@@ -5341,6 +5398,7 @@
     renderPayroll();
     renderKwsp();
     renderProfile();
+    renderDocs(true);
   }
 
   // KWSP & PERKESO: the form page lives in an iframe served by the server; load it only while the panel is open.
@@ -5360,7 +5418,7 @@
   // CC CREST admin / manager edit it; everyone else who can open the company can read it. Changes save automatically.
   var pf = { companyId:null, canEdit:false, data:null, timer:null, saving:false, pending:false, dirty:false, regType:'BRN' };
   var PF_STATES = ['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Penang','Perak','Perlis','Sabah','Sarawak','Selangor','Terengganu','Kuala Lumpur','Labuan','Putrajaya'];
-  var PF_TEXT_IDS = ['pf-legal','pf-regno','pf-oldreg','pf-tin','pf-msic','pf-msicdesc','pf-tourism','pf-contact','pf-email','pf-website'];
+  var PF_TEXT_IDS = ['pf-legal','pf-regno','pf-oldreg','pf-tin','pf-msic','pf-msicdesc','pf-tourism','pf-sst','pf-prefix','pf-contact','pf-email','pf-website'];
   function pfEl(id){ return document.getElementById(id); }
   function pfEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function pfStatus(msg, err){ var el = pfEl('pf-status'); el.textContent = msg || ''; el.style.color = err ? 'var(--danger)' : 'var(--primary-soft)'; }
@@ -5405,6 +5463,8 @@
     pfEl('pf-msic').value = p.msicCode || '';
     pfEl('pf-msicdesc').value = p.msicDescription || '';
     pfEl('pf-tourism').value = p.tourismTaxNo || '';
+    pfEl('pf-sst').value = p.sstNo || '';
+    pfEl('pf-prefix').value = p.filePrefix || '';
     pfEl('pf-contact').value = p.contactNo || '';
     pfEl('pf-email').value = p.email || '';
     pfEl('pf-website').value = p.website || '';
@@ -5446,7 +5506,7 @@
     });
     var v = function(id){ return pfEl(id).value; };
     return { legalName:v('pf-legal'), regType:pf.regType, registrationNo:v('pf-regno'), oldRegistrationNo:v('pf-oldreg'), tin:v('pf-tin'),
-      msicCode:v('pf-msic'), msicDescription:v('pf-msicdesc'), tourismTaxNo:v('pf-tourism'), contactNo:v('pf-contact'), email:v('pf-email'),
+      msicCode:v('pf-msic'), msicDescription:v('pf-msicdesc'), tourismTaxNo:v('pf-tourism'), sstNo:v('pf-sst'), filePrefix:v('pf-prefix'), contactNo:v('pf-contact'), email:v('pf-email'),
       website:v('pf-website'), addresses:addrs };
   }
 
@@ -5538,6 +5598,12 @@
     pfRenderAddresses(list); pfApplyEditable(); pfMarkDirty();
   });
   pfEl('pf-save').addEventListener('click', function(){ pf.dirty = true; pfSaveNow(); });
+  // the printable e-Invoice information sheet for customers (saved first so it shows what is on screen)
+  pfEl('pf-einvoice').addEventListener('click', function(){
+    if(!pf.companyId) return;
+    pf.dirty = pf.dirty || false;
+    pfSaveNow().then(function(){ window.open('/api/companies/' + pf.companyId + '/einvoice-info.pdf', '_blank'); });
+  });
   window.addEventListener('pagehide', function(){
     if(!pf.dirty || !pf.canEdit || !pf.companyId) return;
     try { fetch('/api/companies/' + pf.companyId + '/profile', { method:'PUT', credentials:'same-origin', keepalive:true, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(pfCollect()) }); } catch(e) { /* nothing more to do */ }
@@ -5571,6 +5637,89 @@
   }
   pfUpload('pf-logo-input', 'logo'); pfUpload('pf-lh-input', 'letterhead');
   pfRemove('pf-logo-remove', 'logo'); pfRemove('pf-lh-remove', 'letterhead');
+
+  // ============ DOCUMENTS & HISTORY (per company) ============
+  var dh = { companyId:null, events:[], types:{} };
+  function dhWhen(iso){
+    var d = new Date(iso);
+    var p = new Intl.DateTimeFormat('en-GB', { timeZone:'Asia/Kuala_Lumpur', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(d)
+      .reduce(function(o, x){ o[x.type] = x.value; return o; }, {});
+    return p.day + '/' + p.month + '/' + p.year + ' ' + p.hour + ':' + p.minute;
+  }
+  function renderDocs(soft){
+    var panel = pfEl('panel-docs');
+    if(!panel) return;
+    var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    pfEl('dh-empty').hidden = !!companyId;
+    pfEl('dh-body').hidden = !companyId;
+    if(!companyId || panel.hidden) return;
+    if(soft && dh.companyId === companyId){ dhDraw(); return; }
+    dh.companyId = companyId;
+    api('/companies/' + companyId + '/documents?limit=300').then(function(r){
+      if(dh.companyId !== companyId) return;
+      dh.events = r.events; dh.types = r.types;
+      var typeSel = pfEl('dh-type'), evSel = pfEl('dh-event');
+      var used = {}; r.events.forEach(function(e){ used[e.docType] = true; });
+      typeSel.innerHTML = '<option value="">' + t('dh_all') + '</option>' + Object.keys(used).map(function(k){ return '<option value="' + pfEsc(k) + '">' + pfEsc(r.types[k] || k) + '</option>'; }).join('');
+      evSel.innerHTML = '<option value="">' + t('dh_all') + '</option>' + ['generated','downloaded','created','updated','deleted'].map(function(k){ return '<option value="' + k + '">' + t('dh_ev_' + k) + '</option>'; }).join('');
+      dhDraw();
+    }).catch(function(err){ pfEl('dh-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--danger);padding:18px;">' + pfEsc(err.message) + '</td></tr>'; });
+  }
+  function dhDraw(){
+    var type = pfEl('dh-type').value, ev = pfEl('dh-event').value;
+    var rows = dh.events.filter(function(e){ return (!type || e.docType === type) && (!ev || e.event === ev); });
+    pfEl('dh-tbody').innerHTML = rows.length ? rows.map(function(e){
+      var det = '';
+      if(e.details && e.details.length){
+        det = '<details><summary style="cursor:pointer;">' + e.details.length + ' ' + t('dh_changes') + '</summary><div style="font-size:12px;line-height:1.6;margin-top:6px;">' +
+          e.details.map(function(c){ return '<div><b>' + pfEsc(c.field) + '</b>: ' + (c.from ? '<span style="text-decoration:line-through;opacity:.7;">' + pfEsc(c.from) + '</span> → ' : '') + pfEsc(c.to) + '</div>'; }).join('') + '</div></details>';
+      }
+      return '<tr><td style="white-space:nowrap;">' + dhWhen(e.createdAt) + '</td><td>' + pfEsc(dh.types[e.docType] || e.docType) + '</td><td>' + pfEsc(e.docRef) + '</td><td>' + t('dh_ev_' + e.event) + '</td><td>' + pfEsc(e.userName) + '</td><td>' + det + '</td></tr>';
+    }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--primary-soft);padding:26px;">' + t('dh_none') + '</td></tr>';
+  }
+  pfEl('dh-type').addEventListener('change', dhDraw);
+  pfEl('dh-event').addEventListener('change', dhDraw);
+
+  // ============ CONTROL PANEL: file naming (Owner) ============
+  var cp = { features:[], timers:{} };
+  function renderControl(){
+    api('/doc-settings').then(function(r){
+      cp.features = r.features;
+      pfEl('cp-tokens').innerHTML = '<b>' + t('cp_tokens') + ':</b> ' + Object.keys(r.tokens).map(function(k){ return '<code>{' + k + '}</code> ' + pfEsc(r.tokens[k]); }).join(' · ');
+      pfEl('cp-tbody').innerHTML = r.features.map(function(f){
+        return '<tr data-key="' + f.key + '"><td>' + pfEsc(f.label) + (f.soon ? ' <span style="font-size:11px;color:var(--primary-soft);">(' + t('cp_coming') + ')</span>' : '') + (f.letter ? ' <span style="font-size:11px;color:var(--primary-soft);">· ' + t('cp_letter_note') + '</span>' : '') + '</td>' +
+          '<td style="font-family:var(--font-data);font-size:12px;color:var(--primary-soft);">' + pfEsc(f.builtin) + '.' + f.ext + '</td>' +
+          '<td><input type="text" class="cp-pattern" value="' + pfEsc(f.pattern) + '" placeholder="' + pfEsc(f.builtin) + '" style="width:100%;min-width:240px;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--surface-card);color:inherit;font-family:var(--font-data);font-size:12.5px;" /></td>' +
+          '<td class="cp-example" style="font-family:var(--font-data);font-size:12px;"></td></tr>';
+      }).join('');
+      pfEl('cp-status').textContent = '';
+      document.querySelectorAll('#cp-tbody tr').forEach(cpPreview);
+    }).catch(function(err){ pfEl('cp-status').textContent = err.message; pfEl('cp-status').style.color = 'var(--danger)'; });
+  }
+  function cpPreview(tr){
+    var input = tr.querySelector('.cp-pattern'), out = tr.querySelector('.cp-example');
+    var pattern = input.value.trim();
+    if(!pattern){ out.textContent = '—'; out.style.color = 'var(--primary-soft)'; return; }
+    var companyId = currentCompany ? customerRecordId(currentCompany) : 0;
+    api('/doc-settings/preview', { method:'POST', body: JSON.stringify({ pattern:pattern, companyId:companyId }) }).then(function(r){
+      if(r.error){ out.textContent = r.error; out.style.color = 'var(--danger)'; }
+      else { var f = cp.features.filter(function(x){ return x.key === tr.dataset.key; })[0]; out.textContent = r.name + '.' + (f ? f.ext : ''); out.style.color = ''; }
+    });
+  }
+  pfEl('cp-tbody').addEventListener('input', function(e){
+    var tr = e.target.closest('tr'); if(!tr) return;
+    clearTimeout(cp.timers[tr.dataset.key]);
+    cp.timers[tr.dataset.key] = setTimeout(function(){ cpPreview(tr); }, 400);
+  });
+  pfEl('cp-save').addEventListener('click', function(){
+    var patterns = {};
+    document.querySelectorAll('#cp-tbody tr').forEach(function(tr){ patterns[tr.dataset.key] = tr.querySelector('.cp-pattern').value.trim(); });
+    var btn = this; btn.disabled = true;
+    api('/doc-settings', { method:'PUT', body: JSON.stringify({ patterns:patterns }) })
+      .then(function(){ pfEl('cp-status').textContent = t('cp_saved'); pfEl('cp-status').style.color = 'var(--primary-soft)'; })
+      .catch(function(err){ pfEl('cp-status').textContent = err.message; pfEl('cp-status').style.color = 'var(--danger)'; })
+      .finally(function(){ btn.disabled = false; });
+  });
 
   // ============ COMPANY SEARCH (typeahead) + LANDING GRID ============
   function matchesQuery(name, q){

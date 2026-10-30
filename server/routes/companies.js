@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
 const { logActivity } = require('../lib/activity');
 const { slugify } = require('../lib/mockGen');
+const docs = require('../lib/docs');
 
 const router = express.Router();
 const PERIOD = '2026-08';
@@ -147,7 +148,7 @@ function profileJson(r, canEdit) {
     registration_no: r.registration_no, address: r.address, letterhead_data_url: r.letterhead_data_url,
     legalName: r.legal_name || '', regType: r.reg_type, registrationNo: r.registration_no || '', oldRegistrationNo: r.old_registration_no || '',
     tin: r.tin || '', msicCode: r.msic_code || '', msicDescription: r.msic_description || '', tourismTaxNo: r.tourism_tax_no || '',
-    contactNo: r.contact_no || '', email: r.email || '', website: r.website || '',
+    contactNo: r.contact_no || '', email: r.email || '', website: r.website || '', sstNo: r.sst_no || '', filePrefix: r.file_prefix || '',
     addresses: Array.isArray(r.addresses) ? r.addresses : [],
     logoDataUrl: r.logo_data_url || null, letterheadDataUrl: r.letterhead_data_url || null, ssm: r.ssm_data || null
   };
@@ -181,14 +182,17 @@ router.put('/companies/:companyId/profile', requireAuth, scopeToCompany, require
   const registrationNo = text(b.registrationNo, 40) || null;
   const { rows } = await pool.query(
     `UPDATE companies SET legal_name = $1, reg_type = $2, registration_no = $3, old_registration_no = $4, tin = $5, msic_code = $6,
-       msic_description = $7, tourism_tax_no = $8, contact_no = $9, email = $10, website = $11, addresses = $12, address = $13
-     WHERE id = $14 RETURNING *`,
+       msic_description = $7, tourism_tax_no = $8, contact_no = $9, email = $10, website = $11, addresses = $12, address = $13,
+       sst_no = $14, file_prefix = $15
+     WHERE id = $16 RETURNING *`,
     [text(b.legalName, 200) || null, regType, registrationNo, text(b.oldRegistrationNo, 40) || null, text(b.tin, 40) || null,
       text(b.msicCode, 10) || null, text(b.msicDescription, 200) || null, text(b.tourismTaxNo, 40) || null, text(b.contactNo, 40) || null,
       text(b.email, 120) || null, text(b.website, 200) || null, JSON.stringify(addresses), addresses[0] ? formatAddress(addresses[0]) : null,
-      req.params.companyId]
+      text(b.sstNo, 40) || null, text(b.filePrefix, 20).toUpperCase().replace(/[^A-Z0-9_-]/g, '') || null, req.params.companyId]
   );
   await logActivity(req.user.sub, 'Updated company profile', rows[0].name, null);
+  const SKIP = ['id', 'name', 'type', 'canEdit', 'registration_no', 'address', 'letterhead_data_url', 'letterheadDataUrl', 'logoDataUrl', 'ssm'];
+  await docs.logUpdate(req, rows[0].id, 'company_profile', rows[0].name, docs.diffObjects(profileJson(before[0], true), profileJson(rows[0], true), SKIP));
   res.json(profileJson(rows[0], true));
 });
 
@@ -207,6 +211,7 @@ router.post('/companies/:companyId/logo', requireAuth, scopeToCompany, requireRo
   const { rows } = await pool.query('UPDATE companies SET logo_data_url = $1 WHERE id = $2 RETURNING id, name', [dataUrl, req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await logActivity(req.user.sub, 'Uploaded company logo', rows[0].name, null);
+  await docs.logUpdate(req, rows[0].id, 'company_profile', rows[0].name, [{ field: 'logo', from: '', to: 'uploaded' }]);
   res.json({ ok: true, logoDataUrl: dataUrl });
 });
 
@@ -214,6 +219,7 @@ router.delete('/companies/:companyId/logo', requireAuth, scopeToCompany, require
   const { rows } = await pool.query('UPDATE companies SET logo_data_url = NULL WHERE id = $1 RETURNING id, name', [req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await logActivity(req.user.sub, 'Removed company logo', rows[0].name, null);
+  await docs.logUpdate(req, rows[0].id, 'company_profile', rows[0].name, [{ field: 'logo', from: 'uploaded', to: '' }]);
   res.json({ ok: true });
 });
 
@@ -226,6 +232,7 @@ router.post('/companies/:companyId/letterhead', requireRole('admin'), letterhead
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await logActivity(req.user.sub, 'Uploaded letterhead', rows[0].name, null);
+  await docs.logUpdate(req, rows[0].id, 'company_profile', rows[0].name, [{ field: 'letterhead', from: '', to: 'uploaded' }]);
   res.json({ ok: true });
 });
 
@@ -236,6 +243,7 @@ router.delete('/companies/:companyId/letterhead', requireRole('admin'), async (r
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await logActivity(req.user.sub, 'Removed letterhead', rows[0].name, null);
+  await docs.logUpdate(req, rows[0].id, 'company_profile', rows[0].name, [{ field: 'letterhead', from: 'uploaded', to: '' }]);
   res.json({ ok: true });
 });
 

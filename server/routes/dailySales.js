@@ -3,6 +3,7 @@ const { pool } = require('../db');
 const { requireAuth, scopeToCompany } = require('../auth');
 const { getAccess } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
 const rules = require('../lib/dailySalesRules');
 const { buildInvoiceWorkbook } = require('../lib/dailySalesExcel');
 const { buildReportPdf } = require('../lib/dailySalesPdf');
@@ -634,7 +635,10 @@ router.get(`${BASE}/records/:recordId/report.xlsx`, requireAuth, scopeToCompany,
   await logActivity(req.user.sub, 'Downloaded daily-sales Bukku invoice file', await companyName(req.params.companyId),
     `${ctx.branch.report_prefix} ${rules.pad2(ctx.month)}/${ctx.year} — ${ctx.built.invoices.length} invoices, RM ${rules.formatCents(ctx.built.monthTotalCents)}`);
 
-  const filename = `${rules.reportFileBase(ctx.branch, ctx.year, ctx.month)}.xlsx`;
+  const base = await docs.fileBase('sales_summary_excel', req.params.companyId, { BRANCH: ctx.branch.report_prefix, YYYY: String(ctx.year), MM: rules.pad2(ctx.month) }, rules.reportFileBase(ctx.branch, ctx.year, ctx.month));
+  const filename = `${base}.xlsx`;
+  docs.stampWorkbook(wb, docs.stampText(await docs.userNameFor(req)));
+  await docs.logEvent(req, req.params.companyId, 'sales_summary_excel', filename, 'downloaded', []);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   await wb.xlsx.write(res);
@@ -653,10 +657,13 @@ router.get(`${BASE}/records/:recordId/report.pdf`, requireAuth, scopeToCompany, 
     if (rows[0]) approvedBy = `${rows[0].display_name} (${new Date(ctx.rec.checked_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Kuala_Lumpur' })})`;
   }
 
-  const filename = `${rules.reportFileBase(ctx.branch, ctx.year, ctx.month)}.pdf`;
+  const base = await docs.fileBase('sales_summary_pdf', req.params.companyId, { BRANCH: ctx.branch.report_prefix, YYYY: String(ctx.year), MM: rules.pad2(ctx.month) }, rules.reportFileBase(ctx.branch, ctx.year, ctx.month));
+  const filename = `${base}.pdf`;
+  await docs.logEvent(req, req.params.companyId, 'sales_summary_pdf', filename, 'downloaded', []);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   const doc = buildReportPdf(ctx.branch, ctx.menu, ctx.built, cleanText(req.query.preparedBy, 100), approvedBy);
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   doc.pipe(res);
   doc.end();
 });

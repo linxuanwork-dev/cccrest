@@ -9,7 +9,7 @@
 
   /* Photo clean-up: grayscale, remove uneven lighting / shadows, black-and-white, then erase long table borders so
      the words inside the table cells can be read. Works in place on RGBA pixels. */
-  function binarize(rgba, w, h) {
+  function binarize(rgba, w, h, eraseLines) {
     const gray = new Float32Array(w * h);
     for (let i = 0, j = 0; i < gray.length; i++, j += 4) gray[i] = 0.299 * rgba[j] + 0.587 * rgba[j + 1] + 0.114 * rgba[j + 2];
     const W = w + 1, integ = new Float64Array(W * (h + 1));
@@ -24,7 +24,8 @@
         bw[y * w + x] = gray[y * w + x] < mean * 0.86 ? 1 : 0;
       }
     }
-    const hMin = Math.round(w * 0.1), vMin = Math.max(60, Math.round(h * 0.02));
+    // (an ID card has no table borders, so for cards nothing is erased)
+    const hMin = eraseLines === false ? Infinity : Math.round(w * 0.1), vMin = eraseLines === false ? Infinity : Math.max(60, Math.round(h * 0.02));
     for (let y = 0; y < h; y++) {
       let x = 0;
       while (x < w) {
@@ -73,10 +74,10 @@
   // drop stray table-border marks the OCR reads as characters
   const clean = (t) => t.replace(/^[|[\]!_~=—"'“”‘’]+(?=.)/, '').replace(/(?<=.)[|[\]!_~=]+$/, '').replace(/^["'“”‘’]+$/, '');
 
-  async function recognizeCanvas(worker, canvas) {
+  async function recognizeCanvas(worker, canvas, opts) {
     const ctx = canvas.getContext('2d');
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    binarize(img.data, canvas.width, canvas.height);
+    binarize(img.data, canvas.width, canvas.height, opts && opts.eraseLines);
     ctx.putImageData(img, 0, 0);
     const r = await worker.recognize(canvas, {}, { blocks: true });
     const sc = PAGE_WIDTH_PT / canvas.width, items = [];
@@ -120,5 +121,86 @@
     return [await recognizeCanvas(worker, canvas)];
   }
 
-  root.SSMOcr = { pagesFromScannedPdf, pagesFromImage, binarize };
+  /* ---------- Malaysian ID card (MyKad) ---------- */
+  const fixDigits = (s) => s.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1');
+  const IC_RE = /([\dOoIl|]{6})\s*[-–—]?\s*([\dOoIl|]{2})\s*[-–—]?\s*([\dOoIl|]{4})/;
+  const STOP_RE = /\b(WARGANEGARA|LELAKI|PEREMPUAN|ISLAM|BUKAN\s*ISLAM|KRISTIAN|BUDDHA|HINDU|MYKAD|KAD\s*PENGENALAN)\b/;
+
+  // groups OCR words into text lines (top to bottom)
+  function toRows(items) {
+    const hs = items.map((i) => i.h).sort((a, b) => a - b);
+    const tol = Math.max(2.5, (hs[hs.length >> 1] || 8) * 0.55);
+    const rows = [];
+    items.slice().sort((a, b) => a.y - b.y || a.x - b.x).forEach((it) => {
+      const r = rows.find((r) => Math.abs(r.y - it.y) < tol);
+      if (r) r.items.push(it); else rows.push({ y: it.y, items: [it] });
+    });
+    return rows.map((r) => r.items.sort((a, b) => a.x - b.x).map((i) => i.str.trim()).filter(Boolean).join(' ')).filter(Boolean);
+  }
+
+  // rows of text -> { ic, name, address, dob, gender, nationality } (empty strings where nothing was found)
+  function parseIdCard(rows) {
+    const out = { ic: '', name: '', address: '', dob: '', gender: '', nationality: '' };
+    let at = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const m = IC_RE.exec(rows[i]);
+      if (m) { out.ic = fixDigits(m[1]) + '-' + fixDigits(m[2]) + '-' + fixDigits(m[3]); at = i; break; }
+    }
+    const whole = rows.join(' ').toUpperCase();
+    if (/PEREMPUAN/.test(whole)) out.gender = 'P'; else if (/LELAKI/.test(whole)) out.gender = 'L';
+    if (/WARGANEGARA/.test(whole)) out.nationality = 'MALAYSIA';
+    if (out.ic) {
+      const d = out.ic.replace(/-/g, '');
+      const yy = +d.slice(0, 2), mm = d.slice(2, 4), dd = d.slice(4, 6);
+      const nowYY = new Date().getFullYear() % 100;
+      const year = (yy <= nowYY ? 2000 : 1900) + yy;
+      if (+mm >= 1 && +mm <= 12 && +dd >= 1 && +dd <= 31) out.dob = year + '-' + mm + '-' + dd;
+      out.gender = (+d.slice(-1)) % 2 === 1 ? 'L' : 'P';        // the last digit of the IC decides it (odd = male)
+    }
+    if (at >= 0) {
+      const nameRows = [], addrRows = [];
+      let inAddr = false;
+      for (let i = at + 1; i < rows.length; i++) {
+        const up = rows[i].toUpperCase().trim();
+        if (STOP_RE.test(up)) { if (inAddr || nameRows.length) break; else continue; }
+        if (!inAddr && /[\d,]/.test(up)) inAddr = true;          // the name has no digits or commas; the address does
+        (inAddr ? addrRows : nameRows).push(rows[i].trim());
+      }
+      out.name = nameRows.join(' ').toUpperCase().replace(/[^A-Z@'./ -]+/g, ' ').replace(/\s+/g, ' ').trim();
+      out.address = addrRows.map((r) => r.toUpperCase().replace(/\s+/g, ' ').replace(/[|_~]+/g, '').trim()).filter(Boolean).join(', ');
+    }
+    return out;
+  }
+
+  /* Reads one photo of the front of an ID card. progress() is called when the recognition starts. */
+  async function readIdCard(file, progress) {
+    const worker = await getWorker();
+    if (progress) progress();
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(2, 1800 / bmp.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const page = await recognizeCanvas(worker, canvas, { eraseLines: false });
+    const rows = toRows(page.items.map((i) => ({ str: i.str, x: i.x, y: i.y, w: i.w, h: i.h })));
+    const parsed = parseIdCard(rows);
+    if (!parsed.ic) {
+      // the big IC number is often skipped by the normal page layout: look for it again as loose digits only
+      try {
+        await worker.setParameters({ tessedit_char_whitelist: '0123456789-', tessedit_pageseg_mode: '11' });
+        const again = await recognizeCanvas(worker, canvas, { eraseLines: false });
+        const m = IC_RE.exec(toRows(again.items).join(' '));
+        if (m) {
+          const ic = fixDigits(m[1]) + '-' + fixDigits(m[2]) + '-' + fixDigits(m[3]);
+          const filled = parseIdCard([ic].concat(rows));          // the number first, then the card's own text lines
+          return Object.assign(filled, { rows });
+        }
+      } catch (e) { /* keep what the first pass found */ }
+      finally { await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '3' }).catch(() => {}); }
+    }
+    return Object.assign(parsed, { rows });
+  }
+
+  root.SSMOcr = { pagesFromScannedPdf, pagesFromImage, binarize, readIdCard, parseIdCard };
 })(window);

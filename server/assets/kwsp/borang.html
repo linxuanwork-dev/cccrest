@@ -299,8 +299,10 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
         <div class="emps" id="emps"></div>
         <div style="padding: 0 16px 16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
           <button type="button" id="addEmp">+ 加员工</button>
+          <button type="button" id="impEmp">从员工资料加入</button>
           <span class="hint" style="margin:0">MyKad 会自动算出生日期和性别。月薪选「超过 RM3,000」只在 Borang 2 打勾；选「超过 RM4,000」三份都打勾。每页 10 人，超过自动加页。</span>
         </div>
+        <div id="impEmpBox" hidden style="padding: 0 16px 16px"></div>
       </section>
     </form>
 
@@ -398,6 +400,45 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     updateFormList();
   }
   $('#addEmp').onclick = () => { const d = empRow(); $('[data-e=ic]', d).focus(); };
+
+  /* ---------- employees from the HR > Payroll employee list (their IC details are kept there) ---------- */
+  const normIc = (s) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  $('#impEmp').onclick = async () => {
+    const box = $('#impEmpBox');
+    if (!box.hidden) { box.hidden = true; return; }
+    let list;
+    try { list = (await apiCall('/api/companies/' + COMPANY_ID + '/employees')).filter(e => e.active); }
+    catch (e) { toast('读取员工资料失败：' + e.message); return; }
+    const have = new Set($$('#emps [data-e=ic]').map(i => normIc(i.value)).filter(Boolean));
+    const esc2 = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    box.innerHTML = list.length
+      ? '<div class="subh" style="margin-bottom:6px">员工资料（HR → Payroll）</div>' + list.map(e => {
+          const dup = e.ic_no && have.has(normIc(e.ic_no));
+          return '<label class="check"><input type="checkbox" value="' + e.id + '" ' + (dup ? 'disabled' : 'checked') + '> ' + esc2(e.name) + ' · ' + esc2(e.ic_no || '') + (dup ? ' （已在表格里）' : '') + '</label>';
+        }).join('') + '<div style="margin-top:8px"><button type="button" class="primary" id="impEmpGo">加入选中的员工</button></div>'
+      : '<p class="hint">这间公司在 HR → Payroll 还没有员工资料。</p>';
+    box.hidden = false;
+    const go = $('#impEmpGo');
+    if (!go) return;
+    go.onclick = () => {
+      const picked = Array.from(box.querySelectorAll('input:checked')).map(i => +i.value);
+      const rows = $$('#emps .emp');
+      // a still-empty first row is replaced by the first imported employee
+      if (rows.length === 1 && !rows[0].querySelector('[data-e=name]').value.trim() && !rows[0].querySelector('[data-e=ic]').value.trim()) rows[0].remove();
+      list.filter(e => picked.includes(e.id)).forEach(e => {
+        const sal = Number(e.basic_salary) || 0;
+        empRow({
+          idType: e.id_type || 'B', ic: e.ic_no || '', dob: e.dob ? String(e.dob).slice(0, 10) : '', gender: e.gender || '', name: e.name,
+          race: e.race || '', start: e.start_date ? String(e.start_date).slice(0, 10) : '', job: e.position || '', over: sal > 4000 ? '4000' : sal > 3000 ? '3000' : ''
+        });
+      });
+      renumber();
+      if (!$('#c_nemp').value) $('#c_nemp').value = $$('#emps .emp').length;
+      box.hidden = true;
+      markDirty();
+      toast('已加入 ' + picked.length + ' 位员工，请核对。');
+    };
+  };
 
   /* ---------- collect / fill ---------- */
   function setPath(obj, path, val) {

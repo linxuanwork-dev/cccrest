@@ -410,6 +410,20 @@
     background:var(--surface-card); border-radius:12px; width:100%; max-width:420px; box-shadow:var(--shadow);
     animation:riseIn 220ms ease both; max-height:90vh; display:flex; flex-direction:column; overflow:hidden;
   }
+  .modal-card.wide{ max-width:780px; }
+  .emp-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
+  .emp-grid .field{ margin:0; }
+  .emp-grid .full{ grid-column:1 / -1; }
+  .emp-grid input, .emp-grid select, .emp-grid textarea{ width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:6px; padding:8px 10px; background:var(--surface-card); color:inherit; font-family:inherit; font-size:13px; }
+  .emp-grid textarea{ min-height:60px; resize:vertical; }
+  .emp-grid .ocr{ background:rgba(232,140,30,0.16); border-color:rgba(232,140,30,0.7); }
+  .emp-sec{ grid-column:1 / -1; font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--primary-soft); margin-top:6px; padding-top:10px; border-top:1px dashed var(--border); }
+  .emp-ic-box{ border:1px dashed var(--border); border-radius:10px; padding:14px; background:var(--surface-alt); }
+  .emp-thumbs{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+  .emp-thumb{ position:relative; width:120px; height:80px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:#fff; }
+  .emp-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .emp-thumb button{ position:absolute; top:2px; right:2px; border:0; background:rgba(0,0,0,.6); color:#fff; border-radius:50%; width:20px; height:20px; line-height:18px; cursor:pointer; font-size:12px; padding:0; }
+  @media (max-width:700px){ .emp-grid{ grid-template-columns:1fr; } }
   .modal-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--border); }
   .modal-header h3{ font-size:17px; color:var(--ink); margin:0 0 4px; }
   .modal-sub{ font-size:12px; color:var(--primary-soft); line-height:1.4; }
@@ -1888,10 +1902,10 @@
   </div>
 
   <div class="modal-backdrop" id="employee-modal-backdrop" hidden>
-    <div class="modal-card">
+    <div class="modal-card wide">
       <div class="modal-header">
         <div>
-          <h3 data-i18n="add_employee_title">Add Employee</h3>
+          <h3 id="employee-modal-title" data-i18n="add_employee_title">Add Employee</h3>
           <div class="modal-sub" data-i18n="add_employee_sub">Employee payroll record for this company.</div>
         </div>
         <button type="button" class="modal-close" id="employee-modal-close" data-i18n-aria="close" aria-label="Close">
@@ -1899,19 +1913,48 @@
         </button>
       </div>
       <div class="modal-body">
-        <div class="field"><label for="employee-name" data-i18n="th_name">Name</label><input type="text" id="employee-name" /></div>
-        <div class="field"><label for="employee-position" data-i18n="th_position">Position</label><input type="text" id="employee-position" /></div>
-        <div class="field"><label for="employee-ic-no" data-i18n="field_ic_no">IC No.</label><input type="text" id="employee-ic-no" /></div>
-        <div class="field"><label for="employee-basic-salary" data-i18n="th_basic_salary">Basic Salary</label><input type="number" min="0" step="0.01" id="employee-basic-salary" /></div>
-        <div class="field"><label for="employee-epf-no" data-i18n="field_epf_no">EPF No.</label><input type="text" id="employee-epf-no" /></div>
-        <div class="field"><label for="employee-socso-no" data-i18n="field_socso_no">SOCSO No.</label><input type="text" id="employee-socso-no" /></div>
-        <div class="field"><label for="employee-bank-name" data-i18n="field_bank_name">Bank Name</label><input type="text" id="employee-bank-name" /></div>
-        <div class="field"><label for="employee-bank-account" data-i18n="field_bank_account">Bank Account No.</label><input type="text" id="employee-bank-account" /></div>
-        <div id="employee-modal-error" hidden style="color:var(--danger);font-size:12.5px;"></div>
+        <div class="emp-ic-box">
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px;" data-i18n="emp_ic_upload">Upload IC (photo of the front)</div>
+          <div style="font-size:12px;color:var(--primary-soft);margin-bottom:10px;" data-i18n="emp_ic_note">The name, IC no., date of birth, gender and address are read from the photo in your browser and filled in below (yellow = check it). The picture is saved with the employee.</div>
+          <input type="file" id="emp-ic-file" accept="image/jpeg,image/png,image/webp" multiple />
+          <div id="emp-ic-status" style="font-size:12.5px;margin-top:8px;"></div>
+          <div class="emp-thumbs" id="emp-thumbs"></div>
+        </div>
+
+        <div class="emp-grid" style="margin-top:16px;">
+          <div class="field full"><label for="emp-name" data-i18n="th_name">Name</label><input type="text" id="emp-name" /></div>
+          <div class="field"><label for="emp-id-type" data-i18n="emp_id_type">ID type</label><select id="emp-id-type"></select></div>
+          <div class="field"><label for="emp-ic" data-i18n="field_ic_no">IC No.</label><input type="text" id="emp-ic" /></div>
+          <div class="field"><label for="emp-dob" data-i18n="emp_dob">Date of birth</label><input type="date" id="emp-dob" /></div>
+          <div class="field"><label for="emp-gender" data-i18n="emp_gender">Gender</label><select id="emp-gender"></select></div>
+          <div class="field"><label for="emp-race" data-i18n="emp_race">Race</label><select id="emp-race"></select></div>
+          <div class="field"><label for="emp-nationality" data-i18n="emp_nationality">Nationality</label><input type="text" id="emp-nationality" placeholder="MALAYSIA" /></div>
+          <div class="field full"><label for="emp-address" data-i18n="emp_address">Address</label><textarea id="emp-address"></textarea></div>
+
+          <div class="emp-sec" data-i18n="emp_sec_job">Job</div>
+          <div class="field"><label for="emp-position" data-i18n="th_position">Position</label><input type="text" id="emp-position" /></div>
+          <div class="field"><label for="emp-start" data-i18n="emp_start">Start date</label><input type="date" id="emp-start" /></div>
+          <div class="field"><label for="emp-salary" data-i18n="th_basic_salary">Basic Salary</label><input type="number" min="0" step="0.01" id="emp-salary" /></div>
+          <div class="field"><label for="emp-active" data-i18n="th_status">Status</label><select id="emp-active"></select></div>
+
+          <div class="emp-sec" data-i18n="emp_sec_stat">EPF · SOCSO · tax</div>
+          <div class="field"><label for="emp-epf" data-i18n="field_epf_no">EPF No.</label><input type="text" id="emp-epf" /></div>
+          <div class="field"><label for="emp-socso" data-i18n="field_socso_no">SOCSO No.</label><input type="text" id="emp-socso" /></div>
+          <div class="field"><label for="emp-tin" data-i18n="emp_tin">TIN No.</label><input type="text" id="emp-tin" /></div>
+          <div class="field"><label for="emp-tax" data-i18n="emp_tax_status">Tax status</label><select id="emp-tax"></select></div>
+          <div class="field full"><label for="emp-marital" data-i18n="emp_marital">Marital status</label><select id="emp-marital"></select></div>
+          <div class="field"><label for="emp-children" data-i18n="emp_children">No. of children</label><input type="number" min="0" max="30" step="1" id="emp-children" /></div>
+          <div class="field"><label for="emp-disabled" data-i18n="emp_disabled">Disabled individual</label><select id="emp-disabled"></select></div>
+
+          <div class="emp-sec" data-i18n="emp_sec_bank">Bank</div>
+          <div class="field"><label for="emp-bank-name" data-i18n="field_bank_name">Bank Name</label><input type="text" id="emp-bank-name" /></div>
+          <div class="field"><label for="emp-bank-account" data-i18n="field_bank_account">Bank Account No.</label><input type="text" id="emp-bank-account" /></div>
+        </div>
+        <div id="employee-modal-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:12px;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-ghost" id="employee-cancel" data-i18n="cancel">Cancel</button>
-        <button type="button" class="btn-primary" id="employee-submit" style="width:auto;padding:10px 18px;" data-i18n="create_btn">Create</button>
+        <button type="button" class="btn-primary" id="employee-submit" style="width:auto;padding:10px 18px;" data-i18n="save_btn">Save</button>
       </div>
     </div>
   </div>
@@ -2378,7 +2421,13 @@
       payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
       employees_label:"Employees", add_employee_btn:"+ Add Employee", payroll_entries_label:"Payroll", run_payroll_btn:"Run Payroll",
       th_name:"Name", th_position:"Position", th_basic_salary:"Basic Salary", th_net_pay:"Net Pay",
-      add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.",
+      add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.", edit_employee_title:"Edit Employee", emp_ic_upload:"Upload IC (photo of the front)", emp_ic_note:"The name, IC no., date of birth, gender and address are read from the photo in your browser and filled in below (yellow = check it). The picture is saved with the employee.",
+      emp_ic_reading:"Reading the IC… (the first time it loads about 7 MB)", emp_ic_done:"IC read — please check the yellow fields.", emp_ic_none:"Could not read an IC number from this photo — type the details in.", emp_ic_fail:"Could not read the IC: ", emp_ic_saved:"IC images saved with the employee.",
+      emp_id_type:"ID type", emp_dob:"Date of birth", emp_gender:"Gender", emp_gender_m:"Male (L)", emp_gender_f:"Female (P)", emp_race:"Race", emp_nationality:"Nationality", emp_address:"Address", emp_start:"Start date",
+      emp_sec_job:"Job", emp_sec_stat:"EPF · SOCSO · tax", emp_sec_bank:"Bank", emp_tin:"TIN No.", emp_tax_status:"Tax status", emp_resident:"Resident", emp_nonresident:"Non-resident",
+      emp_marital:"Marital status", emp_m_single:"Single, or spouse does not claim child relief", emp_m_spouse_not_working:"Married, spouse not working", emp_m_working_spouse:"Married, working spouse", emp_m_widow_divorced:"Widow / divorced",
+      emp_children:"No. of children", emp_disabled:"Disabled individual", emp_yes:"Yes", emp_no:"No", emp_choose:"— choose —", emp_active:"Active", emp_inactive:"Inactive",
+      
       field_ic_no:"IC No.", field_epf_no:"EPF No.", field_socso_no:"SOCSO No.", field_bank_name:"Bank Name", field_bank_account:"Bank Account No.",
       run_payroll_title:"Run Payroll", field_allowances:"Allowances",
       field_epf_employee:"EPF (Employee)", field_epf_employer:"EPF (Employer)",
@@ -2646,7 +2695,13 @@
       payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
       employees_label:"员工", add_employee_btn:"+ 添加员工", payroll_entries_label:"薪资记录", run_payroll_btn:"发放薪资",
       th_name:"姓名", th_position:"职位", th_basic_salary:"基本薪资", th_net_pay:"实发薪资",
-      add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。",
+      add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。", edit_employee_title:"编辑员工", emp_ic_upload:"上传 IC（正面照片）", emp_ic_note:"姓名、IC 号、出生日期、性别和地址会在你的浏览器里从照片读出并填在下面（黄色 = 请核对）。照片会和员工资料一起保存。",
+      emp_ic_reading:"正在读取 IC…（第一次要加载约 7 MB）", emp_ic_done:"已读取 IC，请核对黄色的栏位。", emp_ic_none:"这张照片读不到 IC 号，请手动填写。", emp_ic_fail:"读取 IC 失败：", emp_ic_saved:"IC 图片已和员工资料一起保存。",
+      emp_id_type:"证件类型", emp_dob:"出生日期", emp_gender:"性别", emp_gender_m:"男 (L)", emp_gender_f:"女 (P)", emp_race:"种族", emp_nationality:"国籍", emp_address:"地址", emp_start:"入职日期",
+      emp_sec_job:"工作", emp_sec_stat:"公积金 · 社保 · 税务", emp_sec_bank:"银行", emp_tin:"TIN 号", emp_tax_status:"税务身份", emp_resident:"居民", emp_nonresident:"非居民",
+      emp_marital:"婚姻状况", emp_m_single:"单身，或配偶不申请子女减免", emp_m_spouse_not_working:"已婚，配偶没有工作", emp_m_working_spouse:"已婚，配偶有工作", emp_m_widow_divorced:"丧偶 / 离婚",
+      emp_children:"子女人数", emp_disabled:"残疾人士", emp_yes:"是", emp_no:"否", emp_choose:"— 请选择 —", emp_active:"在职", emp_inactive:"停用",
+      
       field_ic_no:"身份证号", field_epf_no:"公积金号", field_socso_no:"社保号", field_bank_name:"银行名称", field_bank_account:"银行账号",
       run_payroll_title:"发放薪资", field_allowances:"津贴",
       field_epf_employee:"公积金（员工）", field_epf_employer:"公积金（雇主）",
@@ -5190,10 +5245,16 @@
           '<td>' + (e.position || '—') + '</td>' +
           '<td class="num">' + money(Number(e.basic_salary)) + '</td>' +
           '<td><span class="badge ' + (e.active ? 'approved' : 'rejected') + '">' + (e.active ? t('status_active') : t('status_suspended')) + '</span></td>' +
-          '<td></td>' +
+          '<td><button type="button" class="btn-row" data-edit-employee="' + e.id + '">' + t('edit_btn') + '</button></td>' +
         '</tr>';
       }).join('');
 
+      employeesTbody.querySelectorAll('[data-edit-employee]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var emp = CURRENT_EMPLOYEES.filter(function(x){ return String(x.id) === btn.dataset.editEmployee; })[0];
+          if(emp) openEmployeeModal(emp);
+        });
+      });
       var sel = document.getElementById('payroll-employee-select');
       sel.innerHTML = '<option value="">' + t('select_employee_placeholder') + '</option>' +
         rows.filter(function(e){ return e.active; }).map(function(e){ return '<option value="' + e.id + '">' + e.name + '</option>'; }).join('');
@@ -5233,38 +5294,137 @@
 
   document.getElementById('payroll-period-select').addEventListener('change', renderPayroll);
 
-  document.getElementById('add-employee-btn').addEventListener('click', function(){
-    ['employee-name','employee-position','employee-ic-no','employee-basic-salary','employee-epf-no','employee-socso-no','employee-bank-name','employee-bank-account'].forEach(function(id){
-      document.getElementById(id).value = '';
-    });
-    document.getElementById('employee-modal-error').hidden = true;
-    document.getElementById('employee-modal-backdrop').hidden = false;
-  });
-  function closeEmployeeModal(){ document.getElementById('employee-modal-backdrop').hidden = true; }
-  document.getElementById('employee-modal-close').addEventListener('click', closeEmployeeModal);
-  document.getElementById('employee-cancel').addEventListener('click', closeEmployeeModal);
-  document.getElementById('employee-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeEmployeeModal(); });
-  document.getElementById('employee-submit').addEventListener('click', function(){
+  // ---- Employee master record (also feeds the KWSP / SOCSO forms and letters) ----
+  var EMP_RACES = [['01','MELAYU'],['02','CINA'],['03','INDIA'],['04','BUMIPUTERA SABAH'],['05','BUMIPUTERA SARAWAK'],['06','LAIN-LAIN']];
+  var EMP_ID_TYPES = [['B','B · KPPN Baru (MyKad)'],['L','L · KPPN Lama'],['T','T · KP Tentera'],['P','P · KP Polis'],['PR','PR · Penduduk Tetap'],['SSN','SSN · No. Keselamatan Sosial'],['passport','Passport']];
+  var empState = { id:null, pending:[], previews:[] };
+  function empEl(id){ return document.getElementById(id); }
+  function empOpts(list){ return list.map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join(''); }
+  function empBuildSelects(){
+    empEl('emp-id-type').innerHTML = empOpts(EMP_ID_TYPES);
+    empEl('emp-gender').innerHTML = empOpts([['', ''], ['L', t('emp_gender_m')], ['P', t('emp_gender_f')]]);
+    empEl('emp-race').innerHTML = empOpts([['', '']].concat(EMP_RACES.map(function(r){ return [r[0], r[0] + ' ' + r[1]]; })));
+    empEl('emp-active').innerHTML = empOpts([['true', t('emp_active')], ['false', t('emp_inactive')]]);
+    empEl('emp-tax').innerHTML = empOpts([['resident', t('emp_resident')], ['non_resident', t('emp_nonresident')]]);
+    empEl('emp-marital').innerHTML = empOpts([['', t('emp_choose')], ['single', t('emp_m_single')], ['married_spouse_not_working', t('emp_m_spouse_not_working')], ['married_working_spouse', t('emp_m_working_spouse')], ['widow_divorced', t('emp_m_widow_divorced')]]);
+    empEl('emp-disabled').innerHTML = empOpts([['false', t('emp_no')], ['true', t('emp_yes')]]);
+  }
+  var EMP_FIELDS = ['emp-name','emp-id-type','emp-ic','emp-dob','emp-gender','emp-race','emp-nationality','emp-address','emp-position','emp-start','emp-salary','emp-active','emp-epf','emp-socso','emp-tin','emp-tax','emp-marital','emp-children','emp-disabled','emp-bank-name','emp-bank-account'];
+
+  function empThumbs(){
+    var wrap = empEl('emp-thumbs');
     var companyId = customerRecordId(currentCompany);
-    var name = document.getElementById('employee-name').value.trim();
-    var errEl = document.getElementById('employee-modal-error');
+    var html = '';
+    (empState.saved || []).forEach(function(d){
+      html += '<div class="emp-thumb"><a href="/api/companies/' + companyId + '/employees/' + empState.id + '/documents/' + d.id + '" target="_blank"><img src="/api/companies/' + companyId + '/employees/' + empState.id + '/documents/' + d.id + '" alt="" /></a><button type="button" data-del-doc="' + d.id + '" aria-label="Remove">✕</button></div>';
+    });
+    empState.previews.forEach(function(p, i){
+      html += '<div class="emp-thumb"><img src="' + p + '" alt="" /><button type="button" data-del-pending="' + i + '" aria-label="Remove">✕</button></div>';
+    });
+    wrap.innerHTML = html;
+  }
+
+  function openEmployeeModal(emp){
+    empBuildSelects();
+    empState = { id: emp ? emp.id : null, pending:[], previews:[], saved:[] };
+    empEl('employee-modal-title').textContent = emp ? t('edit_employee_title') : t('add_employee_title');
+    var e = emp || {};
+    var set = function(id, v){ empEl(id).value = v == null ? '' : v; empEl(id).classList.remove('ocr'); };
+    set('emp-name', e.name); set('emp-id-type', e.id_type || 'B'); set('emp-ic', e.ic_no); set('emp-dob', e.dob ? String(e.dob).slice(0, 10) : '');
+    set('emp-gender', e.gender); set('emp-race', e.race); set('emp-nationality', e.nationality); set('emp-address', e.address);
+    set('emp-position', e.position); set('emp-start', e.start_date ? String(e.start_date).slice(0, 10) : ''); set('emp-salary', e.basic_salary != null && emp ? Number(e.basic_salary) : '');
+    set('emp-active', e.active === false ? 'false' : 'true'); set('emp-epf', e.epf_no); set('emp-socso', e.socso_no); set('emp-tin', e.tin_no);
+    set('emp-tax', e.tax_resident || 'resident'); set('emp-marital', e.marital_status); set('emp-children', emp ? (e.children || 0) : 0);
+    set('emp-disabled', e.disabled ? 'true' : 'false'); set('emp-bank-name', e.bank_name); set('emp-bank-account', e.bank_account);
+    empEl('emp-ic-status').textContent = '';
+    empEl('emp-thumbs').innerHTML = '';
+    empEl('employee-modal-error').hidden = true;
+    empEl('employee-modal-backdrop').hidden = false;
+    if(emp){
+      var companyId = customerRecordId(currentCompany);
+      api('/companies/' + companyId + '/employees/' + emp.id + '/documents').then(function(list){ empState.saved = list; empThumbs(); }).catch(function(){});
+    }
+  }
+  function closeEmployeeModal(){ empEl('employee-modal-backdrop').hidden = true; }
+  document.getElementById('add-employee-btn').addEventListener('click', function(){ openEmployeeModal(null); });
+  empEl('employee-modal-close').addEventListener('click', closeEmployeeModal);
+  empEl('employee-cancel').addEventListener('click', closeEmployeeModal);
+  empEl('employee-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeEmployeeModal(); });
+
+  // a typed MyKad number gives the date of birth and gender
+  empEl('emp-ic').addEventListener('input', function(){
+    if(empEl('emp-id-type').value !== 'B') return;
+    var m = /^(\d{2})(\d{2})(\d{2})-?\d{2}-?(\d{3})(\d)$/.exec(this.value.trim());
+    if(!m) return;
+    var yy = +m[1], nowYY = new Date().getFullYear() % 100, year = (yy <= nowYY ? 2000 : 1900) + yy;
+    if(+m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31){ empEl('emp-dob').value = year + '-' + m[2] + '-' + m[3]; empEl('emp-gender').value = (+m[5]) % 2 === 1 ? 'L' : 'P'; }
+  });
+
+  // IC photo -> OCR in the browser -> fields (yellow = check it); the photos are kept and saved with the employee
+  var empOcrLoaded = null;
+  function empLoadOcr(){
+    return empOcrLoaded || (empOcrLoaded = new Promise(function(res, rej){
+      var s = document.createElement('script'); s.src = '/api/kwsp/assets/ocr.js'; s.onload = res; s.onerror = function(){ rej(new Error('OCR component')); }; document.head.appendChild(s);
+    }));
+  }
+  empEl('emp-ic-file').addEventListener('change', function(){
+    var files = Array.prototype.slice.call(this.files); this.value = '';
+    if(!files.length) return;
+    var status = empEl('emp-ic-status');
+    status.style.color = ''; status.textContent = t('emp_ic_reading');
+    files.forEach(function(f){ empState.pending.push(f); empState.previews.push(URL.createObjectURL(f)); });
+    empThumbs();
+    empLoadOcr().then(function(){ return window.SSMOcr.readIdCard(files[0]); }).then(function(r){
+      var put = function(id, v){ if(!v) return; empEl(id).value = v; empEl(id).classList.add('ocr'); };
+      if(!r.ic){ status.textContent = t('emp_ic_none'); status.style.color = 'var(--danger)'; return; }
+      put('emp-ic', r.ic); empEl('emp-id-type').value = 'B'; put('emp-name', r.name); put('emp-dob', r.dob); put('emp-gender', r.gender); put('emp-nationality', r.nationality); put('emp-address', r.address);
+      status.textContent = t('emp_ic_done');
+    }).catch(function(err){ status.textContent = t('emp_ic_fail') + err.message; status.style.color = 'var(--danger)'; });
+  });
+  empEl('emp-thumbs').addEventListener('click', function(e){
+    var p = e.target.closest('[data-del-pending]');
+    if(p){ var i = +p.dataset.delPending; empState.pending.splice(i, 1); empState.previews.splice(i, 1); empThumbs(); return; }
+    var d = e.target.closest('[data-del-doc]');
+    if(d && empState.id){
+      var companyId = customerRecordId(currentCompany);
+      api('/companies/' + companyId + '/employees/' + empState.id + '/documents/' + d.dataset.delDoc, { method:'DELETE' }).then(function(){
+        empState.saved = empState.saved.filter(function(x){ return String(x.id) !== d.dataset.delDoc; }); empThumbs(); renderActivityLog();
+      }).catch(function(err){ alert(err.message); });
+    }
+  });
+  EMP_FIELDS.forEach(function(id){ empEl(id).addEventListener('input', function(){ this.classList.remove('ocr'); }); });
+
+  empEl('employee-submit').addEventListener('click', function(){
+    var companyId = customerRecordId(currentCompany);
+    var name = empEl('emp-name').value.trim();
+    var errEl = empEl('employee-modal-error');
     if(!companyId || !name){
       errEl.textContent = t('th_name') + ' — required.';
       errEl.hidden = false;
       return;
     }
+    var v = function(id){ return empEl(id).value; };
+    var body = {
+      name:name, idType:v('emp-id-type'), icNo:v('emp-ic').trim(), dob:v('emp-dob'), gender:v('emp-gender'), race:v('emp-race'), nationality:v('emp-nationality').trim(),
+      address:v('emp-address').trim(), position:v('emp-position').trim(), startDate:v('emp-start'), basicSalary:Number(v('emp-salary')) || 0, active:v('emp-active') === 'true',
+      epfNo:v('emp-epf').trim(), socsoNo:v('emp-socso').trim(), tinNo:v('emp-tin').trim(), taxResident:v('emp-tax'), maritalStatus:v('emp-marital'),
+      children:Number(v('emp-children')) || 0, disabled:v('emp-disabled') === 'true', bankName:v('emp-bank-name').trim(), bankAccount:v('emp-bank-account').trim()
+    };
     var btn = this;
     btn.disabled = true;
-    api('/companies/' + companyId + '/employees', { method:'POST', body: JSON.stringify({
-      name: name,
-      position: document.getElementById('employee-position').value.trim(),
-      icNo: document.getElementById('employee-ic-no').value.trim(),
-      basicSalary: Number(document.getElementById('employee-basic-salary').value) || 0,
-      epfNo: document.getElementById('employee-epf-no').value.trim(),
-      socsoNo: document.getElementById('employee-socso-no').value.trim(),
-      bankName: document.getElementById('employee-bank-name').value.trim(),
-      bankAccount: document.getElementById('employee-bank-account').value.trim()
-    }) })
+    var req = empState.id
+      ? api('/companies/' + companyId + '/employees/' + empState.id, { method:'PATCH', body: JSON.stringify(body) })
+      : api('/companies/' + companyId + '/employees', { method:'POST', body: JSON.stringify(body) });
+    req.then(function(saved){
+      // the IC photos go up one by one after the record exists
+      return empState.pending.reduce(function(chain, file){
+        return chain.then(function(){
+          var fd = new FormData(); fd.append('file', file); fd.append('kind', 'ic');
+          return fetch('/api/companies/' + companyId + '/employees/' + saved.id + '/documents', { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(res){ if(!res.ok) return res.json().catch(function(){ return {}; }).then(function(b){ throw new Error(b.error || ('HTTP ' + res.status)); }); });
+        });
+      }, Promise.resolve());
+    })
       .then(function(){ closeEmployeeModal(); renderPayroll(); renderActivityLog(); })
       .catch(function(err){ errEl.textContent = err.message; errEl.hidden = false; })
       .finally(function(){ btn.disabled = false; });

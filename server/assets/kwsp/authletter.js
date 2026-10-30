@@ -26,7 +26,11 @@
     const blob = await (await fetch(dataUrl)).blob();
     const bmp = await createImageBitmap(blob);
     const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
-    c.getContext('2d').drawImage(bmp, 0, 0);
+    const g = c.getContext('2d');
+    // Flatten onto white: a transparent PNG would otherwise go into the PDF as a colour layer + a transparency layer, and
+    // viewers that ignore the transparency layer (phone previews, some printers) show the transparent area as black.
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(bmp, 0, 0);
     const png = await new Promise((res) => c.toBlob(res, 'image/png'));
     return { bytes: new Uint8Array(await png.arrayBuffer()), w: bmp.width, h: bmp.height };
   }

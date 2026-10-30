@@ -2513,7 +2513,7 @@
       acct_reset_title:"Reset password", acct_reset_btn:"Reset password", acct_reset_note:"A temporary password: they must choose their own at the next sign-in (8+ characters, letters and numbers). Their open sessions end now.",
       acct_reset_done:"Password reset. Tell them the temporary password; they will be asked to choose a new one when they sign in.",
       acct_switch_off:"Switch off", acct_switch_on:"Switch on", acct_delete:"Delete", acct_you:"you", acct_off:"Off", acct_must_change:"must change password",
-      acct_confirm_delete:"Delete this login? This cannot be undone.", acct_confirm_off:"Switch this login off? They are signed out at once.",
+      acct_confirm_delete:"Delete this login? This cannot be undone.", acct_confirm_off:"Switch this login off? They are signed out at once and taken off all their companies.",
       acct_kept:"This person already has work history, so the record is kept: the login is switched off and removed from all companies.", acct_deleted:"Deleted.",
       status_completed:"Completed", status_in_progress:"In Progress", status_needs_review:"Needs Review", status_not_started:"Not Started",
       status_synced:"Synced", status_pending:"Pending", status_matched:"Matched", status_unmatched:"Unmatched",
@@ -2794,7 +2794,7 @@
       acct_reset_title:"重置密码", acct_reset_btn:"重置密码", acct_reset_note:"这是临时密码：对方下次登录时必须自己设置新密码（至少 8 个字符，含字母和数字）。对方现有的登录会立即结束。",
       acct_reset_done:"密码已重置。请把临时密码告诉对方，对方登录时会被要求设置新密码。",
       acct_switch_off:"停用", acct_switch_on:"启用", acct_delete:"删除", acct_you:"你自己", acct_off:"已停用", acct_must_change:"需修改密码",
-      acct_confirm_delete:"确定删除这个登录账号？删除后无法恢复。", acct_confirm_off:"确定停用这个登录账号？对方会立即被登出。",
+      acct_confirm_delete:"确定删除这个登录账号？删除后无法恢复。", acct_confirm_off:"确定停用这个登录账号？对方会立即被登出，并从他负责的所有公司中移除。",
       acct_kept:"这个人已经有工作记录，所以资料保留：登录已停用，并已从所有公司移除。", acct_deleted:"已删除。",
       status_completed:"已完成", status_in_progress:"进行中", status_needs_review:"待审核", status_not_started:"未开始",
       status_synced:"已同步", status_pending:"待处理", status_matched:"已匹配", status_unmatched:"未匹配",
@@ -6281,7 +6281,7 @@
           if(!turnOn && !confirm(t('acct_confirm_off'))) return;
           btn.disabled = true;
           api('/accounts/' + btn.dataset.acctToggle, { method:'PATCH', body: JSON.stringify({ active:turnOn }) })
-            .then(function(){ renderAccounts(); renderWorkflow(); renderActivityLog(); })
+            .then(function(){ renderAccounts(); renderWorkflow(); renderActivityLog(); loadCompanies(); })
             .catch(function(err){ alert(err.message); btn.disabled = false; });
         });
       });

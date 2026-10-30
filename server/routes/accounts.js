@@ -72,9 +72,20 @@ router.patch('/accounts/:id', requireRole('admin'), async (req, res) => {
   }
   await pool.query('UPDATE users SET active = $1, token_version = token_version + 1 WHERE id = $2', [active, u.id]);
   if (u.staff_id) await pool.query('UPDATE staff SET active = $1 WHERE id = $2', [active, u.staff_id]);
+  // Switching someone off (e.g. they left) also takes them off every company and every manager's team.
+  let removed = 0;
+  if (!active) {
+    if (u.staff_id) {
+      const r = await pool.query('DELETE FROM company_staff WHERE staff_id = $1', [u.staff_id]);
+      removed = r.rowCount;
+      await pool.query('DELETE FROM manager_staff WHERE staff_id = $1', [u.staff_id]);
+    }
+    await pool.query('DELETE FROM manager_staff WHERE manager_user_id = $1', [u.id]);
+  }
   forgetUserState(u.id);
-  await logActivity(req.user.sub, active ? 'Switched account on' : 'Switched account off', u.display_name, 'Login ID: ' + u.login_id);
-  res.json({ ok: true, active });
+  await logActivity(req.user.sub, active ? 'Switched account on' : 'Switched account off', u.display_name,
+    'Login ID: ' + u.login_id + (removed ? '; removed from ' + removed + ' compan' + (removed === 1 ? 'y' : 'ies') : ''));
+  res.json({ ok: true, active, removedCompanies: removed });
 });
 
 // Delete an account. A person who already has work history (activity log, requests, claims…) cannot be erased without

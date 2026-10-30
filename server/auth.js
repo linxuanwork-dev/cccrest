@@ -23,7 +23,8 @@ function setSessionCookie(res, user) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // Secure whenever the request really came in over HTTPS (Railway's proxy says so), not only when NODE_ENV is set
+    secure: process.env.NODE_ENV === 'production' || !!(res.req && res.req.secure),
     maxAge: 12 * 60 * 60 * 1000
   });
 }

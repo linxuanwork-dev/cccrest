@@ -22,7 +22,7 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  if (process.env.NODE_ENV === 'production' || req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
   next();
 });
 // Data from the API is personal: browsers and proxies must not keep a copy (the big program files are cacheable)

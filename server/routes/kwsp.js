@@ -59,6 +59,32 @@ router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
   if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: 'Invalid form data' });
   if (JSON.stringify(data).length > 1000000) return res.status(413).json({ error: 'Form data is too large' });
 
+  // The page auto-saves as you type: it sends the id of the record it is working on, so a company name that is
+  // corrected after reading the SSM file renames that record instead of creating another one.
+  const id = Number(body.id) || 0;
+  const auto = !!body.auto;
+  if (id) {
+    const { rows: own } = await pool.query('SELECT id, name FROM kwsp_forms WHERE id = $1 AND company_id = $2', [id, req.params.companyId]);
+    if (own[0]) {
+      if (req.pageAccess.level < 3) return res.status(403).json({ error: '你的权限不足（修改已保存的资料需要 L3 或以上）' });
+      let updated;
+      try {
+        ({ rows: updated } = await pool.query(
+          'UPDATE kwsp_forms SET name = $1, data = $2, updated_by = $3, updated_at = now() WHERE id = $4 RETURNING id, name, updated_at',
+          [name, JSON.stringify(data), req.user.sub, id]
+        ));
+      } catch (err) {
+        if (err.code === '23505') return res.status(409).json({ error: 'A saved data set with this name already exists' });
+        throw err;
+      }
+      if (!auto || own[0].name !== name) {
+        const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+        await logActivity(req.user.sub, 'Updated KWSP & PERKESO form data', companyRows[0].name, name);
+      }
+      return res.json({ id: updated[0].id, name: updated[0].name, updatedAt: updated[0].updated_at });
+    }
+  }
+
   const { rows: existing } = await pool.query('SELECT id FROM kwsp_forms WHERE company_id = $1 AND name = $2', [req.params.companyId, name]);
   if (existing[0] && req.pageAccess.level < 3) {
     return res.status(403).json({ error: '你的权限不足（修改已保存的资料需要 L3 或以上）' });

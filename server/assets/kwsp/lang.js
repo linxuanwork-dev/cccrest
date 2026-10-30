@@ -9,6 +9,7 @@
   const RULES = [
     [/正在识别扫描件（OCR）… 第 (\d+) \/ (\d+) 页/g, 'Reading the scan (OCR)… page $1 / $2'],
     [/已生成 (\d+) 页，正在下载…/g, 'Generated $1 pages, downloading…'],
+    [/已自动保存 (\S+)/g, 'Saved automatically at $1'],
     [/已保存「(.*)」/g, 'Saved "$1"'],
     [/已打开「(.*)」/g, 'Opened "$1"'],
     [/已导入 (.*)（按「保存」才会存进系统）/g, 'Imported $1 (press "Save" to store it in the system)'],
@@ -101,6 +102,13 @@
     '读不到 ': 'Cannot read ',
     '这个 PDF 只有图片、没有文字层，读不到内容。请用 CamScanner 导出 PDF（会带文字识别），或用 SSM 下载的 PDF。':
       'This PDF contains only images, with no text layer, so it cannot be read. Export the PDF from CamScanner (with text recognition) or use the PDF downloaded from SSM.',
+    '有改动，稍后自动保存…': 'Changes pending — saving automatically…', '改动会自动保存。': 'Changes are saved automatically.',
+    '没有保存权限，改动不会存进系统（可导出 .json）。': 'You do not have permission to save; changes are not stored (use Export .json).',
+    '填了公司名称才会自动保存。': 'Auto-save starts once the company name is filled in.', '自动保存失败：': 'Auto-save failed: ',
+    '已自动带入 SSM 资料。黄色框是还要填的资料，请核对，有误可直接修改。': 'SSM data filled in automatically. Yellow boxes still need to be filled in — please check, and edit anything that is wrong.',
+    '按所选重新带入': 'Re-apply with these choices',
+    '读取后已自动填进下面的表格，请核对，有误可直接修改。想换董事或地址，改上面的选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。':
+      'The form below has been filled in automatically — please check it, and edit anything that is wrong. To use a different director or address, change the choices above and press this button. Details not in the documents (phone, employees, etc.) are filled in by hand as usual.',
     '读取中… 请稍等': 'Reading… please wait', '读取 SSM 文件失败：': 'Could not read the SSM files: ',
     '没有读到公司名称。': 'Company name not found.', '没有读到董事资料（Particulars of Director）。': 'Director details (Particulars of Director) not found.',
     '公司名称': 'Company name', '注册号': 'Registration no.', '秘书电邮': 'Secretary email', '秘书电话': 'Secretary phone', '（不带入）': ' (not applied)',

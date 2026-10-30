@@ -140,6 +140,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     </div>
   </header>
   <div class="toast" id="toast" role="status"></div>
+  <div class="toast" id="saveState" role="status" style="color:var(--muted)"></div>
 
   <div class="grid">
     <form id="f" autocomplete="off" onsubmit="return false">
@@ -164,8 +165,8 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
             <div class="subh" style="margin:12px 0 6px">地址 <span style="font-weight:400;text-transform:none">注册地址一定会填进 KWSP「Alamat Berdaftar」，营业和通讯地址由你选</span></div>
             <div class="pick" id="addrPick"></div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center">
-              <button type="button" class="primary" id="ssmApply">带入表格</button>
-              <span class="hint" style="margin:0">带入后请核对，文件里没有的资料（电话、员工等）照常手填。</span>
+              <button type="button" class="primary" id="ssmApply">按所选重新带入</button>
+              <span class="hint" style="margin:0">读取后已自动填进下面的表格，请核对，有误可直接修改。想换董事或地址，改上面的选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。</span>
             </div>
           </div>
         </div>
@@ -371,7 +372,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     if (!e.over && +e.salary > 0) $('[data-e=over]', div).value = +e.salary > 4000 ? '4000' : +e.salary > 3000 ? '3000' : '';
     const tSel = $('[data-e=idType]', div); if (!tSel.value || e.idType === 'mykad') tSel.value = 'B';
     const rSel = $('[data-e=race]', div); const rc = { MELAYU: '01', CINA: '02', INDIA: '03', 'BUMIPUTERA SABAH': '04', 'BUMIPUTERA SARAWAK': '05', 'LAIN-LAIN': '06', 'ORANG ASLI': '06' }[(e.race || '').toUpperCase()]; if (rc) rSel.value = rc;
-    $('.rm', div).onclick = () => { div.remove(); renumber(); };
+    $('.rm', div).onclick = () => { div.remove(); renumber(); markDirty(); };
     const ic = $('[data-e=ic]', div), t = $('[data-e=idType]', div);
     const auto = () => {
       const tag = $('.auto', div);
@@ -442,7 +443,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     });
   }
   $('#f').addEventListener('input', (e) => { sync(); if (!e.target.closest('.import')) markDirty(); });
-  $('#f').addEventListener('change', sync);
+  $('#f').addEventListener('change', (e) => { sync(); if (!e.target.closest('.import')) markDirty(); });
 
   /* ---------- form selection ---------- */
   function updateFormList() {
@@ -507,6 +508,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     if (!sel.length) { status('请至少选一份表格。', 'err'); return; }
     if (!window.PDFLib) { status('PDF 组件没有加载成功，请检查网络后重新打开页面。', 'err'); return; }
     status('生成中…');
+    if (canEdit) await autoSave().catch(() => {});          // what is downloaded is also what is stored
     const d = collect();
     try {
       await ensureAssets();
@@ -579,7 +581,40 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
   }
   const toast = (m) => { const t = $('#toast'); t.textContent = m; clearTimeout(toast.t); toast.t = setTimeout(() => t.textContent = '', 4500); };
   let current = null, confirmDel = false;     // current = saved record id (or null for a new unsaved one)
-  function markDirty() {}
+  /* ---------- auto-save: every change is stored in the system a moment after you make it ---------- */
+  let saveTimer = null, saving = false, savePending = false, unsaved = false;
+  const saveState = (m, err) => { const s = $('#saveState'); s.textContent = m; s.style.color = err ? 'var(--danger)' : 'var(--muted)'; };
+  const hhmm = () => { const t = new Date(); return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); };
+  function markDirty() {
+    if (!canEdit || !COMPANY_ID) return;
+    unsaved = true; saveState('有改动，稍后自动保存…');
+    clearTimeout(saveTimer); saveTimer = setTimeout(() => autoSave(), 1500);
+  }
+  async function autoSave() {
+    clearTimeout(saveTimer);
+    if (!canEdit || !COMPANY_ID || !unsaved) return true;
+    if (saving) { savePending = true; return true; }
+    const d = collect(); const name = (d.company.name || '').trim().toUpperCase();
+    if (!name) { saveState('填了公司名称才会自动保存。', true); return false; }
+    saving = true; unsaved = false;
+    try {
+      const r = await apiCall(apiBase, { method: 'PUT', body: JSON.stringify({ id: current, name, data: d, auto: true }) });
+      current = r.id;
+      const i = saved.findIndex(x => x.id === r.id);
+      if (i >= 0) { saved[i].name = r.name; saved[i].data = d; } else saved.unshift({ id: r.id, name: r.name, data: d });
+      refreshClients(); saveState('已自动保存 ' + hhmm());
+    } catch (e) { unsaved = true; saving = false; saveState('自动保存失败：' + e.message, true); return false; }
+    saving = false;
+    if (savePending) { savePending = false; return autoSave(); }
+    return true;
+  }
+  // leaving the page (or switching company) with an unsaved change: send it on the way out
+  window.addEventListener('pagehide', () => {
+    if (!unsaved || !canEdit || !COMPANY_ID) return;
+    const d = collect(); const name = (d.company.name || '').trim().toUpperCase();
+    if (!name) return;
+    try { fetch(apiBase, { method: 'PUT', credentials: 'same-origin', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: current, name, data: d, auto: true }) }); } catch (e) { /* nothing more to do */ }
+  });
   function refreshClients() {
     const sel = $('#clientSel');
     sel.innerHTML = '<option value="">— 已保存的资料 —</option>';
@@ -591,6 +626,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     const j = await apiCall(apiBase);
     saved = j.forms; canEdit = j.canEdit; canDelete = j.canDelete; companyInfo = j.company;
     $('#coName').textContent = companyInfo.name + ' · 填一次资料，自动填好 8 份官方表格（全部大写），下载后直接打印';
+    saveState(canEdit ? '改动会自动保存。' : '没有保存权限，改动不会存进系统（可导出 .json）。');
   }
   function blankForCompany() {
     const d = Object.assign(JSON.parse(JSON.stringify(BLANK)), { signDate: todayISO() });
@@ -603,8 +639,10 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     if (!name) { toast('请先填公司名称再保存。'); $('#c_name').focus(); return; }
     $('#btnSave').disabled = true;
     try {
-      const r = await apiCall(apiBase, { method: 'PUT', body: JSON.stringify({ name, data: d }) });
-      await loadSaved(); current = r.id; refreshClients();
+      clearTimeout(saveTimer);
+      const r = await apiCall(apiBase, { method: 'PUT', body: JSON.stringify({ id: current, name, data: d }) });
+      unsaved = false;
+      await loadSaved(); current = r.id; refreshClients(); saveState('已自动保存 ' + hhmm());
       toast('已保存「' + name + '」');
     } catch (e) { toast('保存失败：' + e.message); }
     $('#btnSave').disabled = false;
@@ -719,6 +757,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
         <select id="pickMail">${optHtml([['same', '同营业地址'], ...opts, ['manual', '自己填']])}</select></div>`;
     $('#pickBiz').value = C.bizAddr ? 'biz' : 'manual';
     toast(`已读取 ${files.length} 个文件`);
+    applySSM();                                              // fill the form straight away; the choices above can be changed and re-applied
   }
   function applySSM() {
     if (!ssmData) return;
@@ -743,8 +782,9 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
     if (of) { d.officer = Object.assign({}, d.officer, { name: of.name, ic: of.ic, pos: 'PENGARAH', email: of.email || (d.officer || {}).email || '' }); d.adminSame = true; }
     if (!d.signDate) d.signDate = todayISO();
     load(d); markNeeds();
-    toast('已带入 SSM 资料。黄色框是还要填的资料。');
+    toast('已自动带入 SSM 资料。黄色框是还要填的资料，请核对，有误可直接修改。');
     $('#c_name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    markDirty(); autoSave();
   }
   $('#ssmFile').onchange = (e) => { const fs = Array.from(e.target.files); e.target.value = ''; if (fs.length) readSSM(fs); };
   const drop = $('#ssmDrop');

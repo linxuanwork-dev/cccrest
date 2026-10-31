@@ -311,6 +311,7 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
         <h3>要打印的表格 <button type="button" id="toggleAll" class="ghost">全选</button></h3>
         <ul class="forms" id="formList"></ul>
         <button type="button" class="primary go" id="btnGen">生成 PDF</button>
+        <button type="button" class="go" id="btnSplit" style="margin-top:8px" title="只下载上面勾选的 PERKESO 表格，每张表格一个文件，文件名如 DM-BORANG 1、DM-SIP 1，方便逐张上载">分开下载 PERKESO 表格（每张一个文件）</button>
         <button type="button" class="go" id="btnLetter" style="margin-top:8px">生成 KWSP 授权信</button>
         <p class="status" id="status"></p>
         <ul class="warns" id="warns" hidden></ul>
@@ -602,14 +603,49 @@ input.need, select.need { border-color: var(--warn); background: var(--warn-bg);
   }
   $('#btnGen').onclick = generate;
 
+  /* PERKESO forms are uploaded to the PERKESO portal one form at a time, so each ticked PERKESO form is saved as its own
+     file named <company prefix>-<form>, e.g. DM-BORANG 1, DM-SIP 1, DM-SIP 1A */
+  const SPLIT_NAMES = { portal: 'PORTAL PERKESO', b1: 'BORANG 1', b2: 'BORANG 2', sip1: 'SIP 1', sip1a: 'SIP 1A', sip2: 'SIP 2', sip2a: 'SIP 2A' };
+  async function generateSplit() {
+    const sel = $$('#formList input:checked').map(b => b.value).filter(id => SPLIT_NAMES[id]);
+    if (!sel.length) { status('请至少勾选一份 PERKESO 表格。', 'err'); return; }
+    if (!window.PDFLib) { status('PDF 组件没有加载成功，请检查网络后重新打开页面。', 'err'); return; }
+    status('生成中…');
+    if (canEdit) await autoSave().catch(() => {});
+    const d = collect();
+    try {
+      await ensureAssets();
+      const warnings = checkMissing(d, sel);
+      let n = 0, lastBytes = null;
+      for (const id of sel) {
+        const r = await F.build(window.PDFLib, templates(), SPEC, d, [id]);
+        r.warnings.forEach(x => { if (!warnings.includes(x)) warnings.push(x); });
+        const name = await docName('kwsp_form_single', SPLIT_NAMES[id] + '.pdf', { FORM: SPLIT_NAMES[id] });
+        await saveFile(r.bytes, name, 'application/pdf');
+        lastBytes = r.bytes; n++;
+        status('已下载 ' + n + ' / ' + sel.length + '：' + name, 'ok');
+        await new Promise(res => setTimeout(res, 500));       // browsers drop downloads fired in the same instant
+      }
+      const w = $('#warns');
+      w.innerHTML = warnings.map(x => '<li></li>').join('');
+      $$('li', w).forEach((li, i) => li.textContent = warnings[i]);
+      w.hidden = !warnings.length;
+      status('已分开下载 ' + n + ' 个 PERKESO 文件。如果浏览器只下载了第一个，请在地址栏允许「多个文件下载」后再按一次。', 'ok');
+      if (lastBytes) renderPreview(lastBytes);
+    } catch (err) {
+      console.error(err); status('生成失败：' + (err && err.message || err), 'err');
+    }
+  }
+  $('#btnSplit').onclick = generateSplit;
+
   /* ---------- KWSP authorization letter (on the company letterhead, filled from this page) ---------- */
   let authLoaded = null;
   const loadAuth = () => authLoaded || (authLoaded = new Promise((res, rej) => { const s = document.createElement('script'); s.src = ASSETS + 'authletter.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the letter component')); document.head.appendChild(s); }));
   // the file name comes from the Control Panel's naming pattern for this feature (the built-in name if none is set);
   // asking for it also writes the "generated" entry in the company's document history
-  async function docName(feature, fallbackName) {
+  async function docName(feature, fallbackName, ctx) {
     try {
-      const r = await apiCall('/api/companies/' + COMPANY_ID + '/documents', { method: 'POST', body: JSON.stringify({ feature, fallback: fallbackName.replace(/\.pdf$/i, '') }) });
+      const r = await apiCall('/api/companies/' + COMPANY_ID + '/documents', { method: 'POST', body: JSON.stringify({ feature, fallback: fallbackName.replace(/\.pdf$/i, ''), ctx }) });
       return r.fileName;
     } catch (e) { return fallbackName; }
   }

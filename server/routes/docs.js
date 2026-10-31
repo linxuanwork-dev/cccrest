@@ -74,7 +74,10 @@ router.post('/companies/:companyId/documents', requireAuth, scopeToCompany, asyn
   ['EMP', 'PERIOD', 'TITLE', 'BRANCH'].forEach((k) => { if (b.ctx && b.ctx[k]) ctx[k] = docs.hyphenUpper(clean(b.ctx[k], 80)); });
   const info = (await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId])).rows[0];
   if (!info) return res.status(404).json({ error: 'Not found' });
-  const fallback = docs.cleanFileName(clean(b.fallback, 150)) || (docs.hyphenUpper(info.name) + '-' + feature.key.toUpperCase());
+  // single PERKESO forms keep the spaces in their name ("DM-BORANG 1", "DM-SIP 1A") so they can be uploaded one by one
+  if (b.ctx && b.ctx.FORM) ctx.FORM = docs.cleanFileName(clean(b.ctx.FORM, 40)).toUpperCase();
+  let fallback = docs.cleanFileName(clean(b.fallback, 150)) || (docs.hyphenUpper(info.name) + '-' + feature.key.toUpperCase());
+  if (feature.key === 'kwsp_form_single' && ctx.FORM) fallback = (await docs.companyInfo(req.params.companyId)).PREFIX + '-' + ctx.FORM;
   const base = await docs.fileBase(feature.key, req.params.companyId, ctx, fallback);
   const fileName = base + '.' + feature.ext;
   if (b.log !== false) await docs.logEvent(req, req.params.companyId, feature.key, fileName, 'generated', []);

@@ -4,6 +4,7 @@ const { pool } = require('../db');
 // with no pattern keeps its built-in file name. `letter: true` marks letters (they never get the print stamp).
 const FEATURES = [
   { key: 'kwsp_forms', label: 'KWSP & PERKESO forms (PDF)', builtin: '{COMPANY}-KWSP-PERKESO', ext: 'pdf' },
+  { key: 'kwsp_form_single', label: 'PERKESO forms, one file per form (PDF)', builtin: '{PREFIX}-{FORM}', ext: 'pdf' },
   { key: 'kwsp_authorization_letter', label: 'KWSP authorization letter (PDF)', builtin: '{COMPANY}-KWSP-AUTHORIZATION-LETTER', ext: 'pdf', letter: true },
   { key: 'einvoice_info', label: 'e-Invoice information sheet (PDF)', builtin: '{COMPANY}-EINVOICE-INFO', ext: 'pdf' },
   { key: 'employment_letter', label: 'Employment letter', builtin: '{COMPANY}-EMPLOYMENT-LETTER-{EMP}', ext: 'pdf', letter: true, soon: true },
@@ -23,7 +24,7 @@ const TOKENS = {
   COMPANY: 'company name, capitals with hyphens',
   YYYY: 'year (4 digits)', YY: 'year (2 digits)', MM: 'month (2 digits)', DD: 'day (2 digits)',
   SEQ: 'running number, e.g. {SEQ:3} gives 001 (restarts each year if the pattern has {YYYY})',
-  EMP: 'employee name', PERIOD: 'period, e.g. 2026-10', TITLE: 'report title', BRANCH: 'branch / outlet code'
+  EMP: 'employee name', PERIOD: 'period, e.g. 2026-10', TITLE: 'report title', BRANCH: 'branch / outlet code', FORM: 'form name, e.g. BORANG 1 or SIP 1A'
 };
 
 // Malaysia time, whatever the server's clock zone is
@@ -44,7 +45,7 @@ function validatePattern(pattern) {
   if (!p) return 'The pattern cannot be empty.';
   if (p.length > 120) return 'The pattern is too long.';
   if (/[\\/:*?"<>|]/.test(p.replace(/\{[^}]*\}/g, ''))) return 'A file name cannot contain \\ / : * ? " < > |';
-  const bad = [...p.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((t) => !/^(PREFIX|COMPANY|YYYY|YY|MM|DD|EMP|PERIOD|TITLE|BRANCH)$/.test(t) && !/^SEQ(:[1-6])?$/.test(t));
+  const bad = [...p.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((t) => !/^(PREFIX|COMPANY|YYYY|YY|MM|DD|EMP|PERIOD|TITLE|BRANCH|FORM)$/.test(t) && !/^SEQ(:[1-6])?$/.test(t));
   if (bad.length) return 'Unknown placeholder: {' + bad[0] + '}';
   if (/[{}]/.test(p.replace(/\{[^}]*\}/g, ''))) return 'Unbalanced { } in the pattern.';
   return null;
@@ -89,7 +90,7 @@ async function fileBase(feature, companyId, ctx, fallback) {
 
 // What a pattern would produce, without using up a number (Control Panel preview)
 async function previewName(pattern, companyId) {
-  const values = baseValues(await companyInfo(companyId), { EMP: 'AHMAD-BIN-ALI', TITLE: 'REPORT', BRANCH: 'ML-TU', SEQ: 1 });
+  const values = baseValues(await companyInfo(companyId), { EMP: 'AHMAD-BIN-ALI', TITLE: 'REPORT', BRANCH: 'ML-TU', FORM: 'SIP 1', SEQ: 1 });
   return render(pattern, values);
 }
 
@@ -183,4 +184,4 @@ function stampPdfkitPages(doc, text) {
   }
 }
 
-module.exports = { logUpdate, FEATURES, FEATURE_BY_KEY, TOKENS, validatePattern, fileBase, previewName, logEvent, userNameFor, diffObjects, stampText, stampWorkbook, stampPdfkitPages, cleanFileName, hyphenUpper };
+module.exports = { logUpdate, FEATURES, FEATURE_BY_KEY, TOKENS, validatePattern, fileBase, previewName, logEvent, userNameFor, diffObjects, stampText, stampWorkbook, stampPdfkitPages, cleanFileName, hyphenUpper, companyInfo };

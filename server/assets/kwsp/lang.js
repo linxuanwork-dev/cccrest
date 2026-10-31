@@ -114,6 +114,10 @@
       'The form below has been filled in automatically — please check it, and edit anything that is wrong. To use a different contact officer or owner, choose one in sections 4 and 5 below; to use a different address, change the address choices above and press this button. Details not in the documents (phone, employees, etc.) are filled in by hand as usual.',
     '读取后已自动填进下面的表格，请核对，有误可直接修改。想换董事或地址，改上面的选择再按这个按钮。文件里没有的资料（电话、员工等）照常手填。':
       'The form below has been filled in automatically — please check it, and edit anything that is wrong. To use a different director or address, change the choices above and press this button. Details not in the documents (phone, employees, etc.) are filled in by hand as usual.',
+    '分开下载 PERKESO 表格（每张一个文件）': 'Download PERKESO forms separately (one file per form)',
+    '只下载上面勾选的 PERKESO 表格，每张表格一个文件，文件名如 DM-BORANG 1、DM-SIP 1，方便逐张上载': 'Downloads only the ticked PERKESO forms, one file per form, named like DM-BORANG 1 and DM-SIP 1, so they can be uploaded one by one',
+    '请至少勾选一份 PERKESO 表格。': 'Please tick at least one PERKESO form.',
+    '已分开下载 ': 'Downloaded separately: ', ' 个 PERKESO 文件。如果浏览器只下载了第一个，请在地址栏允许「多个文件下载」后再按一次。': ' PERKESO files. If the browser saved only the first one, allow "multiple downloads" next to the address bar and press the button again.',
     '生成 KWSP 授权信': 'Generate KWSP authorization letter', '生成授权信中…': 'Generating the letter…', '已生成授权信，正在下载…': 'Letter generated, downloading…',
     '授权信：公司名称没填。': 'Authorization letter: the company name is empty.', '授权信：联络人姓名没填（第 4 项）。': 'Authorization letter: the contact officer name is empty (section 4).',
     '授权信：联络人 IC 没填（第 4 项）。': 'Authorization letter: the contact officer IC is empty (section 4).', '授权信：东主 / 董事姓名没填（第 5 项）。': 'Authorization letter: the owner / director name is empty (section 5).',

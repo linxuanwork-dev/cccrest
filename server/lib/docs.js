@@ -14,6 +14,7 @@ const FEATURES = [
   { key: 'company_report', label: 'Company PDF reports', builtin: '{TITLE}', ext: 'pdf' },
   { key: 'sales_summary_excel', label: 'Sales Summary — Bukku invoice file (Excel)', builtin: '{BRANCH}-BUKKU SALES INV-{YYYY}_{MM}', ext: 'xlsx' },
   { key: 'sales_summary_pdf', label: 'Sales Summary report (PDF)', builtin: '{BRANCH}-BUKKU SALES INV-{YYYY}_{MM}', ext: 'pdf' },
+  { key: 'purchase_bukku', label: 'Purchases — Bukku import file (Excel)', builtin: '{PREFIX}-BUKKU-PURCHASES RECORD-{YY}_{MM}', ext: 'xlsx' },
   { key: 'dm_invoice', label: 'DM Reg & Mod sales invoice (Excel)', builtin: 'sales-invoice-{BRANCH}-{MM}{YYYY}', ext: 'xlsx' },
   { key: 'ol_tng_report', label: 'OL-TNG Daily Settlement Report (Excel)', builtin: 'OL-TNG_{YYYY}_{MM}', ext: 'xlsx' }
 ];

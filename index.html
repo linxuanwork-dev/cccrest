@@ -1100,6 +1100,26 @@
       <!-- ---- PURCHASES BILL ---- -->
       <section class="panel" id="panel-purchases" hidden>
         <div class="content-header"><h2 data-i18n="nav_purchases_bill">Purchases Bill</h2><span class="sub" id="purchases-sub">Select a company · supplier invoices</span></div>
+        <div class="recon-card" id="pbk-card" hidden style="margin-bottom:22px;">
+          <div class="recon-step-label" data-i18n="pbk_card_title">Bukku import file</div>
+          <p style="font-size:12.5px;color:var(--primary-soft);margin:4px 0 12px;line-height:1.7;" data-i18n="pbk_hint">Fill one row per line item. Rows that follow each other with the same No., supplier and date become one bill with several lines. Account and Item Description are filled in automatically.</p>
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+            <label for="pbk-type" style="font-size:12.5px;" data-i18n="pbk_type">Type</label>
+            <select id="pbk-type"><option value="bill" data-i18n="pbk_type_bill">Purchase Bill</option><option value="claim" data-i18n="pbk_type_claim">Expense Claim (employee paid)</option></select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr><th data-i18n="pbk_supplier">Supplier</th><th class="pbk-emp-col" hidden data-i18n="pbk_employee">Employee</th><th data-i18n="pbk_no">No.</th><th data-i18n="pbk_date">Date</th><th data-i18n="pbk_qty">Quantity</th><th data-i18n="pbk_price">Unit Price</th><th data-i18n="pbk_amount">Amount</th><th></th></tr></thead>
+              <tbody id="pbk-rows"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <button type="button" class="btn-ghost" id="pbk-add-line" data-i18n="pbk_add_line">+ Add line</button>
+            <button type="button" class="btn-primary" id="pbk-download" style="width:auto;padding:10px 20px;" data-i18n="pbk_download">Download Bukku file</button>
+            <span id="pbk-total" style="font-size:13px;font-weight:600;"></span>
+            <span id="pbk-msg" style="font-size:12.5px;color:var(--primary-soft);"></span>
+          </div>
+        </div>
         <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button type="button" class="btn-ghost" id="purchases-export-btn" data-i18n="download">Download</button></div>
         <div class="table-card">
           <table>
@@ -1393,6 +1413,39 @@
         <div style="display:flex;gap:14px;align-items:center;padding:16px 0;flex-wrap:wrap;">
           <button type="button" class="btn-primary" id="cp-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
           <span id="cp-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
+        </div>
+
+        <div class="section-title" style="margin-top:22px;" data-i18n="pbk_title">Purchases → Bukku import file</div>
+        <p style="font-size:12.5px;color:var(--primary-soft);margin:6px 0 14px;max-width:780px;line-height:1.7;" data-i18n="pbk_desc">Per company: switch the feature on, set the fixed Account and Item Description, and keep the list of supplier / employee names with their Bukku Contact Codes. Staff then only key in the bill number, date, quantity and unit price on the company's Purchases Bill page.</p>
+        <div class="table-card" style="padding:16px 18px;max-width:900px;">
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="field" style="min-width:260px;flex:1;margin:0;"><label for="pbk-company" data-i18n="pbk_company">Company</label><select id="pbk-company"></select></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding-bottom:10px;"><input type="checkbox" id="pbk-enabled" style="width:16px;height:16px;accent-color:var(--accent);" /><span data-i18n="pbk_enabled">Switched on for this company</span></label>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;">
+            <div class="field" style="width:140px;margin:0;"><label for="pbk-account" data-i18n="pbk_account">Account</label><input type="text" id="pbk-account" maxlength="20" /></div>
+            <div class="field" style="min-width:220px;flex:1;margin:0;"><label for="pbk-desc" data-i18n="pbk_item_desc">Item Description</label><input type="text" id="pbk-desc" maxlength="100" /></div>
+          </div>
+          <div style="margin-top:16px;font-size:12.5px;font-weight:600;" data-i18n="pbk_contacts">Suppliers / employees and their Contact Codes</div>
+          <div style="overflow-x:auto;margin-top:6px;">
+            <table>
+              <thead><tr><th data-i18n="pbk_name">Name (as on the receipt / in Bukku)</th><th style="width:160px;" data-i18n="pbk_code">Contact Code</th><th style="width:40px;"></th></tr></thead>
+              <tbody id="pbk-contacts-tbody"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+            <button type="button" class="btn-ghost" id="pbk-add-row" data-i18n="pbk_add_row">+ Add row</button>
+            <button type="button" class="btn-ghost" id="pbk-paste-toggle" data-i18n="pbk_paste">Paste a list</button>
+          </div>
+          <div id="pbk-paste-box" hidden style="margin-top:10px;">
+            <div style="font-size:12px;color:var(--primary-soft);margin-bottom:6px;" data-i18n="pbk_paste_hint">One per line: NAME, CODE (a comma or a tab between them), e.g. MOHD SIDEK AMZAH ENTERPRISE, C-M0001</div>
+            <textarea id="pbk-paste-text" rows="6" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface-alt);color:inherit;font-family:var(--font-data);font-size:12.5px;"></textarea>
+            <button type="button" class="btn-ghost" id="pbk-paste-apply" style="margin-top:8px;" data-i18n="pbk_paste_apply">Add these to the list</button>
+          </div>
+          <div style="display:flex;gap:14px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+            <button type="button" class="btn-primary" id="pbk-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
+            <span id="pbk-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
+          </div>
         </div>
       </section>
 
@@ -2515,6 +2568,13 @@
       acct_switch_off:"Switch off", acct_switch_on:"Switch on", acct_delete:"Delete", acct_you:"you", acct_off:"Off", acct_must_change:"must change password",
       acct_confirm_delete:"Delete this login? This cannot be undone.", acct_confirm_off:"Switch this login off? They are signed out at once and taken off all their companies.",
       acct_kept:"This person already has work history, so the record is kept: the login is switched off and removed from all companies.", acct_deleted:"Deleted.",
+      pbk_title:"Purchases → Bukku import file", pbk_desc:"Per company: switch the feature on, set the fixed Account and Item Description, and keep the list of supplier / employee names with their Bukku Contact Codes. Staff then only key in the bill number, date, quantity and unit price on the company's Purchases Bill page.",
+      pbk_company:"Company", pbk_enabled:"Switched on for this company", pbk_account:"Account", pbk_item_desc:"Item Description", pbk_contacts:"Suppliers / employees and their Contact Codes",
+      pbk_name:"Name (as on the receipt / in Bukku)", pbk_code:"Contact Code", pbk_add_row:"+ Add row", pbk_paste:"Paste a list", pbk_paste_apply:"Add these to the list",
+      pbk_paste_hint:"One per line: NAME, CODE (a comma or a tab between them), e.g. MOHD SIDEK AMZAH ENTERPRISE, C-M0001", pbk_saved:"Saved.", pbk_added:"rows added — press Save to keep them.",
+      pbk_card_title:"Bukku import file", pbk_hint:"Fill one row per line item. Rows that follow each other with the same No., supplier and date become one bill with several lines. Account and Item Description are filled in automatically.",
+      pbk_type:"Type", pbk_type_bill:"Purchase Bill", pbk_type_claim:"Expense Claim (employee paid)", pbk_supplier:"Supplier", pbk_employee:"Employee", pbk_no:"No.", pbk_date:"Date", pbk_qty:"Quantity", pbk_price:"Unit Price", pbk_amount:"Amount",
+      pbk_add_line:"+ Add line", pbk_download:"Download Bukku file", pbk_choose:"— choose —", pbk_no_contacts:"No suppliers yet — ask the Owner to add them in the Control Panel.", pbk_total:"Total", pbk_downloaded:"Downloaded",
       status_completed:"Completed", status_in_progress:"In Progress", status_needs_review:"Needs Review", status_not_started:"Not Started",
       status_synced:"Synced", status_pending:"Pending", status_matched:"Matched", status_unmatched:"Unmatched",
       status_paid:"Paid", status_unpaid:"Unpaid", status_approved:"Approved", status_rejected:"Rejected",
@@ -2796,6 +2856,13 @@
       acct_switch_off:"停用", acct_switch_on:"启用", acct_delete:"删除", acct_you:"你自己", acct_off:"已停用", acct_must_change:"需修改密码",
       acct_confirm_delete:"确定删除这个登录账号？删除后无法恢复。", acct_confirm_off:"确定停用这个登录账号？对方会立即被登出，并从他负责的所有公司中移除。",
       acct_kept:"这个人已经有工作记录，所以资料保留：登录已停用，并已从所有公司移除。", acct_deleted:"已删除。",
+      pbk_title:"购买记录 → Bukku 导入文件", pbk_desc:"按公司设置：开关这个功能、固定的 Account 和 Item Description，以及供应商 / 员工名称和他们的 Bukku Contact Code。员工只需要在公司的 Purchases Bill 页面填账单号码、日期、数量和单价。",
+      pbk_company:"公司", pbk_enabled:"这家公司已开通", pbk_account:"Account", pbk_item_desc:"Item Description", pbk_contacts:"供应商 / 员工与 Contact Code",
+      pbk_name:"名称（和收据 / Bukku 上一致）", pbk_code:"Contact Code", pbk_add_row:"+ 加一行", pbk_paste:"粘贴名单", pbk_paste_apply:"加入名单",
+      pbk_paste_hint:"一行一个：名称, 代码（中间用逗号或 Tab），例如 MOHD SIDEK AMZAH ENTERPRISE, C-M0001", pbk_saved:"已保存。", pbk_added:"行已加入，按保存才会存起来。",
+      pbk_card_title:"Bukku 导入文件", pbk_hint:"每个项目填一行。连续几行的 No.、供应商、日期都相同，就会合成一张有多个项目的账单。Account 和 Item Description 会自动带入。",
+      pbk_type:"类型", pbk_type_bill:"Purchase Bill（采购账单）", pbk_type_claim:"Expense Claim（员工垫付）", pbk_supplier:"供应商", pbk_employee:"员工", pbk_no:"账单号码 No.", pbk_date:"日期", pbk_qty:"数量", pbk_price:"单价", pbk_amount:"金额",
+      pbk_add_line:"+ 加一行", pbk_download:"下载 Bukku 文件", pbk_choose:"— 请选择 —", pbk_no_contacts:"还没有供应商，请 Owner 在 Control Panel 里加入。", pbk_total:"合计", pbk_downloaded:"已下载",
       status_completed:"已完成", status_in_progress:"进行中", status_needs_review:"待审核", status_not_started:"未开始",
       status_synced:"已同步", status_pending:"待处理", status_matched:"已匹配", status_unmatched:"未匹配",
       status_paid:"已付款", status_unpaid:"未付款", status_approved:"已批准", status_rejected:"已拒绝",
@@ -4048,17 +4115,120 @@
     }).catch(function(){ tbody.innerHTML = emptyRow(6, t('could_not_load_bank')); });
   }
 
+  // ---- Purchases → Bukku import file (on the company's Purchases Bill page, only where the Owner switched it on) ----
+  var pbkCo = { companyId:null, cfg:null, rows:[] };
+  function pbkNewRow(){ return { contact:'', emp:'', no:'', date:'', qty:'', price:'' }; }
+  function pbkClaim(){ return document.getElementById('pbk-type').value === 'claim'; }
+  function pbkContactOptions(selected){
+    return '<option value="">' + t('pbk_choose') + '</option>' + pbkCo.cfg.contacts.map(function(c){
+      return '<option value="' + pfEsc(c.code) + '"' + (c.code === selected ? ' selected' : '') + '>' + pfEsc(c.name) + ' (' + pfEsc(c.code) + ')</option>';
+    }).join('');
+  }
+  function pbkAmount(r){ var q = Number(r.qty), p = Number(r.price); return (q > 0 && p >= 0 && r.price !== '') ? q * p : 0; }
+  function pbkUpdateTotals(){
+    var sum = 0;
+    pbkCo.rows.forEach(function(r, i){
+      var a = pbkAmount(r); sum += a;
+      var cell = document.querySelector('[data-pbk-amt="' + i + '"]');
+      if(cell) cell.textContent = a ? money(a) : '—';
+    });
+    document.getElementById('pbk-total').textContent = t('pbk_total') + ': ' + money(sum);
+  }
+  function pbkDrawRows(){
+    var claim = pbkClaim();
+    document.querySelectorAll('.pbk-emp-col').forEach(function(el){ el.hidden = !claim; });
+    document.getElementById('pbk-rows').innerHTML = pbkCo.rows.map(function(r, i){
+      return '<tr>' +
+        '<td><select data-pbk-f="contact" data-pbk-i="' + i + '" style="' + PBK_INPUT_STYLE + 'min-width:240px;">' + pbkContactOptions(r.contact) + '</select></td>' +
+        '<td class="pbk-emp-col"' + (claim ? '' : ' hidden') + '><select data-pbk-f="emp" data-pbk-i="' + i + '" style="' + PBK_INPUT_STYLE + 'min-width:240px;">' + pbkContactOptions(r.emp) + '</select></td>' +
+        '<td><input type="text" data-pbk-f="no" data-pbk-i="' + i + '" value="' + pfEsc(r.no) + '" maxlength="40" style="' + PBK_INPUT_STYLE + 'min-width:140px;" /></td>' +
+        '<td><input type="date" data-pbk-f="date" data-pbk-i="' + i + '" value="' + pfEsc(r.date) + '" style="' + PBK_INPUT_STYLE + 'min-width:150px;" /></td>' +
+        '<td><input type="number" min="0" step="any" data-pbk-f="qty" data-pbk-i="' + i + '" value="' + pfEsc(r.qty) + '" style="' + PBK_INPUT_STYLE + 'width:90px;" /></td>' +
+        '<td><input type="number" min="0" step="any" data-pbk-f="price" data-pbk-i="' + i + '" value="' + pfEsc(r.price) + '" style="' + PBK_INPUT_STYLE + 'width:110px;" /></td>' +
+        '<td class="num" data-pbk-amt="' + i + '">—</td>' +
+        '<td><button type="button" class="btn-row" data-pbk-rm="' + i + '" aria-label="Remove">×</button></td></tr>';
+    }).join('');
+    pbkUpdateTotals();
+  }
+  function pbkSayCo(text, isErr){ var el = document.getElementById('pbk-msg'); el.textContent = text; el.style.color = isErr ? 'var(--danger)' : 'var(--primary-soft)'; }
+  function loadPbk(companyId){
+    var card = document.getElementById('pbk-card');
+    card.hidden = true;
+    if(!companyId) return;
+    api('/companies/' + companyId + '/purchase-bukku').then(function(cfg){
+      if(!cfg.enabled) return;
+      if(pbkCo.companyId !== companyId || !pbkCo.rows.length) pbkCo.rows = [pbkNewRow()];
+      pbkCo.companyId = companyId; pbkCo.cfg = cfg;
+      pbkSayCo(cfg.contacts.length ? '' : t('pbk_no_contacts'), !cfg.contacts.length);
+      card.hidden = false;
+      pbkDrawRows();
+    }).catch(function(){ /* feature not available to this user: stays hidden */ });
+  }
+  (function(){
+    var tbody = document.getElementById('pbk-rows');
+    function setField(el){
+      var i = Number(el.dataset.pbkI), f = el.dataset.pbkF;
+      if(pbkCo.rows[i] && f) pbkCo.rows[i][f] = el.value;
+      pbkUpdateTotals();
+    }
+    tbody.addEventListener('input', function(e){ if(e.target.dataset && e.target.dataset.pbkF) setField(e.target); });
+    tbody.addEventListener('change', function(e){ if(e.target.dataset && e.target.dataset.pbkF) setField(e.target); });
+    tbody.addEventListener('click', function(e){
+      var rm = e.target.closest ? e.target.closest('[data-pbk-rm]') : null;
+      if(!rm) return;
+      pbkCo.rows.splice(Number(rm.dataset.pbkRm), 1);
+      if(!pbkCo.rows.length) pbkCo.rows.push(pbkNewRow());
+      pbkDrawRows();
+    });
+    document.getElementById('pbk-add-line').addEventListener('click', function(){
+      var last = pbkCo.rows[pbkCo.rows.length - 1] || pbkNewRow();
+      // a new line starts with the previous line's bill details, so a multi-line bill only needs the item changed
+      pbkCo.rows.push({ contact:last.contact, emp:last.emp, no:last.no, date:last.date, qty:'', price:'' });
+      pbkDrawRows();
+    });
+    document.getElementById('pbk-type').addEventListener('change', pbkDrawRows);
+    document.getElementById('pbk-download').addEventListener('click', function(){
+      var btn = this, claim = pbkClaim(), bills = [], prev = null;
+      pbkCo.rows.forEach(function(r){
+        if(!r.contact && !r.no && !r.date && r.qty === '' && r.price === '') return;
+        var d = r.date ? r.date.split('-') : [];
+        var date = d.length === 3 ? d[2] + '/' + d[1] + '/' + d[0] : '';
+        var key = [r.no, r.contact, date, claim ? r.emp : ''].join('|');
+        if(prev && prev.key === key){ prev.bill.lines.push({ quantity:r.qty, unitPrice:r.price }); return; }
+        prev = { key:key, bill:{ contactCode:r.contact, employeeCode:r.emp, no:r.no, date:date, lines:[{ quantity:r.qty, unitPrice:r.price }] } };
+        bills.push(prev.bill);
+      });
+      pbkSayCo('');
+      btn.disabled = true;
+      fetch('/api/companies/' + pbkCo.companyId + '/purchase-bukku/export', {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'same-origin',
+        body: JSON.stringify({ type: claim ? 'claim' : 'bill', bills: bills })
+      }).then(function(res){
+        if(!res.ok) return res.json().catch(function(){ return {}; }).then(function(b){ throw new Error(b.error || ('Request failed (' + res.status + ')')); });
+        var name = decodeURIComponent(res.headers.get('X-File-Name') || 'BUKKU-PURCHASES.xlsx');
+        return res.blob().then(function(blob){
+          var url = URL.createObjectURL(blob), a = document.createElement('a');
+          a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+          pbkSayCo(t('pbk_downloaded') + ': ' + name);
+        });
+      }).catch(function(err){ pbkSayCo(err.message, true); }).finally(function(){ btn.disabled = false; });
+    });
+  })();
+
   function renderPurchases(){
     var sub = document.getElementById('purchases-sub');
     var tbody = document.getElementById('purchases-tbody');
     if(!currentCompany){
       sub.textContent = t('sub_supplier_invoices');
       tbody.innerHTML = emptyRow(5, t('empty_purchases'));
+      document.getElementById('pbk-card').hidden = true;
       return;
     }
     sub.textContent = currentCompany + ' · ' + t('supplier_invoices_suffix');
     var companyId = customerRecordId(currentCompany);
     if(!companyId) return;
+    loadPbk(companyId);
     api('/companies/' + companyId + '/purchases').then(function(rows){
       if(rows.length === 0){ tbody.innerHTML = emptyRow(5, t('empty_purchases_no_data')); return; }
       tbody.innerHTML = rows.map(function(r){
@@ -5968,7 +6138,75 @@
 
   // ============ CONTROL PANEL: file naming (Owner) ============
   var cp = { features:[], timers:{} };
+  // ---- Control Panel: Purchases → Bukku (per company) ----
+  var pbk = { contacts: [] };
+  var PBK_INPUT_STYLE = 'width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--surface-card);color:inherit;font-size:12.5px;';
+  function pbkSay(text, isErr){ var el = pfEl('pbk-status'); el.textContent = text; el.style.color = isErr ? 'var(--danger)' : 'var(--primary-soft)'; }
+  function pbkDrawContacts(){
+    pfEl('pbk-contacts-tbody').innerHTML = pbk.contacts.map(function(c, i){
+      return '<tr><td><input type="text" data-pbk-name="' + i + '" value="' + pfEsc(c.name) + '" style="' + PBK_INPUT_STYLE + '" /></td>' +
+        '<td><input type="text" data-pbk-code="' + i + '" value="' + pfEsc(c.code) + '" style="' + PBK_INPUT_STYLE + 'font-family:var(--font-data);" /></td>' +
+        '<td><button type="button" class="btn-row" data-pbk-del="' + i + '" aria-label="Remove">×</button></td></tr>';
+    }).join('');
+    document.querySelectorAll('#pbk-contacts-tbody [data-pbk-name]').forEach(function(inp){ inp.addEventListener('input', function(){ pbk.contacts[Number(inp.dataset.pbkName)].name = inp.value; }); });
+    document.querySelectorAll('#pbk-contacts-tbody [data-pbk-code]').forEach(function(inp){ inp.addEventListener('input', function(){ pbk.contacts[Number(inp.dataset.pbkCode)].code = inp.value; }); });
+    document.querySelectorAll('#pbk-contacts-tbody [data-pbk-del]').forEach(function(btn){ btn.addEventListener('click', function(){ pbk.contacts.splice(Number(btn.dataset.pbkDel), 1); pbkDrawContacts(); }); });
+  }
+  function pbkLoadCompany(id){
+    api('/purchase-bukku/companies/' + id).then(function(r){
+      pfEl('pbk-enabled').checked = !!r.enabled;
+      pfEl('pbk-account').value = r.account;
+      pfEl('pbk-desc').value = r.itemDescription;
+      pbk.contacts = r.contacts.map(function(c){ return { name:c.name, code:c.code }; });
+      pbkDrawContacts();
+      pbkSay('');
+    }).catch(function(err){ pbkSay(err.message, true); });
+  }
+  function renderPbkSettings(){
+    var sel = pfEl('pbk-company');
+    if(!sel) return;
+    api('/purchase-bukku/companies').then(function(rows){
+      var keep = sel.value;
+      sel.innerHTML = rows.map(function(r){ return '<option value="' + r.id + '">' + pfEsc(r.name) + (r.enabled ? '  ✓' : '') + '</option>'; }).join('');
+      if(keep && rows.some(function(r){ return String(r.id) === keep; })) sel.value = keep;
+      if(rows.length) pbkLoadCompany(sel.value);
+    }).catch(function(err){ pbkSay(err.message, true); });
+  }
+  pfEl('pbk-company').addEventListener('change', function(){ pbkLoadCompany(this.value); });
+  pfEl('pbk-add-row').addEventListener('click', function(){ pbk.contacts.push({ name:'', code:'' }); pbkDrawContacts(); });
+  pfEl('pbk-paste-toggle').addEventListener('click', function(){ var b = pfEl('pbk-paste-box'); b.hidden = !b.hidden; });
+  pfEl('pbk-paste-apply').addEventListener('click', function(){
+    var added = 0;
+    pfEl('pbk-paste-text').value.split(String.fromCharCode(10)).forEach(function(line){
+      line = line.trim();
+      if(!line) return;
+      var cut = line.lastIndexOf(String.fromCharCode(9));
+      if(cut < 0) cut = line.lastIndexOf(',');
+      if(cut < 0) return;
+      var name = line.slice(0, cut).trim(), code = line.slice(cut + 1).trim();
+      if(name && code){ pbk.contacts.push({ name:name, code:code }); added++; }
+    });
+    pfEl('pbk-paste-text').value = '';
+    pbkDrawContacts();
+    pbkSay(added + ' ' + t('pbk_added'));
+  });
+  pfEl('pbk-save').addEventListener('click', function(){
+    var btn = this, id = pfEl('pbk-company').value;
+    if(!id) return;
+    btn.disabled = true;
+    api('/purchase-bukku/companies/' + id, { method:'PUT', body: JSON.stringify({
+      enabled: pfEl('pbk-enabled').checked, account: pfEl('pbk-account').value, itemDescription: pfEl('pbk-desc').value, contacts: pbk.contacts
+    }) }).then(function(r){
+      pbk.contacts = r.contacts.map(function(c){ return { name:c.name, code:c.code }; });
+      pbkDrawContacts();
+      pbkSay(t('pbk_saved'));
+      renderPbkSettings();
+      renderActivityLog();
+    }).catch(function(err){ pbkSay(err.message, true); }).finally(function(){ btn.disabled = false; });
+  });
+
   function renderControl(){
+    renderPbkSettings();
     api('/doc-settings').then(function(r){
       cp.features = r.features;
       pfEl('cp-tokens').innerHTML = '<b>' + t('cp_tokens') + ':</b> ' + Object.keys(r.tokens).map(function(k){ return '<code>{' + k + '}</code> ' + pfEsc(r.tokens[k]); }).join(' · ');

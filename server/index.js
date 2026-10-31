@@ -51,6 +51,7 @@ app.use('/api', require('./routes/olTngReport'));
 app.use('/api', require('./routes/dailySales'));
 app.use('/api', require('./routes/companyUsers'));
 app.use('/api', require('./routes/accounts'));
+app.use('/api', require('./routes/purchaseBukku'));
 app.use('/api', require('./routes/kwsp'));
 app.use('/api', require('./routes/docs'));
 

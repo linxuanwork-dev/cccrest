@@ -14,7 +14,7 @@ const FEATURES = [
   { key: 'company_report', label: 'Company PDF reports', builtin: '{TITLE}', ext: 'pdf' },
   { key: 'sales_summary_excel', label: 'Sales Summary — Bukku invoice file (Excel)', builtin: '{BRANCH}-BUKKU SALES INV-{YYYY}_{MM}', ext: 'xlsx' },
   { key: 'sales_summary_pdf', label: 'Sales Summary report (PDF)', builtin: '{BRANCH}-BUKKU SALES INV-{YYYY}_{MM}', ext: 'pdf' },
-  { key: 'purchase_bukku', label: 'Purchases — Bukku import file (Excel)', builtin: '{PREFIX}-BUKKU-PURCHASES RECORD-{YY}_{MM}', ext: 'xlsx' },
+  { key: 'purchase_bukku', label: 'Purchase Bill entry — Bukku import file (Excel)', builtin: '{PREFIX}-BUKKU-PURCHASES_BILL-{SPAN}', ext: 'xlsx' },
   { key: 'dm_invoice', label: 'DM Reg & Mod sales invoice (Excel)', builtin: 'sales-invoice-{BRANCH}-{MM}{YYYY}', ext: 'xlsx' },
   { key: 'ol_tng_report', label: 'OL-TNG Daily Settlement Report (Excel)', builtin: 'OL-TNG_{YYYY}_{MM}', ext: 'xlsx' }
 ];
@@ -25,7 +25,7 @@ const TOKENS = {
   COMPANY: 'company name, capitals with hyphens',
   YYYY: 'year (4 digits)', YY: 'year (2 digits)', MM: 'month (2 digits)', DD: 'day (2 digits)',
   SEQ: 'running number, e.g. {SEQ:3} gives 001 (restarts each year if the pattern has {YYYY})',
-  EMP: 'employee name', PERIOD: 'period, e.g. 2026-10', TITLE: 'report title', BRANCH: 'branch / outlet code', FORM: 'form name, e.g. BORANG 1 or SIP 1A'
+  EMP: 'employee name', PERIOD: 'period, e.g. 2026-10', TITLE: 'report title', BRANCH: 'branch / outlet code', FORM: 'form name, e.g. BORANG 1 or SIP 1A', SPAN: 'month(s) of the bills, e.g. 2026_08 or 2026_07_2026_08'
 };
 
 // Malaysia time, whatever the server's clock zone is
@@ -46,7 +46,7 @@ function validatePattern(pattern) {
   if (!p) return 'The pattern cannot be empty.';
   if (p.length > 120) return 'The pattern is too long.';
   if (/[\\/:*?"<>|]/.test(p.replace(/\{[^}]*\}/g, ''))) return 'A file name cannot contain \\ / : * ? " < > |';
-  const bad = [...p.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((t) => !/^(PREFIX|COMPANY|YYYY|YY|MM|DD|EMP|PERIOD|TITLE|BRANCH|FORM)$/.test(t) && !/^SEQ(:[1-6])?$/.test(t));
+  const bad = [...p.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((t) => !/^(PREFIX|COMPANY|YYYY|YY|MM|DD|EMP|PERIOD|TITLE|BRANCH|FORM|SPAN)$/.test(t) && !/^SEQ(:[1-6])?$/.test(t));
   if (bad.length) return 'Unknown placeholder: {' + bad[0] + '}';
   if (/[{}]/.test(p.replace(/\{[^}]*\}/g, ''))) return 'Unbalanced { } in the pattern.';
   return null;
@@ -91,7 +91,7 @@ async function fileBase(feature, companyId, ctx, fallback) {
 
 // What a pattern would produce, without using up a number (Control Panel preview)
 async function previewName(pattern, companyId) {
-  const values = baseValues(await companyInfo(companyId), { EMP: 'AHMAD-BIN-ALI', TITLE: 'REPORT', BRANCH: 'ML-TU', FORM: 'SIP 1', SEQ: 1 });
+  const values = baseValues(await companyInfo(companyId), { EMP: 'AHMAD-BIN-ALI', TITLE: 'REPORT', BRANCH: 'ML-TU', FORM: 'SIP 1', SPAN: '2026_08', SEQ: 1 });
   return render(pattern, values);
 }
 

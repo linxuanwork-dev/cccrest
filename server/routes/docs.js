@@ -96,7 +96,7 @@ router.get('/companies/:companyId/documents', requireAuth, scopeToCompany, async
     params
   );
   res.json({
-    types: Object.fromEntries(docs.FEATURES.map((f) => [f.key, f.label]).concat([['company_profile', 'Company profile'], ['kwsp_form', 'KWSP & PERKESO form data'], ['employee', 'Employee record'], ['purchase_bukku_entry', 'Purchase bill entry']])),
+    types: Object.fromEntries(docs.FEATURES.map((f) => [f.key, f.label]).concat([['company_profile', 'Company profile'], ['kwsp_form', 'KWSP & PERKESO form data'], ['employee', 'Employee record'], ['purchase_bukku_bill', 'Purchase bill (Bukku entry)']])),
     events: rows.map((r) => ({ id: r.id, docType: r.doc_type, docRef: r.doc_ref, event: r.event, details: r.details, userName: r.user_name, createdAt: r.created_at }))
   });
 });

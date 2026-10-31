@@ -1,0 +1,831 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Bukku 采购单录入</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: ledger workbench — sticky header with company + tabs, form on the left, live checks on the right; yellow = must-fill (same as the Bukku template) */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
+  --accent:#0f6b6b; --accent-ink:#ffffff; --accent-soft:#e0f0ef;
+  --must:#fff3a6; --must-line:#e4cf4a;
+  --bad:#b42318; --bad-soft:#fde8e6; --warn:#9a6200; --warn-soft:#fff1d6; --ok:#1f7a3d; --ok-soft:#e3f4e8;
+  --f-body:"IBM Plex Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding-block:12px 8px}
+.brand{font-weight:700;font-size:16px;letter-spacing:.01em;display:flex;align-items:baseline;gap:8px}
+.brand small{font-weight:400;color:var(--muted);font-size:12px}
+.co{display:flex;align-items:center;gap:8px;margin-left:auto}
+.co label{font-size:12px;color:var(--muted)}
+nav{display:flex;gap:2px;overflow-x:auto}
+nav button{border:0;background:none;color:var(--muted);padding:8px 14px;font:inherit;font-weight:500;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav button .ct{font-family:var(--f-mono);font-size:11px;background:var(--line2);border-radius:9px;padding:0 6px;margin-left:4px}
+main{padding-block:18px 48px}
+h2{font-size:15px;margin:0;text-wrap:balance}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.panel + .panel{margin-top:14px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:span 2}
+@media (max-width:480px){.f.wide{grid-column:auto}}
+.f > span{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:baseline}
+.f > span em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;opacity:.8}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+textarea{resize:vertical;font-family:var(--f-mono);font-size:12.5px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.must input,.must select,input.must{background:var(--must);border-color:var(--must-line)}
+.auto{font-family:var(--f-mono);font-size:13px;padding:7px 9px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);min-height:36px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.auto.has{color:var(--ink)}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11.5px;font-weight:500;color:var(--muted);text-align:left;background:var(--line2);padding:7px 8px;white-space:nowrap;position:sticky;top:0}
+td{border-top:1px solid var(--line2);padding:6px 8px;vertical-align:middle}
+td.r,th.r{text-align:right}
+tr.isdup td{background:var(--bad-soft)}
+.lines td{padding:4px}
+.lines input{padding:5px 7px}
+.lines .c-qty{width:70px}.lines .c-price{width:120px}.lines .c-acc{width:90px}.lines .c-tax{width:80px}.lines .c-x{width:34px}
+.total{display:flex;justify-content:flex-end;gap:14px;align-items:baseline;padding-top:10px}
+.total b{font-family:var(--f-mono);font-size:18px}
+.pill{display:inline-block;font-size:11px;font-weight:500;border-radius:10px;padding:1px 8px;white-space:nowrap}
+.pill.draft{background:var(--accent-soft);color:var(--accent)}
+.pill.done{background:var(--line2);color:var(--muted)}
+.pill.dup{background:var(--bad);color:#fff}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.check{border-radius:8px;padding:12px 14px;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.check.ok{background:var(--ok-soft);color:var(--ok)}
+.check.bad{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}
+.check.warn{background:var(--warn-soft);color:var(--warn)}
+.check.idle{background:var(--line2);color:var(--muted)}
+.check strong{font-size:14px}
+.check ul{margin:0;padding-left:18px}
+.check label{display:flex;gap:6px;align-items:center;color:var(--ink);font-weight:500;margin-top:4px}
+.check label input{width:auto}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.key{display:inline-block;width:12px;height:12px;background:var(--must);border:1px solid var(--must-line);border-radius:2px;vertical-align:-1px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--line2)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters input,.filters select{width:auto}
+.filters input[type=search]{min-width:0;flex:1 1 180px}
+.notice{padding:10px 14px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px;margin-bottom:14px}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.stat{border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.stat div{font-size:11.5px;color:var(--muted)}
+.stat b{font-family:var(--f-mono);font-size:16px;font-weight:500}
+.recent{display:flex;flex-direction:column}
+.recent div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line2);font-size:12.5px}
+.recent div span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qwrap{max-height:66vh;overflow:auto}
+.qsteps{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-2px 0 10px;color:var(--ink)}
+.qsteps b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;margin-right:4px}
+.ct.alert{background:var(--warn-soft);color:var(--warn)}
+.qgrid{min-width:1140px;table-layout:fixed}
+.qgrid th{z-index:1}
+.qgrid td{padding:0;border-right:1px solid var(--line2)}
+.qgrid td input{border:0;border-radius:0;padding:7px 8px;background:transparent}
+.qgrid td.m input{background:var(--must)}
+.qgrid tr.q-empty td.m input{background:color-mix(in srgb,var(--must) 45%,var(--panel))}
+.qgrid td input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--panel)}
+.qgrid .qn{width:38px;text-align:center;color:var(--muted);font-family:var(--f-mono);font-size:11.5px}
+.qgrid .qsup{width:220px}.qgrid .qno{width:120px}.qgrid .qdate{width:105px}.qgrid .qtag{width:90px}.qgrid .qdesc{width:240px}.qgrid .qprice{width:100px}.qgrid .qst{width:190px}.qgrid .qx{width:34px}
+.qgrid td.qst{padding:4px 8px;font-size:12px;line-height:1.35}
+.qgrid td.qst label{display:flex;gap:4px;align-items:center;margin-top:2px;color:var(--ink)}
+.qgrid td.qst label input{width:auto;padding:0}
+.qgrid tr.q-dup td{background:var(--bad-soft)}
+.qgrid tr.q-dup td.qst{color:var(--bad)}
+.qgrid tr.q-warn td.qst{color:var(--warn)}
+.qgrid tr.q-err td.qst{color:var(--muted)}
+.qgrid tr.q-ok td.qst{color:var(--ok)}
+.qgrid .xbtn{border:0;background:none;color:var(--muted);cursor:pointer;width:100%;padding:6px 0;font:inherit}
+.qgrid .xbtn:hover{color:var(--bad)}
+body:not(.is-mgr) .mgr-only{display:none!important}
+body.is-mgr .staff-only{display:none!important}
+.role{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--muted);white-space:nowrap}
+details summary{cursor:pointer;color:var(--muted);font-size:13px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">Bukku 采购单录入 <small>Purchase Bill → Bukku import</small></div>
+      <div class="co">
+        <span class="role" id="roleTag">员工</span>
+      </div>
+    </div>
+    <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="quick" aria-selected="true">快速录入<span class="ct" id="ctQ" hidden></span></button>
+      <button role="tab" data-tab="entry" aria-selected="false">单张录入（多项目）</button>
+      <button role="tab" data-tab="bills" aria-selected="false">单据列表 / 导出<span class="ct" id="ctBills">0</span></button>
+      <button role="tab" data-tab="suppliers" aria-selected="false">供应商<span class="ct" id="ctSup">0</span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="offline" class="notice" hidden>正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。</div>
+
+  <!-- QUICK GRID -->
+  <section id="v-quick">
+    <div class="panel">
+      <div class="ph">
+        <h2>快速录入 · 一行一张单</h2>
+        <div class="row"><span class="small" id="qSum2"></span><button class="btn pri" id="qSave2">保存全部</button></div>
+      </div>
+      <div class="qsteps small"><span><b>1</b> 一行打一张单（黄色必填）</span><span><b>2</b> 按「保存全部」才会存进系统</span><span><b>3</b> 到「单据列表 / 导出」查看和导出</span></div>
+      <p class="small muted" style="margin:-4px 0 12px">Enter 跳下一行，可从 Excel 整块复制贴上，栏位顺序：供应商 ｜ 单号 ｜ 日期 ｜ Tags ｜ 项目 ｜ 单价。日期可打 <span class="mono">16/6</span>、<span class="mono">16/06/2026</span> 或 <span class="mono">160626</span>，空着的会沿用上一行的日期。还没保存的行会暂时留在这台电脑。</p>
+      <div class="tbl-wrap qwrap">
+        <table class="qgrid">
+          <thead><tr><th class="qn">#</th><th class="qsup">供应商 Legal Name *</th><th class="qno">单号 No. *</th><th class="qdate">日期 *</th><th class="qtag">Tags</th><th class="qdesc">项目 Item Description *</th><th class="qprice r">单价 *</th><th class="qst">检查</th><th class="qx"></th></tr></thead>
+          <tbody id="qBody"></tbody>
+        </table>
+      </div>
+      <div class="bar">
+        <div class="row"><button class="btn sm" id="qAdd">+ 10 行</button><button class="btn sm" id="qClear">清空这页</button></div>
+        <span class="small" id="qSum"></span>
+        <button class="btn pri" id="qSave">保存全部</button>
+      </div>
+      <div id="qMsg" style="margin-top:12px" hidden></div>
+    </div>
+  </section>
+
+  <!-- ENTRY -->
+  <section id="v-entry" hidden>
+    <div class="grid">
+      <div>
+        <form class="panel" id="billForm" autocomplete="off">
+          <div class="ph">
+            <h2 id="formTitle">新采购单</h2>
+            <span class="small muted"><span class="key"></span> 黄色 = 必填</span>
+          </div>
+          <div class="fields">
+            <label class="f wide must"><span>供应商 Legal Name <em>(2)</em></span>
+              <input id="fSup" list="supList" placeholder="打字搜索供应商" required>
+              <datalist id="supList"></datalist>
+            </label>
+            <div class="f"><span>Contact Code <em>(1) 自动</em></span><div class="auto" id="fCode">—</div></div>
+            <label class="f must"><span>单号 No. <em>(3)</em></span><input id="fNo" class="mono" required></label>
+            <label class="f must"><span>日期 Date <em>(D)</em></span><input id="fDate" type="date" required></label>
+            <label class="f"><span>Reference No.</span><input id="fRef"></label>
+            <label class="f must"><span>Tags <em>(8)</em></span><input id="fTags" placeholder="可留空"></label>
+            <label class="f wide"><span>Description（单据备注，可留空）</span><input id="fDesc"></label>
+          </div>
+
+          <div class="ph" style="margin-top:18px;margin-bottom:8px"><h2>项目 Line items</h2>
+            <button type="button" class="btn sm" id="addLine">+ 加一行</button></div>
+          <div class="tbl-wrap">
+            <table class="lines">
+              <thead><tr><th>Item Description *</th><th class="c-acc">Account *</th><th class="c-qty r">Qty</th><th class="c-price r">Unit Price *</th><th class="c-tax">Tax</th><th class="c-x"></th></tr></thead>
+              <tbody id="lineBody"></tbody>
+            </table>
+          </div>
+          <div class="total"><span class="muted">总额 RM</span><b id="fTotal">0.00</b></div>
+
+          <div class="bar">
+            <span class="small muted" id="formHint">Enter 键在最后一格会自动保存</span>
+            <div class="row">
+              <button type="button" class="btn" id="resetBtn">清空</button>
+              <button type="submit" class="btn pri" id="saveBtn">保存单据</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <aside>
+        <div class="panel">
+          <h2 style="margin-bottom:10px">重复单号检查</h2>
+          <div id="dupBox" class="check idle">输入供应商和单号后会自动检查。</div>
+        </div>
+        <div class="panel">
+          <div class="stats">
+            <div class="stat"><div>未导出</div><b id="sDraft">0</b></div>
+            <div class="stat"><div>未导出金额</div><b id="sAmt">0</b></div>
+            <div class="stat"><div>重复</div><b id="sDup">0</b></div>
+          </div>
+          <h2 style="margin-bottom:4px">最近录入</h2>
+          <div class="recent" id="recent"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- BILLS -->
+  <section id="v-bills" hidden>
+    <div class="panel">
+      <div class="ph">
+        <h2>单据列表</h2>
+        <div class="filters">
+          <input type="month" id="flMonth" title="月份">
+          <select id="flStatus">
+            <option value="all">全部状态</option>
+            <option value="draft">未导出</option>
+            <option value="exported">已导出</option>
+            <option value="dup">只看重复</option>
+          </select>
+          <select id="flSup"><option value="">全部供应商</option></select>
+          <input type="search" id="flQ" placeholder="搜单号 / 项目">
+        </div>
+      </div>
+      <div class="tbl-wrap" style="max-height:62vh;overflow:auto">
+        <table>
+          <thead><tr><th><input type="checkbox" id="selAll" aria-label="全选"></th><th>日期</th><th>供应商</th><th>单号 No.</th><th>项目</th><th class="r">金额</th><th>状态</th><th></th></tr></thead>
+          <tbody id="billBody"></tbody>
+        </table>
+      </div>
+      <div class="bar">
+        <span class="small" id="selInfo">未选择</span>
+        <span class="small muted staff-only">导出 Bukku 和标记已导出由 manager 处理。</span>
+        <div class="row mgr-only">
+          <button class="btn" id="markDone" disabled>标记已导出</button>
+          <button class="btn" id="markDraft" disabled>改回未导出</button>
+          <button class="btn danger" id="delSel" disabled>删除</button>
+          <button class="btn pri" id="exportBtn" disabled>导出 Bukku Excel</button>
+        </div>
+      </div>
+      <div id="exportMsg" style="margin-top:12px" hidden></div>
+    </div>
+  </section>
+
+  <!-- SUPPLIERS -->
+  <section id="v-suppliers" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div class="ph"><h2>供应商 Contacts</h2><input type="search" id="supQ" placeholder="搜索" style="width:200px"></div>
+        <div class="tbl-wrap" style="max-height:62vh;overflow:auto">
+          <table>
+            <thead><tr><th>Legal Name</th><th>Contact Code</th><th>Account</th><th>预设 Tags</th><th class="mgr-only"></th></tr></thead>
+            <tbody id="supBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <aside>
+        <p class="panel small muted staff-only" style="margin:0">供应商名单只有 manager 可以新增或修改。如果找不到供应商，请通知 manager 先加进来。</p>
+        <form class="panel mgr-only" id="supForm" autocomplete="off">
+          <h2 style="margin-bottom:10px" id="supFormTitle">新增供应商</h2>
+          <div class="fields" style="grid-template-columns:1fr">
+            <label class="f must"><span>Legal Name（跟 Bukku 一样）</span><input id="sName" required></label>
+            <label class="f"><span>Contact Code（例 C-A0001）</span><input id="sCode" class="mono"></label>
+            <label class="f"><span>Account（留空用公司预设）</span><input id="sAcc" class="mono"></label>
+            <label class="f"><span>预设 Tags</span><input id="sTags"></label>
+          </div>
+          <div class="row" style="margin-top:12px;justify-content:flex-end">
+            <button type="button" class="btn" id="supCancel" hidden>取消</button>
+            <button class="btn pri" type="submit" id="supSave">保存</button>
+          </div>
+        </form>
+        <div class="panel mgr-only">
+          <h2 style="margin-bottom:6px">从 Excel 贴上</h2>
+          <p class="small muted" style="margin:0 0 8px">从 Excel 复制四栏：Legal Name ｜ Contact Code ｜ Account ｜ Tags，直接贴在下面。名字一样的会更新。</p>
+          <textarea id="pasteBox" rows="5" placeholder="LENC PAINTS SDN BHD	C-L0001	6000"></textarea>
+          <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn" id="pasteBtn">加入</button></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => (Number(n)||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const normNo = s => String(s ?? '').toUpperCase().replace(/\s+/g,'');
+const normName = s => String(s ?? '').toUpperCase().replace(/\s+/g,' ').trim();
+const dmy = iso => iso ? iso.split('-').reverse().join('/') : '';
+const todayISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+const S = { company:null, cid:null, suppliers:[], bills:[], unsubs:[], editingId:null, editingSup:null, selected:new Set(), lastExport:null };
+
+/* ---------- storage layer: the CC CREST server (REST) ---------- */
+const QS = new URLSearchParams(location.search);
+const CID = QS.get('company') || '';
+const API = '/api/companies/' + encodeURIComponent(CID) + '/purchase-bill';
+const L = { sup: [], bills: [] };
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2600); }
+function dbErr(e){ console.error(e); toast('保存失败：'+(e && e.message || e)); }
+async function http(method, url, body){
+  const r = await fetch(API+url, { method, credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: body===undefined ? undefined : JSON.stringify(body) });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok){ const err = new Error(j.error || ('请求失败 ('+r.status+')')); err.code = r.status; throw err; }
+  return j;
+}
+let refreshT;
+function refreshSoon(){ clearTimeout(refreshT); refreshT = setTimeout(refresh, 300); }
+async function refresh(){
+  try{
+    const d = await http('GET','');
+    S.mgr = !!d.mgr; document.body.classList.toggle('is-mgr', S.mgr); $('roleTag').textContent = S.mgr ? 'Manager' : '员工';
+    S.company = d.company;
+    $('offline').hidden = true;
+    L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills));
+  }catch(e){
+    $('offline').hidden = false;
+    $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
+  }
+}
+function listen(coll, cb){
+  const arr = /suppliers$/.test(coll) ? L.sup : L.bills; arr.push(cb);
+  return ()=>{ const i=arr.indexOf(cb); if(i>=0) arr.splice(i,1); };
+}
+// paths look like org/{cid}/suppliers/{id} and companies/{cid}/bills/{id}; a new id means a new record
+async function put(path, data){
+  const parts=path.split('/'), kind=parts[2], id=parts[3];
+  const list = kind==='suppliers' ? S.suppliers : S.bills;
+  const exists = list.some(x=>String(x.id)===String(id));
+  await http(exists?'PUT':'POST', '/'+kind+(exists?'/'+encodeURIComponent(id):''), data);
+  refreshSoon();
+}
+async function patch(path, data){ // only used to change the status of a bill
+  await http('POST','/bills/status',{ ids:[path.split('/')[3]], status:data.status });
+  refreshSoon();
+}
+async function del(path){ const parts=path.split('/'); await http('DELETE','/'+parts[2]+'/'+encodeURIComponent(parts[3])); refreshSoon(); }
+
+/* ---------- company (fixed: the CC CREST company this page is opened for; its settings are in the Control Panel) ---------- */
+const co = () => S.company ? Object.assign({id:S.cid}, S.company) : null;
+function switchCompany(id){
+  S.unsubs.forEach(u=>u()); S.unsubs=[]; S.suppliers=[]; S.bills=[]; S.selected.clear();
+  S.cid=id;
+  resetForm();
+  Q.rows=[]; qLoad(); qRender();
+  if(!id){ renderAll(); return; }
+  S.unsubs.push(listen('org/'+id+'/suppliers', rows=>{ S.suppliers=rows.sort((a,b)=>a.name.localeCompare(b.name)); renderSuppliers(); onSupplierInput(false); qStatusAll(); }));
+  S.unsubs.push(listen('companies/'+id+'/bills', rows=>{ S.bills=rows; renderBills(); renderSide(); checkDup(); qStatusAll(); }));
+}
+
+/* ---------- suppliers ---------- */
+const supByName = name => S.suppliers.find(s=>normName(s.name)===normName(name));
+function renderSuppliers(){
+  $('ctSup').textContent=S.suppliers.length;
+  $('supList').innerHTML=S.suppliers.map(s=>`<option value="${esc(s.name)}">${esc(s.code||'')}</option>`).join('');
+  const fl=$('flSup'), cur=fl.value;
+  fl.innerHTML='<option value="">全部供应商</option>'+S.suppliers.map(s=>`<option>${esc(s.name)}</option>`).join('');
+  fl.value=cur;
+  const q=normName($('supQ').value);
+  const rows=S.suppliers.filter(s=>!q||normName(s.name).includes(q)||normName(s.code).includes(q));
+  $('supBody').innerHTML = rows.length ? rows.map(s=>`<tr>
+    <td>${esc(s.name)}</td><td class="mono">${esc(s.code||'—')}</td><td class="mono">${esc(s.account||'')}${s.account?'':'<span class="muted">预设</span>'}</td><td>${esc(s.tags||'')}</td>
+    <td class="r mgr-only" style="white-space:nowrap"><button class="btn sm" data-edit-sup="${esc(s.id)}">改</button> <button class="btn sm danger" data-del-sup="${esc(s.id)}">删</button></td></tr>`).join('')
+    : `<tr><td colspan="5" class="empty">${S.suppliers.length?'找不到':'还没有供应商。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
+}
+$('supQ').addEventListener('input',renderSuppliers);
+$('supBody').addEventListener('click', async e=>{
+  const ed=e.target.closest('[data-edit-sup]'), dl=e.target.closest('[data-del-sup]');
+  if(ed){ const s=S.suppliers.find(x=>x.id===ed.dataset.editSup); S.editingSup=s.id;
+    $('sName').value=s.name; $('sCode').value=s.code||''; $('sAcc').value=s.account||''; $('sTags').value=s.tags||'';
+    $('supFormTitle').textContent='修改供应商'; $('supCancel').hidden=false; $('sName').focus(); }
+  if(dl){
+    if(dl.dataset.armed!=='1'){ dl.dataset.armed='1'; dl.textContent='确定删?'; setTimeout(()=>{dl.dataset.armed='';dl.textContent='删'},3000); return; }
+    try{ await del('org/'+S.cid+'/suppliers/'+dl.dataset.delSup); toast('已删除'); }catch(err){dbErr(err)}
+  }
+});
+function supReset(){ S.editingSup=null; $('supForm').reset(); $('supFormTitle').textContent='新增供应商'; $('supCancel').hidden=true; }
+$('supCancel').addEventListener('click',supReset);
+async function upsertSupplier(o){
+  const ex = S.editingSup ? S.suppliers.find(s=>s.id===S.editingSup) : supByName(o.name);
+  const id = ex ? ex.id : uid();
+  const body=Object.assign({}, ex||{}, o); delete body.id;
+  await put('org/'+S.cid+'/suppliers/'+id, body);
+}
+$('supForm').addEventListener('submit', async e=>{
+  e.preventDefault(); if(!S.cid) return toast('先新增公司');
+  const o={name:$('sName').value.trim().toUpperCase().replace(/\s+/g,' '), code:$('sCode').value.trim().toUpperCase(), account:$('sAcc').value.trim(), tags:$('sTags').value.trim()};
+  if(!o.name) return;
+  try{ await upsertSupplier(o); toast('已保存 '+o.name); supReset(); }catch(err){dbErr(err)}
+});
+$('pasteBtn').addEventListener('click', async ()=>{
+  if(!S.cid) return toast('先新增公司');
+  const lines=$('pasteBox').value.split(/\r?\n/).map(l=>l.split('\t')).filter(c=>c[0]&&c[0].trim()&&!/legal name/i.test(c[0]));
+  let n=0;
+  for(const c of lines){ try{ S.editingSup=null; await upsertSupplier({name:c[0].trim().toUpperCase().replace(/\s+/g,' '),code:(c[1]||'').trim().toUpperCase(),account:(c[2]||'').trim(),tags:(c[3]||'').trim()}); n++; }catch(err){dbErr(err);break;} }
+  $('pasteBox').value=''; toast('已加入 / 更新 '+n+' 个供应商');
+});
+
+/* ---------- entry form ---------- */
+function defaultAccount(sup){ return (sup&&sup.account) || (co()&&co().account) || ''; }
+function lineRow(l={}){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input class="must l-desc" value="${esc(l.desc||'')}" required></td>
+   <td class="c-acc"><input class="mono l-acc" value="${esc(l.account||'')}"></td>
+   <td class="c-qty"><input class="mono l-qty" inputmode="decimal" style="text-align:right" value="${esc(l.qty ?? 1)}"></td>
+   <td class="c-price"><input class="mono must l-price" inputmode="decimal" style="text-align:right" value="${esc(l.price ?? '')}" required></td>
+   <td class="c-tax"><input class="mono l-tax" value="${esc(l.tax||'')}" placeholder="—"></td>
+   <td class="c-x"><button type="button" class="btn sm" title="删除这行" aria-label="删除这行">×</button></td>`;
+  tr.querySelector('button').addEventListener('click',()=>{ if($('lineBody').children.length>1){tr.remove();calcTotal();} });
+  tr.addEventListener('input',()=>{calcTotal();checkDup();});
+  $('lineBody').appendChild(tr); return tr;
+}
+function readLines(){
+  return [...$('lineBody').children].map(tr=>({
+    desc:tr.querySelector('.l-desc').value.trim().toUpperCase(),
+    account:tr.querySelector('.l-acc').value.trim(),
+    qty:parseFloat(tr.querySelector('.l-qty').value)||1,
+    price:parseFloat(String(tr.querySelector('.l-price').value).replace(/,/g,'')),
+    tax:tr.querySelector('.l-tax').value.trim().toUpperCase()
+  }));
+}
+function calcTotal(){ const t=readLines().reduce((a,l)=>a+(isNaN(l.price)?0:l.price*l.qty),0); $('fTotal').textContent=money(t); return t; }
+function onSupplierInput(fillDefaults=true){
+  const sup=supByName($('fSup').value);
+  $('fCode').textContent = sup ? (sup.code||'（没有 Code，用名字对应）') : ($('fSup').value.trim()?'新供应商（不在名单）':'—');
+  $('fCode').classList.toggle('has',!!sup);
+  if(fillDefaults && sup){
+    if(!$('fTags').value.trim() && sup.tags) $('fTags').value=sup.tags;
+    [...$('lineBody').querySelectorAll('.l-acc')].forEach(i=>{ if(!i.value.trim()||i.dataset.auto==='1'){ i.value=defaultAccount(sup); i.dataset.auto='1'; } });
+  }
+  checkDup();
+}
+$('fSup').addEventListener('input',()=>onSupplierInput(true));
+$('fSup').addEventListener('change',()=>{ const s=supByName($('fSup').value); if(s) $('fSup').value=s.name; onSupplierInput(true); });
+$('fNo').addEventListener('input',checkDup);
+$('fDate').addEventListener('input',checkDup);
+$('addLine').addEventListener('click',()=>{ const tr=lineRow({account:defaultAccount(supByName($('fSup').value))}); tr.querySelector('.l-acc').dataset.auto='1'; tr.querySelector('.l-desc').focus(); });
+$('lineBody').addEventListener('input',e=>{ if(e.target.classList.contains('l-acc')) e.target.dataset.auto=''; });
+
+function resetForm(){
+  S.editingId=null; $('billForm').reset(); $('fDate').value=todayISO();
+  $('lineBody').innerHTML=''; const tr=lineRow({account:co()?co().account:''}); tr.querySelector('.l-acc').dataset.auto='1';
+  $('formTitle').textContent='新采购单'; $('saveBtn').textContent='保存单据'; $('fCode').textContent='—'; $('fCode').classList.remove('has');
+  calcTotal(); checkDup();
+}
+$('resetBtn').addEventListener('click',()=>{resetForm();$('fSup').focus();});
+
+/* duplicate logic */
+function findDups(no, supName, excludeId){
+  const k=normNo(no); if(!k) return [];
+  return S.bills.filter(b=>b.id!==excludeId && normNo(b.no)===k).map(b=>({b, same:normName(b.supplier)===normName(supName)}));
+}
+function findLikely(supName, date, total, no, excludeId){
+  if(!supName||!date||!total) return [];
+  return S.bills.filter(b=>b.id!==excludeId && normName(b.supplier)===normName(supName) && b.date===date && Math.abs((b.total||0)-total)<0.005 && normNo(b.no)!==normNo(no));
+}
+function dupItem(b){ return `<li><span class="mono">${esc(b.no||'(无单号)')}</span> · ${esc(b.supplier)} · ${dmy(b.date)} · RM ${money(b.total)} · ${b.status==='exported'?'已导出':'未导出'}</li>`; }
+let dupState={level:'none'};
+function checkDup(){
+  const box=$('dupBox'), no=$('fNo').value, sup=$('fSup').value;
+  const ack=box.querySelector('#dupAck'); const wasAck = ack && ack.checked && dupState.key===normNo(no)+'|'+normName(sup);
+  if(!normNo(no)){ box.className='check idle'; box.innerHTML='输入供应商和单号后会自动检查。'; dupState={level:'none'}; return; }
+  const d=findDups(no,sup,S.editingId);
+  const likely=findLikely(sup,$('fDate').value,calcTotal(),no,S.editingId);
+  const key=normNo(no)+'|'+normName(sup);
+  if(d.length){
+    const same=d.some(x=>x.same);
+    box.className='check bad';
+    box.innerHTML=`<strong>⚠ 单号重复！</strong><span>${same?'同一个供应商已经有这个单号：':'这个单号已经在其他供应商出现过：'}</span><ul>${d.map(x=>dupItem(x.b)).join('')}</ul>
+      <span class="small">Bukku 的单号不能重复，请先核对原单。</span>
+      <label><input type="checkbox" id="dupAck" ${wasAck?'checked':''}> 我已核对，确实是不同的单，照样保存</label>`;
+    dupState={level:'dup',key};
+  } else if(likely.length){
+    box.className='check warn';
+    box.innerHTML=`<strong>可能重复</strong><span>同一天、同一个供应商、同样金额，但单号不同：</span><ul>${likely.map(dupItem).join('')}</ul><span class="small">如果是同一张单被打错单号，请改正。</span>`;
+    dupState={level:'warn',key};
+  } else {
+    box.className='check ok'; box.innerHTML='<strong>✓ 没有重复</strong><span>这个单号在 '+esc(co()?co().short:'')+' 里面是新的。</span>'; dupState={level:'ok',key};
+  }
+}
+
+$('billForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  if(!S.cid) return toast('先新增公司');
+  const supName=$('fSup').value.trim().toUpperCase().replace(/\s+/g,' ');
+  const no=$('fNo').value.trim().toUpperCase();
+  const lines=readLines().filter(l=>l.desc||!isNaN(l.price));
+  if(!lines.length || lines.some(l=>!l.desc||isNaN(l.price))) return toast('每一行都要有项目和单价');
+  const sup=supByName(supName);
+  if(!sup && !S.mgr) return toast('供应商不在名单，请从下拉选择或通知 manager 新增');
+  lines.forEach(l=>{ if(!l.account) l.account=defaultAccount(sup); });
+  if(lines.some(l=>!l.account)) return toast('Account 不能空（请到 Control Panel 的采购单设置填预设 Account）');
+  checkDup();
+  if(dupState.level==='dup' && !($('dupAck')&&$('dupAck').checked)){ toast('单号重复，请核对或勾选确认'); $('dupBox').scrollIntoView({block:'nearest'}); return; }
+  const total=lines.reduce((a,l)=>a+l.price*l.qty,0);
+  const prev=S.editingId ? S.bills.find(b=>b.id===S.editingId) : null;
+  const doc={ supplier:supName, code:sup?(sup.code||''):'', no, ref:$('fRef').value.trim(), date:$('fDate').value,
+    tags:$('fTags').value.trim(), desc:$('fDesc').value.trim(), lines, total:Math.round(total*100)/100,
+    status: prev ? prev.status : 'draft', createdAt: prev ? prev.createdAt : Date.now(), updatedAt:Date.now(),
+    dupAck: dupState.level==='dup' };
+  const id=S.editingId||uid();
+  $('saveBtn').disabled=true;
+  try{
+    await put('companies/'+S.cid+'/bills/'+id, doc);
+    if(!sup && supName){ await put('org/'+S.cid+'/suppliers/'+uid(),{name:supName,code:'',account:'',tags:''}); }
+    toast((prev?'已更新 ':'已保存 ')+no+(sup||!supName?'':'（新供应商已加入名单，记得补 Contact Code）'));
+    const keepSup=$('fSup').value, keepDate=$('fDate').value, keepTags=$('fTags').value;
+    resetForm();
+    if(!prev){ $('fSup').value=keepSup; $('fDate').value=keepDate; $('fTags').value=keepTags; onSupplierInput(true); $('fNo').focus(); }
+  }catch(err){dbErr(err)}
+  $('saveBtn').disabled=false;
+});
+// Enter in last price cell saves
+$('lineBody').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.classList.contains('l-price')){ e.preventDefault(); $('billForm').requestSubmit(); }});
+
+function editBill(id){
+  const b=S.bills.find(x=>x.id===id); if(!b) return;
+  setTab('entry'); S.editingId=id;
+  $('fSup').value=b.supplier; $('fNo').value=b.no||''; $('fDate').value=b.date||''; $('fRef').value=b.ref||''; $('fTags').value=b.tags||''; $('fDesc').value=b.desc||'';
+  $('lineBody').innerHTML=''; (b.lines||[]).forEach(l=>lineRow(l));
+  $('formTitle').textContent='修改单据 '+(b.no||''); $('saveBtn').textContent='保存修改';
+  onSupplierInput(false); calcTotal(); checkDup(); $('fSup').focus();
+}
+
+/* ---------- side panel ---------- */
+function dupIds(){
+  const m=new Map(); S.bills.forEach(b=>{const k=normNo(b.no); if(k){ if(!m.has(k)) m.set(k,[]); m.get(k).push(b.id);} });
+  const s=new Set(); m.forEach(v=>{ if(v.length>1) v.forEach(i=>s.add(i)); }); return s;
+}
+function renderSide(){
+  const drafts=S.bills.filter(b=>b.status!=='exported');
+  $('sDraft').textContent=drafts.length; $('sAmt').textContent=money(drafts.reduce((a,b)=>a+(b.total||0),0)).replace(/\.\d\d$/,'');
+  $('sDup').textContent=dupIds().size;
+  const rec=[...S.bills].sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)).slice(0,8);
+  $('recent').innerHTML = rec.length ? rec.map(b=>`<div><span>${esc(b.supplier)} · <span class="mono">${esc(b.no)}</span></span><span class="mono">${money(b.total)}</span></div>`).join('') : '<p class="small muted">还没有单据。填好左边表格按「保存单据」，第一张就会出现在这里。</p>';
+}
+
+/* ---------- bills list ---------- */
+function filteredBills(){
+  const m=$('flMonth').value, st=$('flStatus').value, sup=$('flSup').value, q=normName($('flQ').value), dups=dupIds();
+  return S.bills.filter(b=>{
+    if(m && !(b.date||'').startsWith(m)) return false;
+    if(st==='draft' && b.status==='exported') return false;
+    if(st==='exported' && b.status!=='exported') return false;
+    if(st==='dup' && !dups.has(b.id)) return false;
+    if(sup && normName(b.supplier)!==normName(sup)) return false;
+    if(q && !(normName(b.no).includes(q) || (b.lines||[]).some(l=>normName(l.desc).includes(q)) || normName(b.supplier).includes(q))) return false;
+    return true;
+  }).sort((a,b)=>(a.date||'').localeCompare(b.date||'') || normName(a.supplier).localeCompare(normName(b.supplier)) || String(a.no).localeCompare(String(b.no)));
+}
+function renderBills(){
+  $('ctBills').textContent=S.bills.filter(b=>b.status!=='exported').length;
+  const rows=filteredBills(), dups=dupIds();
+  const ids=new Set(rows.map(b=>b.id)); [...S.selected].forEach(i=>{ if(!ids.has(i)) S.selected.delete(i); });
+  $('billBody').innerHTML = rows.length ? rows.map(b=>{
+    const d=dups.has(b.id);
+    return `<tr class="${d?'isdup':''}"><td><input type="checkbox" data-sel="${esc(b.id)}" ${S.selected.has(b.id)?'checked':''} aria-label="选择"></td>
+      <td class="mono">${dmy(b.date)}</td><td>${esc(b.supplier)}</td><td class="mono">${esc(b.no)} ${d?'<span class="pill dup">重复</span>':''}</td>
+      <td class="small" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((b.lines||[]).map(l=>l.desc).join(' / '))}</td>
+      <td class="r mono">${money(b.total)}</td>
+      <td>${b.status==='exported'?'<span class="pill done">已导出</span>':'<span class="pill draft">未导出</span>'}</td>
+      <td class="r">${(S.mgr||b.status!=='exported')?`<button class="btn sm" data-edit="${esc(b.id)}">改</button>`:''}</td></tr>`;}).join('')
+    : `<tr><td colspan="8" class="empty">${S.bills.length?('这个筛选没有单据。'+($('flStatus').value!=='all'?'可以把状态改成「全部状态」看看。':'')):'还没有单据。到「快速录入」开始输入，记得按「保存全部」。'}</td></tr>`;
+  $('selAll').checked = rows.length>0 && rows.every(b=>S.selected.has(b.id));
+  updateSel();
+}
+function updateSel(){
+  const sel=S.bills.filter(b=>S.selected.has(b.id));
+  $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>` : '未选择（勾选要导出的单据）';
+  ['markDone','markDraft','delSel','exportBtn'].forEach(id=>$(id).disabled=!sel.length);
+}
+['flMonth','flStatus','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
+$('selAll').addEventListener('change',e=>{ filteredBills().forEach(b=>e.target.checked?S.selected.add(b.id):S.selected.delete(b.id)); renderBills(); });
+$('billBody').addEventListener('change',e=>{ const c=e.target.closest('[data-sel]'); if(c){ c.checked?S.selected.add(c.dataset.sel):S.selected.delete(c.dataset.sel); updateSel(); }});
+$('billBody').addEventListener('click',e=>{ const b=e.target.closest('[data-edit]'); if(b) editBill(b.dataset.edit); });
+
+async function setStatus(ids,status){
+  for(const id of ids){ try{ await patch('companies/'+S.cid+'/bills/'+id,{status, exportedAt: status==='exported'?Date.now():null}); }catch(err){dbErr(err);return;} }
+  toast((status==='exported'?'已标记已导出 ':'已改回未导出 ')+ids.length+' 张');
+}
+$('markDone').addEventListener('click',()=>setStatus([...S.selected],'exported'));
+$('markDraft').addEventListener('click',()=>setStatus([...S.selected],'draft'));
+$('delSel').addEventListener('click',async e=>{
+  const btn=e.currentTarget;
+  if(btn.dataset.armed!=='1'){ btn.dataset.armed='1'; btn.textContent='确定删除 '+S.selected.size+' 张?'; setTimeout(()=>{btn.dataset.armed='';btn.textContent='删除'},3500); return; }
+  btn.dataset.armed=''; btn.textContent='删除';
+  const ids=[...S.selected]; S.selected.clear();
+  for(const id of ids){ try{ await del('companies/'+S.cid+'/bills/'+id);}catch(err){dbErr(err);return;} }
+  toast('已删除 '+ids.length+' 张');
+});
+
+/* ---------- Bukku export (the server builds the .xlsx) ---------- */
+$('exportBtn').addEventListener('click', async ()=>{
+  const sel=S.bills.filter(b=>S.selected.has(b.id)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!sel.length) return;
+  const msg=$('exportMsg'); msg.hidden=false;
+  // duplicate check inside export & against history
+  const problems=[]; const seen=new Map();
+  sel.forEach(b=>{ const k=normNo(b.no); if(!k) problems.push(`<li>${esc(b.supplier)} ${dmy(b.date)} 没有单号</li>`);
+    else { if(seen.has(k)) problems.push(`<li><span class="mono">${esc(b.no)}</span> 这次导出里面出现两次</li>`); seen.set(k,1);
+      const other=S.bills.filter(x=>x.id!==b.id && !S.selected.has(x.id) && normNo(x.no)===k);
+      other.forEach(x=>problems.push(`<li><span class="mono">${esc(b.no)}</span> 跟 ${esc(x.supplier)} ${dmy(x.date)}（${x.status==='exported'?'已导出':'未导出'}）重复</li>`)); }
+  });
+  if(problems.length && msg.dataset.force!=='1'){
+    msg.className='check bad';
+    msg.innerHTML=`<strong>⚠ 导出前发现 ${problems.length} 个单号问题</strong><ul>${problems.join('')}</ul><div class="row"><button class="btn sm danger" id="forceExp">我已核对，照样导出</button></div>`;
+    $('forceExp').onclick=()=>{ msg.dataset.force='1'; $('exportBtn').click(); };
+    return;
+  }
+  msg.dataset.force='';
+  $('exportBtn').disabled=true;
+  try{
+    const res=await fetch(API+'/export',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:sel.map(b=>b.id)})});
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||('导出失败 ('+res.status+')')); }
+    const fname=decodeURIComponent(res.headers.get('X-File-Name')||'BUKKU-PURCHASES_BILL.xlsx');
+    const blob=await res.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a');
+    a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
+    S.lastExport=sel.map(b=>b.id);
+    msg.className='check ok';
+    msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong><span>${sel.length} 张单，共 RM ${money(sel.reduce((a,b)=>a+b.total,0))}。到 Bukku → Purchases → Bills → Import 上传。</span>
+      <div class="row"><button class="btn sm pri" id="markExp">导入成功后，标记这 ${sel.length} 张为已导出</button></div>`;
+    $('markExp').onclick=async()=>{ await setStatus(S.lastExport,'exported'); S.selected.clear(); msg.hidden=true; renderBills(); };
+  }catch(err){
+    msg.className='check bad'; msg.textContent='导出失败：'+(err&&err.message||err);
+  }
+  updateSel();
+});
+
+/* ---------- quick grid: one row = one bill ---------- */
+const Q={rows:[],gen:0};
+const QCOLS=['sup','no','date','tags','desc','price'];
+const qBlank=()=>({sup:'',no:'',date:'',tags:'',desc:'',price:'',ack:false});
+function qLoad(){ try{ const d=JSON.parse(localStorage.getItem('bk-q-'+S.cid)||'null'); if(Array.isArray(d)&&d.length) Q.rows=d; }catch(e){} while(Q.rows.length<12) Q.rows.push(qBlank()); }
+function qStore(){ try{ localStorage.setItem('bk-q-'+S.cid, JSON.stringify(Q.rows.filter(r=>!qIsEmpty(r)).length?Q.rows:[])); }catch(e){} }
+const qIsEmpty=r=>QCOLS.every(k=>!String(r[k]??'').trim());
+function parseDMY(s){
+  s=String(s??'').trim(); if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  let m=s.match(/^(\d{1,2})[\/\-. ](\d{1,2})(?:[\/\-. ](\d{2}|\d{4}))?$/) || s.match(/^(\d{2})(\d{2})(\d{2}|\d{4})?$/);
+  if(!m) return null;
+  const d=+m[1], mo=+m[2], y=m[3]?(m[3].length===2?'20'+m[3]:m[3]):String(new Date().getFullYear());
+  if(d<1||d>31||mo<1||mo>12) return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function qDate(i){ // empty date inherits the nearest filled date above
+  for(let j=i;j>=0;j--){ const v=String(Q.rows[j].date||'').trim(); if(v) return parseDMY(v); } return '';
+}
+function qEval(i){
+  const r=Q.rows[i]; if(qIsEmpty(r)) return {state:'empty'};
+  const miss=[]; const iso=qDate(i); const p=parseFloat(String(r.price).replace(/[,\sRM]/gi,''));
+  if(!r.sup.trim()) miss.push('供应商'); if(!r.no.trim()) miss.push('单号'); if(!iso) miss.push('日期'); if(!r.desc.trim()) miss.push('项目'); if(isNaN(p)) miss.push('单价');
+  if(miss.length) return {state:'err',msg:'缺 '+miss.join('、')};
+  if(!S.mgr && !supByName(r.sup)) return {state:'err',msg:'供应商不在名单，请从下拉选择或通知 manager 新增'};
+  const d=findDups(r.no,r.sup,null);
+  const g=Q.rows.findIndex((o,j)=>j!==i && !qIsEmpty(o) && normNo(o.no)===normNo(r.no));
+  if(d.length) return {state:'dup',iso,p,msg:'⚠ 重复：'+d[0].b.supplier+' '+dmy(d[0].b.date)+' RM '+money(d[0].b.total)+(d[0].b.status==='exported'?'（已导出）':'')};
+  if(g>=0) return {state:'dup',iso,p,msg:'⚠ 跟这页第 '+(g+1)+' 行单号一样'};
+  const lk=findLikely(r.sup,iso,p,r.no,null);
+  if(lk.length) return {state:'warn',iso,p,msg:'可能重复：同日同额 '+lk[0].no};
+  const sup=supByName(r.sup);
+  return {state:'ok',iso,p,msg:'✓ '+(sup?(sup.code||'没有 Code'):'新供应商')+' · '+dmy(iso)};
+}
+function qCell(i,k,cls,extra=''){ return `<td class="${cls}"><input data-g="${Q.gen}" data-r="${i}" data-k="${k}" value="${esc(Q.rows[i][k])}" ${extra} aria-label="${k} ${i+1}"></td>`; }
+function qRender(){
+  Q.gen++;
+  $('qBody').innerHTML=Q.rows.map((r,i)=>`<tr data-row="${i}"><td class="qn">${i+1}</td>
+    ${qCell(i,'sup','m','list="supList"')}${qCell(i,'no','m mono')}${qCell(i,'date','m mono','placeholder="'+(i&&qDate(i-1)?dmy(qDate(i-1)):'')+'"')}
+    ${qCell(i,'tags','')}${qCell(i,'desc','m')}${qCell(i,'price','m mono','inputmode="decimal" style="text-align:right"')}
+    <td class="qst"></td><td class="qx"><button class="xbtn" data-qdel="${i}" aria-label="删除第 ${i+1} 行" title="删除这行">×</button></td></tr>`).join('');
+  qStatusAll();
+}
+function qStatusAll(){
+  if(!$('qBody').children.length) return;
+  let ok=0,dup=0,err=0,amt=0;
+  Q.rows.forEach((r,i)=>{
+    const tr=$('qBody').children[i]; if(!tr) return;
+    const e=qEval(i); tr.className='q-'+e.state;
+    const st=tr.querySelector('.qst');
+    if(e.state==='empty') st.innerHTML='';
+    else if(e.state==='dup') st.innerHTML=esc(e.msg)+`<label><input type="checkbox" data-qack="${i}" ${r.ack?'checked':''}> 已核对，照样存</label>`;
+    else st.textContent=e.msg;
+    const ph=tr.querySelector('[data-k="date"]'); if(ph) ph.placeholder = i&&qDate(i-1) ? dmy(qDate(i-1)) : '';
+    if(e.state==='ok'||e.state==='warn'){ok++;amt+=e.p;} else if(e.state==='dup'){dup++; if(r.ack) amt+=e.p;} else if(e.state==='err') err++;
+  });
+  const unsaved=Q.rows.filter(r=>!qIsEmpty(r)).length;
+  $('ctQ').hidden=!unsaved; $('ctQ').textContent=unsaved+' 未保存'; $('ctQ').className='ct alert';
+  $('qSum2').innerHTML = unsaved ? `<span style="color:var(--warn)">${unsaved} 行还没保存</span>` : '';
+  $('qSum').innerHTML=`可保存 <b>${ok}</b> 行 · RM <b class="mono">${money(amt)}</b>`+(dup?` · <span style="color:var(--bad)">重复 <b>${dup}</b></span>`:'')+(err?` · <span class="muted">未填完 ${err}</span>`:'');
+}
+let qT;
+$('qBody').addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.qack!==undefined){ Q.rows[+t.dataset.qack].ack=t.checked; qStore(); qStatusAll(); return; }
+  if(t.dataset.k){ Q.rows[+t.dataset.r][t.dataset.k]=t.value; if(t.dataset.k==='no'||t.dataset.k==='sup') Q.rows[+t.dataset.r].ack=false;
+    clearTimeout(qT); qT=setTimeout(()=>{qStatusAll();qStore();},120); }
+});
+$('qBody').addEventListener('focusout',e=>{
+  const t=e.target, k=t.dataset.k; if(!k || !t.isConnected || +t.dataset.g!==Q.gen) return; const r=Q.rows[+t.dataset.r]; if(!r) return;
+  if(k==='date'){ const iso=parseDMY(t.value); if(iso){ r.date=t.value=dmy(iso);} }
+  if(k==='sup'){ const s=supByName(t.value); r.sup=t.value=s?s.name:t.value.toUpperCase().replace(/\s+/g,' ').trim();
+    if(s&&s.tags&&!r.tags){ r.tags=s.tags; const tg=t.closest('tr').querySelector('[data-k="tags"]'); if(tg) tg.value=s.tags; } }
+  if(k==='no'||k==='desc'||k==='tags'){ r[k]=t.value=t.value.toUpperCase().trim(); }
+  if(k==='price'){ const p=parseFloat(String(t.value).replace(/[,\sRM]/gi,'')); if(!isNaN(p)) { r.price=String(p); t.value=p.toFixed(2);} }
+  qStatusAll(); qStore();
+});
+function qFocus(i,k){ while(Q.rows.length<=i){ for(let n=0;n<10;n++) Q.rows.push(qBlank()); qRender(); } const el=$('qBody').querySelector(`[data-r="${i}"][data-k="${k}"]`); if(el){el.focus(); el.select&&el.select();} }
+$('qBody').addEventListener('keydown',e=>{
+  const t=e.target, k=t.dataset.k; if(!k) return; const i=+t.dataset.r;
+  if(e.key==='Enter'){ e.preventDefault(); t.dispatchEvent(new Event('focusout',{bubbles:true})); qFocus(i+1, k==='price'?'sup':k); }
+  else if(e.key==='ArrowDown' && k!=='sup'){ e.preventDefault(); qFocus(i+1,k); }
+  else if(e.key==='ArrowUp' && k!=='sup' && i>0){ e.preventDefault(); qFocus(i-1,k); }
+});
+$('qBody').addEventListener('paste',e=>{
+  const t=e.target, k=t.dataset.k; if(!k) return;
+  const txt=(e.clipboardData||window.clipboardData).getData('text'); if(!/[\t\n]/.test(txt.replace(/\r?\n$/,''))) return;
+  e.preventDefault();
+  const lines=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n'); const r0=+t.dataset.r, c0=QCOLS.indexOf(k);
+  lines.forEach((ln,li)=>{ const cells=ln.split('\t'); while(Q.rows.length<=r0+li) Q.rows.push(qBlank());
+    cells.forEach((v,ci)=>{ const key=QCOLS[c0+ci]; if(!key) return; v=v.trim();
+      if(key==='date'){ const iso=parseDMY(v); v=iso?dmy(iso):v; }
+      if(key==='sup'){ const s=supByName(v); v=s?s.name:v.toUpperCase(); }
+      if(key==='no'||key==='desc'||key==='tags') v=v.toUpperCase();
+      if(key==='price'){ const p=parseFloat(v.replace(/[,\sRM]/gi,'')); v=isNaN(p)?v:String(p); }
+      Q.rows[r0+li][key]=v; Q.rows[r0+li].ack=false; });
+  });
+  while(Q.rows.length<r0+lines.length+3) Q.rows.push(qBlank());
+  qRender(); qStore(); toast('已贴上 '+lines.length+' 行');
+});
+$('qBody').addEventListener('click',e=>{ const b=e.target.closest('[data-qdel]'); if(!b) return; Q.rows.splice(+b.dataset.qdel,1); if(Q.rows.length<12) Q.rows.push(qBlank()); qRender(); qStore(); });
+$('qSave2').addEventListener('click',()=>$('qSave').click());
+$('qAdd').addEventListener('click',()=>{ for(let n=0;n<10;n++) Q.rows.push(qBlank()); qRender(); });
+$('qClear').addEventListener('click',e=>{
+  const b=e.currentTarget; if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='确定清空？'; setTimeout(()=>{b.dataset.armed='';b.textContent='清空这页'},3000); return; }
+  b.dataset.armed=''; b.textContent='清空这页'; Q.rows=[]; while(Q.rows.length<12) Q.rows.push(qBlank()); qRender(); qStore(); $('qMsg').hidden=true;
+});
+$('qSave').addEventListener('click',async ()=>{
+  if(!S.cid) return toast('先新增公司');
+  const evals=Q.rows.map((r,i)=>qEval(i));
+  const todo=evals.map((e,i)=>({e,i})).filter(x=>x.e.state==='ok'||x.e.state==='warn'||(x.e.state==='dup'&&Q.rows[x.i].ack));
+  const blockedDup=evals.filter((e,i)=>e.state==='dup'&&!Q.rows[i].ack).length, errs=evals.filter(e=>e.state==='err').length;
+  if(!todo.length){ return toast(blockedDup?'重复的行要先核对并勾选「照样存」':'没有可以保存的行'); }
+  $('qSave').disabled=true;
+  const saved=new Set(), newSup=new Set(); let amt=0;
+  try{
+    for(const {e,i} of todo){
+      const r=Q.rows[i], name=r.sup.toUpperCase().replace(/\s+/g,' ').trim(), sup=supByName(name);
+      const doc={supplier:name, code:sup?(sup.code||''):'', no:r.no.toUpperCase().trim(), ref:'', date:e.iso, tags:r.tags.trim(), desc:'',
+        lines:[{desc:r.desc.toUpperCase().trim(), account:defaultAccount(sup), qty:1, price:e.p, tax:''}],
+        total:Math.round(e.p*100)/100, status:'draft', createdAt:Date.now(), updatedAt:Date.now(), dupAck:e.state==='dup'};
+      if(!doc.lines[0].account) throw new Error('Account 是空的，请到 Control Panel 的采购单设置填预设 Account');
+      await put('companies/'+S.cid+'/bills/'+uid(), doc);
+      S.bills.push(Object.assign({id:'pending-'+i},doc)); // so later rows in this batch see it
+      saved.add(i); amt+=e.p;
+      if(!sup && !newSup.has(name)){ newSup.add(name); await put('org/'+S.cid+'/suppliers/'+uid(),{name,code:'',account:'',tags:''}); S.suppliers.push({id:'tmp',name,code:'',account:'',tags:''}); }
+    }
+  }catch(err){ dbErr(err); }
+  await refresh();   // replace the temporary rows with what the server really saved
+  $('qSave').disabled=false;
+  Q.rows=Q.rows.filter((r,i)=>!saved.has(i)&&!qIsEmpty(r)); while(Q.rows.length<12) Q.rows.push(qBlank());
+  qRender(); qStore();
+  const m=$('qMsg'); m.hidden=false; m.className='check '+(blockedDup||errs?'warn':'ok');
+  m.innerHTML=`<strong>✓ 已保存 ${saved.size} 张单 · RM ${money(amt)}</strong>`+
+    (blockedDup||errs?`<span>还留在表格里：${blockedDup?blockedDup+' 行重复未确认':''}${blockedDup&&errs?'，':''}${errs?errs+' 行没填完':''}。</span>`:'')+
+    (newSup.size?`<span>新供应商已加入名单（记得到「供应商」补 Contact Code）：${[...newSup].map(esc).join('、')}</span>`:'')+
+    `<div class="row"><button class="btn sm pri" id="qGoList">去单据列表查看</button></div>`;
+  const g=$('qGoList'); if(g) g.onclick=()=>{ $('flStatus').value='draft'; $('flMonth').value=''; $('flSup').value=''; $('flQ').value=''; S.selected.clear(); renderBills(); setTab('bills'); };
+});
+
+/* ---------- tabs ---------- */
+function setTab(t){
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false'));
+  ['quick','entry','bills','suppliers'].forEach(x=>$('v-'+x).hidden = x!==t);
+  try{localStorage.setItem('bk-tab',t)}catch(e){}
+}
+$('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
+
+function renderAll(){ renderSuppliers(); renderBills(); renderSide(); checkDup(); }
+
+/* ---------- boot ---------- */
+const applyTheme = t => document.documentElement.setAttribute('data-theme', t==='dark' ? 'dark' : 'light');
+if(QS.get('theme')) applyTheme(QS.get('theme'));
+window.addEventListener('message', e=>{ if(e.origin===location.origin && e.data && e.data.type==='pbill-theme') applyTheme(e.data.theme); });
+resetForm(); renderAll();
+try{ const t=localStorage.getItem('bk-tab'); if(t && t!=='company') setTab(t); }catch(e){}
+(async ()=>{
+  if(!CID){ $('offline').hidden=false; $('offline').textContent='缺少公司编号。'; return; }
+  switchCompany(CID);
+  await refresh();
+  setInterval(()=>{ if(!document.hidden) refresh(); }, 20000);   // pick up what other people saved
+})();
+})();
+</script>
+
+</body></html>

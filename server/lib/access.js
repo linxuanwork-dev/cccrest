@@ -1,7 +1,7 @@
 const { pool } = require('../db');
 
 // Pages a user can be given a level on (keys match the permission JSON stored on the user / assignment).
-const PAGES = ['sales', 'purchases', 'bank', 'claim', 'petty', 'merchant', 'payroll'];
+const PAGES = ['sales', 'purchases', 'bank', 'claim', 'petty', 'merchant', 'payroll', 'stock'];
 const LEVEL_NAMES = { 0: 'No access', 1: 'Read Only', 2: 'Create', 3: 'Create & Update', 4: 'Full Access' };
 
 // Fills in every page with a valid level. `min` is the lowest level allowed (0 = "No access" is possible for

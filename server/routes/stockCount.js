@@ -21,7 +21,7 @@ const router = express.Router();
 // closing stock report and change log. The page is server/assets/stockcount/app.html (shown inside the company's
 // Stock Count page). The data is kept as small documents (groups/, items/, counts/, closing/, settings/, log/) in
 // stock_count_docs. The Owner switches it on per company in the Control Panel. CC CREST admin / manager = "manager" on the
-// page (items, prices, groups, closing); other people with Create level on Purchases can enter counts.
+// page (items, prices, groups, closing); other CC CREST staff with the Stock Count level Create (L2) or more can enter counts.
 
 const PAGE = path.join(__dirname, '..', 'assets', 'stockcount', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
@@ -85,7 +85,9 @@ router.get('/stock-count/app', requireAuth, (req, res) => {
 });
 
 const BASE = '/companies/:companyId/stock-count';
-const guard = (level) => [requireAuth, scopeToCompany, requirePage('purchases', level)];
+// company users (clients) never see the stock count; CC CREST people use the "Stock Count" level of their permission list
+const noClients = (req, res, next) => (req.user && req.user.role === 'client' ? res.status(403).json({ error: 'Not allowed' }) : next());
+const guard = (level) => [requireAuth, noClients, scopeToCompany, requirePage('stock', level)];
 const isMgr = (req) => !!(req.pageAccess && req.pageAccess.ccCrest);
 async function enabledSettings(req, res) {
   const s = await loadSettings(req.params.companyId);

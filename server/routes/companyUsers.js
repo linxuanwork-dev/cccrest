@@ -135,6 +135,35 @@ router.patch('/companies/:companyId/users/:userId', requireRole('admin'), async 
   res.json(publicUser(rows[0]));
 });
 
+// Permanently deletes a company (customer) user. What the user did stays (documents, records keep their text; the "who" on
+// them becomes empty). Use "Active" off instead to only stop the user signing in.
+router.delete('/companies/:companyId/users/:userId', requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, login_id FROM users WHERE id = $1 AND company_id = $2 AND role = 'client'`,
+    [req.params.userId, req.params.companyId]
+  );
+  const u = rows[0];
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE activity_log SET actor_user_id = NULL WHERE actor_user_id = $1', [u.id]);
+    await client.query('UPDATE assignment_requests SET resolved_by_user_id = NULL WHERE resolved_by_user_id = $1', [u.id]);
+    await client.query('DELETE FROM users WHERE id = $1', [u.id]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23503') return res.status(400).json({ error: '这个用户有无法解除的记录，不能删除。请改用「停用」。 This user has records that cannot be detached — switch Active off instead.' });
+    throw err;
+  } finally {
+    client.release();
+  }
+  forgetUserState(u.id);
+  const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  await logActivity(req.user.sub, 'Deleted company user', co[0] ? co[0].name : '', u.login_id);
+  res.json({ ok: true });
+});
+
 router.use((err, req, res, next) => {
   console.error('companyUsers route error:', err);
   if (res.headersSent) return next(err);

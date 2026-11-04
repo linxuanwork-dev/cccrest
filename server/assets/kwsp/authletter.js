@@ -69,9 +69,20 @@
     let y = H - MARGIN;
 
     /* ---------- letterhead ---------- */
-    const lhUrl = profile && profile.letterheadDataUrl;
-    if (lhUrl) {
-      const img = await toPng(lhUrl); const emb = await doc.embedPng(img.bytes);
+    // A real letterhead / logo is at least a few hundred pixels wide; a 1x1 placeholder stretched over the page is a black page
+    const usable = async (url, minW, minH, label) => {
+      if (!url) return null;
+      try {
+        const img = await toPng(url);
+        if (img.w >= minW && img.h >= minH) return img;
+        warnings.push('授权信：' + label + '图片太小（' + img.w + '×' + img.h + '），已忽略；请到 Company Profile 重新上传。');
+      } catch (e) { warnings.push('授权信：' + label + '图片读不出来，已忽略；请到 Company Profile 重新上传。'); }
+      return null;
+    };
+    const lhImg = await usable(profile && profile.letterheadDataUrl, 200, 60, '信头');
+    const logoImg = lhImg ? null : await usable(profile && profile.logoDataUrl, 20, 20, 'Logo');
+    if (lhImg) {
+      const img = lhImg; const emb = await doc.embedPng(img.bytes);
       const ratio = img.h / img.w;
       if (ratio > 0.5) {                                 // a whole-page letterhead: use it as the page background
         page.drawImage(emb, { x: 0, y: 0, width: W, height: H });
@@ -88,8 +99,8 @@
       const addr = addressLine(data.bizAddr && (data.bizAddr.line1 || data.bizAddr.pc) ? data.bizAddr : data.regAddr)
         || up(profile && profile.addresses && profile.addresses[0] ? [profile.addresses[0].street, [profile.addresses[0].postcode, profile.addresses[0].city].filter(Boolean).join(' '), profile.addresses[0].state].filter(Boolean).join(', ') : '');
       let x = MARGIN;
-      if (profile && profile.logoDataUrl) {
-        const lg = await toPng(profile.logoDataUrl); const le = await doc.embedPng(lg.bytes);
+      if (logoImg) {
+        const lg = logoImg; const le = await doc.embedPng(lg.bytes);
         const lh = 46, lw = Math.min(110, lh * lg.w / lg.h);
         page.drawImage(le, { x: MARGIN, y: y - lh + 6, width: lw, height: lh });
         x = MARGIN + lw + 12;

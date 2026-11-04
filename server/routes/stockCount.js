@@ -31,7 +31,6 @@ const ID = '[A-Za-z0-9_-]{1,80}';
 const MONTH = '\\d{4}-(?:0[1-9]|1[0-2])';
 // every path the page may write (the change log has its own endpoint)
 const PATH_RE = new RegExp(`^(?:(?:groups|items|closing|settings)/${ID}|counts/${MONTH}|counts/${MONTH}/(?:lines|packs)/${ID})$`);
-const MANAGER_ONLY = new Set(['groups', 'items', 'closing', 'settings']);
 const MAX_DOC = 600 * 1024;   // one document (a closing snapshot is the biggest)
 
 async function loadSettings(companyId) {
@@ -90,6 +89,9 @@ const guard = (level) => [requireAuth, scopeToCompany, requirePage('stock', leve
 // "manager" on the page (prices, items, groups, closing) = CC CREST admin / manager, or an assigned CC CREST staff member with
 // Stock Count level L3 or more. Company users (clients) are never managers, whatever their level: they can open the page and,
 // with L2 or more, enter counts, but cannot change prices.
+// A company user (client) at Stock Count L3 or more is a "client manager": may add items and groups and delete an item that
+// has no records, but never change a price or close a month (prices will come from the purchase records: only CC CREST sets them).
+const isClientMgr = (req) => !!(req.pageAccess && req.user.role === 'client' && req.pageAccess.level >= 3);
 const isMgr = (req) => !!(req.pageAccess && (req.pageAccess.ccCrest || (req.user.role === 'staff' && req.pageAccess.level >= 3)));
 async function enabledSettings(req, res) {
   const s = await loadSettings(req.params.companyId);
@@ -103,7 +105,7 @@ router.get(BASE, ...guard(1), async (req, res) => {
   if (!s) return res.status(404).json({ error: 'Not found' });
   res.json({
     enabled: s.enabled, name: s.name, short: s.short, uid: String(req.user.sub),
-    mgr: isMgr(req), canWrite: isMgr(req) || req.pageAccess.level >= 2
+    mgr: isMgr(req), canAdd: isMgr(req) || isClientMgr(req), canWrite: isMgr(req) || req.pageAccess.level >= 2
   });
 });
 
@@ -156,21 +158,44 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const ops = req.body && req.body.ops;
   if (!Array.isArray(ops) || !ops.length || ops.length > 100) return bad(res, 'Invalid request');
-  const mgr = isMgr(req), uid = String(req.user.sub);
-  const months = new Set();
+  const mgr = isMgr(req), clientMgr = isClientMgr(req), uid = String(req.user.sub);
+  const months = new Set(), mustBeNew = [], itemDeletes = [];
+  const deny = () => res.status(403).json({ error: '你没有权限做这个操作。 You are not allowed to do this.' });
   for (const o of ops) {
     if (!o || !['set', 'update', 'delete'].includes(o.op) || typeof o.path !== 'string' || !PATH_RE.test(o.path)) return bad(res, 'Invalid request');
     const top = o.path.split('/')[0];
-    if (MANAGER_ONLY.has(top) && !mgr) return res.status(403).json({ error: '只有 manager 可以做这个操作。 Only a manager can do this.' });
+    if (!mgr && ['groups', 'items', 'closing', 'settings'].includes(top)) {
+      // a client manager may only add (a path that does not exist yet) and delete an item
+      if (top === 'closing' || top === 'settings' || !clientMgr) return deny();
+      if (o.op === 'update' || (o.op === 'delete' && top === 'groups')) return deny();
+      if (o.op === 'set') mustBeNew.push(o.path);
+    }
+    if (o.op === 'delete' && top === 'items') itemDeletes.push(o.path.slice(6));
     if (o.op !== 'delete') {
       if (!isObj(o.data) || JSON.stringify(o.data).length > MAX_DOC) return bad(res, 'Invalid request');
       // who did it is whoever is signed in, whatever the page says
       if ('by' in o.data) o.data.by = uid;
       if (top === 'closing') o.data.closedBy = uid;
+      if (top === 'items' && !mgr) { o.data.price = 0; delete o.data.priceAt; }   // only CC CREST sets prices
     }
     if (top === 'counts') months.add(o.path.split('/')[1]);
   }
   const cid = req.params.companyId;
+  if (mustBeNew.length) {
+    const { rows } = await pool.query('SELECT 1 FROM stock_count_docs WHERE company_id = $1 AND path = ANY($2::text[])', [cid, mustBeNew]);
+    if (rows.length) return deny();
+  }
+  if (itemDeletes.length) {   // an item that has records (a count, or a closed month) cannot be deleted: make it inactive instead
+    const { rows } = await pool.query(
+      `SELECT 1 FROM stock_count_docs d, unnest($2::text[]) AS i(id)
+        WHERE d.company_id = $1
+          AND ((d.coll LIKE 'counts/%/lines' AND right(d.path, length(i.id) + 1) = '/' || i.id)
+            OR (d.coll = 'closing' AND d.data->'lines' ? i.id))
+        LIMIT 1`,
+      [cid, itemDeletes]
+    );
+    if (rows.length) return bad(res, '这个货品已经有盘点记录，不能删除，请改成「停用」。 This item has records and cannot be deleted — make it inactive instead.');
+  }
   if (months.size) {   // a closed month is locked: reopen it first
     const { rows } = await pool.query('SELECT path FROM stock_count_docs WHERE company_id = $1 AND path = ANY($2::text[])', [cid, [...months].map((m) => 'closing/' + m)]);
     if (rows.length) return bad(res, rows[0].path.slice(8) + ' 已结账，不能再改数量。请 manager 先重开。 That month is closed.');

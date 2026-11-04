@@ -99,6 +99,8 @@ tr.off td{color:var(--muted)}
 .filters input[type=search]{flex:1 1 180px}
 body:not(.is-mgr) .mgr-only{display:none!important}
 body.is-mgr .staff-only{display:none!important}
+body:not(.can-add) .add-only{display:none!important}
+body.can-add .noadd-only{display:none!important}
 .role{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--muted);white-space:nowrap}
 
 /* count sheet */
@@ -282,20 +284,20 @@ body.is-mgr .staff-only{display:none!important}
         <div id="bulkBar" class="savebar" style="position:static;margin:0 0 10px" hidden><span class="small" id="bulkInfo">直接在单价栏打新价钱，Enter 跳下一项，改完按保存。</span><div class="row"><button type="button" class="btn sm" id="bulkCancel">取消</button><button type="button" class="btn pri" id="bulkSave" disabled>保存单价</button></div></div>
         <div class="tbl-wrap" style="max-height:70vh;overflow:auto">
           <table>
-            <thead><tr><th>NO</th><th>货品 Products</th><th>Group</th><th>单位</th><th class="r">单价 RM</th><th>Account</th><th class="mgr-only"></th></tr></thead>
+            <thead><tr><th>NO</th><th>货品 Products</th><th>Group</th><th>单位</th><th class="r">单价 RM</th><th>Account</th><th class="add-only"></th></tr></thead>
             <tbody id="iBody"></tbody>
           </table>
         </div>
       </div>
       <aside>
-        <p class="panel small muted staff-only" style="margin:0">货品和单价只有 manager 可以新增或修改。少了货品请通知 manager。</p>
-        <form class="panel mgr-only" id="iForm" autocomplete="off">
+        <p class="panel small muted noadd-only" style="margin:0">货品和单价只有 manager 可以新增或修改。少了货品请通知 manager。</p>
+        <form class="panel add-only" id="iForm" autocomplete="off">
           <h2 style="margin-bottom:10px" id="iFormTitle">新增货品</h2>
           <div class="fields" style="grid-template-columns:1fr 1fr">
             <label class="f wide must"><span>货品名称 Products</span><input id="fName" required></label>
             <label class="f must"><span>分组 Group</span><select id="fGroup" required></select></label>
             <label class="f must"><span>单位 Unit</span><input id="fUnit" list="unitList" required><datalist id="unitList"></datalist></label>
-            <label class="f"><span>单价 Price RM</span><input id="fPrice" class="mono" inputmode="decimal"></label>
+            <label class="f mgr-only"><span>单价 Price RM</span><input id="fPrice" class="mono" inputmode="decimal"></label>
             <label class="f"><span>1 单位 = 几个小单位</span><input id="fPack" class="mono" inputmode="decimal" placeholder="例 12（不用就留空）"></label>
             <label class="f"><span>小单位</span><input id="fSub" list="unitList" placeholder="例 PKT"></label>
             <label class="f"><span>NO</span><input id="fNo" class="mono" inputmode="numeric" placeholder="自动"></label>
@@ -358,8 +360,8 @@ body.is-mgr .staff-only{display:none!important}
         </div>
       </div>
       <aside>
-        <p class="panel small muted staff-only" style="margin:0">分组只有 manager 可以修改。</p>
-        <form class="panel mgr-only" id="gForm" autocomplete="off">
+        <p class="panel small muted noadd-only" style="margin:0">分组只有 manager 可以修改。</p>
+        <form class="panel add-only" id="gForm" autocomplete="off">
           <h2 style="margin-bottom:10px" id="gFormTitle">新增分组</h2>
           <div class="fields" style="grid-template-columns:1fr">
             <label class="f must"><span>分组名称</span><input id="gName" required placeholder="例 FROZEN"></label>
@@ -911,7 +913,7 @@ function renderItems(){
     <td class="small">${esc(groupName(i))}</td><td class="small">${esc(i.unit||'')}${Number(i.pack)>1?`<div class="muted">1 = ${esc(qfmt(i.pack))} ${esc(i.sub||'PKT')}</div>`:''}</td>
     <td class="r mono">${S.bulk ? `<input class="bp${S.bulkP[i.id]!==undefined?' chg':''}" data-bp="${esc(i.id)}" inputmode="decimal" value="${esc(S.bulkP[i.id]!==undefined?S.bulkP[i.id]:(Number(i.price)>0?i.price:''))}" aria-label="${esc(i.name)} 单价">` : (Number(i.price)>0?money(i.price):'<span class="pill warn">无</span>')}${i.priceAt?`<div class="small muted" style="font-family:var(--f-body)">${new Date(i.priceAt).toLocaleDateString('en-GB')}</div>`:''}</td>
     <td class="small" style="white-space:nowrap">${esc(itemAccount(i))}${i.account?'':' <span class="muted">(分组)</span>'}</td>
-    <td class="r mgr-only"><button class="btn sm" data-edit="${esc(i.id)}">改</button></td></tr>`).join('')
+    <td class="r add-only" style="white-space:nowrap"><button class="btn sm mgr-only" data-edit="${esc(i.id)}">改</button> <button class="btn sm danger" data-idel="${esc(i.id)}">删</button></td></tr>`).join('')
     : `<tr><td colspan="7" class="empty">${S.items.length?'找不到':'还没有货品。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
 }
 ['iQ','iGroup','iOff'].forEach(id=>$(id).addEventListener('input',renderItems));
@@ -952,7 +954,15 @@ $('bulkSave').addEventListener('click',async()=>{
   }catch(err){ dbErr(err); bulkInfo(); }
   logIt(logs); btn.textContent='保存单价';
 });
-$('iBody').addEventListener('click',e=>{
+$('iBody').addEventListener('click',async e=>{
+  const d=e.target.closest('[data-idel]');
+  if(d){
+    const it=S.items.find(x=>x.id===d.dataset.idel); if(!it) return;
+    if(d.dataset.armed!=='1'){ d.dataset.armed='1'; d.textContent='确定?'; setTimeout(()=>{d.dataset.armed='';d.textContent='删';},3000); return; }
+    if(S.lines[it.id] || Object.values(S.closings).some(c=>c.lines&&c.lines[it.id])) return toast('这个货品已经有盘点记录，不能删除。请改成「停用」。');
+    try{ await del('items/'+it.id); logIt([{a:'item',t:it.name,c:[['删除货品',descItem(it),'']]}]); toast('已删除 '+it.name); }catch(err){ dbErr(err); }
+    return;
+  }
   const b=e.target.closest('[data-edit]'); if(!b) return;
   const i=S.items.find(x=>x.id===b.dataset.edit); S.editItem=i.id;
   $('fName').value=i.name; $('fGroup').value=i.groupId||''; $('fUnit').value=i.unit||''; $('fPrice').value=i.price||''; $('fNo').value=i.no??''; $('fPack').value=Number(i.pack)>1?i.pack:''; $('fSub').value=i.sub||''; $('fAcc').value=i.account||''; $('fActive').checked=i.active!==false;
@@ -1230,8 +1240,8 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   let me;
   try{ me=await http('GET',''); }catch(e){ off.hidden=false; off.textContent='连接不上服务器：'+(e&&e.message||e); return; }
   if(!me.enabled){ off.hidden=false; off.textContent='这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。'; return; }
-  S.mgr=!!me.mgr; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name;
-  document.body.classList.toggle('is-mgr',S.mgr); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
+  S.mgr=!!me.mgr; S.add=!!me.canAdd; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name;
+  document.body.classList.toggle('is-mgr',S.mgr); document.body.classList.toggle('can-add',S.add); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
   if(S.cfgName) $('coName').textContent=S.cfgName;
   listen('settings', rows=>{ const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName) $('coName').textContent=S.cfgName; renderReport(); });
   listen('groups', rows=>{ S.groups=rows; renderAll(); });

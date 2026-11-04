@@ -34,7 +34,7 @@ router.get('/kwsp/assets/*', requireAuth, (req, res) => {
 });
 
 // The saved data sets of one company. Reading needs HR (payroll) Read Only; changing needs Create / Create & Update.
-router.get('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requirePage('kwsp', 1), async (req, res) => {
+router.get('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   const { rows: companyRows } = await pool.query('SELECT name, registration_no FROM companies WHERE id = $1', [req.params.companyId]);
   if (!companyRows[0]) return res.status(404).json({ error: 'Company not found' });
   const { rows } = await pool.query(
@@ -52,7 +52,7 @@ router.get('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requ
 });
 
 // Save (create or replace) one data set; the name is the company name written on the form.
-router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requirePage('kwsp', 2), async (req, res) => {
+router.put('/companies/:companyId/kwsp-forms', requireAuth, scopeToCompany, requirePage('payroll', 2), async (req, res) => {
   const body = req.body || {};
   const name = String(body.name || '').trim().toUpperCase().slice(0, 200);
   const data = body.data;
@@ -114,7 +114,7 @@ function profileAddress(name, a) {
   if (!a || !(a.line1 || a.pc)) return null;
   return { name, street: [a.line1, a.line2, a.line3].map((x) => clip(x, 200)).filter(Boolean).join(', '), city: clip(a.city, 80), postcode: clip(a.pc, 10), country: 'Malaysia', state: clip(a.state, 60) };
 }
-router.put('/companies/:companyId/profile/ssm', requireAuth, scopeToCompany, requirePage('kwsp', 2), async (req, res) => {
+router.put('/companies/:companyId/profile/ssm', requireAuth, scopeToCompany, requirePage('payroll', 2), async (req, res) => {
   const b = req.body || {};
   const c = b.company || {};
   const dirs = (Array.isArray(b.directors) ? b.directors : []).slice(0, 20).map((d) => ({
@@ -144,7 +144,7 @@ router.put('/companies/:companyId/profile/ssm', requireAuth, scopeToCompany, req
   res.json({ ok: true });
 });
 
-router.delete('/companies/:companyId/kwsp-forms/:formId', requireAuth, scopeToCompany, requirePage('kwsp', 3), async (req, res) => {
+router.delete('/companies/:companyId/kwsp-forms/:formId', requireAuth, scopeToCompany, requirePage('payroll', 3), async (req, res) => {
   const { rows } = await pool.query(
     'DELETE FROM kwsp_forms WHERE id = $1 AND company_id = $2 RETURNING name',
     [Number(req.params.formId) || 0, req.params.companyId]

@@ -2500,7 +2500,7 @@
       cu_th_type:"Type", cu_th_approver:"Approver", cu_new_user:"+ New user", cu_new_title:"New user", cu_edit_title:"Edit user",
       cu_type_user:"User", cu_type_admin:"Administrator",
       cu_type_user_help:"permissions are set manually per page.", cu_type_admin_help:"Full Access (L4) on every page.",
-      cu_perms_title:"Manage permissions", pp_select:"Select Permissions", pp_manage:"Manage Permissions", pp_all:"Select All", pp_none:"Select None", pp_ok:"OK",
+      cu_perms_title:"Manage permissions", pp_select:"Select Permissions", perm_hr:"HR (Payroll, KWSP & PERKESO)", cu_level_0:"L0  No access (not shown)", pp_manage:"Manage Permissions", pp_all:"Select All", pp_none:"Select None", pp_ok:"OK",
       cu_perms_note:"Levels take effect on Sales Summary today (L1 view and download · L2 create a month and fill in your own · L3 edit any pending month · L4 also special prices, menu, settings, branches and delete). The other pages are view-only for company users for now.",
       cu_level_1:"L1  Read Only", cu_level_2:"L2  Create", cu_level_3:"L3  Create & Update", cu_level_4:"L4  Full Access",
       cu_approver_label:"Can approve",
@@ -2791,7 +2791,7 @@
       cu_th_type:"类型", cu_th_approver:"审核人", cu_new_user:"+ 新用户", cu_new_title:"新用户", cu_edit_title:"编辑用户",
       cu_type_user:"User 用户", cu_type_admin:"Administrator 管理员",
       cu_type_user_help:"按每个页面手动设定权限。", cu_type_admin_help:"所有页面都是 L4 Full Access。",
-      cu_perms_title:"权限设定", pp_select:"选择权限 Select Permissions", pp_manage:"管理权限 Manage Permissions", pp_all:"全选", pp_none:"全不选", pp_ok:"确定",
+      cu_perms_title:"权限设定", pp_select:"选择权限 Select Permissions", perm_hr:"HR 人事（薪资 / KWSP & PERKESO）", cu_level_0:"L0  不显示", pp_manage:"管理权限 Manage Permissions", pp_all:"全选", pp_none:"全不选", pp_ok:"确定",
       cu_perms_note:"目前级别在 Sales Summary 生效（L1 查看和下载 · L2 新建月份并填写自己建立的 · L3 修改任何 Pending 月份 · L4 另可改特价、菜单、设定、分店及删除）。其他页面对公司用户暂时只能查看。",
       cu_level_1:"L1  Read Only 只读", cu_level_2:"L2  Create 新建", cu_level_3:"L3  Create & Update 新建和修改", cu_level_4:"L4  Full Access 完全权限",
       cu_approver_label:"可以审核",
@@ -3767,8 +3767,8 @@
       if(!s) return '';
       var a = assignModalAccess[id] || (assignModalAccess[id] = assignDefaultAccess());
       var onCount = CU_PAGES.filter(function(pg){ return a.permissions[pg[0]] > 0; }).length;
-      var rows = CU_PAGES.filter(function(pg){ return a.permissions[pg[0]] > 0; }).map(function(pg){
-        var opts = [1, 2, 3, 4].map(function(l){
+      var rows = CU_PAGES.map(function(pg){
+        var opts = [0, 1, 2, 3, 4].map(function(l){
           return '<option value="' + l + '"' + (a.permissions[pg[0]] === l ? ' selected' : '') + '>' + t('cu_level_' + l) + '</option>';
         }).join('');
         return '<div style="display:flex;align-items:center;gap:8px;"><label style="flex:0 0 118px;font-size:12px;">' + t(pg[1]) + '</label>' +
@@ -6401,7 +6401,7 @@
   }
 
   // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
-  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'kwsp', 'panel-stock':'stock', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
   function applyPageAccess(){
     if(CURRENT_ROLE !== 'staff') return;
     var rec = customerRecord(currentCompany);
@@ -6881,10 +6881,10 @@
   // and a "can approve" switch for named approvers.
   var CU_PAGES = [
     ['sales', 'nav_sales_summary'], ['purchases', 'nav_purchases_bill'], ['bank', 'nav_bank_statement'],
-    ['claim', 'nav_claim_bill'], ['petty', 'nav_petty_record'], ['merchant', 'nav_merchant_report'], ['payroll', 'nav_payroll'], ['kwsp', 'nav_kwsp'], ['stock', 'nav_stock_count'],
+    ['claim', 'nav_claim_bill'], ['petty', 'nav_petty_record'], ['merchant', 'nav_merchant_report'], ['payroll', 'perm_hr'], ['stock', 'nav_stock_count'],
     ['home', 'nav_company_home'], ['docs', 'nav_docs'], ['profile', 'nav_profile']
   ];
-  var CU_DEFAULT_LEVELS = { sales:3, purchases:3, bank:3, claim:3, petty:3, merchant:3, payroll:1, kwsp:1, stock:1, home:1, docs:1, profile:1 };
+  var CU_DEFAULT_LEVELS = { sales:3, purchases:3, bank:3, claim:3, petty:3, merchant:3, payroll:1, stock:1, home:1, docs:1, profile:1 };
   var cuState = { companyId:null, users:[], editingId:null, type:'user' };
 
   function cuShowError(msg){
@@ -6896,27 +6896,34 @@
   function cuBuildPerms(){
     var selectStyle = 'flex:1;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--surface-card);color:inherit;font-family:inherit;font-size:13px;';
     dsiById('cu-perms').innerHTML = CU_PAGES.map(function(p){
-      var opts = [1, 2, 3, 4].map(function(l){ return '<option value="' + l + '">' + t('cu_level_' + l) + '</option>'; }).join('');
+      var opts = [0, 1, 2, 3, 4].map(function(l){ return '<option value="' + l + '">' + t('cu_level_' + l) + '</option>'; }).join('');
       return '<div data-cu-row="' + p[0] + '" style="display:flex;align-items:center;gap:10px;"><label style="flex:0 0 132px;font-size:12.5px;">' + t(p[1]) + '</label>' +
         '<select data-cu-page="' + p[0] + '" style="' + selectStyle + '">' + opts + '</select></div>';
     }).join('');
-    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.addEventListener('change', cuSyncApprover); });
+    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.addEventListener('change', function(){ cuUpdatePermBtn(); cuSyncApprover(); }); });
+    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.value = String(CU_DEFAULT_LEVELS[sel.dataset.cuPage] || 1); });   // a rebuilt list never starts at L0
     cuUpdatePermBtn();
   }
 
-  // Manage Permissions: tick the pages the user may open; an unticked page is "No access" (level 0) and its row is hidden.
+  // Manage Permissions: L0 = No access (the page is not shown to the user). The tick dialog sets a page on (its default level)
+  // or off (L0); the level list of each page can also be set to L0 directly.
   function cuRows(){ return dsiById('cu-perms').querySelectorAll('[data-cu-row]'); }
-  function cuSetOff(row, off){ row.dataset.off = off ? '1' : ''; row.style.display = off ? 'none' : 'flex'; }
+  function cuLevel(row){ return Number(row.querySelector('select').value); }
+  function cuSetOff(row, off){
+    var sel = row.querySelector('select');
+    if(off) sel.value = '0';
+    else if(sel.value === '0') sel.value = String(CU_DEFAULT_LEVELS[sel.dataset.cuPage] || 1);
+  }
   function cuUpdatePermBtn(){
     var rows = cuRows(), on = 0;
-    rows.forEach(function(r){ if(r.dataset.off !== '1') on++; });
+    rows.forEach(function(r){ if(cuLevel(r) > 0) on++; });
     dsiById('cu-perm-btn').textContent = t('pp_manage') + ' (' + on + ' / ' + rows.length + ')';
   }
 
   // Approvers need Create & Update (L3) or more on Sales Summary; Administrators always qualify.
   function cuSyncApprover(){
     var salesRow = document.querySelector('#cu-perms [data-cu-row="sales"]');
-    var salesLevel = salesRow.dataset.off === '1' ? 0 : Number(salesRow.querySelector('select').value);
+    var salesLevel = cuLevel(salesRow);
     var ok = cuState.type === 'administrator' || salesLevel >= 3;
     var box = dsiById('cu-approver');
     if(!ok) box.checked = false;
@@ -6947,7 +6954,7 @@
     pw.value = '';
     pw.placeholder = user ? t('cu_pw_keep') : '';
     var levels = user ? user.permissions : CU_DEFAULT_LEVELS;
-    cuRows().forEach(function(row){ var sel = row.querySelector('select'), pg = sel.dataset.cuPage, lv = levels[pg]; cuSetOff(row, lv === 0); sel.value = String(lv > 0 ? lv : (CU_DEFAULT_LEVELS[pg] || 1)); });
+    cuRows().forEach(function(row){ var sel = row.querySelector('select'), pg = sel.dataset.cuPage, lv = levels[pg]; sel.value = String(lv >= 0 && lv <= 4 ? lv : (CU_DEFAULT_LEVELS[pg] || 1)); });
     cuUpdatePermBtn();
     cuSetType(user ? user.userType : 'user');
     dsiById('cu-approver').checked = user ? user.canApprove : false;
@@ -7037,7 +7044,7 @@
   window.openPermPicker = openPermPicker;
   dsiById('cu-perm-btn').addEventListener('click', function(){
     var keys = [];
-    cuRows().forEach(function(r){ if(r.dataset.off !== '1') keys.push(r.dataset.cuRow); });
+    cuRows().forEach(function(r){ if(cuLevel(r) > 0) keys.push(r.dataset.cuRow); });
     openPermPicker(CU_PAGES, keys, function(on){
       cuRows().forEach(function(r){ cuSetOff(r, !on[r.dataset.cuRow]); });
       cuUpdatePermBtn(); cuSyncApprover();
@@ -7048,7 +7055,7 @@
     var companyId = cuState.companyId;
     var editing = cuState.editingId;
     var permissions = {};
-    cuRows().forEach(function(row){ var sel = row.querySelector('select'); permissions[sel.dataset.cuPage] = row.dataset.off === '1' ? 0 : Number(sel.value); });
+    cuRows().forEach(function(row){ var sel = row.querySelector('select'); permissions[sel.dataset.cuPage] = Number(sel.value); });
     var body = {
       displayName: dsiById('cu-name').value,
       userType: cuState.type,

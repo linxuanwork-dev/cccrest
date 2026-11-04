@@ -168,7 +168,7 @@ function cleanAddresses(list) {
   })).filter((a) => a.street || a.city || a.postcode);
 }
 
-router.get('/companies/:companyId/profile', requireAuth, scopeToCompany, requireAnyPage(['profile', 'kwsp', 'payroll'], 1), async (req, res) => {
+router.get('/companies/:companyId/profile', requireAuth, scopeToCompany, requireAnyPage(['profile', 'payroll'], 1), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(profileJson(rows[0], ['admin', 'manager'].includes(req.user.role)));

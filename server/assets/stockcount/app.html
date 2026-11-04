@@ -1,0 +1,1244 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>MINIFISH 库存盘点</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: same workbench as the Bukku 采购单 page — sticky header with tabs; count sheet is a phone-friendly list grouped by stock group; report is summary first, detail after */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
+  --accent:#0f6b6b; --accent-ink:#ffffff; --accent-soft:#e0f0ef;
+  --must:#fff3a6; --must-line:#e4cf4a;
+  --bad:#b42318; --bad-soft:#fde8e6; --warn:#9a6200; --warn-soft:#fff1d6; --ok:#1f7a3d; --ok-soft:#e3f4e8;
+  --f-body:"IBM Plex Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding-block:12px 8px}
+.brand{font-weight:700;font-size:16px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.brand small{font-weight:400;color:var(--muted);font-size:12px}
+.hright{display:flex;align-items:center;gap:8px;margin-left:auto}
+.hright label{font-size:12px;color:var(--muted)}
+.hright input{width:auto}
+nav{display:flex;gap:2px;overflow-x:auto}
+nav button{border:0;background:none;color:var(--muted);padding:8px 14px;font:inherit;font-weight:500;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav button .ct{font-family:var(--f-mono);font-size:11px;background:var(--line2);border-radius:9px;padding:0 6px;margin-left:4px}
+main{padding-block:18px 64px}
+h2{font-size:15px;margin:0;text-wrap:balance}
+h3{font-size:13px;margin:0;font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.panel + .panel{margin-top:14px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:1/-1}
+.f > span{font-size:12px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+textarea{resize:vertical;font-family:var(--f-mono);font-size:12.5px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input:disabled{opacity:.6}
+.must input,.must select{background:var(--must);border-color:var(--must-line)}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11.5px;font-weight:500;color:var(--muted);text-align:left;background:var(--line2);padding:7px 8px;white-space:nowrap;position:sticky;top:0;z-index:1}
+td{border-top:1px solid var(--line2);padding:6px 8px;vertical-align:middle}
+td.r,th.r{text-align:right}
+tr.gh td{background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12px;letter-spacing:.04em}
+tr.sub td{font-weight:600;border-top:1px solid var(--line)}
+tr.off td{color:var(--muted)}
+.pill{display:inline-block;font-size:11px;font-weight:500;border-radius:10px;padding:1px 8px;white-space:nowrap}
+.pill.open{background:var(--accent-soft);color:var(--accent)}
+.pill.closed{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.mute{background:var(--line2);color:var(--muted)}
+.check{border-radius:8px;padding:12px 14px;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.check.ok{background:var(--ok-soft);color:var(--ok)}
+.check.bad{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}
+.check.warn{background:var(--warn-soft);color:var(--warn)}
+.check.idle{background:var(--line2);color:var(--muted)}
+.check ul{margin:0;padding-left:18px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.notice{padding:10px 14px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px;margin-bottom:14px}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--panel);min-width:0}
+.stat div{font-size:11.5px;color:var(--muted)}
+.stat b{font-family:var(--f-mono);font-size:17px;font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat.up b{color:var(--warn)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--line2)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters input,.filters select{width:auto}
+.filters input[type=search]{flex:1 1 180px}
+body:not(.is-mgr) .mgr-only{display:none!important}
+body.is-mgr .staff-only{display:none!important}
+.role{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--muted);white-space:nowrap}
+
+/* count sheet */
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:16px;padding:4px 12px;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip .n{font-family:var(--f-mono);font-size:11px;opacity:.8;margin-left:4px}
+.progress{height:6px;background:var(--line2);border-radius:3px;overflow:hidden;margin-top:8px}
+.progress i{display:block;height:100%;background:var(--accent);width:0}
+.clist{display:flex;flex-direction:column}
+.cgh{position:sticky;top:0;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12px;letter-spacing:.04em;padding:6px 10px;border-radius:4px;margin-top:10px;display:flex;justify-content:space-between;z-index:1}
+.ci{display:grid;grid-template-columns:minmax(0,1fr) 112px 96px;gap:10px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line2)}
+.ci .nm{min-width:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+.ci .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono)}
+.ci .meta .np{color:var(--warn)}
+.plink{border:0;background:none;color:var(--accent);font:inherit;font-size:11.5px;padding:0 2px;cursor:pointer;text-decoration:underline}
+.pedit{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:4px;color:var(--ink)}
+.pedit input{width:64px;padding:3px 6px;font-family:var(--f-mono)}
+.chg{display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.chg span b{font-weight:500;color:var(--muted);margin-right:4px}
+.chg del{color:var(--bad);text-decoration:line-through}
+.chg ins{color:var(--ok);text-decoration:none}
+.act{font-size:11px;border-radius:10px;padding:1px 8px;white-space:nowrap;background:var(--line2);color:var(--ink)}
+.act.count{background:var(--accent-soft);color:var(--accent)}
+.act.item{background:var(--warn-soft);color:var(--warn)}
+.act.close{background:var(--ok-soft);color:var(--ok)}
+.prev{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:8px}
+.prev div{padding:6px 8px;border-top:1px solid var(--line2);font-size:12px}
+.prev div:first-child{border-top:0}
+.pfix{margin-top:3px;color:var(--warn);font-family:var(--f-body);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.ci .q{display:flex;align-items:center;gap:4px}
+.ci .q input,.ci .q2 input{text-align:right;font-family:var(--f-mono);background:var(--must);border-color:var(--must-line);padding:7px 8px}
+.ci.done .q2 input,.ci.done .q input{background:var(--panel);border-color:var(--line)}
+.ci .q span{font-size:11px;color:var(--muted);width:30px;overflow:hidden;text-overflow:ellipsis}
+.ci .q2{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.ci .q2 label{display:flex;flex-direction:column;gap:1px;font-size:10.5px;color:var(--muted)}
+.ci.pk{grid-template-columns:minmax(0,1fr) 150px 96px}
+@media (max-width:520px){.ci.pk{grid-template-columns:minmax(0,1fr) 140px}}
+.ci .amt{text-align:right;font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+.ci.done .amt{color:var(--ink)}
+.ci.saving .q input{outline:2px dashed var(--accent);outline-offset:1px}
+@media (max-width:520px){.ci{grid-template-columns:minmax(0,1fr) 104px}.ci .amt{grid-column:1/-1;text-align:left;margin-top:-4px}}
+.savebar{position:sticky;bottom:env(safe-area-inset-bottom,0px);display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:12px;box-shadow:0 -4px 12px rgba(0,0,0,.06);z-index:2}
+.savebar.dirty{border-color:var(--warn);background:var(--warn-soft)}
+#iBody .bp{width:96px;text-align:right;font-family:var(--f-mono);padding:4px 6px}
+#iBody .bp.chg{background:var(--warn-soft);border-color:var(--warn)}
+#iBody .bp.bad{background:var(--bad-soft);border-color:var(--bad)}
+.ci.pend .q input,.ci.pend .q2 input{background:var(--warn-soft);border-color:var(--warn)}
+.ci.pend .amt{color:var(--warn)}
+.cdate-must{background:var(--must)!important;border-color:var(--must-line)!important}
+.ci.bad input{border-color:var(--bad);background:var(--bad-soft)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.key{display:inline-block;width:12px;height:12px;background:var(--must);border:1px solid var(--must-line);border-radius:2px;vertical-align:-1px;margin-right:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">MINIFISH 库存盘点 <small id="coName">Stock Count &amp; Closing Stock</small></div>
+      <div class="hright">
+        <label for="mSel">月份</label>
+        <input type="month" id="mSel">
+        <span class="role" id="roleTag">员工</span>
+      </div>
+    </div>
+    <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="count" aria-selected="true">盘点 Stock Count</button>
+      <button role="tab" data-tab="report" aria-selected="false">月结报告 Closing Stock</button>
+      <button role="tab" data-tab="items" aria-selected="false">货品 Items<span class="ct" id="ctItems">0</span></button>
+      <button role="tab" data-tab="groups" aria-selected="false">分组 Groups<span class="ct" id="ctGroups">0</span></button>
+      <button role="tab" data-tab="log" aria-selected="false">变更记录 Log</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="offline" class="notice" hidden>正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。</div>
+
+  <!-- COUNT -->
+  <section id="v-count">
+    <div class="panel">
+      <div class="ph">
+        <div>
+          <h2 id="cTitle">盘点</h2>
+          <div class="small muted" id="cSub"></div>
+          <div class="row small" style="gap:10px;margin-top:6px">
+            <label class="row" style="gap:6px"><span class="muted">盘点月份</span><button type="button" class="btn sm" id="mPrev" aria-label="上个月">‹</button><input type="month" id="cMonth" style="width:auto"><button type="button" class="btn sm" id="mNext" aria-label="下个月">›</button></label>
+            <label class="row" style="gap:6px"><span class="muted">盘点日期 Stock count date</span><input type="date" id="cDate" style="width:auto"></label>
+          </div>
+        </div>
+        <div class="row">
+          <span id="cStatus"></span>
+          <button class="btn pri mgr-only" id="closeBtn">结账 · 锁定这个月</button>
+          <button class="btn mgr-only" id="reopenBtn" hidden>重开这个月</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div>已点 / 全部</div><b id="sCounted">0 / 0</b></div>
+        <div class="stat"><div>期末存货值 RM</div><b id="sValue">0.00</b></div>
+        <div class="stat"><div>上月期末 RM</div><b id="sPrev">—</b></div>
+        <div class="stat"><div>有数量没单价</div><b id="sNoPrice">0</b></div>
+      </div>
+      <div class="progress" aria-hidden="true"><i id="pBar"></i></div>
+      <div id="packNote" class="check warn" style="margin-top:12px" hidden></div>
+      <div id="closeMsg" style="margin-top:12px" hidden></div>
+    </div>
+
+    <div class="panel">
+      <div class="chips" id="gChips"></div>
+      <div class="filters" style="margin-bottom:6px">
+        <input type="search" id="cQ" placeholder="搜货品名字（中/英/马来文都可以）">
+        <select id="cShow"><option value="all">全部</option><option value="todo">只看未点</option><option value="done">只看已点</option></select>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin:-4px 0 6px"><button class="btn sm pri" id="saveBtnTop">保存</button></div>
+      <div class="legend"><span><span class="key"></span>黄色 = 还没点（没货可以不填，结账时当 0）</span><span>数量可打 <span class="mono">2+0.5</span>，会自动加起来</span><span>有设定「1 箱 = 几包」的货品，分开打箱数和散装包数</span><span>打完按 Enter 跳下一项；橙色 = 未保存，记得按<b>保存</b></span></div>
+      <div class="clist" id="cList"></div>
+      <div class="savebar" id="saveBar"><span class="small" id="saveInfo">打好数量后按保存</span><button class="btn pri" id="saveBtn" disabled>保存</button></div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section id="v-report" hidden>
+    <div class="panel">
+      <div class="ph">
+        <div>
+          <h2 id="rTitle">Closing Stock Report</h2>
+          <div class="small muted" id="rSub"></div>
+        </div>
+        <div class="row">
+          <span id="rStatus"></span>
+          <button class="btn pri" id="exportBtn">下载 Excel</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div>期末存货 Closing RM</div><b id="rClose">0.00</b></div>
+        <div class="stat"><div>上月期末 Opening RM</div><b id="rOpen">—</b></div>
+        <div class="stat" id="rDiffBox"><div>变动 RM</div><b id="rDiff">—</b></div>
+        <div class="stat"><div>有存货的项目</div><b id="rItems">0</b></div>
+      </div>
+      <div id="rWarn" style="margin-top:12px" hidden></div>
+      <div id="exportMsg" style="margin-top:12px" hidden></div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="panel">
+        <div class="ph"><h2>明细 Detail</h2><label class="small row" style="gap:4px"><input type="checkbox" id="rZero" style="width:auto"> 显示数量 0 的项目</label></div>
+        <div class="tbl-wrap" style="max-height:70vh;overflow:auto">
+          <table>
+            <thead><tr><th>货品 Products</th><th class="r">数量 Qty</th><th>单位</th><th class="r">单价 Price</th><th class="r">金额 Amount</th></tr></thead>
+            <tbody id="rBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <aside>
+        <div class="panel">
+          <h2 style="margin-bottom:10px">按分组 By Group</h2>
+          <div class="tbl-wrap"><table><thead><tr><th>Group</th><th class="r">本月</th><th class="r">上月</th></tr></thead><tbody id="rGroup"></tbody></table></div>
+        </div>
+        <div class="panel">
+          <h2 style="margin-bottom:4px">按户口 By Account</h2>
+          <p class="small muted" style="margin:0 0 10px">做 Bukku closing stock journal 时用这个金额。</p>
+          <div class="tbl-wrap"><table><thead><tr><th>Account</th><th class="r">RM</th></tr></thead><tbody id="rAcc"></tbody></table></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ITEMS -->
+  <section id="v-items" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div class="ph">
+          <h2>货品清单 Stock Listing</h2>
+          <div class="filters">
+            <select id="iGroup"><option value="">全部分组</option></select>
+            <input type="search" id="iQ" placeholder="搜索" style="width:180px">
+            <label class="small row" style="gap:4px"><input type="checkbox" id="iOff" style="width:auto"> 显示已停用</label>
+            <button type="button" class="btn sm mgr-only" id="bulkBtn">批量改单价</button>
+          </div>
+        </div>
+        <div id="bulkBar" class="savebar" style="position:static;margin:0 0 10px" hidden><span class="small" id="bulkInfo">直接在单价栏打新价钱，Enter 跳下一项，改完按保存。</span><div class="row"><button type="button" class="btn sm" id="bulkCancel">取消</button><button type="button" class="btn pri" id="bulkSave" disabled>保存单价</button></div></div>
+        <div class="tbl-wrap" style="max-height:70vh;overflow:auto">
+          <table>
+            <thead><tr><th>NO</th><th>货品 Products</th><th>Group</th><th>单位</th><th class="r">单价 RM</th><th>Account</th><th class="mgr-only"></th></tr></thead>
+            <tbody id="iBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <aside>
+        <p class="panel small muted staff-only" style="margin:0">货品和单价只有 manager 可以新增或修改。少了货品请通知 manager。</p>
+        <form class="panel mgr-only" id="iForm" autocomplete="off">
+          <h2 style="margin-bottom:10px" id="iFormTitle">新增货品</h2>
+          <div class="fields" style="grid-template-columns:1fr 1fr">
+            <label class="f wide must"><span>货品名称 Products</span><input id="fName" required></label>
+            <label class="f must"><span>分组 Group</span><select id="fGroup" required></select></label>
+            <label class="f must"><span>单位 Unit</span><input id="fUnit" list="unitList" required><datalist id="unitList"></datalist></label>
+            <label class="f"><span>单价 Price RM</span><input id="fPrice" class="mono" inputmode="decimal"></label>
+            <label class="f"><span>1 单位 = 几个小单位</span><input id="fPack" class="mono" inputmode="decimal" placeholder="例 12（不用就留空）"></label>
+            <label class="f"><span>小单位</span><input id="fSub" list="unitList" placeholder="例 PKT"></label>
+            <label class="f"><span>NO</span><input id="fNo" class="mono" inputmode="numeric" placeholder="自动"></label>
+            <label class="f wide"><span>Account（留空用分组预设）</span><input id="fAcc" list="accList"><datalist id="accList"></datalist></label>
+            <label class="f wide row" style="flex-direction:row;gap:6px"><input type="checkbox" id="fActive" checked style="width:auto"> <span style="font-size:13px;color:var(--ink)">在用（停用的不会出现在盘点表）</span></label>
+          </div>
+          <div class="row" style="margin-top:12px;justify-content:flex-end">
+            <button type="button" class="btn" id="iCancel" hidden>取消</button>
+            <button class="btn pri" type="submit">保存</button>
+          </div>
+        </form>
+        <div class="panel mgr-only">
+          <h2 style="margin-bottom:6px">导入 Excel 文件</h2>
+          <p class="small muted" style="margin:0 0 8px">上传 STOCK LISTING（.xlsx）或从这里下载的 closing stock 文件。系统找 PRODUCTS、GROUP、PRICE、ACCOUNT、UNIT 栏；名字一样的会更新，新的会新增，新分组会自动建立。<b>空白的单价不会盖掉原本的单价。</b>先看预览，确认了才会保存。</p>
+          <div class="row" style="margin-bottom:8px"><button type="button" class="btn sm" id="plDown">下载价目表 Excel</button><span class="small muted">改好 PRICE 栏再上传</span></div>
+          <input type="file" id="impFile" accept=".xlsx,.xls,.csv">
+          <details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">或者从 Excel 复制贴上</summary>
+            <p class="small muted" style="margin:6px 0">栏位顺序：PRODUCTS ｜ GROUP ｜ PRICE ｜ ACCOUNT ｜ UNIT ｜ 1单位=几个（可空）｜ 小单位（可空）</p>
+            <textarea id="pasteBox" rows="4" placeholder="EGGS GRADE A	SEASONING	12.6	6002 Purchases-Food &amp; Beverage	Tray"></textarea>
+            <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn" id="pasteBtn">预览</button></div>
+          </details>
+          <div id="impPrev" style="margin-top:10px" hidden></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section id="v-log" hidden>
+    <div class="panel">
+      <div class="ph">
+        <div><h2>变更记录 Change Log</h2><div class="small muted">每次保存都会记下：日期时间、谁、改了什么（原本 → 改成）。记录不能从这个页面删除。</div></div>
+        <div class="filters">
+          <label class="small muted" for="lMonth">修改日期在</label>
+          <input type="month" id="lMonth">
+          <select id="lType"><option value="">全部类别</option><option value="count">盘点数量 / 箱数</option><option value="item">货品 / 单价</option><option value="group">分组</option><option value="close">结账 / 重开</option></select>
+          <input type="search" id="lQ" placeholder="搜货品 / 人名" style="width:170px">
+        </div>
+      </div>
+      <div class="tbl-wrap" style="max-height:72vh;overflow:auto">
+        <table>
+          <thead><tr><th>日期时间</th><th>谁</th><th>动作</th><th>项目</th><th>改了什么</th></tr></thead>
+          <tbody id="lBody"></tbody>
+        </table>
+      </div>
+      <div class="bar"><span class="small muted" id="lInfo"></span><button class="btn sm" id="lExport">下载记录 Excel</button></div>
+    </div>
+  </section>
+
+  <!-- GROUPS -->
+  <section id="v-groups" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div class="ph"><h2>分组 Groups</h2></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>顺序</th><th>分组</th><th>预设 Account</th><th class="r">货品数</th><th class="mgr-only"></th></tr></thead>
+            <tbody id="gBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <aside>
+        <p class="panel small muted staff-only" style="margin:0">分组只有 manager 可以修改。</p>
+        <form class="panel mgr-only" id="gForm" autocomplete="off">
+          <h2 style="margin-bottom:10px" id="gFormTitle">新增分组</h2>
+          <div class="fields" style="grid-template-columns:1fr">
+            <label class="f must"><span>分组名称</span><input id="gName" required placeholder="例 FROZEN"></label>
+            <label class="f"><span>预设 Account</span><input id="gAcc" list="accList" placeholder="6002 Purchases-Food & Beverage"></label>
+            <label class="f row" style="flex-direction:row;gap:6px"><input type="checkbox" id="gNoCount" style="width:auto"> <span style="font-size:13px;color:var(--ink)">不用点货（不出现在盘点表和月结）</span></label>
+          </div>
+          <div class="row" style="margin-top:12px;justify-content:flex-end">
+            <button type="button" class="btn" id="gCancel" hidden>取消</button>
+            <button class="btn pri" type="submit">保存</button>
+          </div>
+        </form>
+      </aside>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => (Number(n)||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const qfmt = n => (n===undefined||n===null||n==='') ? '' : String(Math.round(Number(n)*1000)/1000);
+const norm = s => String(s ?? '').toUpperCase().replace(/[\s ]+/g,' ').trim();
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const r2 = n => Math.round((Number(n)||0)*100+1e-6)/100;
+const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const mLabel = m => { if(!m) return ''; const [y,mm]=m.split('-'); return MONTHS[+mm-1]+' '+y; };
+const prevMonth = m => { const [y,mm]=m.split('-').map(Number); const d=new Date(y,mm-2,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+const lastDay = m => { const [y,mm]=m.split('-').map(Number); return new Date(y,mm,0).getDate(); };
+function defaultMonth(){ const d=new Date(); if(d.getDate()<=12) d.setMonth(d.getMonth()-1,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+
+const S = { db:null, mem:null, mgr:false, groups:[], items:[], lines:{}, closings:{}, month:defaultMonth(), unsubLines:null, unsubPacks:null, packs:{}, packEdit:null, priceEdit:null, bulk:false, bulkP:{}, cmeta:{}, pend:{}, lastSave:'', logs:[], names:{}, user:null, imp:null, cGroup:'', editItem:null, editGroup:null };
+
+/* ---------- storage: the CC CREST server. A local copy (S.mem) is changed first so the screen reacts at once; the server is the real store ---------- */
+const QS = new URLSearchParams(location.search);
+const CID = QS.get('company') || '';
+const API = '/api/companies/' + encodeURIComponent(CID) + '/stock-count';
+S.mem = {};
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2600); }
+function dbErr(e){ console.error(e); toast(e && e.code===403 ? '没有权限修改这项，请找 manager' : '保存失败：'+(e && e.message || e)); }
+async function http(method, url, body){
+  const r = await fetch(API+url, { method, credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: body===undefined ? undefined : JSON.stringify(body) });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok){ const err = new Error(j.error || ('请求失败 ('+r.status+')')); err.code = r.status; throw err; }
+  return j;
+}
+let inflight = 0, syncing = false, syncAgain = false, needForce = true, syncRev = -1, syncT;
+async function write(ops){ inflight++; try{ await http('POST','/batch',{ops}); } finally { inflight--; } syncSoon(true); }
+function revert(path, old){ if(old===undefined) delete S.mem[path]; else S.mem[path]=old; memNotify(path); }
+async function put(path, data){ const old=S.mem[path]; S.mem[path]=data; memNotify(path); try{ await write([{op:'set',path,data}]); }catch(e){ revert(path,old); throw e; } }
+async function patch(path, data){ const old=S.mem[path]; S.mem[path]=Object.assign({},old,data); memNotify(path); try{ await write([{op:'update',path,data}]); }catch(e){ revert(path,old); throw e; } }
+async function del(path){ const old=S.mem[path]; delete S.mem[path]; memNotify(path); try{ await write([{op:'delete',path}]); }catch(e){ revert(path,old); throw e; } }
+/* ---------- change log: one document per person per day, entries appended (the server adds them) ---------- */
+const dayStr = t => { const d=new Date(t); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+let logChain=Promise.resolve();
+function logIt(entries){
+  entries=entries.filter(e=>e && (!e.c || e.c.length));
+  if(!entries.length) return;
+  const now=Date.now(); entries.forEach(e=>{ e.at=e.at||now; });
+  logChain=logChain.then(async()=>{
+    for(let i=0;i<entries.length;i+=200) await http('POST','/log',{day:dayStr(now),entries:entries.slice(i,i+200)});
+    syncSoon(true);
+  }).catch(err=>{ console.error('log',err); toast('变更记录没存到：'+(err&&err.message||err)); });
+}
+let memListeners=[];
+function memNotify(path){ memListeners.forEach(f=>{ if(path.slice(0,path.lastIndexOf('/'))===f.coll) f(); }); }
+function listen(coll, cb){
+  const run=()=>{ const pre=coll+'/'; cb(Object.keys(S.mem).filter(k=>k.startsWith(pre)&&!k.slice(pre.length).includes('/')).map(k=>Object.assign({id:k.slice(pre.length)},S.mem[k]))); };
+  run.coll=coll; memListeners.push(run); run(); syncSoon(true);
+  return ()=>{memListeners=memListeners.filter(f=>f!==run);};
+}
+function listenLog(start,end,cb){
+  const run=()=>cb(Object.keys(S.mem).filter(k=>k.startsWith('log/')&&!k.slice(4).includes('/')).map(k=>Object.assign({id:k.slice(4)},S.mem[k])).filter(d=>d.day>=start&&d.day<=end));
+  run.coll='log'; memListeners.push(run); run(); syncSoon(true);
+  return ()=>{memListeners=memListeners.filter(f=>f!==run);};
+}
+/* ---------- keep the local copy in step with the server ---------- */
+const stable = v => JSON.stringify(v, (k,x)=>x && typeof x==='object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o,key)=>{ o[key]=x[key]; return o; },{}) : x);
+function applySync(d){
+  const colls = {settings:d.settings, groups:d.groups, items:d.items, counts:d.counts, closing:d.closing, log:d.log};
+  colls['counts/'+d.month+'/lines']=d.lines; colls['counts/'+d.month+'/packs']=d.packs;
+  Object.keys(colls).forEach(coll=>{
+    const pre=coll+'/', cur={}, nxt={};
+    Object.keys(S.mem).forEach(k=>{ if(k.startsWith(pre)&&!k.slice(pre.length).includes('/')) cur[k]=S.mem[k]; });
+    (colls[coll]||[]).forEach(r=>{ const o=Object.assign({},r); delete o.id; nxt[pre+r.id]=o; });
+    if(stable(cur)===stable(nxt)) return;
+    Object.keys(cur).forEach(k=>delete S.mem[k]);
+    Object.assign(S.mem,nxt);
+    memNotify(pre+'x');
+  });
+  const before=stable(S.names); Object.assign(S.names,d.names||{});
+  if(stable(S.names)!==before && typeof renderLog==='function') renderLog();
+}
+const logMonthNow = () => ($('lMonth') && $('lMonth').value) || (()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
+function syncSoon(force){ if(force) needForce=true; clearTimeout(syncT); syncT=setTimeout(sync,120); }
+async function sync(){
+  if(syncing){ syncAgain=true; return; }
+  syncing=true;
+  try{
+    const month=S.month, lm=logMonthNow();
+    const q='?month='+month+'&logMonth='+lm+((needForce||syncRev<0)?'':'&rev='+syncRev);
+    needForce=false;
+    const d=await http('GET','/sync'+q);
+    $('offline').hidden=true;
+    if(inflight>0){ needForce=true; syncAgain=true; }                   // a save is on its way: look again after it
+    else if(d.month!==S.month || d.logMonth!==logMonthNow()){ needForce=true; syncAgain=true; }   // the month was changed meanwhile
+    else if(!d.same){ syncRev=d.rev; applySync(d); }
+  }catch(e){
+    needForce=true;
+    $('offline').hidden=false;
+    $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
+  }finally{
+    syncing=false;
+    if(syncAgain){ syncAgain=false; syncSoon(); }
+  }
+}
+/* ---------- derived ---------- */
+const groupById = id => S.groups.find(g=>g.id===id);
+const groupName = it => (groupById(it.groupId)||{}).name || it.group || '（无分组）';
+const itemAccount = it => it.account || (groupById(it.groupId)||{}).account || '';
+const sortedGroups = () => [...S.groups].sort((a,b)=>(a.order??999)-(b.order??999) || a.name.localeCompare(b.name));
+const gOrder = id => { const i=sortedGroups().findIndex(g=>g.id===id); return i<0?999:i; };
+const sortItems = arr => arr.sort((a,b)=>gOrder(a.groupId)-gOrder(b.groupId) || norm(a.name).localeCompare(norm(b.name)));
+const closing = () => S.closings[S.month];
+const isClosed = () => !!closing();
+
+/* rows for the selected month: from the closing snapshot if closed, else live items + count lines */
+function monthRows(){
+  const c=closing();
+  if(c && c.lines){
+    return Object.entries(c.lines).map(([id,l])=>Object.assign({id},l)).sort((a,b)=>(a.gi??999)-(b.gi??999) || norm(a.name).localeCompare(norm(b.name)));
+  }
+  const ids=new Set();
+  const rows=[];
+  sortItems(S.items.filter(it=>(it.active!==false && !(groupById(it.groupId)||{}).noCount) || S.lines[it.id])).forEach(it=>{
+    ids.add(it.id);
+    const l=S.lines[it.id];
+    const ep=effPack(it), pack=ep.pack, po=S.packs[it.id];
+    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,no:it.no,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:Number(it.price)||0,qty:l?Number(l.qty):null,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
+  });
+  return rows;
+}
+/* carton size: a count-sheet correction for this month wins over the item master */
+function effPack(it){
+  const o=S.packs[it.id];
+  if(o && Number(o.pack)>1) return {pack:Number(o.pack),sub:(o.sub||it.sub||'PKT')};
+  if(o && Number(o.pack)===0) return {pack:0,sub:''};
+  return Number(it.pack)>1 ? {pack:Number(it.pack),sub:it.sub||'PKT'} : {pack:0,sub:''};
+}
+function totals(rows){
+  const byGroup=new Map(), byAcc=new Map(); let total=0, counted=0, noPrice=[];
+  rows.forEach(r=>{
+    if(r.counted!==false && r.qty!==null) counted++;
+    const amt=r2((r.qty||0)*(r.price||0)); total+=amt;
+    if((r.qty||0)>0 && !(r.price>0)) noPrice.push(r);
+    byGroup.set(r.group,(byGroup.get(r.group)||0)+amt);
+    if(amt) byAcc.set(r.account||'（无 Account）',(byAcc.get(r.account||'（无 Account）')||0)+amt);
+  });
+  return {total:r2(total),counted,noPrice,byGroup,byAcc};
+}
+
+/* ---------- month ---------- */
+$('mSel').value=S.month; $('cMonth').value=S.month;
+function setMonth(m){ if(!m||m===S.month) return; $('mSel').value=m; $('cMonth').value=m; $('mSel').dispatchEvent(new Event('change')); }
+$('cMonth').addEventListener('change',e=>setMonth(e.target.value));
+const nextMonth = m => { const [y,mm]=m.split('-').map(Number); const d=new Date(y,mm,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+$('mPrev').addEventListener('click',()=>setMonth(prevMonth(S.month)));
+$('mNext').addEventListener('click',()=>setMonth(nextMonth(S.month)));
+$('mSel').addEventListener('change',e=>{ if(!e.target.value) return; S.month=e.target.value; $('cMonth').value=S.month; $('closeMsg').hidden=true; $('exportMsg').hidden=true; watchLines(); renderAll(); });
+const countDate = () => { const c=closing(); return (c&&c.countDate) || ((S.cmeta[S.month]||{}).countDate) || ''; };
+const dmy = iso => iso ? iso.split('-').reverse().join('/') : '';
+$('cDate').addEventListener('change',async e=>{
+  if(isClosed()) return; const v=e.target.value, old=(S.cmeta[S.month]||{}).countDate||'';
+  if(v===old) return;
+  try{ await put('counts/'+S.month,{countDate:v,at:Date.now(),by:S.uid||''}); logIt([{a:'count',t:'盘点日期 '+mLabel(S.month),m:S.month,c:[['盘点日期',dmy(old),dmy(v)||'空']]}]); toast('盘点日期已保存 '+dmy(v)); }catch(err){dbErr(err)}
+});
+function watchLines(){
+  loadPend(); S.lastSave='';
+  if(S.unsubLines) S.unsubLines();
+  S.lines={};
+  S.unsubLines=listen('counts/'+S.month+'/lines', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.lines=m; patchCount(); renderReport(); });
+  if(S.unsubPacks) S.unsubPacks();
+  S.packs={};
+  S.unsubPacks=listen('counts/'+S.month+'/packs', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.packs=m; renderCount(); renderReport(); });
+}
+
+/* ---------- COUNT view ---------- */
+const fmtCount = r => { if(r.qty===null||r.qty===undefined) return ''; if(!r.pack) return qfmt(r.qty)+' '+r.unit;
+  const big = r.big!=null ? r.big : Math.floor(r.qty+1e-9), loose = r.loose!=null ? r.loose : Math.round((r.qty-big)*r.pack*1000)/1000;
+  return (big?qfmt(big)+' '+r.unit:'')+(big&&loose?' + ':'')+(loose?qfmt(loose)+' '+r.sub:'')||('0 '+r.unit); };
+const priceNote = r => {
+  const locked=isClosed()||!S.mgr;
+  if(S.priceEdit===r.id && !locked) return `<div class="pedit">RM <input class="pr-n" inputmode="decimal" value="${esc(r.price>0?r.price:'')}" aria-label="单价" style="width:90px"> / ${esc(r.unit)} <button type="button" class="btn sm pri" data-pr="save">保存</button> <button type="button" class="btn sm" data-pr="cancel">取消</button></div>`;
+  return (r.price>0?'RM '+money(r.price)+' / '+esc(r.unit):'<span class="np">没有单价</span>') + (locked?'':` <button type="button" class="plink" data-pr="open">${r.price>0?'改单价':'＋ 填单价'}</button>`);
+};
+const packNote = r => {
+  const locked=isClosed()||!S.canWrite;
+  if(S.packEdit===r.id) return `<div class="pedit">1 ${esc(r.unit)} = <input class="pe-n" inputmode="decimal" value="${esc(r.pack?qfmt(r.pack):'')}" aria-label="一${esc(r.unit)}几个"> <input class="pe-s" list="unitList" value="${esc(r.sub||'PKT')}" aria-label="小单位"> <button type="button" class="btn sm pri" data-pe="save">保存</button> <button type="button" class="btn sm" data-pe="cancel">取消</button>${r.pack?' <button type="button" class="btn sm" data-pe="none">不分箱</button>':''}</div>`;
+  let t = r.pack ? ' · 1 '+esc(r.unit)+' = '+qfmt(r.pack)+' '+esc(r.sub) : '';
+  if(!locked && (r.pack || /^(CTN|CARTON|BOX|BAG)$/i.test(r.unit))) t += ` <button type="button" class="plink" data-pe="open">${r.pack?'改':'＋ 设定一'+esc(r.unit)+'几包'}</button>`;
+  if(r.po) t += `<div class="pfix">员工改了：1 ${esc(r.unit)} = ${r.po.pack?qfmt(r.po.pack):'不分箱'}（货品资料是 ${r.po.orig?qfmt(r.po.orig):'没设定'}）${S.mgr&&!locked?' <button type="button" class="btn sm" data-pe="accept">更新到货品资料</button> <button type="button" class="btn sm" data-pe="reject">不对，撤销</button>':''}</div>`;
+  return t;
+};
+function parseQty(s){
+  s=String(s).replace(/,/g,'').trim(); if(s==='') return null;
+  if(!/^[\d.\s+]+$/.test(s)) return NaN;
+  const parts=s.split('+').map(x=>x.trim()).filter(Boolean);
+  if(!parts.length) return NaN;
+  let t=0; for(const p of parts){ const v=Number(p); if(!isFinite(v)) return NaN; t+=v; } return Math.round(t*1000)/1000;
+}
+function renderChips(){
+  const rows=monthRows();
+  const by=new Map(); rows.forEach(r=>{ const k=r.group; const o=by.get(k)||{n:0,d:0}; o.n++; if(r.qty!==null) o.d++; by.set(k,o); });
+  const names=isClosed()?[...by.keys()]:sortedGroups().map(g=>g.name).filter(n=>by.has(n));
+  [...by.keys()].forEach(k=>{ if(!names.includes(k)) names.push(k); });
+  if(S.cGroup && !by.has(S.cGroup)) S.cGroup='';
+  const all={n:rows.length,d:rows.filter(r=>r.qty!==null).length};
+  $('gChips').innerHTML=`<button class="chip" data-g="" aria-pressed="${!S.cGroup}">全部<span class="n">${all.d}/${all.n}</span></button>`+
+    names.map(n=>{const o=by.get(n);return `<button class="chip" data-g="${esc(n)}" aria-pressed="${S.cGroup===n}">${esc(n)}<span class="n">${o.d}/${o.n}</span></button>`;}).join('');
+}
+$('gChips').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return; S.cGroup=b.dataset.g; renderCount(); });
+$('cQ').addEventListener('input',renderCount);
+$('cShow').addEventListener('change',renderCount);
+
+const bigVal = r => r.qty===null ? '' : qfmt(r.big!=null ? r.big : Math.floor(r.qty+1e-9));
+const looseVal = r => { if(r.qty===null) return ''; if(r.loose!=null) return qfmt(r.loose); const v=Math.round((r.qty-Math.floor(r.qty+1e-9))*r.pack*1000)/1000; return v?qfmt(v):''; };
+function renderCount(){
+  renderChips();
+  const q=norm($('cQ').value), show=$('cShow').value, locked=isClosed() || !S.canWrite;
+  const rows=monthRows().filter(r=>(!S.cGroup||r.group===S.cGroup) && (!q||norm(r.name).includes(q)) && (show==='all'||(show==='todo'?r.qty===null:r.qty!==null)));
+  let html='', cur=null;
+  rows.forEach(r=>{
+    if(r.group!==cur){ cur=r.group; html+=`<div class="cgh"><span>${esc(cur)}</span><span class="mono" data-gt="${esc(cur)}"></span></div>`; }
+    const pv=S.pend[r.id]||null;
+    const qcell = r.pack
+      ? `<div class="q2"><label>${esc(r.unit)}<input data-k="big" inputmode="decimal" enterkeyhint="next" aria-label="${esc(r.name)} ${esc(r.unit)}" value="${esc(pv&&pv.big!==undefined?pv.big:bigVal(r))}" ${locked?'disabled':''}></label><label>散装 ${esc(r.sub)}<input data-k="loose" inputmode="decimal" enterkeyhint="next" aria-label="${esc(r.name)} ${esc(r.sub)}" value="${esc(pv&&pv.loose!==undefined?pv.loose:looseVal(r))}" ${locked?'disabled':''}></label></div>`
+      : `<div class="q"><input data-k="qty" inputmode="decimal" enterkeyhint="next" aria-label="${esc(r.name)} 数量" value="${esc(pv&&pv.qty!==undefined?pv.qty:qfmt(r.qty))}" ${locked?'disabled':''}><span>${esc(r.unit)}</span></div>`;
+    html+=`<div class="ci${r.qty!==null?' done':''}${r.pack?' pk':''}" data-id="${esc(r.id)}">
+      <div><div class="nm">${esc(r.name)}</div><div class="meta">${priceNote(r)}${packNote(r)}</div></div>
+      ${qcell}
+      <div class="amt">${r.qty!==null?money(r.qty*r.price):'未点'}</div></div>`;
+  });
+  $('cList').innerHTML = rows.length ? html : `<div class="empty">${S.items.length?'没有符合的货品。':'还没有货品。Manager 可以到「货品 Items」新增或从 Excel 贴上。'}</div>`;
+  $('cList').querySelectorAll('.ci').forEach(el=>{ if(S.pend[el.dataset.id]) markRow(el,el.dataset.id); });
+  patchCount(true); updateSaveBar();
+}
+/* update values in place so a snapshot never wipes the cell someone is typing in */
+function patchCount(skipRows){
+  const rows=monthRows(), t=totals(rows), c=closing();
+  const all=rows.length, done=rows.filter(r=>r.qty!==null).length;
+  $('cTitle').textContent='盘点 · '+mLabel(S.month);
+  const cd=countDate(); const di=$('cDate');
+  if(document.activeElement!==di) di.value=cd||''; di.disabled=!!c || !S.canWrite; di.classList.toggle('cdate-must',!cd&&!c);
+  $('cSub').textContent = c ? `已结账，期末存货锁定在 ${new Date(c.closedAt).toLocaleDateString('en-GB')} 的数字。` : `截止日期 ${lastDay(S.month)}/${S.month.slice(5)}/${S.month.slice(0,4)} · 点完全部再按结账。`;
+  $('cStatus').innerHTML = c ? '<span class="pill closed">已结账</span>' : '<span class="pill open">盘点中</span>';
+  $('closeBtn').hidden=!!c; $('reopenBtn').hidden=!c;
+  $('sCounted').textContent = c ? `${Object.keys(c.lines||{}).length} 项有货` : `${done} / ${all}`;
+  $('sValue').textContent=money(t.total);
+  const p=S.closings[prevMonth(S.month)]; $('sPrev').textContent = p ? money(p.total) : '—';
+  $('sNoPrice').textContent=t.noPrice.length;
+  const fixes=rows.filter(r=>r.po).length;
+  $('packNote').hidden=!(fixes && S.mgr && !c); $('packNote').innerHTML=`员工在盘点时改了 <b>${fixes}</b> 项的箱数，请在下面黄色字的项目确认（「更新到货品资料」或「撤销」）。`;
+  $('pBar').style.width = c ? '100%' : (all? (done/all*100).toFixed(1)+'%':'0');
+  if(skipRows!==true){
+    const map=new Map(rows.map(r=>[r.id,r]));
+    $('cList').querySelectorAll('.ci').forEach(el=>{
+      const r=map.get(el.dataset.id); if(!r) return;
+      if(S.pend[r.id]) return;
+      if(!el.contains(document.activeElement) && !el.classList.contains('saving')){
+        el.querySelectorAll('input').forEach(inp=>{ inp.value = inp.dataset.k==='big'?bigVal(r):inp.dataset.k==='loose'?looseVal(r):qfmt(r.qty); });
+      }
+      el.classList.toggle('done',r.qty!==null);
+      el.querySelector('.amt').textContent = r.qty!==null?money(r.qty*r.price):'未点';
+    });
+    renderChips();
+  }
+  $('cList').querySelectorAll('[data-gt]').forEach(el=>{ el.textContent='RM '+money(t.byGroup.get(el.dataset.gt)||0); });
+  $('ctItems').textContent=S.items.filter(i=>i.active!==false).length;
+}
+/* typed numbers stay on this device as 未保存 until 保存 is pressed */
+const pendKey = () => 'mf-pend-'+CID+'-'+S.month;
+function loadPend(){ try{ S.pend=JSON.parse(localStorage.getItem(pendKey())||'{}')||{}; }catch(e){ S.pend={}; } }
+function storePend(){ try{ const k=pendKey(); Object.keys(S.pend).length?localStorage.setItem(k,JSON.stringify(S.pend)):localStorage.removeItem(k); }catch(e){} }
+function readRow(el){ const v={}; el.querySelectorAll('input[data-k]').forEach(i=>v[i.dataset.k]=i.value); return v; }
+function evalRow(id, vals){
+  const it=S.items.find(i=>i.id===id)||{}, pack=effPack(it).pack, old=S.lines[id];
+  let doc=null;
+  if(pack && vals.big!==undefined){
+    const b=parseQty(vals.big), l=parseQty(vals.loose||'');
+    if(Number.isNaN(b)||Number.isNaN(l)) return {err:true};
+    if(b!==null||l!==null){ const big=b||0, loose=l||0; doc={qty:Math.round((big+loose/pack)*10000)/10000,big,loose,pack}; }
+    const same = (!doc&&!old) || (old&&doc&&old.big===doc.big&&old.loose===doc.loose&&Number(old.pack)===pack);
+    return {doc,old,it,same};
+  }
+  const v=parseQty(vals.qty!==undefined?vals.qty:'');
+  if(Number.isNaN(v)) return {err:true};
+  if(v!==null) doc={qty:v};
+  const same = (!doc&&!old) || (old&&doc&&doc.qty===Number(old.qty)&&old.big==null);
+  return {doc,old,it,same};
+}
+function stageRow(el){
+  if(isClosed()) return;
+  const id=el.dataset.id, vals=readRow(el), ev=evalRow(id,vals);
+  if(ev.err){ toast('数量只可以打数字，例如 3 或 2+0.5'); el.classList.add('bad'); return; }
+  el.classList.remove('bad');
+  if(ev.same) delete S.pend[id]; else S.pend[id]=vals;
+  storePend(); markRow(el,id); updateSaveBar();
+}
+function markRow(el,id){
+  const pend=!!S.pend[id]; el.classList.toggle('pend',pend);
+  if(pend){ const ev=evalRow(id,S.pend[id]); const r=monthRows().find(x=>x.id===id);
+    el.querySelector('.amt').textContent = ev.doc ? money(ev.doc.qty*(r?r.price:0))+' 未保存' : '清空 · 未保存'; }
+}
+function updateSaveBar(){
+  const n=Object.keys(S.pend).length;
+  $('saveBar').hidden = isClosed() || !S.canWrite;
+  $('saveInfo').innerHTML = n ? `<b>${n}</b> 项未保存` : (S.lastSave?'全部已保存 · '+S.lastSave:'打好数量后按保存');
+  $('saveBtn').disabled = !n; $('saveBar').classList.toggle('dirty',!!n);
+}
+async function saveAll(){
+  if(isClosed()) return;
+  const active=document.activeElement; if(active && active.closest && active.closest('.ci')) { const el=active.closest('.ci'); stageRow(el); }
+  const ids=Object.keys(S.pend); if(!ids.length) return;
+  const btn=$('saveBtn'); btn.disabled=true; btn.textContent='保存中…';
+  const logs=[]; let n=0, bad=0;
+  for(const id of ids){
+    const ev=evalRow(id,S.pend[id]);
+    if(ev.err){ bad++; continue; }
+    try{
+      if(!ev.same){
+        if(!ev.doc) await del('counts/'+S.month+'/lines/'+id);
+        else await put('counts/'+S.month+'/lines/'+id,Object.assign({},ev.doc,{at:Date.now(),by:S.uid||''}));
+        logs.push({a:'count',t:ev.it.name,m:S.month,c:[['数量',descLine(ev.old,ev.it),descLine(ev.doc,ev.it)]]});
+      }
+      delete S.pend[id]; n++;
+    }catch(err){ dbErr(err); break; }
+  }
+  logIt(logs); storePend();
+  S.lastSave=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  btn.textContent='保存';
+  $('cList').querySelectorAll('.ci').forEach(el=>markRow(el,el.dataset.id));
+  patchCount(); updateSaveBar();
+  toast(bad?`已保存 ${n} 项，${bad} 项数字不对没保存`:`已保存 ${n} 项`);
+}
+window.addEventListener('beforeunload',e=>{ if(Object.keys(S.pend||{}).length){ e.preventDefault(); e.returnValue=''; } });
+$('cList').addEventListener('change',e=>{ if(e.target.closest('.pedit')) return; const el=e.target.closest('.ci'); if(el) stageRow(el); });
+$('saveBtn').addEventListener('click',saveAll);
+$('saveBtnTop').addEventListener('click',saveAll);
+/* carton size correction on the count sheet */
+function descLine(l,it){
+  if(!l) return '（空）';
+  if(l.big!=null && Number(l.pack)>1){ const sub=(S.packs[it.id]&&S.packs[it.id].sub)||it.sub||'PKT'; return qfmt(l.big)+' '+(it.unit||'')+(Number(l.loose)?' + '+qfmt(l.loose)+' '+sub:''); }
+  return qfmt(l.qty)+' '+(it.unit||'');
+}
+const descPack = (n,sub,unit) => Number(n)>1 ? '1 '+(unit||'')+' = '+qfmt(n)+' '+(sub||'PKT') : '不分箱';
+async function recalcLine(id, pack){
+  const l=S.lines[id]; if(!l) return;
+  let doc;
+  if(pack>1){ const big=l.big!=null?l.big:Math.floor(Number(l.qty)+1e-9), loose=l.loose!=null?l.loose:Math.round((Number(l.qty)-big)*pack*1000)/1000; doc={qty:Math.round((big+loose/pack)*10000)/10000,big,loose,pack}; }
+  else doc={qty:l.big!=null?Number(l.big)+(Number(l.loose)||0):Number(l.qty)};
+  await put('counts/'+S.month+'/lines/'+id,Object.assign(doc,{at:Date.now(),by:S.uid||''}));
+}
+$('cList').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-pe]'); if(!b) return;
+  const el=b.closest('.ci'), id=el.dataset.id, it=S.items.find(i=>i.id===id); if(!it) return;
+  const act=b.dataset.pe;
+  if(act==='open'){ S.packEdit=id; renderCount(); const n=$('cList').querySelector('.pe-n'); if(n){n.focus();n.select();} return; }
+  if(act==='cancel'){ S.packEdit=null; renderCount(); return; }
+  try{
+    if(act==='save'||act==='none'){
+      let n = act==='none' ? 0 : parseQty(el.querySelector('.pe-n').value);
+      const sub = act==='none' ? '' : (el.querySelector('.pe-s').value.trim().toUpperCase()||'PKT');
+      if(act==='save' && (Number.isNaN(n)||n===null||n<=1)) return toast('请打一箱有几包，例如 12');
+      n=n||0;
+      if(S.mgr){
+        await patch('items/'+id,{pack:n,sub,updatedAt:Date.now()});
+        logIt([{a:'item',t:it.name,c:[['箱数',descPack(it.pack,it.sub,it.unit),descPack(n,sub,it.unit)]],s:'盘点表'}]);
+        if(S.packs[id]) await del('counts/'+S.month+'/packs/'+id);
+        toast('已更新货品资料：'+(n?'1 '+it.unit+' = '+n+' '+sub:'不分箱'));
+      } else {
+        const before=effPack(it);
+        await put('counts/'+S.month+'/packs/'+id,{pack:n,sub,at:Date.now(),by:S.uid||''});
+        logIt([{a:'pack',t:it.name,m:S.month,c:[['本月箱数',descPack(before.pack,before.sub,it.unit),descPack(n,sub,it.unit)]]}]);
+        toast('已改这个月的箱数，manager 会看到提醒');
+      }
+      await recalcLine(id,n);
+      S.packEdit=null; renderCount();
+    }
+    if(act==='accept'){
+      const o=S.packs[id];
+      await patch('items/'+id,{pack:Number(o.pack)||0,sub:Number(o.pack)>1?(o.sub||'PKT'):'',updatedAt:Date.now()});
+      logIt([{a:'item',t:it.name,c:[['箱数',descPack(it.pack,it.sub,it.unit),descPack(o.pack,o.sub,it.unit)]],s:'确认员工更改'}]);
+      await del('counts/'+S.month+'/packs/'+id); toast('已更新到货品资料');
+    }
+    if(act==='reject'){
+      const o=S.packs[id];
+      await del('counts/'+S.month+'/packs/'+id);
+      logIt([{a:'pack',t:it.name,m:S.month,c:[['本月箱数',descPack(o&&o.pack,o&&o.sub,it.unit),descPack(it.pack,it.sub,it.unit)+'（撤销员工更改）']]}]);
+      await recalcLine(id, Number(it.pack)>1?Number(it.pack):0); toast('已撤销，用回货品资料的箱数');
+    }
+  }catch(err){ dbErr(err); }
+});
+$('cList').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-pr]'); if(!b) return;
+  const el=b.closest('.ci'), id=el.dataset.id, it=S.items.find(i=>i.id===id); if(!it) return;
+  const act=b.dataset.pr;
+  if(act==='open'){ S.priceEdit=id; renderCount(); const n=$('cList').querySelector('.pr-n'); if(n){n.focus();n.select();} return; }
+  if(act==='cancel'){ S.priceEdit=null; renderCount(); return; }
+  const v=parseQty(el.querySelector('.pr-n').value);
+  if(Number.isNaN(v)||v===null) return toast('请打单价，例如 155 或 12.60');
+  const price=r2(v);
+  if(price===r2(it.price)){ S.priceEdit=null; renderCount(); return; }
+  try{
+    await patch('items/'+id,{price,priceAt:Date.now(),updatedAt:Date.now()});
+    logIt([{a:'item',t:it.name,c:[['单价',Number(it.price)>0?money(it.price):'无',money(price)]],s:'盘点表'}]);
+    toast('单价已改为 RM '+money(price)); S.priceEdit=null; renderCount();
+  }catch(err){ dbErr(err); }
+});
+$('cList').addEventListener('focusout',e=>{ const el=e.target.closest('.ci.pk'); if(el && !el.contains(e.relatedTarget)) patchCount(); });
+$('cList').addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  if(e.target.closest('.pedit')){ e.preventDefault(); e.target.closest('.pedit').querySelector('[data-pe=save],[data-pr=save]').click(); return; } const el=e.target.closest('.ci'); if(!el) return;
+  e.preventDefault(); const ins=[...$('cList').querySelectorAll('.ci input')]; const i=ins.indexOf(e.target);
+  e.target.blur(); if(ins[i+1]){ ins[i+1].focus(); ins[i+1].select(); }
+});
+$('cList').addEventListener('focusin',e=>{ if(e.target.tagName==='INPUT') e.target.select(); });
+
+/* close / reopen month */
+$('closeBtn').addEventListener('click',()=>{
+  if(Object.keys(S.pend).length){ toast('还有 '+Object.keys(S.pend).length+' 项未保存，先按保存'); return; }
+  if(!countDate()){ toast('先填盘点日期'); $('cDate').focus(); return; }
+  const rows=monthRows(), t=totals(rows), todo=rows.filter(r=>r.qty===null);
+  const msg=$('closeMsg'); msg.hidden=false;
+  const issues=[];
+  if(todo.length) issues.push(`<li>${todo.length} 项没有填，会当作 0。真的没货就不用理，只是确认有没有漏点。</li>`);
+  if(t.noPrice.length) issues.push(`<li>${t.noPrice.length} 项有数量但没单价，金额会是 0：${t.noPrice.slice(0,6).map(r=>esc(r.name.split(/\s{1}/).slice(0,4).join(' '))).join('、')}${t.noPrice.length>6?'…':''}</li>`);
+  msg.className='check '+(issues.length?'warn':'ok');
+  msg.innerHTML=`<strong>确定结账 ${mLabel(S.month)}？期末存货 RM ${money(t.total)}</strong>${issues.length?'<ul>'+issues.join('')+'</ul>':''}
+    <span class="small">结账会把这个月的数量和当时的单价锁起来，以后改单价也不会影响这个月的报告。需要的话 manager 可以重开。</span>
+    <div class="row"><button class="btn pri sm" id="closeGo">确定结账</button><button class="btn sm" id="closeNo">取消</button></div>`;
+  $('closeNo').onclick=()=>{msg.hidden=true;};
+  $('closeGo').onclick=async()=>{
+    const lines={};
+    rows.forEach(r=>{ if(r.qty) lines[r.id]={no:r.no??'',name:r.name,group:r.group,gi:r.gi,unit:r.unit,account:r.account,price:r.price,qty:r.qty}; if(r.pack && lines[r.id]) Object.assign(lines[r.id],{pack:r.pack,sub:r.sub,big:r.big,loose:r.loose}); });
+    const byGroup={}; t.byGroup.forEach((v,k)=>byGroup[k]=r2(v));
+    const byAccount={}; t.byAcc.forEach((v,k)=>byAccount[k]=r2(v));
+    try{
+      await put('closing/'+S.month,{month:S.month,total:t.total,byGroup,byAccount,lines,itemCount:rows.length,uncounted:todo.length,closedAt:Date.now(),closedBy:S.uid||'',countDate:countDate()});
+      logIt([{a:'close',t:mLabel(S.month),m:S.month,c:[['期末存货 RM','',money(t.total)]]}]);
+      msg.className='check ok'; msg.innerHTML=`<strong>✓ ${mLabel(S.month)} 已结账</strong><span>期末存货 RM ${money(t.total)}。到「月结报告」可以下载 Excel。</span>`;
+    }catch(err){ dbErr(err); msg.hidden=true; }
+  };
+});
+$('reopenBtn').addEventListener('click',async e=>{
+  const b=e.currentTarget;
+  if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='确定重开？'; setTimeout(()=>{b.dataset.armed='';b.textContent='重开这个月';},3500); return; }
+  b.dataset.armed=''; b.textContent='重开这个月';
+  try{ const was=closing(); await del('closing/'+S.month); logIt([{a:'reopen',t:mLabel(S.month),m:S.month,c:[['状态','已结账 RM '+money(was&&was.total),'重开']]}]); $('closeMsg').hidden=true; toast(mLabel(S.month)+' 已重开，可以再改数量'); }catch(err){dbErr(err)}
+});
+
+/* ---------- REPORT ---------- */
+function renderReport(){
+  const rows=monthRows(), t=totals(rows), c=closing(), pm=prevMonth(S.month), p=S.closings[pm];
+  $('rTitle').textContent='Closing Stock Report · '+mLabel(S.month);
+  $('rSub').textContent = (S.cfgName||'MINIFISH SDN BHD')+' · as at '+lastDay(S.month)+'/'+S.month.slice(5)+'/'+S.month.slice(0,4)+' · 盘点日期 Stock count date: '+(dmy(countDate())||'未填');
+  $('rStatus').innerHTML = c ? '<span class="pill closed">已结账</span>' : '<span class="pill warn">还没结账 · 数字会变</span>';
+  $('rClose').textContent=money(t.total);
+  $('rOpen').textContent = p ? money(p.total) : '—';
+  $('rDiff').textContent = p ? (t.total-p.total>=0?'+':'')+money(t.total-p.total) : '—';
+  $('rItems').textContent = rows.filter(r=>(r.qty||0)!==0).length;
+  const w=$('rWarn'), todo=c?0:rows.filter(r=>r.qty===null).length;
+  const wl=[]; if(todo) wl.push(`${todo} 项还没点`); if(t.noPrice.length) wl.push(`${t.noPrice.length} 项有数量没单价（金额算 0）`);
+  w.hidden=!wl.length; w.className='check warn'; w.innerHTML=wl.map(esc).join(' · ');
+  const showZero=$('rZero').checked;
+  let html='', cur=null, sub=0;
+  const flush=()=>{ if(cur!==null) html+=`<tr class="sub"><td colspan="4">${esc(cur)} 小计</td><td class="r mono">${money(sub)}</td></tr>`; };
+  rows.filter(r=>showZero||(r.qty||0)!==0).forEach(r=>{
+    if(r.group!==cur){ flush(); cur=r.group; sub=0; html+=`<tr class="gh"><td colspan="5">${esc(cur)}</td></tr>`; }
+    const amt=r2((r.qty||0)*r.price); sub+=amt;
+    html+=`<tr${(r.qty||0)===0?' class="off"':''}><td style="min-width:220px">${esc(r.name)}</td><td class="r mono">${r.qty===null?'—':esc(qfmt(r.qty))}${r.pack&&r.qty?`<div class="small muted">${esc(fmtCount(r))}</div>`:''}</td><td class="small">${esc(r.unit)}</td><td class="r mono">${r.price>0?money(r.price):'<span class="pill warn">无</span>'}</td><td class="r mono">${money(amt)}</td></tr>`;
+  });
+  flush();
+  if(html) html+=`<tr class="sub"><td colspan="4">TOTAL CLOSING STOCK</td><td class="r mono">${money(t.total)}</td></tr>`;
+  $('rBody').innerHTML = html || `<tr><td colspan="5" class="empty">${mLabel(S.month)} 还没有盘点数量。到「盘点」开始输入。</td></tr>`;
+  const gnames=[...t.byGroup.keys()]; if(p&&p.byGroup) Object.keys(p.byGroup).forEach(k=>{ if(!gnames.includes(k)) gnames.push(k); });
+  $('rGroup').innerHTML = gnames.map(g=>`<tr><td>${esc(g)}</td><td class="r mono">${money(t.byGroup.get(g)||0)}</td><td class="r mono muted">${p&&p.byGroup?money(p.byGroup[g]||0):'—'}</td></tr>`).join('') +
+    `<tr class="sub"><td>合计</td><td class="r mono">${money(t.total)}</td><td class="r mono muted">${p?money(p.total):'—'}</td></tr>`;
+  const accs=[...t.byAcc.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  $('rAcc').innerHTML = accs.length ? accs.map(([a,v])=>`<tr><td class="small">${esc(a)}</td><td class="r mono">${money(v)}</td></tr>`).join('')+`<tr class="sub"><td>合计</td><td class="r mono">${money(t.total)}</td></tr>` : '<tr><td colspan="2" class="empty">还没有金额</td></tr>';
+}
+$('rZero').addEventListener('change',renderReport);
+
+let downloads=null;
+$('exportBtn').addEventListener('click',async()=>{
+  const msg=$('exportMsg'); msg.hidden=false;
+  if(typeof XLSX==='undefined'){ msg.className='check bad'; msg.textContent='Excel 工具载入失败，请重新打开页面。'; return; }
+  if(!downloads){ msg.className='check bad'; msg.textContent='不能下载文件，请重新打开页面。'; return; }
+  const rows=monthRows(), t=totals(rows), c=closing(), p=S.closings[prevMonth(S.month)];
+  const asAt=lastDay(S.month)+'/'+S.month.slice(5)+'/'+S.month.slice(0,4);
+  const wb=XLSX.utils.book_new();
+  const head=['NO','PRODUCTS','GROUP','PRICE','ACCOUNT','QTY','UNIT','AMOUNT','COUNT DETAIL'];
+  const line=r=>[r.no??'',r.name,r.group,r.price||0,r.account,r.qty??0,r.unit,r2((r.qty||0)*(r.price||0)),r.pack&&r.qty?fmtCount(r):''];
+  const sum=[[(S.cfgName||'MINIFISH SDN BHD')],['CLOSING STOCK REPORT AS AT '+asAt],['STOCK COUNT DATE: '+(dmy(countDate())||'-')],[c?'Status: CLOSED':'Status: NOT CLOSED (draft)'],[],
+    ['GROUP','CLOSING (RM)','PREVIOUS MONTH (RM)']];
+  t.byGroup.forEach((v,k)=>sum.push([k,r2(v),p&&p.byGroup?(p.byGroup[k]||0):'']));
+  sum.push(['TOTAL',t.total,p?p.total:''],[],['ACCOUNT','CLOSING (RM)']);
+  t.byAcc.forEach((v,k)=>sum.push([k,r2(v)]));
+  const ws0=XLSX.utils.aoa_to_sheet(sum); ws0['!cols']=[{wch:40},{wch:16},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws0,'SUMMARY');
+  const all=[head,...rows.map(line),['','TOTAL','','','','','',t.total]];
+  const ws1=XLSX.utils.aoa_to_sheet(all); ws1['!cols']=[{wch:5},{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:7},{wch:12},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws1,'ALL ITEMS');
+  const groups=[...new Set(rows.map(r=>r.group))];
+  groups.forEach(g=>{
+    const gr=rows.filter(r=>r.group===g);
+    const ws=XLSX.utils.aoa_to_sheet([head,...gr.map(line),['','TOTAL','','','','','',r2(t.byGroup.get(g)||0)]]);
+    ws['!cols']=ws1['!cols'];
+    XLSX.utils.book_append_sheet(wb,ws,g.replace(/[\\\/?*\[\]:]/g,' ').slice(0,31));
+  });
+  const fname=`MF-CLOSING STOCK-${S.month.replace('-','_')}${c?'':'-DRAFT'}.xlsx`;
+  try{
+    await downloads.save({filename:fname,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])});
+    msg.className='check ok'; msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong>`;
+  }catch(err){ msg.className='check '+(err&&err.code==='declined'?'idle':'bad'); msg.textContent = err&&err.code==='declined'?'已取消下载。':'下载失败：'+(err&&err.message||err); }
+});
+
+/* ---------- ITEMS ---------- */
+function renderItemOptions(){
+  const gs=sortedGroups();
+  const cur=$('fGroup').value;
+  $('fGroup').innerHTML=gs.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('') || '<option value="">先新增分组</option>';
+  if(cur) $('fGroup').value=cur;
+  const ig=$('iGroup').value;
+  $('iGroup').innerHTML='<option value="">全部分组</option>'+gs.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
+  $('iGroup').value=ig;
+  const units=[...new Set(S.items.map(i=>i.unit).filter(Boolean).map(u=>u.toUpperCase()))].sort();
+  $('unitList').innerHTML=units.map(u=>`<option value="${esc(u)}">`).join('');
+  const accs=[...new Set([...S.items.map(i=>i.account),...S.groups.map(g=>g.account)].filter(Boolean))].sort();
+  $('accList').innerHTML=accs.map(a=>`<option value="${esc(a)}">`).join('');
+}
+function renderItems(){
+  renderItemOptions();
+  const q=norm($('iQ').value), g=$('iGroup').value, off=$('iOff').checked;
+  const rows=sortItems(S.items.filter(i=>(off||i.active!==false)&&(!g||i.groupId===g)&&(!q||norm(i.name).includes(q))));
+  $('iBody').innerHTML = rows.length ? rows.map(i=>`<tr class="${i.active===false?'off':''}">
+    <td class="mono small">${esc(i.no??'')}</td><td style="min-width:240px">${esc(i.name)}${i.active===false?' <span class="pill mute">停用</span>':''}</td>
+    <td class="small">${esc(groupName(i))}</td><td class="small">${esc(i.unit||'')}${Number(i.pack)>1?`<div class="muted">1 = ${esc(qfmt(i.pack))} ${esc(i.sub||'PKT')}</div>`:''}</td>
+    <td class="r mono">${S.bulk ? `<input class="bp${S.bulkP[i.id]!==undefined?' chg':''}" data-bp="${esc(i.id)}" inputmode="decimal" value="${esc(S.bulkP[i.id]!==undefined?S.bulkP[i.id]:(Number(i.price)>0?i.price:''))}" aria-label="${esc(i.name)} 单价">` : (Number(i.price)>0?money(i.price):'<span class="pill warn">无</span>')}${i.priceAt?`<div class="small muted" style="font-family:var(--f-body)">${new Date(i.priceAt).toLocaleDateString('en-GB')}</div>`:''}</td>
+    <td class="small" style="white-space:nowrap">${esc(itemAccount(i))}${i.account?'':' <span class="muted">(分组)</span>'}</td>
+    <td class="r mgr-only"><button class="btn sm" data-edit="${esc(i.id)}">改</button></td></tr>`).join('')
+    : `<tr><td colspan="7" class="empty">${S.items.length?'找不到':'还没有货品。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
+}
+['iQ','iGroup','iOff'].forEach(id=>$(id).addEventListener('input',renderItems));
+/* bulk price edit */
+function bulkInfo(){
+  const n=Object.keys(S.bulkP).length;
+  $('bulkInfo').innerHTML = n ? `<b>${n}</b> 项单价未保存` : '直接在单价栏打新价钱，Enter 跳下一项，改完按保存。';
+  $('bulkSave').disabled=!n; $('bulkBar').classList.toggle('dirty',!!n);
+}
+$('bulkBtn').addEventListener('click',()=>{ S.bulk=true; S.bulkP={}; $('bulkBar').hidden=false; $('bulkBtn').hidden=true; renderItems(); bulkInfo(); const f=$('iBody').querySelector('.bp'); if(f) f.focus(); });
+function bulkEnd(){ S.bulk=false; S.bulkP={}; $('bulkBar').hidden=true; $('bulkBtn').hidden=false; renderItems(); }
+$('bulkCancel').addEventListener('click',bulkEnd);
+$('iBody').addEventListener('change',e=>{
+  const inp=e.target.closest('[data-bp]'); if(!inp) return;
+  const it=S.items.find(i=>i.id===inp.dataset.bp); const v=String(inp.value).replace(/,/g,'').trim();
+  if(v!=='' && !isFinite(Number(v))){ toast('单价只可以打数字'); inp.classList.add('bad'); return; }
+  inp.classList.remove('bad');
+  if(r2(v)===r2(it.price) || (v===''&&!(Number(it.price)>0))) delete S.bulkP[it.id]; else S.bulkP[it.id]=v;
+  inp.classList.toggle('chg',S.bulkP[it.id]!==undefined); bulkInfo();
+});
+$('iBody').addEventListener('keydown',e=>{
+  const inp=e.target.closest('[data-bp]'); if(!inp||e.key!=='Enter') return; e.preventDefault();
+  const all=[...$('iBody').querySelectorAll('[data-bp]')], i=all.indexOf(inp); inp.blur(); if(all[i+1]){ all[i+1].focus(); all[i+1].select(); }
+});
+$('iBody').addEventListener('focusin',e=>{ if(e.target.matches('[data-bp]')) e.target.select(); });
+$('bulkSave').addEventListener('click',async()=>{
+  const a=document.activeElement; if(a&&a.matches&&a.matches('[data-bp]')) a.blur();
+  const ids=Object.keys(S.bulkP); if(!ids.length) return;
+  const btn=$('bulkSave'); btn.disabled=true; const logs=[]; let n=0;
+  try{
+    for(const id of ids){
+      const it=S.items.find(i=>i.id===id); const price=r2(S.bulkP[id]);
+      await patch('items/'+id,{price,priceAt:Date.now(),updatedAt:Date.now()});
+      logs.push({a:'item',t:it.name,c:[['单价',Number(it.price)>0?money(it.price):'无',price>0?money(price):'无']],s:'批量改单价'});
+      delete S.bulkP[id]; n++; btn.textContent='保存中 '+n+'/'+ids.length;
+    }
+    toast('已保存 '+n+' 项单价'); bulkEnd();
+  }catch(err){ dbErr(err); bulkInfo(); }
+  logIt(logs); btn.textContent='保存单价';
+});
+$('iBody').addEventListener('click',e=>{
+  const b=e.target.closest('[data-edit]'); if(!b) return;
+  const i=S.items.find(x=>x.id===b.dataset.edit); S.editItem=i.id;
+  $('fName').value=i.name; $('fGroup').value=i.groupId||''; $('fUnit').value=i.unit||''; $('fPrice').value=i.price||''; $('fNo').value=i.no??''; $('fPack').value=Number(i.pack)>1?i.pack:''; $('fSub').value=i.sub||''; $('fAcc').value=i.account||''; $('fActive').checked=i.active!==false;
+  $('iFormTitle').textContent='修改货品'; $('iCancel').hidden=false; $('fName').focus();
+});
+function iReset(){ S.editItem=null; $('iForm').reset(); $('fActive').checked=true; $('iFormTitle').textContent='新增货品'; $('iCancel').hidden=true; }
+$('iCancel').addEventListener('click',iReset);
+const nextNo = () => S.items.reduce((m,i)=>Math.max(m,Number(i.no)||0),0)+1;
+$('iForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const name=norm($('fName').value); if(!name) return;
+  const groupId=$('fGroup').value; if(!groupId) return toast('先到「分组」新增分组');
+  const dupe=S.items.find(i=>norm(i.name)===name && i.id!==S.editItem);
+  if(dupe) return toast('已经有同名货品（NO '+(dupe.no??'')+'）');
+  const ex=S.editItem?S.items.find(i=>i.id===S.editItem):null;
+  const price=r2(String($('fPrice').value).replace(/,/g,''));
+  const body=Object.assign({},ex||{},{name,groupId,unit:$('fUnit').value.trim(),price,account:$('fAcc').value.trim(),active:$('fActive').checked,no:Number($('fNo').value)||(ex&&ex.no)||nextNo(),updatedAt:Date.now(),pack:Number($('fPack').value)>1?Number($('fPack').value):0,sub:Number($('fPack').value)>1?($('fSub').value.trim().toUpperCase()||'PKT'):''});
+  if(!ex || Number(ex.price)!==price) body.priceAt=Date.now();
+  delete body.id;
+  try{
+    await put('items/'+(ex?ex.id:'i'+uid()),body);
+    logIt([{a:ex?'item':'item-add',t:name,c:ex?itemDiff(ex,body):[['新增', '', descItem(body)]]}]);
+    toast('已保存 '+name); iReset();
+  }catch(err){dbErr(err)}
+});
+const gNameById = id => (groupById(id)||{}).name || id || '';
+function descItem(b){ return [gNameById(b.groupId), b.unit, Number(b.price)>0?'RM '+money(b.price):'无单价', b.account, Number(b.pack)>1?descPack(b.pack,b.sub,b.unit):''].filter(Boolean).join(' · '); }
+function itemDiff(a,b,gname){
+  const c=[], same=(x,y)=>String(x??'')===String(y??'');
+  if(!same(norm(a.name),norm(b.name))) c.push(['名称',a.name,b.name]);
+  if(!same(a.groupId,b.groupId)) c.push(['分组',gNameById(a.groupId),gname||gNameById(b.groupId)]);
+  if(!same(a.unit,b.unit)) c.push(['单位',a.unit||'',b.unit||'']);
+  if(r2(a.price)!==r2(b.price)) c.push(['单价',Number(a.price)>0?money(a.price):'无',Number(b.price)>0?money(b.price):'无']);
+  if(!same(a.account,b.account)) c.push(['Account',a.account||'',b.account||'']);
+  if((Number(a.pack)||0)!==(Number(b.pack)||0) || (Number(a.pack)>1 && !same(a.sub,b.sub))) c.push(['箱数',descPack(a.pack,a.sub,a.unit),descPack(b.pack,b.sub,b.unit)]);
+  if((a.active!==false)!==(b.active!==false)) c.push(['状态',a.active===false?'停用':'在用',b.active===false?'停用':'在用']);
+  if(!same(a.no,b.no)) c.push(['NO',a.no??'',b.no??'']);
+  return c;
+}
+/* ---------- import (Excel file or paste) with preview ---------- */
+const cleanAcc = v => String(v??'').replace(/ /g,' ').replace(/\s+/g,' ').trim();
+const numOrU = v => { const t=String(v??'').replace(/,/g,'').trim(); if(t==='') return undefined; const n=Number(t); return isFinite(n)?n:undefined; };
+function rowsFromArrays(arr, hasHeader){
+  let h=-1, col={name:0,group:1,price:2,account:3,unit:4,pack:5,sub:6,no:-1};
+  if(hasHeader){
+    h=arr.findIndex(r=>(r||[]).some(c=>norm(c)==='PRODUCTS'));
+    if(h<0) return {err:'找不到 PRODUCTS 栏。第一行要有 PRODUCTS、GROUP、PRICE 这些标题。'};
+    col={name:-1,group:-1,price:-1,account:-1,unit:-1,pack:-1,sub:-1,no:-1};
+    (arr[h]||[]).forEach((c,i)=>{ const k=norm(c);
+      if(k==='PRODUCTS') col.name=i; else if(k==='GROUP') col.group=i; else if(k==='PRICE'||k==='单价') col.price=i;
+      else if(k==='ACCOUNT') col.account=i; else if(k==='UNIT'||k==='单位') col.unit=i; else if(k==='NO') col.no=i;
+      else if(/PACK|PER CTN|几个|箱数/.test(k)) col.pack=i; else if(/SUB|小单位/.test(k)) col.sub=i; });
+    const body=arr.slice(h+1);
+    // the original STOCK LISTING has no header on the Account (E) and Unit (G) columns
+    if(col.account<0 && body.filter(r=>/^\d{4}\b/.test(cleanAcc(r&&r[4]))).length>body.length/3) col.account=4;
+    if(col.unit<0 && body.filter(r=>r&&r[6]&&String(r[6]).length<=8&&isNaN(Number(r[6]))).length>body.length/3) col.unit=6;
+  }
+  const get=(r,k)=>col[k]>=0?r[col[k]]:undefined;
+  const out=[], seen=new Set(), dup=[];
+  arr.slice(h+1).forEach(r=>{
+    if(!r) return; const name=norm(get(r,'name')); if(!name || name==='TOTAL' || name==='PRODUCTS') return;
+    if(seen.has(name)){ dup.push(name); return; } seen.add(name);
+    out.push({name, no:numOrU(get(r,'no')), group:norm(get(r,'group'))||undefined, price:col.price>=0?numOrU(get(r,'price')):undefined,
+      account:col.account>=0?(cleanAcc(get(r,'account'))||undefined):undefined, unit:col.unit>=0?(String(get(r,'unit')??'').trim()||undefined):undefined,
+      pack:col.pack>=0?numOrU(get(r,'pack')):undefined, sub:col.sub>=0?(String(get(r,'sub')??'').trim().toUpperCase()||undefined):undefined});
+  });
+  return {rows:out,dup,hasPack:col.pack>=0};
+}
+function planImport(rows){
+  const byName=new Map(S.items.map(i=>[norm(i.name),i]));
+  const gByName=new Map(S.groups.map(g=>[norm(g.name),g]));
+  const plan={add:[],upd:[],same:0,newGroups:new Set()};
+  rows.forEach(r=>{
+    if(r.group && !gByName.has(r.group)) plan.newGroups.add(r.group);
+    const ex=byName.get(r.name);
+    const pick=(k,d)=>r[k]!==undefined?r[k]:d;
+    if(!ex){
+      const b={name:r.name,group:r.group||'OTHERS',unit:r.unit||'',price:r2(r.price||0),account:r.account||'',pack:Number(r.pack)>1?r.pack:0,sub:Number(r.pack)>1?(r.sub||'PKT'):'',no:r.no,active:true};
+      if(!gByName.has(b.group)) plan.newGroups.add(b.group);
+      plan.add.push(b); return;
+    }
+    const g=r.group?gByName.get(r.group):null;
+    const b=Object.assign({},ex,{unit:pick('unit',ex.unit),price:r.price!==undefined?r2(r.price):ex.price,account:pick('account',ex.account),active:true,
+      pack:r.pack!==undefined?(Number(r.pack)>1?r.pack:0):(ex.pack||0), sub:r.pack!==undefined?(Number(r.pack)>1?(r.sub||ex.sub||'PKT'):''):(ex.sub||'')});
+    b._group = r.group || null;
+    if(g) b.groupId=g.id;
+    const diff=itemDiff(ex,b,r.group&&!g?r.group:null);
+    if(r.group && !g) diff.push(['分组',gNameById(ex.groupId),r.group]);
+    if(diff.length) plan.upd.push({ex,b,diff}); else plan.same++;
+  });
+  const names=new Set(rows.map(r=>r.name));
+  plan.missing=S.items.filter(i=>i.active!==false && !names.has(norm(i.name)) && !(groupById(i.groupId)||{}).noCount);
+  return plan;
+}
+function showImport(res, source){
+  const box=$('impPrev'); box.hidden=false;
+  if(res.err){ box.className='check bad'; box.textContent=res.err; S.imp=null; return; }
+  if(!res.rows.length){ box.className='check bad'; box.textContent='文件里没有货品资料。'; S.imp=null; return; }
+  const plan=planImport(res.rows); S.imp={plan,source};
+  const ch=d=>d.map(([f,a,b])=>`${esc(f)}: <del>${esc(a===''?'空':a)}</del> → <ins>${esc(b===''?'空':b)}</ins>`).join('；');
+  box.className='check '+(plan.add.length||plan.upd.length?'warn':'idle');
+  box.innerHTML=`<strong>预览：${esc(source)}</strong>
+    <span>共 ${res.rows.length} 行 · 新增 <b>${plan.add.length}</b> · 更新 <b>${plan.upd.length}</b> · 没变 ${plan.same}${plan.newGroups.size?' · 新分组 '+[...plan.newGroups].map(esc).join('、'):''}</span>
+    ${res.dup.length?`<span class="small">文件里重复的名字只取第一行：${res.dup.slice(0,5).map(esc).join('、')}${res.dup.length>5?'…':''}</span>`:''}
+    ${plan.add.length||plan.upd.length?`<div class="prev">${plan.upd.map(u=>`<div><b>${esc(u.ex.name)}</b><br>${ch(u.diff)}</div>`).join('')}${plan.add.map(b=>`<div><span class="pill open">新增</span> <b>${esc(b.name)}</b> · ${esc([b.group,b.unit,b.price?'RM '+money(b.price):'无单价',b.account].filter(Boolean).join(' · '))}</div>`).join('')}</div>`:''}
+    ${plan.missing.length?`<label class="row small" style="gap:6px;color:var(--ink)"><input type="checkbox" id="impOff" style="width:auto"> 系统里有、文件里没有的 ${plan.missing.length} 项改成停用</label>`:''}
+    <div class="row"><button class="btn pri sm" id="impGo" ${plan.add.length||plan.upd.length||plan.missing.length?'':'disabled'}>确认导入</button><button class="btn sm" id="impNo">取消</button></div>`;
+  $('impNo').onclick=()=>{ box.hidden=true; S.imp=null; $('impFile').value=''; };
+  $('impGo').onclick=applyImport;
+}
+async function applyImport(){
+  if(!S.imp) return; const {plan,source}=S.imp; const off=$('impOff')&&$('impOff').checked;
+  const go=$('impGo'); go.disabled=true;
+  const gmap=new Map(S.groups.map(g=>[norm(g.name),g.id])); let gnext=S.groups.length, no=nextNo();
+  const used=new Set(S.items.map(i=>Number(i.no)).filter(Boolean));
+  const logs=[]; let n=0;
+  try{
+    for(const gname of plan.newGroups){ if(gmap.has(gname)) continue; const gid='g'+uid(); await put('groups/'+gid,{name:gname,account:'',order:gnext++}); gmap.set(gname,gid); logs.push({a:'group',t:gname,c:[['新增分组','',gname]],s:source}); }
+    for(const u of plan.upd){
+      const b=Object.assign({},u.b); if(b._group) b.groupId=gmap.get(b._group)||b.groupId; delete b._group; delete b.id;
+      b.updatedAt=Date.now(); if(r2(u.ex.price)!==r2(b.price)) b.priceAt=Date.now();
+      await put('items/'+u.ex.id,b); logs.push({a:'item',t:b.name,c:u.diff,s:source}); n++; go.textContent='保存中 '+n+'…';
+    }
+    for(const a of plan.add){
+      let num=Number(a.no); if(!num||used.has(num)){ while(used.has(no)) no++; num=no++; } used.add(num);
+      const b={name:a.name,groupId:gmap.get(a.group),unit:a.unit,price:a.price,account:a.account,pack:a.pack,sub:a.sub,active:true,no:num,updatedAt:Date.now(),priceAt:Date.now()};
+      await put('items/i'+uid(),b); logs.push({a:'item-add',t:b.name,c:[['新增','',descItem(b)]],s:source}); n++; go.textContent='保存中 '+n+'…';
+    }
+    if(off) for(const it of plan.missing){ await patch('items/'+it.id,{active:false,updatedAt:Date.now()}); logs.push({a:'item',t:it.name,c:[['状态','在用','停用']],s:source}); n++; }
+    logIt(logs);
+    const box=$('impPrev'); box.className='check ok'; box.innerHTML=`<strong>✓ 已导入</strong><span>${plan.add.length} 项新增、${plan.upd.length} 项更新${off?'、'+plan.missing.length+' 项停用':''}。变更记录已经记下。</span>`;
+    $('impFile').value=''; $('pasteBox').value=''; S.imp=null;
+  }catch(err){ dbErr(err); logIt(logs); go.disabled=false; go.textContent='继续导入'; }
+}
+$('plDown').addEventListener('click',async()=>{
+  if(typeof XLSX==='undefined'||!downloads) return toast('这个画面不能下载文件');
+  const aoa=[['NO','PRODUCTS','GROUP','PRICE','ACCOUNT','UNIT','PACK (1 UNIT = ?)','SUB UNIT','PRICE UPDATED']];
+  sortItems(S.items.filter(i=>i.active!==false)).forEach(i=>aoa.push([i.no??'',i.name,groupName(i),Number(i.price)||'',itemAccount(i),i.unit||'',Number(i.pack)>1?i.pack:'',Number(i.pack)>1?(i.sub||'PKT'):'',i.priceAt?new Date(i.priceAt).toLocaleDateString('en-GB'):'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:5},{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:10},{wch:9},{wch:13}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'PRICE LIST');
+  const d=new Date(), tag=d.getFullYear()+'_'+String(d.getMonth()+1).padStart(2,'0')+'_'+String(d.getDate()).padStart(2,'0');
+  try{ await downloads.save({filename:`MF-STOCK PRICE LIST-${tag}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
+});
+$('impFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(typeof XLSX==='undefined') return showImport({err:'Excel 工具载入失败，请重新打开页面。'});
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const pref=['PRICE LIST','ALL ITEMS','SHEET1'];
+    let name=wb.SheetNames.find(n=>pref.includes(norm(n)));
+    const arrOf=n=>XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});
+    if(!name) name=wb.SheetNames.find(n=>arrOf(n).some(r=>r.some(c=>norm(c)==='PRODUCTS')))||wb.SheetNames[0];
+    showImport(rowsFromArrays(arrOf(name),true), f.name+' › '+name);
+  }catch(err){ showImport({err:'读不到这个文件：'+(err&&err.message||err)}); }
+});
+$('pasteBtn').addEventListener('click',()=>{
+  const arr=$('pasteBox').value.split(/\r?\n/).map(l=>l.split('\t'));
+  const hasHeader=arr.some(r=>r.some(c=>norm(c)==='PRODUCTS'));
+  showImport(rowsFromArrays(arr,hasHeader),'Excel 贴上');
+});
+
+/* ---------- GROUPS ---------- */
+function renderGroups(){
+  const gs=sortedGroups();
+  $('ctGroups').textContent=gs.length;
+  $('gBody').innerHTML = gs.length ? gs.map((g,i)=>{
+    const n=S.items.filter(it=>it.groupId===g.id&&it.active!==false).length;
+    return `<tr><td class="mono small">${i+1}</td><td><b>${esc(g.name)}</b>${g.noCount?' <span class="pill mute">不用点货</span>':''}</td><td class="small">${esc(g.account||'—')}</td><td class="r mono">${n}</td>
+    <td class="r mgr-only" style="white-space:nowrap"><button class="btn sm" data-up="${esc(g.id)}" ${i?'':'disabled'} aria-label="上移">↑</button> <button class="btn sm" data-dn="${esc(g.id)}" ${i<gs.length-1?'':'disabled'} aria-label="下移">↓</button> <button class="btn sm" data-gedit="${esc(g.id)}">改</button> <button class="btn sm danger" data-gdel="${esc(g.id)}">删</button></td></tr>`;}).join('')
+    : '<tr><td colspan="5" class="empty">还没有分组。用右边表格新增。</td></tr>';
+}
+$('gBody').addEventListener('click',async e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  const gs=sortedGroups();
+  if(t.dataset.up||t.dataset.dn){
+    const id=t.dataset.up||t.dataset.dn, i=gs.findIndex(g=>g.id===id), j=t.dataset.up?i-1:i+1;
+    const arr=[...gs]; [arr[i],arr[j]]=[arr[j],arr[i]];
+    try{ for(let k=0;k<arr.length;k++){ if(arr[k].order!==k) await patch('groups/'+arr[k].id,{order:k}); } logIt([{a:'group',t:gs[i].name,c:[['顺序',String(i+1),String(j+1)]]}]); }catch(err){dbErr(err)}
+  }
+  if(t.dataset.gedit){ const g=groupById(t.dataset.gedit); S.editGroup=g.id; $('gName').value=g.name; $('gAcc').value=g.account||''; $('gNoCount').checked=!!g.noCount; $('gFormTitle').textContent='修改分组'; $('gCancel').hidden=false; $('gName').focus(); }
+  if(t.dataset.gdel){
+    const n=S.items.filter(it=>it.groupId===t.dataset.gdel).length;
+    if(n) return toast('这个分组还有 '+n+' 项货品（包括停用的），先把货品换到别的分组');
+    if(t.dataset.armed!=='1'){ t.dataset.armed='1'; t.textContent='确定?'; setTimeout(()=>{t.dataset.armed='';t.textContent='删';},3000); return; }
+    try{ const g=groupById(t.dataset.gdel); await del('groups/'+t.dataset.gdel); logIt([{a:'group',t:g?g.name:'',c:[['删除分组',g?g.name:'','']]}]); toast('已删除'); }catch(err){dbErr(err)}
+  }
+});
+function gReset(){ S.editGroup=null; $('gForm').reset(); $('gFormTitle').textContent='新增分组'; $('gCancel').hidden=true; }
+$('gCancel').addEventListener('click',gReset);
+$('gForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const name=norm($('gName').value); if(!name) return;
+  if(S.groups.some(g=>norm(g.name)===name && g.id!==S.editGroup)) return toast('已经有这个分组');
+  try{
+    const acc=$('gAcc').value.trim(), noCount=$('gNoCount').checked;
+    if(S.editGroup){ const g=groupById(S.editGroup); await patch('groups/'+S.editGroup,{name,account:acc,noCount});
+      const c=[]; if(g.name!==name) c.push(['名称',g.name,name]); if((g.account||'')!==acc) c.push(['预设 Account',g.account||'',acc]); if(!!g.noCount!==noCount) c.push(['点货',g.noCount?'不用点':'要点',noCount?'不用点':'要点']); logIt([{a:'group',t:name,c}]); }
+    else { await put('groups/g'+uid(),{name,account:acc,order:S.groups.length,noCount}); logIt([{a:'group',t:name,c:[['新增分组','',name+(acc?' · '+acc:'')]]}]); }
+    toast('已保存 '+name); gReset();
+  }catch(err){dbErr(err)}
+});
+
+/* ---------- LOG view ---------- */
+const ACT={count:['盘点数量','count'],pack:['本月箱数','count'],item:['改货品','item'],'item-add':['新增货品','item'],group:['分组','group'],close:['结账','close'],reopen:['重开','close']};
+const curMonth = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+$('lMonth').value=curMonth();
+let unsubLog=null;
+function watchLog(){
+  if(unsubLog) unsubLog();
+  const m=$('lMonth').value||curMonth();
+  unsubLog=listenLog(m+'-01', m+'-31', docs=>{
+    const all=[]; docs.forEach(d=>(d.entries||[]).forEach(e=>all.push(Object.assign({by:d.by},e))));
+    all.sort((a,b)=>b.at-a.at); S.logs=all; resolveNames(); renderLog();
+  });
+}
+$('lMonth').addEventListener('change',watchLog);
+['lType','lQ'].forEach(id=>$(id).addEventListener('input',renderLog));
+async function resolveNames(){ return; /* names come with the sync */
+  const ids=[...new Set(S.logs.map(e=>e.by).filter(Boolean))];
+  if(!S.user || !ids.length) return;
+  try{ const ps=await S.user.profiles(ids); ids.forEach(id=>{ S.names[id]=(ps[id]&&ps[id].name)||''; }); renderLog(); }catch(e){}
+}
+const who = id => !id ? '（试用）' : (S.names[id] || (id===S.uid?'你':'某人'));
+const tstr = t => { const d=new Date(t); return d.toLocaleDateString('en-GB')+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); };
+function filteredLog(){
+  const ty=$('lType').value, q=norm($('lQ').value);
+  return S.logs.filter(e=>(!ty||(ACT[e.a]||[])[1]===ty) && (!q||norm(e.t).includes(q)||norm(who(e.by)).includes(q)));
+}
+function renderLog(){
+  const rows=filteredLog();
+  $('lBody').innerHTML = rows.length ? rows.slice(0,800).map(e=>{ const [lab,cls]=ACT[e.a]||[e.a,''];
+    return `<tr><td class="mono small" style="white-space:nowrap">${tstr(e.at)}</td><td class="small" style="white-space:nowrap">${esc(who(e.by))}</td>
+      <td><span class="act ${cls}">${esc(lab)}</span>${e.m?`<div class="small muted">${esc(mLabel(e.m))}</div>`:''}</td>
+      <td style="min-width:200px">${esc(e.t)}${e.s?`<div class="small muted">来源：${esc(e.s)}</div>`:''}</td>
+      <td><div class="chg">${(e.c||[]).map(([f,a,b])=>`<span><b>${esc(f)}</b>${a!==''&&a!=null?`<del>${esc(a)}</del> → `:''}<ins>${esc(b===''?'空':b)}</ins></span>`).join('')}</div></td></tr>`; }).join('')
+    : `<tr><td colspan="5" class="empty">${S.logs.length?'没有符合的记录。':'这个月还没有变更记录。以后每次保存都会出现在这里。'}</td></tr>`;
+  $('lInfo').textContent = rows.length ? `${rows.length} 条记录${rows.length>800?'（只显示最新 800 条，下载 Excel 可看全部）':''}` : '';
+}
+$('lExport').addEventListener('click',async()=>{
+  if(typeof XLSX==='undefined'||!downloads) return toast('这个画面不能下载文件');
+  const rows=filteredLog(); if(!rows.length) return toast('没有记录可以下载');
+  const aoa=[['DATE TIME','USER','ACTION','COUNT MONTH','ITEM','FIELD','FROM','TO','SOURCE']];
+  rows.forEach(e=>(e.c&&e.c.length?e.c:[['','','']]).forEach(([f,a,b])=>aoa.push([tstr(e.at),who(e.by),(ACT[e.a]||[e.a])[0],e.m?mLabel(e.m):'',e.t,f,a,b,e.s||''])));
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:17},{wch:18},{wch:10},{wch:10},{wch:50},{wch:12},{wch:22},{wch:22},{wch:24}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'LOG');
+  try{ await downloads.save({filename:`MF-STOCK CHANGE LOG-${($('lMonth').value||curMonth()).replace('-','_')}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
+});
+
+/* ---------- tabs / boot ---------- */
+function setTab(t){
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  ['count','report','items','groups','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  try{localStorage.setItem('mf-stock-tab-'+CID,t)}catch(e){}
+}
+$('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
+function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); }
+
+renderAll();
+try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(t); }catch(e){}
+(async()=>{
+  const off=$('offline');
+  if(!CID){ off.hidden=false; off.textContent='缺少公司编号。'; return; }
+  downloads={ save: async ({filename,data}) => {
+    const url=URL.createObjectURL(data), a=document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }};
+  let me;
+  try{ me=await http('GET',''); }catch(e){ off.hidden=false; off.textContent='连接不上服务器：'+(e&&e.message||e); return; }
+  if(!me.enabled){ off.hidden=false; off.textContent='这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。'; return; }
+  S.mgr=!!me.mgr; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name;
+  document.body.classList.toggle('is-mgr',S.mgr); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
+  if(S.cfgName) $('coName').textContent=S.cfgName;
+  listen('settings', rows=>{ const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName) $('coName').textContent=S.cfgName; renderReport(); });
+  listen('groups', rows=>{ S.groups=rows; renderAll(); });
+  listen('items', rows=>{ S.items=rows; renderAll(); });
+  listen('counts', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.cmeta=m; patchCount(true); renderReport(); });
+  listen('closing', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.closings=m; renderAll(); });
+  watchLines();
+  watchLog();
+  setInterval(()=>{ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved
+})();
+const applyTheme = t => document.documentElement.setAttribute('data-theme', t==='dark' ? 'dark' : 'light');
+if(QS.get('theme')) applyTheme(QS.get('theme'));
+window.addEventListener('message', e=>{ if(e.origin===location.origin && e.data && e.data.type==='pbill-theme') applyTheme(e.data.theme); });
+})();
+</script>
+
+</body></html>

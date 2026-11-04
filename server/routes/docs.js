@@ -2,6 +2,7 @@ const express = require('express');
 const PDFDocument = require('pdfkit');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
 
@@ -86,7 +87,7 @@ router.post('/companies/:companyId/documents', requireAuth, scopeToCompany, asyn
 
 // ---------- history of everything made / changed for the company ----------
 
-router.get('/companies/:companyId/documents', requireAuth, scopeToCompany, async (req, res) => {
+router.get('/companies/:companyId/documents', requireAuth, scopeToCompany, requirePage('docs', 1), async (req, res) => {
   const params = [req.params.companyId];
   let where = 'company_id = $1';
   if (req.query.type) { params.push(String(req.query.type)); where += ' AND doc_type = $' + params.length; }

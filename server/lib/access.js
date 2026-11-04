@@ -1,7 +1,7 @@
 const { pool } = require('../db');
 
 // Pages a user can be given a level on (keys match the permission JSON stored on the user / assignment).
-const PAGES = ['sales', 'purchases', 'bank', 'claim', 'petty', 'merchant', 'payroll', 'stock'];
+const PAGES = ['sales', 'purchases', 'bank', 'claim', 'petty', 'merchant', 'payroll', 'stock', 'home', 'docs', 'profile', 'kwsp'];
 const LEVEL_NAMES = { 0: 'No access', 1: 'Read Only', 2: 'Create', 3: 'Create & Update', 4: 'Full Access' };
 
 // Fills in every page with a valid level. `min` is the lowest level allowed (0 = "No access" is possible for
@@ -73,4 +73,23 @@ function requirePage(page, minLevel = 1) {
   };
 }
 
-module.exports = { PAGES, LEVEL_NAMES, normaliseLevels, validLevels, getAccess, requirePage };
+// Passes when the user has at least `minLevel` on ANY of the pages (a screen shared by several pages, e.g. the company profile
+// is read by the Company Profile page and by the HR forms).
+function requireAnyPage(pages, minLevel = 1) {
+  return async (req, res, next) => {
+    try {
+      let best = null;
+      for (const page of pages) {
+        const access = await getAccess(req, page);
+        if (!best || access.level > best.level) best = access;
+      }
+      if (!best || best.level < minLevel) return res.status(403).json({ error: '你没有权限使用这个页面' });
+      req.pageAccess = best;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+module.exports = { PAGES, LEVEL_NAMES, normaliseLevels, validLevels, getAccess, requirePage, requireAnyPage };

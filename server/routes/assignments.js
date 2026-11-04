@@ -34,7 +34,7 @@ function resolveAccess(staffIds, provided, existingRows) {
 
 // "KAREN: Sales L3, Purchases L1, Payroll No access (approver)" for the activity log.
 function accessText(name, a) {
-  const label = { sales: 'Sales', purchases: 'Purchases', bank: 'Bank', claim: 'Claim', petty: 'Petty', merchant: 'Merchant', payroll: 'Payroll', stock: 'Stock Count' };
+  const label = { sales: 'Sales', purchases: 'Purchases', bank: 'Bank', claim: 'Claim', petty: 'Petty', merchant: 'Merchant', payroll: 'Payroll', stock: 'Stock Count', home: 'Dashboard', docs: 'Documents', profile: 'Company Profile', kwsp: 'KWSP & PERKESO' };
   const parts = PAGES.map((p) => (a.permissions[p] === 0 ? `${label[p]} ${LEVEL_NAMES[0]}` : `${label[p]} L${a.permissions[p]}`));
   return `${name}: ${parts.join(', ')}${a.canApprove ? ' (approver)' : ''}`;
 }

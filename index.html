@@ -3046,6 +3046,8 @@
     localStorage.setItem('crest_lang', lang);
     var kf = document.getElementById('kwsp-frame');
     if(kf && kf.contentWindow) kf.contentWindow.postMessage({ type:'kwsp-lang', lang:lang }, location.origin);
+    var stf = document.getElementById('stock-frame');
+    if(stf && stf.contentWindow) stf.contentWindow.postMessage({ type:'stock-lang', lang:lang }, location.origin);
     applyTranslations();
     refreshDynamicContent();
   }
@@ -4210,7 +4212,7 @@
       show(true);
       if(frame.dataset.loadedFor !== String(companyId)){
         frame.dataset.loadedFor = String(companyId);
-        frame.src = '/api/stock-count/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+        frame.src = '/api/stock-count/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light') + '&lang=' + (LANG === 'zh' ? 'zh' : 'en');
       }
     }).catch(function(){ if(mine === stockReq) show(false); });   // not available to this user: no menu item
   }

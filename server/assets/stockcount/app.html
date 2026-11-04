@@ -379,6 +379,228 @@ body.can-add .noadd-only{display:none!important}
 </main>
 <div class="toast" id="toast" hidden></div>
 
+<script>
+/* Language switch for the Stock Count page. The page is written in Chinese; when CC CREST is set to English every Chinese UI
+   text (labels, buttons, messages, table headings) is shown in English instead. Item and group names are data: only listed
+   UI phrases are replaced, so names stay as they are. The app passes ?lang=en|zh and a 'stock-lang' message on switch. */
+(function () {
+  'use strict';
+  const CJK = /[　-鿿＀-￯]/;
+  const QS = new URLSearchParams(location.search);
+  let LANG = QS.get('lang') === 'en' ? 'en' : 'zh';
+
+  // whole-text matches (the text of one text node, trimmed)
+  const EXACT = new Map(Object.entries({
+    'MINIFISH 库存盘点': 'MINIFISH Stock Count', '月份': 'Month', '员工': 'Staff', '只能看': 'View only',
+    '盘点 Stock Count': 'Stock Count', '月结报告 Closing Stock': 'Closing Stock', '货品 Items': 'Items', '分组 Groups': 'Groups', '变更记录 Log': 'Change Log',
+    '正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。': 'Connecting to the database… If this message stays, your data may not be saved yet.',
+    '盘点': 'Stock count', '盘点月份': 'Count month', '上个月': 'Previous month', '下个月': 'Next month', '盘点日期 Stock count date': 'Stock count date',
+    '结账 · 锁定这个月': 'Close month · lock', '重开这个月': 'Reopen this month', '已点 / 全部': 'Counted / All', '期末存货值 RM': 'Closing stock value RM',
+    '上月期末 RM': 'Last month closing RM', '有数量没单价': 'Qty but no price', '搜货品名字（中/英/马来文都可以）': 'Search item name (Chinese / English / Malay)',
+    '全部': 'All', '只看未点': 'Not counted only', '只看已点': 'Counted only', '保存': 'Save',
+    '黄色 = 还没点（没货可以不填，结账时当 0）': 'Yellow = not counted yet (leave blank if there is none — counted as 0 when closing)',
+    '数量可打': 'You can type', '，会自动加起来': ' — it adds up automatically',
+    '有设定「1 箱 = 几包」的货品，分开打箱数和散装包数': 'Items with "1 carton = N packs" set: enter cartons and loose packs separately',
+    '打完按 Enter 跳下一项；橙色 = 未保存，记得按': 'Press Enter to jump to the next item; orange = not saved, remember to press',
+    '打好数量后按保存': 'Enter the quantities, then press Save', '下载 Excel': 'Download Excel',
+    '期末存货 Closing RM': 'Closing stock RM', '上月期末 Opening RM': 'Last month closing (opening) RM', '变动 RM': 'Change RM', '有存货的项目': 'Items in stock',
+    '明细 Detail': 'Detail', '显示数量 0 的项目': 'Show items with quantity 0',
+    '货品 Products': 'Products', '数量 Qty': 'Qty', '单位': 'Unit', '单价 Price': 'Price', '金额 Amount': 'Amount',
+    '按分组 By Group': 'By group', '本月': 'This month', '上月': 'Last month', '按户口 By Account': 'By account',
+    '做 Bukku closing stock journal 时用这个金额。': 'Use these amounts for the Bukku closing stock journal.',
+    '货品清单 Stock Listing': 'Stock listing', '全部分组': 'All groups', '搜索': 'Search', '显示已停用': 'Show inactive', '批量改单价': 'Bulk price edit',
+    '直接在单价栏打新价钱，Enter 跳下一项，改完按保存。': 'Type the new prices straight into the price column, Enter jumps to the next item, press Save when done.',
+    '取消': 'Cancel', '保存单价': 'Save prices', '单价 RM': 'Price RM',
+    '货品和单价只有 manager 可以新增或修改。少了货品请通知 manager。': 'Only a manager can add or change items and prices. If an item is missing, tell a manager.',
+    '新增货品': 'Add item', '货品名称 Products': 'Item name', '分组 Group': 'Group', '单位 Unit': 'Unit', '单价 Price RM': 'Price RM',
+    '1 单位 = 几个小单位': '1 unit = how many small units', '例 12（不用就留空）': 'e.g. 12 (leave blank if not used)', '小单位': 'Small unit', '例 PKT': 'e.g. PKT', '自动': 'auto',
+    'Account（留空用分组预设）': 'Account (leave blank to use the group default)', '在用（停用的不会出现在盘点表）': 'Active (inactive items do not appear on the count sheet)',
+    '导入 Excel 文件': 'Import Excel file',
+    '上传 STOCK LISTING（.xlsx）或从这里下载的 closing stock 文件。系统找 PRODUCTS、GROUP、PRICE、ACCOUNT、UNIT 栏；名字一样的会更新，新的会新增，新分组会自动建立。':
+      'Upload the STOCK LISTING (.xlsx) or a closing stock file downloaded from here. The system looks for the PRODUCTS, GROUP, PRICE, ACCOUNT and UNIT columns; items with the same name are updated, new ones are added, new groups are created automatically.',
+    '空白的单价不会盖掉原本的单价。': 'A blank price never overwrites the existing price.', '先看预览，确认了才会保存。': 'Check the preview first; nothing is saved until you confirm.',
+    '下载价目表 Excel': 'Download price list Excel', '改好 PRICE 栏再上传': 'Edit the PRICE column, then upload', '或者从 Excel 复制贴上': 'Or paste from Excel',
+    '栏位顺序：PRODUCTS ｜ GROUP ｜ PRICE ｜ ACCOUNT ｜ UNIT ｜ 1单位=几个（可空）｜ 小单位（可空）': 'Column order: PRODUCTS | GROUP | PRICE | ACCOUNT | UNIT | 1 unit = how many (optional) | small unit (optional)',
+    '预览': 'Preview', '变更记录 Change Log': 'Change Log',
+    '每次保存都会记下：日期时间、谁、改了什么（原本 → 改成）。记录不能从这个页面删除。': 'Every save is recorded: date and time, who, and what changed (before → after). Records cannot be deleted from this page.',
+    '修改日期在': 'Changed in', '全部类别': 'All types', '盘点数量 / 箱数': 'Count qty / carton size', '货品 / 单价': 'Items / prices', '分组': 'Groups', '结账 / 重开': 'Close / reopen',
+    '搜货品 / 人名': 'Search item / person', '日期时间': 'Date & time', '谁': 'Who', '动作': 'Action', '项目': 'Item', '改了什么': 'What changed', '下载记录 Excel': 'Download log Excel',
+    '顺序': 'Order', '预设 Account': 'Default Account', '货品数': 'Items', '分组只有 manager 可以修改。': 'Only a manager can change groups.', '新增分组': 'Add group',
+    '分组名称': 'Group name', '例 FROZEN': 'e.g. FROZEN', '不用点货（不出现在盘点表和月结）': 'No count needed (not on the count sheet or month closing)',
+    // messages and states
+    '没有权限修改这项，请找 manager': 'You do not have permission to change this — ask a manager', '你没有权限使用这个页面': 'You do not have permission to use this page',
+    '（无分组）': '(no group)', '（无 Account）': '(no Account)', '盘点日期': 'Count date', '空': '(empty)', '（空）': '(empty)', '单价': 'Price', '没有单价': 'No price', '改单价': 'Change price', '＋ 填单价': '+ Set price',
+    '几个': 'how many', '不分箱': 'no cartons', '改': 'Edit', '没设定': 'not set', '更新到货品资料': 'Update item master', '不对，撤销': 'Wrong, undo', '数量': 'Quantity', '未点': 'Not counted',
+    '没有符合的货品。': 'No matching items.', '还没有货品。Manager 可以到「货品 Items」新增或从 Excel 贴上。': 'No items yet. A manager can add items under "Items" or paste them from Excel.',
+    '已结账': 'Closed', '盘点中': 'Counting',
+    '员工在盘点时改了': 'Staff changed the carton size of', '项的箱数，请在下面黄色字的项目确认（「更新到货品资料」或「撤销」）。': 'item(s) while counting. Please confirm the items shown in yellow below ("Update item master" or "Undo").',
+    '数量只可以打数字，例如 3 或 2+0.5': 'Quantity can only be a number, e.g. 3 or 2+0.5', '未保存': 'unsaved', '清空 · 未保存': 'Cleared · unsaved', '项未保存': 'item(s) unsaved',
+    '保存中…': 'Saving…', '项': 'item(s)', '项，': 'item(s),', '箱数': 'Carton size', '盘点表': 'count sheet', '本月箱数': 'Carton size (this month)',
+    '已改这个月的箱数，manager 会看到提醒': 'Changed for this month only — a manager will see a reminder', '确认员工更改': 'Staff change confirmed', '已更新到货品资料': 'Updated in the item master',
+    '（撤销员工更改）': '(staff change undone)', '已撤销，用回货品资料的箱数': 'Undone — using the carton size from the item master', '请打一箱有几包，例如 12': 'Enter how many packs are in one carton, e.g. 12',
+    '请打单价，例如 155 或 12.60': 'Enter the price, e.g. 155 or 12.60', '无': 'none', '先填盘点日期': 'Fill in the count date first',
+    '结账会把这个月的数量和当时的单价锁起来，以后改单价也不会影响这个月的报告。需要的话 manager 可以重开。': 'Closing locks this month\'s quantities and the prices at the time, so later price changes will not affect this month\'s report. A manager can reopen it if needed.',
+    '确定结账': 'Confirm close', '确定重开？': 'Confirm reopen?', '状态': 'Status', '重开': 'Reopen', '未填': 'not filled in', '还没结账 · 数字会变': 'Not closed · figures may change',
+    '小计': 'subtotal', '合计': 'Total', '还没有金额': 'No amounts yet',
+    'Excel 工具载入失败，请重新打开页面。': 'The Excel tool failed to load — please reopen the page.', '不能下载文件，请重新打开页面。': 'Cannot download — please reopen the page.', '已取消下载。': 'Download cancelled.',
+    '先新增分组': 'Add a group first', '停用': 'Inactive', '(分组)': '(group)', '删': 'Delete', '找不到': 'Not found', '还没有货品。用右边表格新增，或从 Excel 贴上。': 'No items yet. Add them with the form on the right or paste from Excel.',
+    '项单价未保存': 'price(s) unsaved', '单价只可以打数字': 'Prices can only be numbers', '确定?': 'Sure?', '这个货品已经有盘点记录，不能删除。请改成「停用」。': 'This item already has count records and cannot be deleted. Make it inactive instead.',
+    '删除货品': 'Delete item', '已删除': 'Deleted', '修改货品': 'Edit item', '先到「分组」新增分组': 'First add a group under "Groups"', '新增': 'New', '无单价': 'no price', '名称': 'Name', '在用': 'Active',
+    '找不到 PRODUCTS 栏。第一行要有 PRODUCTS、GROUP、PRICE 这些标题。': 'The PRODUCTS column was not found. The first row needs headers such as PRODUCTS, GROUP and PRICE.', '文件里没有货品资料。': 'No item data in the file.',
+    '· 更新': '· Updated', '确认导入': 'Confirm import', '✓ 已导入': '✓ Imported', '继续导入': 'Continue import', 'Excel 贴上': 'pasted from Excel', '这个画面不能下载文件': 'Cannot download here',
+    '不用点货': 'No count', '上移': 'Move up', '下移': 'Move down', '还没有分组。用右边表格新增。': 'No groups yet. Add one with the form on the right.', '修改分组': 'Edit group',
+    '删除分组': 'Delete group', '已经有这个分组': 'That group already exists', '点货': 'Counting', '不用点': 'No count needed', '要点': 'Count needed',
+    '盘点数量': 'Count', '改货品': 'Item change', '结账': 'Close', '（试用）': '(trial)', '你': 'You', '某人': 'Someone', '没有符合的记录。': 'No matching records.',
+    '这个月还没有变更记录。以后每次保存都会出现在这里。': 'No changes recorded this month yet. Every save will appear here.', '没有记录可以下载': 'No records to download', '缺少公司编号。': 'Missing company number.',
+    '这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。': 'Stock Count is not switched on for this company. Ask the Owner to switch it on in the Control Panel.',
+    '新增货品 ': 'Add item', '期末存货 RM': 'Closing stock RM', '确定结账 ': 'Confirm close'
+  }));
+
+  // whole-text patterns (first match wins); $1.. = captured parts
+  const FULL = [
+    [/^盘点日期已保存 (.*)$/, 'Count date saved $1'],
+    [/^一(.*)几个$/, 'How many per $1'],
+    [/^＋ 设定一(.*)几包$/, '+ Set packs per $1'],
+    [/^散装 (.*)$/, 'Loose $1'],
+    [/^员工改了：(.*)（货品资料是 (.*)）$/, 'Staff changed it: $1 (item master says $2)'],
+    [/^盘点 · (.*)$/, 'Stock count · $1'],
+    [/^已结账，期末存货锁定在 (.*) 的数字。$/, 'Closed. Closing stock is locked at the figures of $1.'],
+    [/^截止日期 (.*) · 点完全部再按结账。$/, 'As at $1 · count everything, then press Close.'],
+    [/^(\d+) 项有货$/, '$1 item(s) in stock'],
+    [/^(.*) 未保存$/, '$1 unsaved'],
+    [/^全部已保存 · (.*)$/, 'All saved · $1'],
+    [/^已保存 (\d+) 项，(\d+) 项数字不对没保存$/, 'Saved $1 item(s); $2 item(s) not saved (invalid number)'],
+    [/^已保存 (\d+) 项单价$/, 'Saved $1 price(s)'],
+    [/^已保存 (\d+) 项$/, 'Saved $1 item(s)'],
+    [/^已更新货品资料：(.*)$/, 'Item master updated: $1'],
+    [/^单价已改为 RM (.*)$/, 'Price changed to RM $1'],
+    [/^还有 (\d+) 项未保存，先按保存$/, '$1 item(s) not saved yet — press Save first'],
+    [/^确定结账 (.*)？期末存货 RM (.*)$/, 'Close $1? Closing stock RM $2'],
+    [/^(\d+) 项没有填，会当作 0。真的没货就不用理，只是确认有没有漏点。$/, '$1 item(s) not filled in — counted as 0. If there really is no stock, ignore this; it only checks nothing was missed.'],
+    [/^(\d+) 项有数量但没单价，金额会是 0：(.*)$/, (m, n, names) => n + ' item(s) have a quantity but no price — the amount will be 0: ' + names.replace(/、/g, ', ')],
+    [/^✓ (.*) 已结账$/, '✓ $1 closed'],
+    [/^期末存货 RM (.*)。到「月结报告」可以下载 Excel。$/, 'Closing stock RM $1. Download the Excel from "Closing Stock".'],
+    [/^已结账 RM (.*)$/, 'Closed RM $1'],
+    [/^(.*) 已重开，可以再改数量$/, '$1 reopened — quantities can be changed again'],
+    [/^(.*) 小计$/, '$1 subtotal'],
+    [/^(.*) 还没有盘点数量。到「盘点」开始输入。$/, 'No counts for $1 yet. Go to "Stock Count" to start entering.'],
+    [/^✓ 已下载 (.*)$/, '✓ Downloaded $1'],
+    [/^下载失败：(.*)$/, 'Download failed: $1'],
+    [/^保存中 (.*)$/, 'Saving $1'],
+    [/^已经有同名货品（NO (.*)）$/, 'An item with the same name already exists (NO $1)'],
+    [/^已删除 (.*)$/, 'Deleted $1'],
+    [/^已保存 (.*)$/, 'Saved $1'],
+    [/^预览：(.*)$/, 'Preview: $1'],
+    [/^共 (\d+) 行 · 新增$/, '$1 rows · new'],
+    [/^· 没变 (\d+)(?: · 新分组 (.*))?$/, (m, n, g) => '· unchanged ' + n + (g ? ' · new groups ' + g.replace(/、/g, ', ') : '')],
+    [/^文件里重复的名字只取第一行：(.*)$/, 'Duplicate names in the file — only the first row is used: $1'],
+    [/^系统里有、文件里没有的 (\d+) 项改成停用$/, 'Make the $1 item(s) that are in the system but not in the file inactive'],
+    [/^(\d+) 项新增、(\d+) 项更新(?:、(\d+) 项停用)?。变更记录已经记下。$/, (m, a, u, o) => a + ' added, ' + u + ' updated' + (o ? ', ' + o + ' made inactive' : '') + '. The change log has been updated.'],
+    [/^读不到这个文件：(.*)$/, 'Cannot read this file: $1'],
+    [/^这个分组还有 (\d+) 项货品（包括停用的），先把货品换到别的分组$/, 'This group still has $1 item(s) (including inactive ones). Move the items to another group first.'],
+    [/^来源：(.*)$/, 'Source: $1'],
+    [/^(\d+) 条记录(?:（只显示最新 800 条，下载 Excel 可看全部）)?$/, (m, n) => n + ' record(s)' + (/800/.test(m) ? ' (showing the latest 800 only — download Excel for all)' : '')],
+    [/^盘点日期 (.*)$/, 'Count date $1'],
+    [/^连接不上服务器：(.*)$/, 'Cannot reach the server: $1'],
+    [/^保存失败：(.*)$/, 'Save failed: $1'],
+    [/^变更记录没存到：(.*)$/, 'The change log was not saved: $1'],
+    [/^请求失败 \((\d+)\)$/, 'Request failed ($1)'],
+    [/^你的权限不足（这个操作需要 (L\d) 或以上）$/, 'Not enough permission (this needs $1 or above)'],
+    // messages from the server are "中文。 English." — show the English part
+    [/^[^A-Za-z]*[　-鿿][\s\S]*?[。！？]\s+([A-Z][^　-鿿]*)$/, '$1']
+  ];
+  // parts of a longer text (all applied)
+  const SUB = [
+    [/盘点日期 Stock count date: /g, 'Stock count date: '],
+    [/(\d+) 项还没点/g, '$1 not counted yet'],
+    [/(\d+) 项有数量没单价（金额算 0）/g, '$1 with quantity but no price (amount counted as 0)'],
+    [/ · 没变 /g, ' · unchanged ']
+  ];
+  // leftovers: UI words of two or more characters (longest first); single characters are never replaced inside a longer text
+  const PHRASES = Object.entries({
+    '盘点日期': 'Count date', '期末存货 RM': 'Closing stock RM', '不分箱': 'no cartons', '没设定': 'not set', '无单价': 'no price', '数量': 'Quantity', '单价': 'Price', '箱数': 'Carton size',
+    '单位': 'Unit', '名称': 'Name', '分组': 'Group', '状态': 'Status', '在用': 'Active', '停用': 'Inactive', '已结账': 'Closed', '新增': 'New', '删除': 'Delete', '保存': 'Save', '（空）': '(empty)', '不用点': 'No count needed', '要点': 'Count needed'
+  }).sort((a, b) => b[0].length - a[0].length);
+
+  function tr(s) {
+    if (!CJK.test(s)) return s;
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(s), lead = m[1], tail = m[3];
+    let core = m[2];
+    if (EXACT.has(core)) core = EXACT.get(core);
+    else {
+      for (const [re, to] of FULL) { if (re.test(core)) { core = core.replace(re, to); break; } }
+      if (CJK.test(core)) SUB.forEach(([re, to]) => { core = core.replace(re, to); });
+    }
+    if (CJK.test(core)) PHRASES.forEach(([zh, en]) => { if (core.indexOf(zh) !== -1) core = core.split(zh).join(en); });
+    return lead + core + tail;
+  }
+
+  const ATTRS = ['placeholder', 'aria-label', 'title'];
+  function trAttr(el) {
+    ATTRS.forEach((a) => {
+      if (!el.hasAttribute || !el.hasAttribute(a)) return;
+      const cur = el.getAttribute(a);
+      el.__en = el.__en || {}; el.__zh = el.__zh || {};
+      if (el.__en[a] === cur) return;
+      if (!CJK.test(cur)) return;
+      const t = tr(cur);
+      el.__zh[a] = cur; el.__en[a] = t;
+      if (t !== cur) el.setAttribute(a, t);
+    });
+  }
+  function trText(n) {
+    const p = n.parentNode;
+    if (p && (p.nodeName === 'SCRIPT' || p.nodeName === 'STYLE' || p.nodeName === 'TEXTAREA')) return;
+    const cur = n.data;
+    if (n.__en === cur || !CJK.test(cur)) return;
+    const t = tr(cur);
+    n.__zh = cur; n.__en = t;
+    if (t !== cur) n.data = t;
+  }
+  function walk(root, fn) {
+    if (root.nodeType === 3) return fn(root, 3);
+    if (root.nodeType !== 1) return;
+    fn(root, 1);
+    for (let c = root.firstChild; c; c = c.nextSibling) walk(c, fn);
+  }
+  function toEnglish(root) {
+    walk(root, (n, type) => { if (type === 3) trText(n); else trAttr(n); });
+  }
+  function toChinese(root) {
+    walk(root, (n, type) => {
+      if (type === 3) { if (n.__zh !== undefined && n.data === n.__en) n.data = n.__zh; n.__zh = undefined; n.__en = undefined; }
+      else if (n.__zh) { ATTRS.forEach((a) => { if (n.__zh[a] !== undefined && n.getAttribute(a) === n.__en[a]) n.setAttribute(a, n.__zh[a]); }); n.__zh = n.__en = undefined; }
+    });
+  }
+
+  let obs = null;
+  function titleFix() { document.title = LANG === 'en' ? 'MINIFISH Stock Count' : 'MINIFISH 库存盘点'; document.documentElement.lang = LANG === 'en' ? 'en' : 'zh'; }
+  function apply() {
+    titleFix();
+    if (LANG === 'en') {
+      toEnglish(document.body);
+      if (!obs) {
+        obs = new MutationObserver((recs) => {
+          if (LANG !== 'en') return;
+          recs.forEach((r) => {
+            if (r.type === 'characterData') trText(r.target);
+            else if (r.type === 'attributes') trAttr(r.target);
+            else r.addedNodes.forEach((n) => toEnglish(n));
+          });
+        });
+        obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+      }
+    } else {
+      toChinese(document.body);
+    }
+  }
+  window.addEventListener('message', (e) => {
+    if (e.origin === location.origin && e.data && e.data.type === 'stock-lang') { LANG = e.data.lang === 'en' ? 'en' : 'zh'; apply(); }
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply); else apply();
+  window.StockLang = { tr, apply };
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (() => {

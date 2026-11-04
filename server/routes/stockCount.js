@@ -1,5 +1,7 @@
 const express = require('express');
 const path = require('path');
+const ExcelJS = require('exceljs');
+const docs = require('../lib/docs');
 const { pool } = require('../db');
 const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
@@ -198,6 +200,19 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
     }
   }
   res.json({ ok: true });
+});
+
+// The page builds its Excel files in the browser; this puts the system's print stamp (date + user, in the print footer)
+// on them before they are saved, like every other download.
+router.post(BASE + '/stamp', ...guard(1), express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Invalid request');
+  const wb = new ExcelJS.Workbook();
+  try { await wb.xlsx.load(req.body); } catch (e) { return bad(res, 'Cannot read this Excel file.'); }
+  docs.stampWorkbook(wb, docs.stampText(await docs.userNameFor(req)));
+  const buf = await wb.xlsx.writeBuffer();
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(Buffer.from(buf));
 });
 
 // Change log: one document per person per day, entries are added at the end (a new document is started when one gets big)

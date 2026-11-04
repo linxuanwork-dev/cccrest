@@ -1216,7 +1216,14 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   const off=$('offline');
   if(!CID){ off.hidden=false; off.textContent='缺少公司编号。'; return; }
   downloads={ save: async ({filename,data}) => {
-    const url=URL.createObjectURL(data), a=document.createElement('a');
+    let blob=data;   // the server adds the print stamp (who / when) to the Excel footer; if that fails the plain file is still saved
+    try{
+      if(/\.xlsx$/i.test(filename)){
+        const r=await fetch(API+'/stamp',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:data});
+        if(r.ok) blob=await r.blob();
+      }
+    }catch(e){ console.error('stamp',e); }
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
     a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }};

@@ -2503,7 +2503,7 @@
       cu_th_type:"Type", cu_th_approver:"Approver", cu_new_user:"+ New user", cu_new_title:"New user", cu_edit_title:"Edit user",
       cu_type_user:"User", cu_type_admin:"Administrator",
       cu_type_user_help:"permissions are set manually per page.", cu_type_admin_help:"Full Access (L4) on every page.",
-      cu_perms_title:"Manage permissions", cu_delete_user:"Delete user", cu_delete_confirm:"Delete this user permanently? This cannot be undone. (To only stop the user signing in, switch Active off instead.)", pp_select:"Select Permissions", perm_hr:"HR (Payroll, KWSP & PERKESO)", cu_level_0:"L0  No access (not shown)", pp_manage:"Manage Permissions", pp_all:"Select All", pp_none:"Select None", pp_ok:"OK",
+      cu_perms_title:"Manage permissions", no_pages_msg:"No pages are available for your account yet. Please contact CC CREST.", cu_delete_user:"Delete user", cu_delete_confirm:"Delete this user permanently? This cannot be undone. (To only stop the user signing in, switch Active off instead.)", pp_select:"Select Permissions", perm_hr:"HR (Payroll, KWSP & PERKESO)", cu_level_0:"L0  No access (not shown)", pp_manage:"Manage Permissions", pp_all:"Select All", pp_none:"Select None", pp_ok:"OK",
       cu_perms_note:"Levels take effect on Sales Summary today (L1 view and download · L2 create a month and fill in your own · L3 edit any pending month · L4 also special prices, menu, settings, branches and delete). The other pages are view-only for company users for now.",
       cu_level_1:"L1  Read Only", cu_level_2:"L2  Create", cu_level_3:"L3  Create & Update", cu_level_4:"L4  Full Access",
       cu_approver_label:"Can approve",
@@ -2794,7 +2794,7 @@
       cu_th_type:"类型", cu_th_approver:"审核人", cu_new_user:"+ 新用户", cu_new_title:"新用户", cu_edit_title:"编辑用户",
       cu_type_user:"User 用户", cu_type_admin:"Administrator 管理员",
       cu_type_user_help:"按每个页面手动设定权限。", cu_type_admin_help:"所有页面都是 L4 Full Access。",
-      cu_perms_title:"权限设定", cu_delete_user:"删除用户", cu_delete_confirm:"确定永久删除这个用户？删除后无法恢复。（只想让他不能登录的话，请改用「启用」取消勾选。）", pp_select:"选择权限 Select Permissions", perm_hr:"HR 人事（薪资 / KWSP & PERKESO）", cu_level_0:"L0  不显示", pp_manage:"管理权限 Manage Permissions", pp_all:"全选", pp_none:"全不选", pp_ok:"确定",
+      cu_perms_title:"权限设定", no_pages_msg:"你的账号暂时没有可以打开的页面，请联系 CC CREST。", cu_delete_user:"删除用户", cu_delete_confirm:"确定永久删除这个用户？删除后无法恢复。（只想让他不能登录的话，请改用「启用」取消勾选。）", pp_select:"选择权限 Select Permissions", perm_hr:"HR 人事（薪资 / KWSP & PERKESO）", cu_level_0:"L0  不显示", pp_manage:"管理权限 Manage Permissions", pp_all:"全选", pp_none:"全不选", pp_ok:"确定",
       cu_perms_note:"目前级别在 Sales Summary 生效（L1 查看和下载 · L2 新建月份并填写自己建立的 · L3 修改任何 Pending 月份 · L4 另可改特价、菜单、设定、分店及删除）。其他页面对公司用户暂时只能查看。",
       cu_level_1:"L1  Read Only 只读", cu_level_2:"L2  Create 新建", cu_level_3:"L3  Create & Update 新建和修改", cu_level_4:"L4  Full Access 完全权限",
       cu_approver_label:"可以审核",
@@ -4187,6 +4187,15 @@
     }).catch(function(){ /* feature not available to this user: the normal page stays */ });
   }
 
+  // A company login whose account has no page it may open: say so instead of showing the company list.
+  function clientNoPages(){
+    var pick = document.querySelector('.nav-item[data-panel="panel-company-picker"]');
+    if(pick) pick.click();
+    ['landing-search-wrap', 'company-grid'].forEach(function(id){ var el = document.getElementById(id); if(el) el.hidden = true; });
+    var hint = document.getElementById('picker-service-hint');
+    if(hint){ hint.hidden = false; hint.textContent = t('no_pages_msg'); }
+  }
+
   // ---- Stock Count (menu item and page appear only where the Owner switched it on for the company) ----
   var stockReq = 0;
   function renderStock(){
@@ -4198,12 +4207,14 @@
       refreshServiceGroups();
       var panel = document.getElementById('panel-stock');
       if(!on && panel && !panel.hidden){
-        var fb = serviceGroupItems(serviceMode)[0] || document.querySelector('.nav-item[data-panel="panel-company-home"]');
+        var fb = serviceGroupItems(serviceMode)[0];
+        if(!fb && CURRENT_ROLE === 'client'){ clientNoPages(); return; }
+        fb = fb || document.querySelector('.nav-item[data-panel="panel-company-home"]');
         if(fb) fb.click();
       }
     };
     var companyId = currentCompany ? customerRecordId(currentCompany) : null;
-    if(!companyId){ show(false); return; }
+    if(!companyId){ if(COMPANIES && COMPANIES.length) show(false); return; }
     var mine = ++stockReq;
     api('/companies/' + companyId + '/stock-count').then(function(cfg){
       if(mine !== stockReq) return;
@@ -7237,7 +7248,15 @@
     return loadCompanies().then(function(){
       // A company login lands straight on its own panels, which applyRole() rendered before the
       // company list existed (so they came out empty) — render them again now that it has loaded.
-      if(profile.role === 'client') renderAllCompanyPanels();
+      if(profile.role === 'client'){
+        renderAllCompanyPanels();
+        var act = document.querySelector('.nav-item.active');
+        if(!act || act.dataset.panel === 'panel-company-picker'){
+          var first = document.querySelector('#nav-group-bookkeeping .nav-item[data-panel]:not([hidden])');
+          if(first) first.click();
+          else clientNoPages();
+        }
+      }
       renderCompanyGrid();
       renderKpiRow();
       renderStaffRow();

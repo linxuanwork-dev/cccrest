@@ -21,7 +21,7 @@ const router = express.Router();
 // closing stock report and change log. The page is server/assets/stockcount/app.html (shown inside the company's
 // Stock Count page). The data is kept as small documents (groups/, items/, counts/, closing/, settings/, log/) in
 // stock_count_docs. The Owner switches it on per company in the Control Panel. CC CREST admin / manager = "manager" on the
-// page (items, prices, groups, closing); assigned CC CREST staff with Stock Count L3 or more are managers too; L2 can only enter counts.
+// page (items, prices, groups, closing); assigned CC CREST staff with Stock Count L3 or more are managers too; everyone else can only enter counts (L2+) or look (L1).
 
 const PAGE = path.join(__dirname, '..', 'assets', 'stockcount', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
@@ -85,11 +85,12 @@ router.get('/stock-count/app', requireAuth, (req, res) => {
 });
 
 const BASE = '/companies/:companyId/stock-count';
-// company users (clients) never see the stock count; CC CREST people use the "Stock Count" level of their permission list
-const noClients = (req, res, next) => (req.user && req.user.role === 'client' ? res.status(403).json({ error: 'Not allowed' }) : next());
-const guard = (level) => [requireAuth, noClients, scopeToCompany, requirePage('stock', level)];
-// "manager" on the page = CC CREST admin / manager, or an assigned staff member with Stock Count level L3 or more
-const isMgr = (req) => !!(req.pageAccess && (req.pageAccess.ccCrest || req.pageAccess.level >= 3));
+// everyone (CC CREST staff and the company's own users) uses the "Stock Count" level of their permission list
+const guard = (level) => [requireAuth, scopeToCompany, requirePage('stock', level)];
+// "manager" on the page (prices, items, groups, closing) = CC CREST admin / manager, or an assigned CC CREST staff member with
+// Stock Count level L3 or more. Company users (clients) are never managers, whatever their level: they can open the page and,
+// with L2 or more, enter counts, but cannot change prices.
+const isMgr = (req) => !!(req.pageAccess && (req.pageAccess.ccCrest || (req.user.role === 'staff' && req.pageAccess.level >= 3)));
 async function enabledSettings(req, res) {
   const s = await loadSettings(req.params.companyId);
   if (!s || !s.enabled) { bad(res, '这家公司还没有开通库存盘点。 Stock count is not switched on for this company.'); return null; }

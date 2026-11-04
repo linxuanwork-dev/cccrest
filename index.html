@@ -683,7 +683,7 @@
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
           <span class="nav-label" data-i18n="nav_purchases_bill">Purchases Bill</span>
         </button>
-        <button class="nav-item" data-panel="panel-stock" data-roles="admin staff manager" hidden>
+        <button class="nav-item" data-panel="panel-stock" data-roles="admin staff manager client" hidden>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>
           <span class="nav-label" data-i18n="nav_stock_count">Stock Count</span>
         </button>
@@ -2347,7 +2347,7 @@
       var enabled = profile.enabledFeatures || [];
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
         // KWSP & PERKESO is needed by every company, so it is not controlled by the feature switches.
-        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-profile' && btn.dataset.panel !== 'panel-docs' && enabled.indexOf(btn.dataset.panel) === -1;
+        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-stock' && btn.dataset.panel !== 'panel-profile' && btn.dataset.panel !== 'panel-docs' && enabled.indexOf(btn.dataset.panel) === -1;
       });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       refreshServiceGroups();
@@ -4150,7 +4150,7 @@
     var frame = document.getElementById('stock-frame'), sub = document.getElementById('stock-sub');
     if(!btn || !frame) return;
     var show = function(on){
-      btn.hidden = !on || CURRENT_ROLE === 'client';
+      btn.hidden = !on;
       refreshServiceGroups();
       var panel = document.getElementById('panel-stock');
       if(!on && panel && !panel.hidden){
@@ -4159,7 +4159,7 @@
       }
     };
     var companyId = currentCompany ? customerRecordId(currentCompany) : null;
-    if(!companyId || CURRENT_ROLE === 'client'){ show(false); return; }
+    if(!companyId){ show(false); return; }
     var mine = ++stockReq;
     api('/companies/' + companyId + '/stock-count').then(function(cfg){
       if(mine !== stockReq) return;

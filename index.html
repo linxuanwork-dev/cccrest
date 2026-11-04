@@ -2256,6 +2256,28 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="perm-picker-backdrop" hidden style="z-index:300;">
+    <div class="modal-card" style="max-width:420px;">
+      <div class="modal-header">
+        <div><h3 id="pp-title">Select Permissions</h3></div>
+        <button type="button" class="modal-close" id="pp-close" data-i18n-aria="close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding:14px 22px;overflow:auto;">
+        <div style="display:flex;gap:16px;margin-bottom:12px;font-size:13px;">
+          <button type="button" id="pp-all" style="background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;" data-i18n="pp_all">Select All</button>
+          <button type="button" id="pp-none" style="background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;" data-i18n="pp_none">Select None</button>
+        </div>
+        <div id="pp-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="pp-cancel" data-i18n="cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="pp-ok" style="width:auto;padding:10px 22px;" data-i18n="pp_ok">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="cu-modal-backdrop" hidden>
     <div class="modal-card" style="max-width:920px;">
       <div class="modal-header">
@@ -2299,7 +2321,7 @@
             <div id="cu-type-help" style="flex:1;min-width:220px;font-size:12px;color:var(--primary-soft);line-height:1.6;"></div>
           </div>
 
-          <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;" data-i18n="cu_perms_title">Manage permissions</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px;"><div style="font-size:12.5px;font-weight:700;" data-i18n="cu_perms_title">Manage permissions</div><button type="button" class="btn-ghost" id="cu-perm-btn" style="padding:6px 14px;font-size:12.5px;">Manage Permissions</button></div>
           <div style="font-size:12px;color:var(--primary-soft);margin-bottom:10px;line-height:1.6;" data-i18n="cu_perms_note">Levels take effect on Sales Summary today (L1 view and download · L2 create a month and fill in your own · L3 edit any pending month · L4 also special prices, menu, settings, branches and delete). The other pages are view-only for company users for now.</div>
           <div id="cu-perms" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 18px;margin-bottom:14px;"></div>
 
@@ -2348,6 +2370,9 @@
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
         // KWSP & PERKESO is needed by every company, so it is not controlled by the feature switches.
         btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-stock' && btn.dataset.panel !== 'panel-profile' && btn.dataset.panel !== 'panel-docs' && enabled.indexOf(btn.dataset.panel) === -1;
+        // pages left unticked in Manage Permissions (level 0) are hidden for this user (Administrators always see everything)
+        var pgKey = PAGE_KEY_BY_PANEL[btn.dataset.panel];
+        if(!btn.hidden && pgKey && btn.dataset.panel !== 'panel-kwsp' && profile.userType !== 'administrator' && profile.permissions && profile.permissions[pgKey] === 0) btn.hidden = true;
       });
       if(typeof renderAllCompanyPanels === 'function') renderAllCompanyPanels();
       refreshServiceGroups();
@@ -2479,7 +2504,7 @@
       cu_th_type:"Type", cu_th_approver:"Approver", cu_new_user:"+ New user", cu_new_title:"New user", cu_edit_title:"Edit user",
       cu_type_user:"User", cu_type_admin:"Administrator",
       cu_type_user_help:"permissions are set manually per page.", cu_type_admin_help:"Full Access (L4) on every page.",
-      cu_perms_title:"Manage permissions",
+      cu_perms_title:"Manage permissions", pp_select:"Select Permissions", pp_manage:"Manage Permissions", pp_all:"Select All", pp_none:"Select None", pp_ok:"OK",
       cu_perms_note:"Levels take effect on Sales Summary today (L1 view and download · L2 create a month and fill in your own · L3 edit any pending month · L4 also special prices, menu, settings, branches and delete). The other pages are view-only for company users for now.",
       cu_level_1:"L1  Read Only", cu_level_2:"L2  Create", cu_level_3:"L3  Create & Update", cu_level_4:"L4  Full Access",
       cu_approver_label:"Can approve",
@@ -2770,7 +2795,7 @@
       cu_th_type:"类型", cu_th_approver:"审核人", cu_new_user:"+ 新用户", cu_new_title:"新用户", cu_edit_title:"编辑用户",
       cu_type_user:"User 用户", cu_type_admin:"Administrator 管理员",
       cu_type_user_help:"按每个页面手动设定权限。", cu_type_admin_help:"所有页面都是 L4 Full Access。",
-      cu_perms_title:"权限设定",
+      cu_perms_title:"权限设定", pp_select:"选择权限 Select Permissions", pp_manage:"管理权限 Manage Permissions", pp_all:"全选", pp_none:"全不选", pp_ok:"确定",
       cu_perms_note:"目前级别在 Sales Summary 生效（L1 查看和下载 · L2 新建月份并填写自己建立的 · L3 修改任何 Pending 月份 · L4 另可改特价、菜单、设定、分店及删除）。其他页面对公司用户暂时只能查看。",
       cu_level_1:"L1  Read Only 只读", cu_level_2:"L2  Create 新建", cu_level_3:"L3  Create & Update 新建和修改", cu_level_4:"L4  Full Access 完全权限",
       cu_approver_label:"可以审核",
@@ -3730,9 +3755,11 @@
   }
 
   // A level for every page, per selected staff member: No access / L1 Read Only .. L4 Full Access, plus "can approve".
+  // a page ticked for a staff member starts at L3; Stock Count starts at L2 (enter counts) because L3 can change prices
+  function assignDefaultLevel(page){ return page === 'stock' ? 2 : 3; }
   function assignDefaultAccess(){
     var p = {};
-    CU_PAGES.forEach(function(pg){ p[pg[0]] = 3; });
+    CU_PAGES.forEach(function(pg){ p[pg[0]] = assignDefaultLevel(pg[0]); });
     return { permissions: p, canApprove: false };
   }
 
@@ -3743,15 +3770,16 @@
       var s = STAFF_LIST.find(function(x){ return x.id === id; });
       if(!s) return '';
       var a = assignModalAccess[id] || (assignModalAccess[id] = assignDefaultAccess());
-      var rows = CU_PAGES.map(function(pg){
-        var opts = [0, 1, 2, 3, 4].map(function(l){
-          return '<option value="' + l + '"' + (a.permissions[pg[0]] === l ? ' selected' : '') + '>' + (l === 0 ? t('assign_lvl_0') : t('cu_level_' + l)) + '</option>';
+      var onCount = CU_PAGES.filter(function(pg){ return a.permissions[pg[0]] > 0; }).length;
+      var rows = CU_PAGES.filter(function(pg){ return a.permissions[pg[0]] > 0; }).map(function(pg){
+        var opts = [1, 2, 3, 4].map(function(l){
+          return '<option value="' + l + '"' + (a.permissions[pg[0]] === l ? ' selected' : '') + '>' + t('cu_level_' + l) + '</option>';
         }).join('');
         return '<div style="display:flex;align-items:center;gap:8px;"><label style="flex:0 0 118px;font-size:12px;">' + t(pg[1]) + '</label>' +
           '<select data-assign-staff="' + id + '" data-assign-page="' + pg[0] + '" style="' + selStyle + '">' + opts + '</select></div>';
       }).join('');
       return '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-top:14px;background:var(--surface-alt);">' +
-        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">' + s.name + ' — ' + t('assign_access_title') + '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;"><div style="font-size:13px;font-weight:700;">' + s.name + ' — ' + t('assign_access_title') + '</div><button type="button" class="btn-ghost" data-assign-perm="' + id + '" style="padding:5px 12px;font-size:12px;">' + t('pp_manage') + ' (' + onCount + ' / ' + CU_PAGES.length + ')</button></div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:6px 14px;margin-bottom:10px;">' + rows + '</div>' +
         '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;">' +
           '<input type="checkbox" data-assign-approver="' + id + '"' + (a.canApprove ? ' checked' : '') + (a.permissions.sales < 3 ? ' disabled' : '') + ' style="width:15px;height:15px;accent-color:var(--accent);" /> ' + t('assign_can_approve') +
@@ -3763,6 +3791,21 @@
         a.permissions[sel.dataset.assignPage] = Number(sel.value);
         if(a.permissions.sales < 3) a.canApprove = false;   // approvers need Sales Summary at L3+
         renderAssignAccess();
+      });
+    });
+    host.querySelectorAll('button[data-assign-perm]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var sid = Number(btn.dataset.assignPerm), a = assignModalAccess[sid];
+        var keys = CU_PAGES.filter(function(pg){ return a.permissions[pg[0]] > 0; }).map(function(pg){ return pg[0]; });
+        window.openPermPicker(CU_PAGES, keys, function(on){
+          CU_PAGES.forEach(function(pg){
+            var k = pg[0];
+            if(!on[k]) a.permissions[k] = 0;
+            else if(!(a.permissions[k] > 0)) a.permissions[k] = assignDefaultLevel(k);
+          });
+          if(!(a.permissions.sales >= 3)) a.canApprove = false;
+          renderAssignAccess();
+        });
       });
     });
     host.querySelectorAll('input[data-assign-approver]').forEach(function(cb){
@@ -6362,7 +6405,7 @@
   }
 
   // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
-  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'payroll' };
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock' };
   function applyPageAccess(){
     if(CURRENT_ROLE !== 'staff') return;
     var rec = customerRecord(currentCompany);
@@ -6857,15 +6900,26 @@
     var selectStyle = 'flex:1;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--surface-card);color:inherit;font-family:inherit;font-size:13px;';
     dsiById('cu-perms').innerHTML = CU_PAGES.map(function(p){
       var opts = [1, 2, 3, 4].map(function(l){ return '<option value="' + l + '">' + t('cu_level_' + l) + '</option>'; }).join('');
-      return '<div style="display:flex;align-items:center;gap:10px;"><label style="flex:0 0 132px;font-size:12.5px;">' + t(p[1]) + '</label>' +
+      return '<div data-cu-row="' + p[0] + '" style="display:flex;align-items:center;gap:10px;"><label style="flex:0 0 132px;font-size:12.5px;">' + t(p[1]) + '</label>' +
         '<select data-cu-page="' + p[0] + '" style="' + selectStyle + '">' + opts + '</select></div>';
     }).join('');
     dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.addEventListener('change', cuSyncApprover); });
+    cuUpdatePermBtn();
+  }
+
+  // Manage Permissions: tick the pages the user may open; an unticked page is "No access" (level 0) and its row is hidden.
+  function cuRows(){ return dsiById('cu-perms').querySelectorAll('[data-cu-row]'); }
+  function cuSetOff(row, off){ row.dataset.off = off ? '1' : ''; row.style.display = off ? 'none' : 'flex'; }
+  function cuUpdatePermBtn(){
+    var rows = cuRows(), on = 0;
+    rows.forEach(function(r){ if(r.dataset.off !== '1') on++; });
+    dsiById('cu-perm-btn').textContent = t('pp_manage') + ' (' + on + ' / ' + rows.length + ')';
   }
 
   // Approvers need Create & Update (L3) or more on Sales Summary; Administrators always qualify.
   function cuSyncApprover(){
-    var salesLevel = Number(document.querySelector('#cu-perms [data-cu-page="sales"]').value);
+    var salesRow = document.querySelector('#cu-perms [data-cu-row="sales"]');
+    var salesLevel = salesRow.dataset.off === '1' ? 0 : Number(salesRow.querySelector('select').value);
     var ok = cuState.type === 'administrator' || salesLevel >= 3;
     var box = dsiById('cu-approver');
     if(!ok) box.checked = false;
@@ -6896,7 +6950,8 @@
     pw.value = '';
     pw.placeholder = user ? t('cu_pw_keep') : '';
     var levels = user ? user.permissions : CU_DEFAULT_LEVELS;
-    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ sel.value = String(levels[sel.dataset.cuPage] || 1); });
+    cuRows().forEach(function(row){ var sel = row.querySelector('select'), pg = sel.dataset.cuPage, lv = levels[pg]; cuSetOff(row, lv === 0); sel.value = String(lv > 0 ? lv : (CU_DEFAULT_LEVELS[pg] || 1)); });
+    cuUpdatePermBtn();
     cuSetType(user ? user.userType : 'user');
     dsiById('cu-approver').checked = user ? user.canApprove : false;
     cuSyncApprover();
@@ -6949,11 +7004,54 @@
   });
   dsiById('cu-form-new').addEventListener('click', function(){ cuFillForm(null); });
 
+  // ---- Select Permissions dialog (ticked = the user can open that page) ----
+  var ppState = null;
+  function ppCount(){
+    var n = ppState.pages.filter(function(p){ return ppState.on[p[0]]; }).length;
+    dsiById('pp-title').textContent = t('pp_select') + '  (' + n + ' / ' + ppState.pages.length + ')';
+  }
+  function ppDraw(){
+    dsiById('pp-list').innerHTML = ppState.pages.map(function(p){
+      return '<label style="display:flex;align-items:center;gap:12px;font-size:14px;cursor:pointer;"><input type="checkbox" data-pp="' + p[0] + '"' + (ppState.on[p[0]] ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:var(--accent);" /> ' + t(p[1]) + '</label>';
+    }).join('');
+    dsiById('pp-list').querySelectorAll('input[data-pp]').forEach(function(cb){
+      cb.addEventListener('change', function(){ ppState.on[cb.dataset.pp] = cb.checked; ppCount(); });
+    });
+    ppCount();
+  }
+  function openPermPicker(pages, onKeys, onOk){
+    ppState = { pages: pages, on: {}, onOk: onOk };
+    pages.forEach(function(p){ ppState.on[p[0]] = onKeys.indexOf(p[0]) !== -1; });
+    ppDraw();
+    dsiById('pp-all').onclick = function(){ pages.forEach(function(p){ ppState.on[p[0]] = true; }); ppDraw(); };
+    dsiById('pp-none').onclick = function(){ pages.forEach(function(p){ ppState.on[p[0]] = false; }); ppDraw(); };
+    dsiById('perm-picker-backdrop').hidden = false;
+  }
+  function closePermPicker(){ dsiById('perm-picker-backdrop').hidden = true; ppState = null; }
+  dsiById('pp-close').addEventListener('click', closePermPicker);
+  dsiById('pp-cancel').addEventListener('click', closePermPicker);
+  dsiById('perm-picker-backdrop').addEventListener('click', function(e){ if(e.target === this) closePermPicker(); });
+  dsiById('pp-ok').addEventListener('click', function(){
+    if(!ppState) return;
+    var on = ppState.on, cb = ppState.onOk;
+    closePermPicker();
+    cb(on);
+  });
+  window.openPermPicker = openPermPicker;
+  dsiById('cu-perm-btn').addEventListener('click', function(){
+    var keys = [];
+    cuRows().forEach(function(r){ if(r.dataset.off !== '1') keys.push(r.dataset.cuRow); });
+    openPermPicker(CU_PAGES, keys, function(on){
+      cuRows().forEach(function(r){ cuSetOff(r, !on[r.dataset.cuRow]); });
+      cuUpdatePermBtn(); cuSyncApprover();
+    });
+  });
+
   dsiById('cu-save-btn').addEventListener('click', function(){
     var companyId = cuState.companyId;
     var editing = cuState.editingId;
     var permissions = {};
-    dsiById('cu-perms').querySelectorAll('select').forEach(function(sel){ permissions[sel.dataset.cuPage] = Number(sel.value); });
+    cuRows().forEach(function(row){ var sel = row.querySelector('select'); permissions[sel.dataset.cuPage] = row.dataset.off === '1' ? 0 : Number(sel.value); });
     var body = {
       displayName: dsiById('cu-name').value,
       userType: cuState.type,

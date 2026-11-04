@@ -27,6 +27,7 @@ async function publicProfile(user) {
     enabledFeatures,
     staffId: user.staff_id,
     userType: user.role === 'client' ? user.user_type : null,
+    permissions: user.role === 'client' ? (user.permissions || {}) : null,
     mustChangePassword: !!user.must_change_password
   };
 }

@@ -48,7 +48,8 @@ async function getAccess(req, page) {
     const { rows } = await pool.query('SELECT user_type, permissions, can_approve FROM users WHERE id = $1 AND active = true', [req.user.sub]);
     const u = rows[0];
     if (!u) return { level: 0, canApprove: false, ccCrest: false };
-    const level = u.user_type === 'administrator' ? 4 : Number((u.permissions || {})[page]) || 1;
+    const raw = (u.permissions || {})[page], n = Number(raw);
+    const level = u.user_type === 'administrator' ? 4 : (raw != null && Number.isInteger(n) && n >= 0 && n <= 4 ? n : 1);   // 0 = not ticked in Manage Permissions
     return { level, canApprove: !!u.can_approve && level >= 3, ccCrest: false };
   }
 

@@ -22,8 +22,9 @@ const USER_TYPES = ['user', 'administrator'];
 // Nobody else can list, add or change them.
 
 // Company users always have a level on every page (1 Read Only .. 4 Full Access); anything missing is Read Only.
-const normalisePermissions = (input) => normaliseLevels(input, 1, 1);
-const validPermissions = (input) => validLevels(input, 1);
+// 0 = No access (the page is not ticked in Manage Permissions); a page nobody set stays L1
+const normalisePermissions = (input) => normaliseLevels(input, 0, 1);
+const validPermissions = (input) => validLevels(input, 0);
 
 function publicUser(u) {
   return {
@@ -59,7 +60,7 @@ router.post('/companies/:companyId/users', requireRole('admin'), async (req, res
   const pwProblem = checkPassword(password, loginId);
   if (pwProblem) return res.status(400).json({ error: pwProblem });
   if (!USER_TYPES.includes(userType)) return res.status(400).json({ error: '请选择类型（User 或 Administrator）。' });
-  if (!validPermissions(body.permissions)) return res.status(400).json({ error: '权限级别无效（L1–L4）。' });
+  if (!validPermissions(body.permissions)) return res.status(400).json({ error: '权限级别无效（0–4）。' });
 
   const permissions = normalisePermissions(body.permissions);
   const canApprove = body.canApprove === true;
@@ -96,7 +97,7 @@ router.patch('/companies/:companyId/users/:userId', requireRole('admin'), async 
   const body = req.body || {};
   const userType = body.userType === undefined ? u.user_type : body.userType;
   if (!USER_TYPES.includes(userType)) return res.status(400).json({ error: '类型无效。' });
-  if (!validPermissions(body.permissions)) return res.status(400).json({ error: '权限级别无效（L1–L4）。' });
+  if (!validPermissions(body.permissions)) return res.status(400).json({ error: '权限级别无效（0–4）。' });
   if (body.password !== undefined && body.password !== '') {
     const pwProblem = checkPassword(String(body.password), u.login_id);
     if (pwProblem) return res.status(400).json({ error: pwProblem });

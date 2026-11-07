@@ -311,7 +311,7 @@ body.is-mgr .noman-only{display:none!important}
             <label class="f"><span>小单位</span><input id="fSub" list="unitList" placeholder="例 PKT"></label>
             <label class="f mgr-only"><span>NO</span><input id="fNo" class="mono" inputmode="numeric" placeholder="自动"></label>
             <label class="f wide mgr-only"><span>Account（留空用分组预设）</span><input id="fAcc" list="accList"><datalist id="accList"></datalist></label>
-            <label class="f wide row" style="flex-direction:row;gap:6px"><input type="checkbox" id="fActive" checked style="width:auto"> <span style="font-size:13px;color:var(--ink)">在用（停用的不会出现在盘点表）</span></label>
+            <label class="f wide row" id="fActiveRow" hidden style="flex-direction:row;gap:6px"><input type="checkbox" id="fActive" checked style="width:auto"> <span style="font-size:13px;color:var(--ink)">在用（停用的不会出现在盘点表）</span></label>
           </div>
           <div class="row" style="margin-top:12px;justify-content:flex-end">
             <button type="button" class="btn" id="iCancel" hidden>取消</button>
@@ -1286,9 +1286,9 @@ $('iBody').addEventListener('click',async e=>{
   const b=e.target.closest('[data-edit]'); if(!b) return;
   const i=S.items.find(x=>x.id===b.dataset.edit); S.editItem=i.id;
   $('fName').value=i.name; $('fGroup').value=i.groupId||''; $('fUnit').value=i.unit||''; $('fPrice').value=i.price||''; $('fNo').value=i.no??''; $('fPack').value=Number(i.pack)>1?i.pack:''; $('fSub').value=i.sub||''; $('fAcc').value=i.account||''; $('fActive').checked=i.active!==false;
-  $('iFormTitle').textContent='修改货品'; $('iCancel').hidden=false; $('fName').focus();
+  $('iFormTitle').textContent='修改货品'; $('fActiveRow').hidden=false; $('iCancel').hidden=false; $('fName').focus();
 });
-function iReset(){ S.editItem=null; $('iForm').reset(); $('fActive').checked=true; $('iFormTitle').textContent='新增货品'; $('iCancel').hidden=true; }
+function iReset(){ S.editItem=null; $('iForm').reset(); $('fActive').checked=true; $('fActiveRow').hidden=true; $('iFormTitle').textContent='新增货品'; $('iCancel').hidden=true; }
 $('iCancel').addEventListener('click',iReset);
 const nextNo = () => S.items.reduce((m,i)=>Math.max(m,Number(i.no)||0),0)+1;
 $('iForm').addEventListener('submit',async e=>{
@@ -1299,7 +1299,7 @@ $('iForm').addEventListener('submit',async e=>{
   if(dupe) return toast('已经有同名货品（NO '+(dupe.no??'')+'）');
   const ex=S.editItem?S.items.find(i=>i.id===S.editItem):null;
   const price=r2(String($('fPrice').value).replace(/,/g,''));
-  const body=Object.assign({},ex||{},{name,groupId,unit:$('fUnit').value.trim(),price,account:$('fAcc').value.trim(),active:$('fActive').checked,no:Number($('fNo').value)||(ex&&ex.no)||nextNo(),updatedAt:Date.now(),pack:Number($('fPack').value)>1?Number($('fPack').value):0,sub:Number($('fPack').value)>1?($('fSub').value.trim().toUpperCase()||'PKT'):''});
+  const body=Object.assign({},ex||{},{name,groupId,unit:$('fUnit').value.trim(),price,account:$('fAcc').value.trim(),active:ex?$('fActive').checked:true,no:Number($('fNo').value)||(ex&&ex.no)||nextNo(),updatedAt:Date.now(),pack:Number($('fPack').value)>1?Number($('fPack').value):0,sub:Number($('fPack').value)>1?($('fSub').value.trim().toUpperCase()||'PKT'):''});
   if(!ex || Number(ex.price)!==price) body.priceAt=Date.now();
   delete body.id;
   try{

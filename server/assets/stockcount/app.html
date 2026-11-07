@@ -111,7 +111,10 @@ body.can-add .noadd-only{display:none!important}
 .progress{height:6px;background:var(--line2);border-radius:3px;overflow:hidden;margin-top:8px}
 .progress i{display:block;height:100%;background:var(--accent);width:0}
 .clist{display:flex;flex-direction:column}
-.cgh{position:sticky;top:0;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12px;letter-spacing:.04em;padding:6px 10px;border-radius:4px;margin-top:10px;display:flex;justify-content:space-between;z-index:1}
+.cgh{position:sticky;top:0;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:13px;letter-spacing:.04em;padding:9px 10px;border-radius:4px;margin-top:8px;display:flex;justify-content:space-between;gap:10px;z-index:1;cursor:pointer;user-select:none}
+.cgh:hover{filter:brightness(.97)}
+.cgh .gp{font-weight:400;font-family:var(--f-mono);font-size:11.5px;margin-left:8px;color:var(--muted)}
+.cgh .gp.all{color:var(--ok)}
 .ci{display:grid;grid-template-columns:minmax(0,1fr) 112px 96px;gap:10px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line2)}
 .ci .nm{min-width:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
 .ci .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono)}
@@ -219,7 +222,7 @@ body.can-add .noadd-only{display:none!important}
         <input type="search" id="cQ" placeholder="搜货品名字（中/英/马来文都可以）">
         <select id="cShow"><option value="all">全部</option><option value="todo">只看未点</option><option value="done">只看已点</option></select>
       </div>
-      <div class="row" style="justify-content:flex-end;margin:-4px 0 6px"><button class="btn sm pri" id="saveBtnTop">保存</button></div>
+      <div class="row" style="justify-content:space-between;margin:-4px 0 6px"><div class="row"><button class="btn sm" id="gOpenAll">全部展开</button><button class="btn sm" id="gCloseAll">全部收起</button><span class="small muted">点类别名称，展开或收起这一类的清单</span></div><button class="btn sm pri" id="saveBtnTop">保存</button></div>
       <div class="legend"><span><span class="key"></span>黄色 = 还没点（没货可以不填，结账时当 0）</span><span>数量可打 <span class="mono">2+0.5</span>，会自动加起来</span><span>有设定「1 箱 = 几包」的货品，分开打箱数和散装包数</span><span>打完按 Enter 跳下一项；橙色 = 未保存，记得按<b>保存</b></span></div>
       <div class="clist" id="cList"></div>
       <div class="savebar" id="saveBar"><span class="small" id="saveInfo">打好数量后按保存</span><button class="btn pri" id="saveBtn" disabled>保存</button></div>
@@ -459,6 +462,7 @@ body.can-add .noadd-only{display:none!important}
     '这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。': 'Stock Count is not switched on for this company. Ask the Owner to switch it on in the Control Panel.',
     '新增货品 ': 'Add item', '期末存货 RM': 'Closing stock RM', '确定结账 ': 'Confirm close',
     '明细': 'Details', '收起': 'Hide',
+    '全部展开': 'Expand all', '全部收起': 'Collapse all', '点类别名称，展开或收起这一类的清单': 'Click a category name to open or close its list',
     '本月单价按「采购单」的进货价用 FIFO 计算：期末的货当作最近买进的几批，各批用自己的进价；没有进货记录的货品用货品资料的单价。': 'This month\'s prices are worked out by FIFO from the purchase bills: the stock at month end is treated as the most recently bought batches, each at its own purchase price. Items with no purchase records use the price in the item list.',
     '（正在读取采购记录…）': '(loading the purchase records…)', '还在读取采购记录，等几秒再按结账': 'Still loading the purchase records — wait a few seconds, then press Close',
     '货品资料单价（没有更早的进货记录）': 'Item list price (no earlier purchase records)', '最早一批的进价（没有更早的进货记录）': 'Cost of the oldest batch known (no earlier purchase records)'
@@ -871,6 +875,12 @@ function renderChips(){
     names.map(n=>{const o=by.get(n);return `<button class="chip" data-g="${esc(n)}" aria-pressed="${S.cGroup===n}">${esc(n)}<span class="n">${o.d}/${o.n}</span></button>`;}).join('');
 }
 $('gChips').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return; S.cGroup=b.dataset.g; renderCount(); });
+/* a category opens its list when its name is clicked (the page stays short) */
+function toggleGroup(g){ if(!S.openG) S.openG=new Set(); S.openG.has(g) ? S.openG.delete(g) : S.openG.add(g); renderCount(); }
+$('cList').addEventListener('click',e=>{ const h=e.target.closest('.cgh'); if(h) toggleGroup(h.dataset.gh); });
+$('cList').addEventListener('keydown',e=>{ const h=e.target.closest&&e.target.closest('.cgh'); if(h && (e.key==='Enter'||e.key===' ')){ e.preventDefault(); toggleGroup(h.dataset.gh); } });
+$('gOpenAll').addEventListener('click',()=>{ S.openG=new Set(monthRows().map(r=>r.group)); renderCount(); });
+$('gCloseAll').addEventListener('click',()=>{ S.openG=new Set(); S.cGroup=''; renderCount(); });
 $('cQ').addEventListener('input',renderCount);
 $('cShow').addEventListener('change',renderCount);
 
@@ -880,9 +890,15 @@ function renderCount(){
   renderChips();
   const q=norm($('cQ').value), show=$('cShow').value, locked=isClosed() || !S.canWrite;
   const rows=monthRows().filter(r=>(!S.cGroup||r.group===S.cGroup) && (!q||norm(r.name).includes(q)) && (show==='all'||(show==='todo'?r.qty===null:r.qty!==null)));
-  let html='', cur=null;
+  let html='', cur=null, curOpen=true;
+  if(!S.openG) S.openG=new Set();
+  const forceOpen=!!q || show!=='all' || !!S.cGroup;   // searching, filtering or picking one category: show the lists
   rows.forEach(r=>{
-    if(r.group!==cur){ cur=r.group; html+=`<div class="cgh"><span>${esc(cur)}</span><span class="mono" data-gt="${esc(cur)}"></span></div>`; }
+    if(r.group!==cur){
+      cur=r.group; curOpen=forceOpen||S.openG.has(cur);
+      html+=`<div class="cgh" data-gh="${esc(cur)}" role="button" tabindex="0" aria-expanded="${curOpen}"><span><span class="arr">${curOpen?'▾':'▸'}</span> ${esc(cur)}<span class="gp" data-gp="${esc(cur)}"></span></span><span class="mono" data-gt="${esc(cur)}"></span></div>`;
+    }
+    if(!curOpen) return;
     const pv=S.pend[r.id]||null;
     const qcell = r.pack
       ? `<div class="q2"><label>${esc(r.unit)}<input data-k="big" inputmode="decimal" enterkeyhint="next" aria-label="${esc(r.name)} ${esc(r.unit)}" value="${esc(pv&&pv.big!==undefined?pv.big:bigVal(r))}" ${locked?'disabled':''}></label><label>散装 ${esc(r.sub)}<input data-k="loose" inputmode="decimal" enterkeyhint="next" aria-label="${esc(r.name)} ${esc(r.sub)}" value="${esc(pv&&pv.loose!==undefined?pv.loose:looseVal(r))}" ${locked?'disabled':''}></label></div>`
@@ -936,6 +952,8 @@ function patchCount(skipRows){
     renderChips();
   }
   $('cList').querySelectorAll('[data-gt]').forEach(el=>{ el.textContent='RM '+money(t.byGroup.get(el.dataset.gt)||0); });
+  const gp=new Map(); rows.forEach(r=>{ const o=gp.get(r.group)||{n:0,d:0}; o.n++; if(r.qty!==null) o.d++; gp.set(r.group,o); });
+  $('cList').querySelectorAll('[data-gp]').forEach(el=>{ const o=gp.get(el.dataset.gp)||{n:0,d:0}; el.textContent=o.d+' / '+o.n; el.classList.toggle('all',o.n>0&&o.d===o.n); });
   $('ctItems').textContent=S.items.filter(i=>i.active!==false).length;
 }
 /* typed numbers stay on this device as 未保存 until 保存 is pressed */

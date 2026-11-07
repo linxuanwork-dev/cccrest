@@ -408,7 +408,7 @@ async function init(){
   const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
   const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
-  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{}}; if(d.id==='config') S.config=v; }); done('settings'); });
+  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='config') S.config=v; }); done('settings'); });
   db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
   db.collection('bank').onSnapshot(s=>{ S.bank={}; s.docs.forEach(d=>S.bank[d.id]=d.data()); done('bank'); });
   await sync();
@@ -470,6 +470,7 @@ function vStu(){
   const b=UI.branch; const q=norm(UI.stuQ);
   let list=stuList(b).filter(s=>UI.stuStatus==='ALL'||s.status===UI.stuStatus).filter(s=>!q||norm(s.name+s.no+s.code+(s.parents||[]).join(' ')+s.mt).includes(q)).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true}));
   const noMt=stuList(b).filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)).length;
+  const mtNames=(S.mts.names||{})[b]||[]; const badMt=mtNames.length?[...new Set(stuList(b).filter(s=>s.status==='Active'&&s.mt&&!mtNames.includes(s.mt)).map(s=>s.mt))]:[];
   return `<div class="card"><div class="row">
    <select onchange="UI.branch=this.value;render()">${brOpts(b)}</select>
    <select onchange="UI.stuStatus=this.value;render()">${['Active','Withdrawn','Transferred','ALL'].map(x=>`<option ${x===UI.stuStatus?'selected':''} value="${x}">${{Active:'在读 Active',Withdrawn:'停课 Withdrawn',Transferred:'已转 branch',ALL:'全部'}[x]}</option>`).join('')}</select>
@@ -480,6 +481,7 @@ function vStu(){
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
+  ${badMt.length?`<div class="msg warn">有 Active 学生的 MT 不在 ${b} 的 MT 名单里：${badMt.map(esc).join('、')}</div>`:''}
   <div class="small mute" style="margin:6px 0">${list.length} 人。导入会更新同编号的学生，不会删掉已有的。</div>
   <div class="tw"><table><tr><th>编号</th><th>Bukku code</th><th>学生</th><th>状态</th><th>MT</th><th>Pkg</th><th class="n">学费</th><th>父母 / 付款人</th><th class="n">期初欠款</th><th></th></tr>
   ${list.map(s=>`<tr><td>${esc(s.no)}</td><td>${esc(s.code)}</td><td>${esc(s.name)}${s.transferFrom?`<div class="small mute">从 ${esc(s.transferFrom)} 转来</div>`:''}${s.transferTo?`<div class="small mute">转去 ${esc(s.transferTo)}</div>`:''}</td>
@@ -503,7 +505,7 @@ function editStu(uid){
    <label>学生名字</label><input id="e_name" value="${esc(s.name)}">
    <label>性别 / 服装</label><select id="e_gender">${['','男','女长袖','女短袖'].map(g=>`<option ${g===(s.gender||'')?'selected':''}>${g}</option>`).join('')}</select>
    <label>状态</label><select id="e_status">${['Active','Withdrawn','Transferred'].map(x=>`<option ${x===s.status?'selected':''}>${x}</option>`).join('')}</select>
-   <label>MT</label><input id="e_mt" value="${esc(s.mt)}">
+   <label>MT</label><input id="e_mt" list="mtn" value="${esc(s.mt)}"><datalist id="mtn">${((S.mts.names||{})[s.branch]||[]).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
    <label>Package</label><input id="e_pkg" list="pkl" value="${esc(s.pkg)}"><datalist id="pkl">${pk.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
    <label>父母 / 付款人名字<div class="small mute">一行一个，银行上的名字也可以加</div></label><textarea id="e_par" rows="3">${esc((s.parents||[]).join('\n'))}</textarea>
    <label>期初欠款 RM<div class="small mute">负数 = 预付</div></label><input id="e_open" type="number" step="0.01" value="${s.opening||0}">
@@ -657,7 +659,7 @@ function curRosterForEdit(){ const b=UI.rBranch,m=UI.rMonth; if(!UI.draft||UI.dr
 function editRoster(){ curRosterForEdit(); render(); }
 function lineSet(i,k,v){ const d=curRosterForEdit(); d.lines[i][k]=v; render(); }
 function delLine(i){ const d=curRosterForEdit(); d.lines.splice(i,1); render(); }
-function addRosterLine(){ const d=curRosterForEdit(); const mts=[...new Set(d.lines.map(l=>l.mt))];
+function addRosterLine(){ const d=curRosterForEdit(); const mts=[...new Set(d.lines.map(l=>l.mt).concat((S.mts.names||{})[d.branch]||[]))];
   modal(`<h3>手动加一行</h3><div class="f"><label>MT</label><input id="al_mt" list="mtl" value="${esc(mts[0]||'MT ')}"><datalist id="mtl">${mts.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
    <label>学生</label><select id="al_u">${stuList(UI.rBranch).filter(s=>s.status==='Active').sort((a,c)=>a.name.localeCompare(c.name)).map(s=>`<option value="${s.uid}">${esc(s.no+' '+s.name)}</option>`).join('')}</select>
    <label>Package</label><input id="al_p" list="pkl2"><datalist id="pkl2">${Object.keys(S.packages).map(p=>`<option value="${esc(p)}">`).join('')}</datalist>

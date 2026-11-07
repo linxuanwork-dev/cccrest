@@ -35,19 +35,19 @@ const MAX_DOC = 600 * 1024;   // one document (a closing snapshot is the biggest
 
 async function loadSettings(companyId) {
   const { rows } = await pool.query(
-    `SELECT c.name, c.file_prefix, COALESCE(s.enabled, false) AS enabled, COALESCE(s.rev, 0) AS rev
+    `SELECT c.name, c.file_prefix, COALESCE(s.enabled, false) AS enabled, COALESCE(s.rev, 0) AS rev, COALESCE(s.fifo_from, '') AS fifo_from
        FROM companies c LEFT JOIN stock_count_settings s ON s.company_id = c.id WHERE c.id = $1`,
     [companyId]
   );
   const r = rows[0];
-  return r ? { name: r.name, short: r.file_prefix || '', enabled: r.enabled, rev: Number(r.rev) } : null;
+  return r ? { name: r.name, short: r.file_prefix || '', enabled: r.enabled, rev: Number(r.rev), fifoFrom: r.fifo_from } : null;
 }
 
 // ============ CONTROL PANEL (Owner): switch the feature on per company ============
 
 router.get('/stock-count/companies', requireRole('admin'), async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT c.id, c.name, COALESCE(s.enabled, false) AS enabled,
+    `SELECT c.id, c.name, COALESCE(s.enabled, false) AS enabled, COALESCE(s.fifo_from, '') AS fifo_from,
        (SELECT COUNT(*) FROM stock_count_docs d WHERE d.company_id = c.id AND d.coll = 'items')::int AS items,
        (SELECT COUNT(*) FROM stock_count_docs d WHERE d.company_id = c.id AND d.coll = 'closing')::int AS closed
      FROM companies c LEFT JOIN stock_count_settings s ON s.company_id = c.id
@@ -60,10 +60,13 @@ router.put('/stock-count/companies/:id', requireRole('admin'), async (req, res) 
   const s = await loadSettings(req.params.id);
   if (!s) return res.status(404).json({ error: 'Not found' });
   const enabled = !!(req.body && req.body.enabled === true);
+  const fifoFrom = String((req.body && req.body.fifoFrom) || '').trim();
+  if (fifoFrom && !MONTH_RE.test(fifoFrom)) return bad(res, 'FIFO 起算月份格式不对（例 2026-01）。 The FIFO start month must look like 2026-01.');
   await pool.query(
-    `INSERT INTO stock_count_settings (company_id, enabled, rev, updated_at) VALUES ($1,$2,1, now())
-     ON CONFLICT (company_id) DO UPDATE SET enabled = $2, rev = stock_count_settings.rev + 1, updated_at = now()`,
-    [req.params.id, enabled]
+    `INSERT INTO stock_count_settings (company_id, enabled, fifo_from, rev, updated_at) VALUES ($1,$2,$3,1, now())
+     ON CONFLICT (company_id) DO UPDATE SET enabled = $2, fifo_from = CASE WHEN $4::boolean THEN $3 ELSE stock_count_settings.fifo_from END,
+       rev = stock_count_settings.rev + 1, updated_at = now()`,
+    [req.params.id, enabled, fifoFrom, !!(req.body && 'fifoFrom' in req.body)]   // an old page that does not send the month leaves it as it is
   );
   if (enabled) {   // the page shows the company name in its header
     await pool.query(
@@ -72,7 +75,7 @@ router.put('/stock-count/companies/:id', requireRole('admin'), async (req, res) 
       [req.params.id, JSON.stringify({ name: s.name, short: s.short }), req.user.sub]
     );
   }
-  await logActivity(req.user.sub, 'Updated Stock Count settings', s.name, enabled ? 'on' : 'off');
+  await logActivity(req.user.sub, 'Updated Stock Count settings', s.name, (enabled ? 'on' : 'off') + (fifoFrom ? '; FIFO from ' + fifoFrom : '; FIFO off'));
   res.json({ ok: true });
 });
 
@@ -104,7 +107,7 @@ router.get(BASE, ...guard(1), async (req, res) => {
   const s = await loadSettings(req.params.companyId);
   if (!s) return res.status(404).json({ error: 'Not found' });
   res.json({
-    enabled: s.enabled, name: s.name, short: s.short, uid: String(req.user.sub),
+    enabled: s.enabled, name: s.name, short: s.short, uid: String(req.user.sub), fifoFrom: s.fifoFrom,
     mgr: isMgr(req), canAdd: isMgr(req) || isClientMgr(req), canWrite: isMgr(req) || req.pageAccess.level >= 2
   });
 });
@@ -229,6 +232,37 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
     }
   }
   res.json({ ok: true });
+});
+
+// Purchase records for FIFO: the purchase bills dated after `from` up to `to`, as layers per Stock Count item (newest first). A bill line belongs
+// to a Stock Count item through the supplier's item list (name on the invoice -> Stock Count item + buying unit); `q` is in Stock Count units
+// and `c` the cost of one Stock Count unit. The page values the counted quantity from the newest layers backwards.
+const normName = (s) => String(s == null ? '' : s).toUpperCase().replace(/\s+/g, ' ').trim();
+router.get(BASE + '/fifo', ...guard(1), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const from = DAY_RE.test(req.query.from || '') ? req.query.from : '1970-01-01';
+  const to = DAY_RE.test(req.query.to || '') ? req.query.to : '2999-12-31';
+  const cid = req.params.companyId;
+  const [bills, maps] = await Promise.all([
+    pool.query(`SELECT id, supplier, no, to_char(bill_date, 'YYYY-MM-DD') AS d, lines FROM purchase_bukku_bills
+                 WHERE company_id = $1 AND bill_date > $2 AND bill_date <= $3 ORDER BY bill_date DESC, id DESC`, [cid, from, to]),
+    pool.query('SELECT supplier, alias, stock_item_id, per FROM purchase_bukku_items WHERE company_id = $1', [cid])
+  ]);
+  const map = new Map(maps.rows.map((m) => [m.supplier + '|' + m.alias, m]));
+  const layers = {}, unmapped = new Set();
+  for (const b of bills.rows) {
+    const sup = normName(b.supplier);
+    for (const l of b.lines || []) {
+      const m = map.get(sup + '|' + normName(l.desc)) || (l.as ? map.get(sup + '|' + normName(l.as)) : null);
+      const item = (m && m.stock_item_id) || l.item || '';
+      if (!item) { unmapped.add(sup + '|' + normName(l.desc)); continue; }
+      const per = Number(l.per) > 0 ? Number(l.per) : (m && Number(m.per) > 0 ? Number(m.per) : 1);
+      const qty = Number(l.qty) > 0 ? Number(l.qty) : 1, price = Number(l.price) || 0;
+      const arr = layers[item] = layers[item] || [];
+      if (arr.length < 80) arr.push({ d: b.d, no: b.no, sup: b.supplier, q: qty / per, c: price * per });
+    }
+  }
+  res.json({ from, to, layers, unmapped: unmapped.size });
 });
 
 // The page builds its Excel files in the browser; this puts the system's print stamp (date + user, in the print footer)

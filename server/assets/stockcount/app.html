@@ -116,6 +116,9 @@ body.can-add .noadd-only{display:none!important}
 .ci .nm{min-width:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
 .ci .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono)}
 .ci .meta .np{color:var(--warn)}
+.fifo{font-size:10px;font-weight:600;letter-spacing:.04em;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:0 6px}
+.fdet{margin-top:3px;color:var(--muted);font-family:var(--f-body);font-size:11.5px;line-height:1.5}
+.fdet div{white-space:normal}
 .plink{border:0;background:none;color:var(--accent);font:inherit;font-size:11.5px;padding:0 2px;cursor:pointer;text-decoration:underline}
 .pedit{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:4px;color:var(--ink)}
 .pedit input{width:64px;padding:3px 6px;font-family:var(--f-mono)}
@@ -206,6 +209,7 @@ body.can-add .noadd-only{display:none!important}
       </div>
       <div class="progress" aria-hidden="true"><i id="pBar"></i></div>
       <div id="packNote" class="check warn" style="margin-top:12px" hidden></div>
+      <div id="fifoNote" class="check ok" style="margin-top:12px" hidden></div>
       <div id="closeMsg" style="margin-top:12px" hidden></div>
     </div>
 
@@ -453,12 +457,19 @@ body.can-add .noadd-only{display:none!important}
     '盘点数量': 'Count', '改货品': 'Item change', '结账': 'Close', '（试用）': '(trial)', '你': 'You', '某人': 'Someone', '没有符合的记录。': 'No matching records.',
     '这个月还没有变更记录。以后每次保存都会出现在这里。': 'No changes recorded this month yet. Every save will appear here.', '没有记录可以下载': 'No records to download', '缺少公司编号。': 'Missing company number.',
     '这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。': 'Stock Count is not switched on for this company. Ask the Owner to switch it on in the Control Panel.',
-    '新增货品 ': 'Add item', '期末存货 RM': 'Closing stock RM', '确定结账 ': 'Confirm close'
+    '新增货品 ': 'Add item', '期末存货 RM': 'Closing stock RM', '确定结账 ': 'Confirm close',
+    '明细': 'Details', '收起': 'Hide',
+    '本月单价按「采购单」的进货价用 FIFO 计算：期末的货当作最近买进的几批，各批用自己的进价；没有进货记录的货品用货品资料的单价。': 'This month\'s prices are worked out by FIFO from the purchase bills: the stock at month end is treated as the most recently bought batches, each at its own purchase price. Items with no purchase records use the price in the item list.',
+    '（正在读取采购记录…）': '(loading the purchase records…)', '还在读取采购记录，等几秒再按结账': 'Still loading the purchase records — wait a few seconds, then press Close',
+    '货品资料单价（没有更早的进货记录）': 'Item list price (no earlier purchase records)', '最早一批的进价（没有更早的进货记录）': 'Cost of the oldest batch known (no earlier purchase records)'
   }));
 
   // whole-text patterns (first match wins); $1.. = captured parts
   const FULL = [
     [/^盘点日期已保存 (.*)$/, 'Count date saved $1'],
+    [/^⚠ 有 (\d+) 个采购项目还没对应盘点货品，没有算进去（采购单录入 → 货品对应）。$/, '⚠ $1 purchase item(s) are not linked to a Stock Count item yet and are not counted (Purchase entry → Item links).'],
+    [/^(\d+) 个采购项目还没对应盘点货品，没有算进 FIFO。$/, '$1 purchase item(s) are not linked to a Stock Count item yet and are not counted in FIFO.'],
+    [/^上月结存 (.*)$/, 'Closing stock of $1'],
     [/^一(.*)几个$/, 'How many per $1'],
     [/^＋ 设定一(.*)几包$/, '+ Set packs per $1'],
     [/^散装 (.*)$/, 'Loose $1'],
@@ -720,11 +731,13 @@ function monthRows(){
   }
   const ids=new Set();
   const rows=[];
+  const fifo=fifoActive();
   sortItems(S.items.filter(it=>(it.active!==false && !(groupById(it.groupId)||{}).noCount) || S.lines[it.id])).forEach(it=>{
     ids.add(it.id);
     const l=S.lines[it.id];
     const ep=effPack(it), pack=ep.pack, po=S.packs[it.id];
-    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,no:it.no,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:Number(it.price)||0,qty:l?Number(l.qty):null,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
+    const f=fifo?fifoCost(it,l?Number(l.qty):null):null;
+    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,no:it.no,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:f?r6(f.price):(Number(it.price)||0),fifo:f&&f.src!=='master'?f:null,qty:l?Number(l.qty):null,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
   });
   return rows;
 }
@@ -734,6 +747,52 @@ function effPack(it){
   if(o && Number(o.pack)>1) return {pack:Number(o.pack),sub:(o.sub||it.sub||'PKT')};
   if(o && Number(o.pack)===0) return {pack:0,sub:''};
   return Number(it.pack)>1 ? {pack:Number(it.pack),sub:it.sub||'PKT'} : {pack:0,sub:''};
+}
+/* ---------- FIFO: the unit price comes from the purchase records ----------
+   From the month the Owner sets (Control Panel), the stock counted at the end of a month is valued from the newest purchases backwards
+   (the oldest stock is assumed to be used first): the purchase bills dated after the last closed month, then that month's closing
+   stock, then the item list's price for anything older. Closing the month locks the result like any other price. */
+const r6 = n => Math.round((Number(n)||0)*1e6)/1e6;
+const monthEnd = m => m+'-'+String(lastDay(m)).padStart(2,'0');
+S.fifoFrom=''; S.fifo=null; S.fifoOpen=null;
+const fifoActive = () => !!S.fifoFrom && S.month>=S.fifoFrom && !isClosed();
+const lastClosedBefore = m => Object.keys(S.closings).filter(k=>k<m).sort().pop()||'';
+function fifoRange(){ const pm=lastClosedBefore(S.month); return {pm, from:pm?monthEnd(pm):'1970-01-01', to:countDate()||monthEnd(S.month)}; }
+const fifoKey = () => { const r=fifoRange(); return S.month+'|'+r.from+'|'+r.to; };
+const fifoReady = () => !fifoActive() || !!(S.fifo && S.fifo.key===fifoKey());
+function fifoCost(it, qty){
+  const master=Number(it.price)||0, r=fifoRange();
+  const layers=((S.fifo&&S.fifo.key===fifoKey()&&S.fifo.layers[it.id])||[]).map(x=>({q:x.q,c:x.c,t:dmy(x.d)+' · '+x.no+' · '+x.sup}));
+  const prev=r.pm&&S.closings[r.pm]&&S.closings[r.pm].lines&&S.closings[r.pm].lines[it.id];
+  if(prev && Number(prev.qty)>0) layers.push({q:Number(prev.qty),c:Number(prev.price)||0,t:'上月结存 '+mLabel(r.pm),prev:true});
+  if(!layers.length) return {price:master,src:'master',parts:[]};
+  if(!(qty>0)) return {price:layers[0].c,src:'fifo',parts:layers.slice(0,3)};   // not counted: show the latest cost
+  let need=qty, value=0; const parts=[];
+  for(const l of layers){ if(need<=1e-9) break; const take=Math.min(need,l.q); value+=take*l.c; need-=take; parts.push({q:take,c:l.c,t:l.t}); }
+  if(need>1e-9){   // more counted than the records explain: the item list's price, or (no price there) the oldest cost we know
+    const fb=master>0?master:layers[layers.length-1].c;
+    value+=need*fb; parts.push({q:need,c:fb,t:master>0?'货品资料单价（没有更早的进货记录）':'最早一批的进价（没有更早的进货记录）'});
+  }
+  return {price:value/qty,src:need>1e-9?'mix':'fifo',parts};
+}
+let fifoBusy=false;
+async function loadFifo(force){
+  if(!fifoActive()){ S.fifo=null; return; }
+  const r=fifoRange(), key=fifoKey();
+  if(fifoBusy || (!force && S.fifo && S.fifo.key===key)) return;
+  fifoBusy=true;
+  try{
+    const d=await http('GET','/fifo?from='+r.from+'&to='+r.to);
+    if(key!==fifoKey()){ fifoBusy=false; return loadFifo(); }   // the month or date was changed meanwhile
+    const changed=!S.fifo || S.fifo.key!==key || stable(S.fifo.layers)!==stable(d.layers||{}) || S.fifo.unmapped!==d.unmapped;
+    S.fifo={key,layers:d.layers||{},unmapped:d.unmapped||0};
+    if(changed){
+      const typing=document.activeElement && $('cList').contains(document.activeElement) && document.activeElement.tagName==='INPUT';
+      typing ? patchCount() : renderCount();
+      renderReport();
+    }
+  }catch(e){ console.error('fifo',e); }
+  finally{ fifoBusy=false; }
 }
 function totals(rows){
   const byGroup=new Map(), byAcc=new Map(); let total=0, counted=0, noPrice=[];
@@ -776,10 +835,15 @@ function watchLines(){
 const fmtCount = r => { if(r.qty===null||r.qty===undefined) return ''; if(!r.pack) return qfmt(r.qty)+' '+r.unit;
   const big = r.big!=null ? r.big : Math.floor(r.qty+1e-9), loose = r.loose!=null ? r.loose : Math.round((r.qty-big)*r.pack*1000)/1000;
   return (big?qfmt(big)+' '+r.unit:'')+(big&&loose?' + ':'')+(loose?qfmt(loose)+' '+r.sub:'')||('0 '+r.unit); };
+const fifoDetail = r => `<div class="fdet">${(r.fifo.parts||[]).map(p=>`<div><span>${esc(qfmt(Math.round(p.q*1000)/1000))} ${esc(r.unit)} × RM ${money(p.c)} · </span><span>${esc(p.t)}</span></div>`).join('')||'<div>—</div>'}</div>`;
 const priceNote = r => {
   const locked=isClosed()||!S.mgr;
+  if(r.fifo && !isClosed()){   // priced from the purchase records (FIFO): nothing to type here
+    const open=S.fifoOpen===r.id;
+    return `RM ${money(r.price)} / ${esc(r.unit)} <span class="fifo">FIFO</span> <button type="button" class="plink" data-pr="fifo">${open?'收起':'明细'}</button>`+(open?fifoDetail(r):'');
+  }
   if(S.priceEdit===r.id && !locked) return `<div class="pedit">RM <input class="pr-n" inputmode="decimal" value="${esc(r.price>0?r.price:'')}" aria-label="单价" style="width:90px"> / ${esc(r.unit)} <button type="button" class="btn sm pri" data-pr="save">保存</button> <button type="button" class="btn sm" data-pr="cancel">取消</button></div>`;
-  return (r.price>0?'RM '+money(r.price)+' / '+esc(r.unit):'<span class="np">没有单价</span>') + (locked?'':` <button type="button" class="plink" data-pr="open">${r.price>0?'改单价':'＋ 填单价'}</button>`);
+  return (r.price>0?'RM '+money(r.price)+' / '+esc(r.unit):'<span class="np">没有单价</span>') + (r.src&&isClosed()?' <span class="fifo">FIFO</span>':'') + (locked?'':` <button type="button" class="plink" data-pr="open">${r.price>0?'改单价':'＋ 填单价'}</button>`);
 };
 const packNote = r => {
   const locked=isClosed()||!S.canWrite;
@@ -848,6 +912,13 @@ function patchCount(skipRows){
   $('sNoPrice').textContent=t.noPrice.length;
   const fixes=rows.filter(r=>r.po).length;
   $('packNote').hidden=!(fixes && S.mgr && !c); $('packNote').innerHTML=`员工在盘点时改了 <b>${fixes}</b> 项的箱数，请在下面黄色字的项目确认（「更新到货品资料」或「撤销」）。`;
+  const fn=$('fifoNote');
+  if(fifoActive()){
+    const un=S.fifo?S.fifo.unmapped:0;
+    fn.hidden=false; fn.className='check '+(un&&S.mgr?'warn':'ok');
+    fn.innerHTML='<span>本月单价按「采购单」的进货价用 FIFO 计算：期末的货当作最近买进的几批，各批用自己的进价；没有进货记录的货品用货品资料的单价。</span>'+
+      (S.fifo?'':' <span>（正在读取采购记录…）</span>')+(un&&S.mgr?` <span>⚠ 有 ${un} 个采购项目还没对应盘点货品，没有算进去（采购单录入 → 货品对应）。</span>`:'');
+  } else fn.hidden=true;
   $('pBar').style.width = c ? '100%' : (all? (done/all*100).toFixed(1)+'%':'0');
   if(skipRows!==true){
     const map=new Map(rows.map(r=>[r.id,r]));
@@ -859,6 +930,8 @@ function patchCount(skipRows){
       }
       el.classList.toggle('done',r.qty!==null);
       el.querySelector('.amt').textContent = r.qty!==null?money(r.qty*r.price):'未点';
+      const meta=el.querySelector('.meta');   // the price (FIFO) can change when the quantity or the purchase records change
+      if(meta && S.priceEdit!==r.id && S.packEdit!==r.id){ const h=priceNote(r)+packNote(r); if(meta.dataset.h!==h){ meta.innerHTML=h; meta.dataset.h=h; } }
     });
     renderChips();
   }
@@ -897,7 +970,8 @@ function stageRow(el){
 function markRow(el,id){
   const pend=!!S.pend[id]; el.classList.toggle('pend',pend);
   if(pend){ const ev=evalRow(id,S.pend[id]); const r=monthRows().find(x=>x.id===id);
-    el.querySelector('.amt').textContent = ev.doc ? money(ev.doc.qty*(r?r.price:0))+' 未保存' : '清空 · 未保存'; }
+    const it=S.items.find(x=>x.id===id), pr=!r?0:(fifoActive()&&it&&ev.doc?fifoCost(it,ev.doc.qty).price:r.price);   // FIFO: the price depends on the quantity
+    el.querySelector('.amt').textContent = ev.doc ? money(ev.doc.qty*pr)+' 未保存' : '清空 · 未保存'; }
 }
 function updateSaveBar(){
   const n=Object.keys(S.pend).length;
@@ -992,6 +1066,7 @@ $('cList').addEventListener('click',async e=>{
   const b=e.target.closest('[data-pr]'); if(!b) return;
   const el=b.closest('.ci'), id=el.dataset.id, it=S.items.find(i=>i.id===id); if(!it) return;
   const act=b.dataset.pr;
+  if(act==='fifo'){ S.fifoOpen = S.fifoOpen===id ? null : id; patchCount(); return; }
   if(act==='open'){ S.priceEdit=id; renderCount(); const n=$('cList').querySelector('.pr-n'); if(n){n.focus();n.select();} return; }
   if(act==='cancel'){ S.priceEdit=null; renderCount(); return; }
   const v=parseQty(el.querySelector('.pr-n').value);
@@ -1017,9 +1092,11 @@ $('cList').addEventListener('focusin',e=>{ if(e.target.tagName==='INPUT') e.targ
 $('closeBtn').addEventListener('click',()=>{
   if(Object.keys(S.pend).length){ toast('还有 '+Object.keys(S.pend).length+' 项未保存，先按保存'); return; }
   if(!countDate()){ toast('先填盘点日期'); $('cDate').focus(); return; }
+  if(!fifoReady()){ toast('还在读取采购记录，等几秒再按结账'); loadFifo(true); return; }   // never lock a month with prices that are not final
   const rows=monthRows(), t=totals(rows), todo=rows.filter(r=>r.qty===null);
   const msg=$('closeMsg'); msg.hidden=false;
   const issues=[];
+  if(fifoActive() && S.fifo && S.fifo.unmapped) issues.push(`<li>${S.fifo.unmapped} 个采购项目还没对应盘点货品，没有算进 FIFO。</li>`);
   if(todo.length) issues.push(`<li>${todo.length} 项没有填，会当作 0。真的没货就不用理，只是确认有没有漏点。</li>`);
   if(t.noPrice.length) issues.push(`<li>${t.noPrice.length} 项有数量但没单价，金额会是 0：${t.noPrice.slice(0,6).map(r=>esc(r.name.split(/\s{1}/).slice(0,4).join(' '))).join('、')}${t.noPrice.length>6?'…':''}</li>`);
   msg.className='check '+(issues.length?'warn':'ok');
@@ -1029,7 +1106,7 @@ $('closeBtn').addEventListener('click',()=>{
   $('closeNo').onclick=()=>{msg.hidden=true;};
   $('closeGo').onclick=async()=>{
     const lines={};
-    rows.forEach(r=>{ if(r.qty) lines[r.id]={no:r.no??'',name:r.name,group:r.group,gi:r.gi,unit:r.unit,account:r.account,price:r.price,qty:r.qty}; if(r.pack && lines[r.id]) Object.assign(lines[r.id],{pack:r.pack,sub:r.sub,big:r.big,loose:r.loose}); });
+    rows.forEach(r=>{ if(r.qty) lines[r.id]={no:r.no??'',name:r.name,group:r.group,gi:r.gi,unit:r.unit,account:r.account,price:r.price,qty:r.qty,...(r.fifo?{src:r.fifo.src}:{})}; if(r.pack && lines[r.id]) Object.assign(lines[r.id],{pack:r.pack,sub:r.sub,big:r.big,loose:r.loose}); });
     const byGroup={}; t.byGroup.forEach((v,k)=>byGroup[k]=r2(v));
     const byAccount={}; t.byAcc.forEach((v,k)=>byAccount[k]=r2(v));
     try{
@@ -1440,7 +1517,7 @@ function setTab(t){
   try{localStorage.setItem('mf-stock-tab-'+CID,t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
-function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); }
+function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); loadFifo(); }
 
 renderAll();
 try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(t); }catch(e){}
@@ -1462,17 +1539,18 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   let me;
   try{ me=await http('GET',''); }catch(e){ off.hidden=false; off.textContent='连接不上服务器：'+(e&&e.message||e); return; }
   if(!me.enabled){ off.hidden=false; off.textContent='这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。'; return; }
-  S.mgr=!!me.mgr; S.add=!!me.canAdd; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name;
+  S.mgr=!!me.mgr; S.add=!!me.canAdd; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name; S.fifoFrom=String(me.fifoFrom||'');
   document.body.classList.toggle('is-mgr',S.mgr); document.body.classList.toggle('can-add',S.add); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
   if(S.cfgName) $('coName').textContent=S.cfgName;
   listen('settings', rows=>{ const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName) $('coName').textContent=S.cfgName; renderReport(); });
   listen('groups', rows=>{ S.groups=rows; renderAll(); });
   listen('items', rows=>{ S.items=rows; renderAll(); });
-  listen('counts', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.cmeta=m; patchCount(true); renderReport(); });
+  listen('counts', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.cmeta=m; patchCount(true); renderReport(); loadFifo(); });
   listen('closing', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.closings=m; renderAll(); });
   watchLines();
   watchLog();
   setInterval(()=>{ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved
+  setInterval(()=>{ if(!document.hidden && fifoActive()) loadFifo(true); }, 30000);   // and new purchase bills
 })();
 const applyTheme = t => document.documentElement.setAttribute('data-theme', t==='dark' ? 'dark' : 'light');
 if(QS.get('theme')) applyTheme(QS.get('theme'));

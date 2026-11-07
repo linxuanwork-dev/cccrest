@@ -127,6 +127,15 @@ tr.isdup td{background:var(--bad-soft)}
 .qgrid tr.q-ok td.qst{color:var(--ok)}
 .qgrid .xbtn{border:0;background:none;color:var(--muted);cursor:pointer;width:100%;padding:6px 0;font:inherit}
 .qgrid .xbtn:hover{color:var(--bad)}
+.lines .c-unit{width:112px}
+.lines.nostock .c-unit{display:none}
+.lines .lnote{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.lines .lnote.warn{color:var(--warn)}
+.lines .lnote input{margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:14px;padding:3px 10px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip small{color:var(--muted);margin-left:6px;font-family:var(--f-mono)}
 body:not(.is-mgr) .mgr-only{display:none!important}
 body.is-mgr .staff-only{display:none!important}
 .role{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--muted);white-space:nowrap}
@@ -147,6 +156,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       <button role="tab" data-tab="entry" aria-selected="false">单张录入（多项目）</button>
       <button role="tab" data-tab="bills" aria-selected="false">单据列表 / 导出<span class="ct" id="ctBills">0</span></button>
       <button role="tab" data-tab="suppliers" aria-selected="false">供应商<span class="ct" id="ctSup">0</span></button>
+      <button role="tab" data-tab="items" aria-selected="false">货品对应<span class="ct" id="ctItems">0</span></button>
     </nav>
   </div>
 </header>
@@ -185,7 +195,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <form class="panel" id="billForm" autocomplete="off">
           <div class="ph">
             <h2 id="formTitle">新采购单</h2>
-            <span class="small muted"><span class="key"></span> 黄色 = 必填</span>
+            <div class="row"><button type="button" class="btn sm" id="copyLast" title="把这个供应商最近一张单的项目、单位、单价带进来，只要改数量">复制该供应商上一张</button>
+            <span class="small muted"><span class="key"></span> 黄色 = 必填</span></div>
           </div>
           <div class="fields">
             <label class="f wide must"><span>供应商 Legal Name <em>(2)</em></span>
@@ -203,11 +214,13 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
           <div class="ph" style="margin-top:18px;margin-bottom:8px"><h2>项目 Line items</h2>
             <button type="button" class="btn sm" id="addLine">+ 加一行</button></div>
           <div class="tbl-wrap">
-            <table class="lines">
-              <thead><tr><th>Item Description *</th><th class="c-acc">Account *</th><th class="c-qty r">Qty</th><th class="c-price r">Unit Price *</th><th class="c-tax">Tax</th><th class="c-x"></th></tr></thead>
+            <table class="lines nostock">
+              <thead><tr><th>Item Description *</th><th class="c-unit">买的单位</th><th class="c-acc">Account *</th><th class="c-qty r">Qty</th><th class="c-price r">Unit Price *</th><th class="c-tax">Tax</th><th class="c-x"></th></tr></thead>
               <tbody id="lineBody"></tbody>
             </table>
           </div>
+          <datalist id="itemList"></datalist><datalist id="stockList"></datalist>
+          <p class="small muted" style="margin:8px 0 0">项目栏打字会跳出这个供应商常买的货；也可以从 Excel 复制「项目 ｜ 数量 ｜ 单价」三栏，贴在项目栏里。</p>
           <div class="total"><span class="muted">总额 RM</span><b id="fTotal">0.00</b></div>
 
           <div class="bar">
@@ -221,6 +234,11 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       </div>
 
       <aside>
+        <div class="panel">
+          <h2 style="margin-bottom:4px">常买清单</h2>
+          <p class="small muted" style="margin:0 0 8px">点一下就加一行（价钱是上次的），再填数量。</p>
+          <div class="chips" id="usual"></div>
+        </div>
         <div class="panel">
           <h2 style="margin-bottom:10px">重复单号检查</h2>
           <div id="dupBox" class="check idle">输入供应商和单号后会自动检查。</div>
@@ -312,6 +330,53 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     </div>
   </section>
 
+  <!-- ITEMS: what each supplier sells us, and (with Stock Count) which Stock Count item it is -->
+  <section id="v-items" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div class="ph">
+          <h2>货品对应 / 常买清单</h2>
+          <div class="filters">
+            <select id="iSup"><option value="">全部供应商</option></select>
+            <select id="iShow"><option value="all">全部</option><option value="unlinked">只看还没对应盘点货品的</option></select>
+            <input type="search" id="iQ" placeholder="搜项目">
+          </div>
+        </div>
+        <p class="small muted" style="margin:-4px 0 10px">每打一张单，系统会记住这个供应商卖什么、用什么单位、上次多少钱。<span class="stk-col">有库存盘点的公司，要把「单上名称」对应到盘点的货品并设好单位，这些进货才会算进 FIFO。同一个货品每个供应商只要对应一次。</span></p>
+        <div class="tbl-wrap" style="max-height:62vh;overflow:auto">
+          <table>
+            <thead><tr><th>供应商</th><th>单上名称</th><th class="stk-col">盘点货品（系统名）</th><th class="stk-col">买的单位</th><th class="r">上次价</th><th class="r">次数</th><th></th></tr></thead>
+            <tbody id="itemBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <aside>
+        <form class="panel" id="itemForm" autocomplete="off">
+          <h2 style="margin-bottom:10px" id="itemFormTitle">新增 / 修改项目</h2>
+          <div class="fields" style="grid-template-columns:1fr">
+            <label class="f must"><span>供应商</span><input id="iFSup" list="supList" required></label>
+            <label class="f must"><span>单上名称（供应商单据上怎么写）</span><input id="iFAlias" required></label>
+            <label class="f stk-col"><span>盘点货品（系统里的名字）</span><input id="iFStock" list="stockList" placeholder="打字搜索"></label>
+            <label class="f stk-col"><span>买的单位（例 CTN、PKT、KG）</span><input id="iFUnit"></label>
+            <label class="f stk-col"><span>1 个盘点单位 = 几个这种单位</span><input id="iFPer" inputmode="decimal" value="1"></label>
+            <label class="f"><span>上次价（每个「买的单位」）</span><input id="iFPrice" inputmode="decimal"></label>
+          </div>
+          <div class="row" style="margin-top:12px;justify-content:flex-end">
+            <button type="button" class="btn" id="itemCancel" hidden>取消</button>
+            <button class="btn pri" type="submit">保存</button>
+          </div>
+        </form>
+        <div class="panel mgr-only">
+          <h2 style="margin-bottom:6px">从 Excel 一次贴上</h2>
+          <p class="small muted" style="margin:0 0 8px">六栏：供应商 ｜ 单上名称 ｜ 盘点货品（系统名）｜ 买的单位 ｜ 1 个盘点单位=几个 ｜ 单价（可空）。同一个供应商+名称会更新。</p>
+          <textarea id="itemPaste" rows="5" placeholder="ABC FOODS SDN BHD	FISH BALL 500G	FISH BALL	PKT	20	3.50"></textarea>
+          <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn" id="itemPasteBtn">加入</button></div>
+          <div id="itemPasteMsg" class="small" style="margin-top:8px" hidden></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
 </main>
 <div class="toast" id="toast" hidden></div>
 
@@ -326,13 +391,13 @@ const dmy = iso => iso ? iso.split('-').reverse().join('/') : '';
 const todayISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
-const S = { company:null, cid:null, suppliers:[], bills:[], unsubs:[], editingId:null, editingSup:null, selected:new Set(), lastExport:null };
+const S = { company:null, cid:null, suppliers:[], bills:[], items:[], stock:[], hasStock:false, editingItem:null, unsubs:[], editingId:null, editingSup:null, selected:new Set(), lastExport:null };
 
 /* ---------- storage layer: the CC CREST server (REST) ---------- */
 const QS = new URLSearchParams(location.search);
 const CID = QS.get('company') || '';
 const API = '/api/companies/' + encodeURIComponent(CID) + '/purchase-bill';
-const L = { sup: [], bills: [] };
+const L = { sup: [], bills: [], items: [] };
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2600); }
 function dbErr(e){ console.error(e); toast('保存失败：'+(e && e.message || e)); }
 async function http(method, url, body){
@@ -349,14 +414,15 @@ async function refresh(){
     S.mgr = !!d.mgr; document.body.classList.toggle('is-mgr', S.mgr); $('roleTag').textContent = S.mgr ? 'Manager' : '员工';
     S.company = d.company;
     $('offline').hidden = true;
-    L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills));
+    S.hasStock = !!d.hasStock; S.stock = d.stock || []; applyStockMode();
+    L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills)); L.items.forEach(cb=>cb(d.items || []));
   }catch(e){
     $('offline').hidden = false;
     $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
   }
 }
 function listen(coll, cb){
-  const arr = /suppliers$/.test(coll) ? L.sup : L.bills; arr.push(cb);
+  const arr = /suppliers$/.test(coll) ? L.sup : /items$/.test(coll) ? L.items : L.bills; arr.push(cb);
   return ()=>{ const i=arr.indexOf(cb); if(i>=0) arr.splice(i,1); };
 }
 // paths look like org/{cid}/suppliers/{id} and companies/{cid}/bills/{id}; a new id means a new record
@@ -376,13 +442,14 @@ async function del(path){ const parts=path.split('/'); await http('DELETE','/'+p
 /* ---------- company (fixed: the CC CREST company this page is opened for; its settings are in the Control Panel) ---------- */
 const co = () => S.company ? Object.assign({id:S.cid}, S.company) : null;
 function switchCompany(id){
-  S.unsubs.forEach(u=>u()); S.unsubs=[]; S.suppliers=[]; S.bills=[]; S.selected.clear();
+  S.unsubs.forEach(u=>u()); S.unsubs=[]; S.suppliers=[]; S.bills=[]; S.items=[]; S.selected.clear();
   S.cid=id;
   resetForm();
   Q.rows=[]; qLoad(); qRender();
   if(!id){ renderAll(); return; }
   S.unsubs.push(listen('org/'+id+'/suppliers', rows=>{ S.suppliers=rows.sort((a,b)=>a.name.localeCompare(b.name)); renderSuppliers(); onSupplierInput(false); qStatusAll(); }));
   S.unsubs.push(listen('companies/'+id+'/bills', rows=>{ S.bills=rows; renderBills(); renderSide(); checkDup(); qStatusAll(); }));
+  S.unsubs.push(listen('companies/'+id+'/items', rows=>{ S.items=rows; renderItems(); refreshItemLists(); updateUsual(); }));
 }
 
 /* ---------- suppliers ---------- */
@@ -435,27 +502,169 @@ $('pasteBtn').addEventListener('click', async ()=>{
 
 /* ---------- entry form ---------- */
 function defaultAccount(sup){ return (sup&&sup.account) || (co()&&co().account) || ''; }
+/* A line can be linked to a Stock Count item (when the company uses Stock Count): tr._st = {item, as, unit, per}
+   item = the Stock Count item, as = the name on the supplier's invoice, unit/per = what it was bought in (`per` of them make 1 Stock Count unit).
+   The line's Item Description is always the system's (Stock Count) name; the supplier's own name is remembered for next time. */
+const stockById = id => S.stock.find(x=>x.id===id);
+const stockByName = n => S.stock.find(x=>normName(x.name)===normName(n));
+const mapFor = (sup, alias) => S.items.find(m=>normName(m.supplier)===normName(sup) && normName(m.alias)===normName(alias));
+function applyStockMode(){
+  document.querySelector('table.lines').classList.toggle('nostock', !S.hasStock);
+  document.querySelectorAll('.stk-col').forEach(el=>{ el.hidden=!S.hasStock; });
+  // a company that counts stock enters its bills item by item (the quick grid has one total per bill, so it is not offered)
+  const qt=document.querySelector('#tabs [data-tab=quick]'); qt.hidden=S.hasStock;
+  if(S.hasStock && !$('v-quick').hidden) setTab('entry');
+  $('stockList').innerHTML=S.stock.filter(x=>x.active).map(x=>`<option value="${esc(x.name)}">${esc(x.unit)}</option>`).join('');
+}
+function fillUnit(tr){
+  const st=tr._st, sel=tr.querySelector('.l-unit'), si=st.item?stockById(st.item):null;
+  if(!si){ sel.innerHTML=''; sel.disabled=true; return; }
+  sel.disabled=false;
+  const opts=[{label:si.unit||'UNIT',per:1}];
+  if(si.pack>1) opts.push({label:si.sub||'PKT',per:si.pack});
+  const hit=st.unit ? opts.find(o=>o.label.toUpperCase()===st.unit.toUpperCase() && Math.abs(o.per-st.per)<1e-9) : null;
+  if(hit) st.unit=hit.label; else if(st.unit) opts.push({label:st.unit,per:st.per});
+  if(!st.unit){ st.unit=opts[0].label; st.per=opts[0].per; }
+  sel.innerHTML=opts.map(o=>`<option value="${esc(o.label)}|${o.per}">${esc(o.label)}${o.per!==1?` （1 ${esc(si.unit)} = ${o.per}）`:''}</option>`).join('')+'<option value="__other">其他单位…</option>';
+  sel.value=st.unit+'|'+st.per;
+}
+function updateNote(tr){
+  const st=tr._st, note=tr.querySelector('.lnote'), si=st.item?stockById(st.item):null, desc=tr.querySelector('.l-desc').value.trim();
+  if(!S.hasStock){ note.textContent=''; return; }
+  if(si){
+    const qty=parseFloat(tr.querySelector('.l-qty').value)||0, price=parseFloat(String(tr.querySelector('.l-price').value).replace(/,/g,''));
+    let t='盘点货品：'+si.name+(st.as?'（单上写 '+st.as+'）':'');
+    if(!isNaN(price) && st.per>0) t+=' · 成本 RM '+money(price*st.per)+' / '+si.unit+(qty?' · 进货 '+(Math.round(qty/st.per*1000)/1000)+' '+si.unit:'');
+    note.className='lnote small'; note.textContent=t;
+  } else if(desc){
+    if(!note.querySelector('.l-map')){ note.className='lnote small warn'; note.innerHTML='⚠ 还没对应盘点货品（不会算进 FIFO）：<input class="l-map" list="stockList" placeholder="打系统里的货品名，选一个" autocomplete="off">'; }
+  } else { note.className='lnote small'; note.textContent=''; }
+}
+function applyDefaults(tr, m, si){
+  const pr=tr.querySelector('.l-price');
+  if(m && m.price!=null && !pr.value.trim()) pr.value=(+m.price).toFixed(2);   // the last price, per the unit it was bought in
+  const acc=tr.querySelector('.l-acc');
+  if(!acc.value.trim() || acc.dataset.auto==='1'){ const a=(m&&m.account)||(si&&si.account)||''; if(a){ acc.value=a; acc.dataset.auto='1'; } }
+}
+// work out what the typed name is: this supplier's remembered item, or a Stock Count item by its system name
+function resolveLine(tr){
+  const desc=tr.querySelector('.l-desc'), text=normName(desc.value), sup=$('fSup').value, st=tr._st;
+  if(!text){ tr._st={item:'',as:'',unit:'',per:1}; tr.querySelector('.lnote').innerHTML=''; fillUnit(tr); updateNote(tr); return; }
+  const m=mapFor(sup,text);
+  let si=null, mm=m;
+  if(m && m.item && stockById(m.item)){ si=stockById(m.item); }
+  else if(S.hasStock){ si=stockByName(text); if(si) mm=mapFor(sup,si.name)||null; }
+  if(si){
+    st.item=si.id; st.as=normName(si.name)!==text ? text : ''; st.unit=(mm&&mm.unit)||''; st.per=(mm&&mm.per)||1;
+    desc.value=si.name;
+    applyDefaults(tr,mm,si);
+  } else {
+    st.item=''; st.as=''; st.unit=''; st.per=1;
+    if(m) applyDefaults(tr,m,null);
+    tr.querySelector('.lnote').innerHTML='';
+  }
+  fillUnit(tr); updateNote(tr); calcTotal();
+}
 function lineRow(l={}){
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td><input class="must l-desc" value="${esc(l.desc||'')}" required></td>
+  tr._st={item:l.item||'', as:l.as||'', unit:l.unit||'', per:Number(l.per)>0?Number(l.per):1};
+  tr.innerHTML=`<td><input class="must l-desc" list="itemList" value="${esc(l.desc||'')}" required><div class="lnote small"></div></td>
+   <td class="c-unit"><select class="l-unit" aria-label="买的单位"></select></td>
    <td class="c-acc"><input class="mono l-acc" value="${esc(l.account||'')}"></td>
    <td class="c-qty"><input class="mono l-qty" inputmode="decimal" style="text-align:right" value="${esc(l.qty ?? 1)}"></td>
    <td class="c-price"><input class="mono must l-price" inputmode="decimal" style="text-align:right" value="${esc(l.price ?? '')}" required></td>
    <td class="c-tax"><input class="mono l-tax" value="${esc(l.tax||'')}" placeholder="—"></td>
    <td class="c-x"><button type="button" class="btn sm" title="删除这行" aria-label="删除这行">×</button></td>`;
-  tr.querySelector('button').addEventListener('click',()=>{ if($('lineBody').children.length>1){tr.remove();calcTotal();} });
-  tr.addEventListener('input',()=>{calcTotal();checkDup();});
-  $('lineBody').appendChild(tr); return tr;
+  tr.querySelector('.c-x button').addEventListener('click',()=>{ if($('lineBody').children.length>1){tr.remove();calcTotal();} });
+  tr.addEventListener('input',()=>{calcTotal();checkDup();updateNote(tr);});
+  tr.querySelector('.l-desc').addEventListener('change',()=>resolveLine(tr));
+  tr.querySelector('.l-unit').addEventListener('change',e=>{
+    const v=e.target.value, si=stockById(tr._st.item), oldPer=tr._st.per||1;
+    if(v==='__other' && si){
+      const name=(prompt('买的单位叫什么？（例如 KG、BOX）','')||'').trim().toUpperCase();
+      const per=name?parseFloat(prompt('1 '+si.unit+' 等于几个 '+name+'？（例如 12）','1')):0;
+      if(name && per>0){ tr._st.unit=name; tr._st.per=per; }
+    } else { const i=v.lastIndexOf('|'); tr._st.unit=v.slice(0,i); tr._st.per=parseFloat(v.slice(i+1))||1; }
+    // the same goods cost the same: a price already typed is converted to the new buying unit (check it against the invoice)
+    const pr=tr.querySelector('.l-price'), p=parseFloat(String(pr.value).replace(/,/g,''));
+    if(!isNaN(p) && tr._st.per!==oldPer){ pr.value=(Math.round(p*oldPer/tr._st.per*100)/100).toFixed(2); toast('单价已按新单位换算，请跟单据核对'); }
+    fillUnit(tr); updateNote(tr); calcTotal();
+  });
+  tr.addEventListener('change',e=>{   // the "which Stock Count item is this" box of a line that is not linked yet
+    if(!e.target.classList.contains('l-map')) return;
+    const si=stockByName(e.target.value);
+    if(!si) return toast('系统里找不到这个货品名，请从下拉里选');
+    const d=tr.querySelector('.l-desc'); tr._st={item:si.id, as:normName(d.value), unit:'', per:1};
+    d.value=si.name; tr.querySelector('.lnote').innerHTML=''; applyDefaults(tr,null,si); fillUnit(tr); updateNote(tr);
+  });
+  $('lineBody').appendChild(tr); fillUnit(tr); updateNote(tr); return tr;
 }
 function readLines(){
-  return [...$('lineBody').children].map(tr=>({
-    desc:tr.querySelector('.l-desc').value.trim().toUpperCase(),
-    account:tr.querySelector('.l-acc').value.trim(),
-    qty:parseFloat(tr.querySelector('.l-qty').value)||1,
-    price:parseFloat(String(tr.querySelector('.l-price').value).replace(/,/g,'')),
-    tax:tr.querySelector('.l-tax').value.trim().toUpperCase()
-  }));
+  return [...$('lineBody').children].map(tr=>{
+    const st=tr._st||{}, linked=!!(st.item && stockById(st.item));
+    return {
+      desc:tr.querySelector('.l-desc').value.trim().toUpperCase(),
+      as:linked?(st.as||''):'', item:linked?st.item:'', unit:linked?(st.unit||''):'', per:linked?(st.per||1):1,
+      account:tr.querySelector('.l-acc').value.trim(),
+      qty:parseFloat(tr.querySelector('.l-qty').value)||1,
+      price:parseFloat(String(tr.querySelector('.l-price').value).replace(/,/g,'')),
+      tax:tr.querySelector('.l-tax').value.trim().toUpperCase()
+    };
+  });
 }
+/* this supplier's usual items: the suggestions in the Item box and the "usual items" buttons */
+function supItems(){
+  const sup=normName($('fSup').value); if(!sup) return [];
+  const seen=new Set();
+  return S.items.filter(m=>normName(m.supplier)===sup).sort((a,b)=>(b.uses-a.uses)||(b.date||'').localeCompare(a.date||'')).filter(m=>{
+    const k=m.item?'I'+m.item:'A'+normName(m.alias); if(seen.has(k)) return false; seen.add(k); return true; });
+}
+function refreshItemLists(){
+  const names=new Set(supItems().map(m=>{ const si=m.item&&stockById(m.item); return si?si.name:m.alias; }));
+  S.stock.filter(x=>x.active).forEach(x=>names.add(x.name));
+  $('itemList').innerHTML=[...names].map(n=>`<option value="${esc(n)}">`).join('');
+}
+function updateUsual(){
+  const rows=supItems().slice(0,30);
+  $('usual').innerHTML = rows.length ? rows.map(m=>{ const si=m.item&&stockById(m.item); return `<button type="button" class="chip" data-usual="${esc(m.id)}" title="${esc(m.alias)}">${esc(si?si.name:m.alias)}${m.price!=null?`<small>${money(m.price)}${m.unit?' / '+esc(m.unit):''}</small>`:''}</button>`; }).join('')
+    : `<p class="small muted">${$('fSup').value.trim()?'这个供应商还没有记录。打完第一张单，它常买的项目就会出现在这里。':'选了供应商后，这里会出现它常买的项目。'}</p>`;
+}
+$('usual').addEventListener('click',e=>{
+  const b=e.target.closest('[data-usual]'); if(!b) return;
+  const m=S.items.find(x=>x.id===b.dataset.usual); if(!m) return;
+  let tr=[...$('lineBody').children].find(r=>!r.querySelector('.l-desc').value.trim());
+  if(!tr){ tr=lineRow({account:defaultAccount(supByName($('fSup').value))}); tr.querySelector('.l-acc').dataset.auto='1'; }
+  tr.querySelector('.l-desc').value=m.alias; tr.querySelector('.l-price').value='';
+  resolveLine(tr);
+  const q=tr.querySelector('.l-qty'); q.value=''; q.focus();
+});
+$('copyLast').addEventListener('click',()=>{
+  const sup=normName($('fSup').value); if(!sup) return toast('先选供应商');
+  const last=S.bills.filter(b=>normName(b.supplier)===sup).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||((b.createdAt||0)-(a.createdAt||0)))[0];
+  if(!last) return toast('这个供应商还没有单据');
+  $('lineBody').innerHTML='';
+  (last.lines||[]).forEach(l=>{ const tr=lineRow(l); if(!l.item && S.hasStock) resolveLine(tr); });
+  if(!$('lineBody').children.length) lineRow({});
+  $('fNo').value=''; $('fRef').value=''; $('fDate').value=todayISO(); if(!$('fTags').value.trim()) $('fTags').value=last.tags||'';
+  calcTotal(); checkDup(); $('fNo').focus();
+  toast('已带入 '+(last.no||'上一张')+' 的 '+(last.lines||[]).length+' 行，请改单号、数量和单价');
+});
+// paste "item | qty | price" rows from Excel into the Item box
+$('lineBody').addEventListener('paste',e=>{
+  if(!e.target.classList.contains('l-desc')) return;
+  const txt=(e.clipboardData||window.clipboardData).getData('text'); if(!/[\t\n]/.test(txt.replace(/\r?\n$/,''))) return;
+  e.preventDefault();
+  const rows=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(r=>r.split('\t'));
+  let tr=e.target.closest('tr');
+  rows.forEach((c,i)=>{
+    if(i>0){ tr=lineRow({account:defaultAccount(supByName($('fSup').value))}); tr.querySelector('.l-acc').dataset.auto='1'; }
+    tr.querySelector('.l-desc').value=(c[0]||'').trim().toUpperCase();
+    if(c[1]!==undefined && c[1].trim()!=='') tr.querySelector('.l-qty').value=c[1].trim();
+    if(c[2]!==undefined && c[2].trim()!=='') tr.querySelector('.l-price').value=c[2].trim().replace(/,/g,'');
+    resolveLine(tr);
+  });
+  calcTotal(); checkDup(); toast('已贴上 '+rows.length+' 行');
+});
 function calcTotal(){ const t=readLines().reduce((a,l)=>a+(isNaN(l.price)?0:l.price*l.qty),0); $('fTotal').textContent=money(t); return t; }
 function onSupplierInput(fillDefaults=true){
   const sup=supByName($('fSup').value);
@@ -465,6 +674,7 @@ function onSupplierInput(fillDefaults=true){
     if(!$('fTags').value.trim() && sup.tags) $('fTags').value=sup.tags;
     [...$('lineBody').querySelectorAll('.l-acc')].forEach(i=>{ if(!i.value.trim()||i.dataset.auto==='1'){ i.value=defaultAccount(sup); i.dataset.auto='1'; } });
   }
+  refreshItemLists(); updateUsual();
   checkDup();
 }
 $('fSup').addEventListener('input',()=>onSupplierInput(true));
@@ -523,6 +733,9 @@ $('billForm').addEventListener('submit', async e=>{
   const no=$('fNo').value.trim().toUpperCase();
   const lines=readLines().filter(l=>l.desc||!isNaN(l.price));
   if(!lines.length || lines.some(l=>!l.desc||isNaN(l.price))) return toast('每一行都要有项目和单价');
+  if([...$('lineBody').children].some(tr=>tr.querySelector('.l-desc').value.trim() && tr.querySelector('.l-qty').value.trim()==='')) return toast('每一行都要填数量');
+  const unlinked=S.hasStock ? lines.filter(l=>!l.item).length : 0;
+  if(unlinked && !confirm(unlinked+' 行还没对应盘点货品，不会算进 FIFO（以后可以在「货品对应」补上）。照样保存吗？')) return;
   const sup=supByName(supName);
   if(!sup && !S.mgr) return toast('供应商不在名单，请从下拉选择或通知 manager 新增');
   lines.forEach(l=>{ if(!l.account) l.account=defaultAccount(sup); });
@@ -554,7 +767,7 @@ function editBill(id){
   const b=S.bills.find(x=>x.id===id); if(!b) return;
   setTab('entry'); S.editingId=id;
   $('fSup').value=b.supplier; $('fNo').value=b.no||''; $('fDate').value=b.date||''; $('fRef').value=b.ref||''; $('fTags').value=b.tags||''; $('fDesc').value=b.desc||'';
-  $('lineBody').innerHTML=''; (b.lines||[]).forEach(l=>lineRow(l));
+  $('lineBody').innerHTML=''; (b.lines||[]).forEach(l=>{ const tr=lineRow(l); if(!l.item && S.hasStock) resolveLine(tr); });
   $('formTitle').textContent='修改单据 '+(b.no||''); $('saveBtn').textContent='保存修改';
   onSupplierInput(false); calcTotal(); checkDup(); $('fSup').focus();
 }
@@ -803,15 +1016,79 @@ $('qSave').addEventListener('click',async ()=>{
   const g=$('qGoList'); if(g) g.onclick=()=>{ $('flStatus').value='draft'; $('flMonth').value=''; $('flSup').value=''; $('flQ').value=''; S.selected.clear(); renderBills(); setTab('bills'); };
 });
 
+/* ---------- items: what each supplier sells us (and which Stock Count item it is) ---------- */
+function renderItems(){
+  $('ctItems').textContent = S.hasStock ? S.items.filter(m=>!m.item).length : S.items.length;
+  $('ctItems').className = 'ct' + (S.hasStock && S.items.some(m=>!m.item) ? ' alert' : '');
+  const sels=[...new Set(S.items.map(m=>m.supplier))].sort(), cur=$('iSup').value;
+  $('iSup').innerHTML='<option value="">全部供应商</option>'+sels.map(n=>`<option>${esc(n)}</option>`).join(''); $('iSup').value=cur;
+  const q=normName($('iQ').value), show=$('iShow').value;
+  const rows=S.items.filter(m=>(!cur||m.supplier===cur) && (show!=='unlinked'||!m.item) && (!q||normName(m.alias).includes(q)||normName(m.supplier).includes(q)));
+  $('itemBody').innerHTML = rows.length ? rows.slice(0,400).map(m=>{
+    const si=m.item&&stockById(m.item);
+    return `<tr><td>${esc(m.supplier)}</td><td>${esc(m.alias)}</td>
+      <td class="stk-col"${S.hasStock?'':' hidden'}>${si?esc(si.name):'<span class="pill warn">未对应</span>'}</td>
+      <td class="stk-col"${S.hasStock?'':' hidden'}>${esc(m.unit||'')}${si&&m.unit&&m.per!==1?` <span class="muted small">（1 ${esc(si.unit)} = ${m.per}）</span>`:''}</td>
+      <td class="r mono">${m.price!=null?money(m.price):'—'}</td><td class="r mono">${m.uses}</td>
+      <td class="r" style="white-space:nowrap"><button class="btn sm" data-edit-item="${esc(m.id)}">改</button> <button class="btn sm danger mgr-only" data-del-item="${esc(m.id)}">删</button></td></tr>`; }).join('')
+      + (rows.length>400?`<tr><td colspan="7" class="empty">只显示前 400 个，请用上面的筛选缩小范围。</td></tr>`:'')
+    : `<tr><td colspan="7" class="empty">${S.items.length?'没有符合的项目。':'还没有记录。保存采购单后，供应商卖什么会自动记在这里，也可以用右边从 Excel 贴上。'}</td></tr>`;
+}
+['iSup','iShow','iQ'].forEach(id=>$(id).addEventListener('input',renderItems));
+function itemReset(){ S.editingItem=null; $('itemForm').reset(); $('iFPer').value='1'; $('itemFormTitle').textContent='新增 / 修改项目'; $('itemCancel').hidden=true; }
+$('itemCancel').addEventListener('click',itemReset);
+$('itemBody').addEventListener('click',async e=>{
+  const ed=e.target.closest('[data-edit-item]'), dl=e.target.closest('[data-del-item]');
+  if(ed){
+    const m=S.items.find(x=>x.id===ed.dataset.editItem); if(!m) return;
+    S.editingItem=m.id; const si=m.item&&stockById(m.item);
+    $('iFSup').value=m.supplier; $('iFAlias').value=m.alias; $('iFStock').value=si?si.name:''; $('iFUnit').value=m.unit||''; $('iFPer').value=m.per; $('iFPrice').value=m.price!=null?m.price:'';
+    $('itemFormTitle').textContent='修改项目'; $('itemCancel').hidden=false; $('iFStock').focus();
+  }
+  if(dl){
+    if(dl.dataset.armed!=='1'){ dl.dataset.armed='1'; dl.textContent='确定删?'; setTimeout(()=>{dl.dataset.armed='';dl.textContent='删'},3000); return; }
+    try{ await http('DELETE','/items/'+encodeURIComponent(dl.dataset.delItem)); toast('已删除'); refreshSoon(); }catch(err){ dbErr(err); }
+  }
+});
+$('iFStock').addEventListener('change',()=>{
+  const si=stockByName($('iFStock').value); if(!si) return;
+  $('iFStock').value=si.name;
+  if(!$('iFUnit').value.trim()){ $('iFUnit').value=si.unit; $('iFPer').value='1'; }
+});
+$('itemForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const stockName=$('iFStock').value.trim(), si=stockName?stockByName(stockName):null;
+  if(stockName && !si) return toast('系统里找不到这个盘点货品，请从下拉里选');
+  const body={ supplier:normName($('iFSup').value), alias:normName($('iFAlias').value), item:si?si.id:'', unit:$('iFUnit').value.trim(), per:$('iFPer').value.trim()||'1', price:$('iFPrice').value.trim().replace(/,/g,'') };
+  try{
+    if(S.editingItem) await http('PUT','/items/'+encodeURIComponent(S.editingItem),body); else await http('POST','/items',body);
+    toast('已保存 '+body.alias); itemReset(); refreshSoon();
+  }catch(err){ dbErr(err); }
+});
+$('itemPasteBtn').addEventListener('click',async ()=>{
+  const rows=$('itemPaste').value.split(/\r?\n/).map(l=>l.split('\t')).filter(c=>c[0]&&c[0].trim()&&c[1]&&c[1].trim()&&!/^(legal name|供应商)$/i.test(c[0].trim()))
+    .map(c=>({supplier:c[0],alias:c[1],stock:c[2]||'',unit:c[3]||'',per:(c[4]||'').trim()||'1',price:(c[5]||'').trim().replace(/,/g,'')}));
+  if(!rows.length) return toast('请先贴上内容');
+  const msg=$('itemPasteMsg'); $('itemPasteBtn').disabled=true;
+  try{
+    const r=await http('POST','/items/bulk',{rows});
+    msg.hidden=false; msg.style.color=r.skipped.length?'var(--warn)':'var(--ok)';
+    msg.innerHTML='已加入 / 更新 <b>'+r.saved+'</b> 个项目'+(r.skipped.length?'；<b>'+r.skipped.length+'</b> 行没加：<br>'+r.skipped.slice(0,12).map(s=>'第 '+s.row+' 行 '+esc(s.alias)+'：'+esc(s.why)).join('<br>'):'');
+    if(!r.skipped.length) $('itemPaste').value='';
+    refreshSoon();
+  }catch(err){ dbErr(err); }
+  $('itemPasteBtn').disabled=false;
+});
+
 /* ---------- tabs ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false'));
-  ['quick','entry','bills','suppliers'].forEach(x=>$('v-'+x).hidden = x!==t);
+  ['quick','entry','bills','suppliers','items'].forEach(x=>$('v-'+x).hidden = x!==t);
   try{localStorage.setItem('bk-tab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
 
-function renderAll(){ renderSuppliers(); renderBills(); renderSide(); checkDup(); }
+function renderAll(){ renderSuppliers(); renderBills(); renderSide(); checkDup(); renderItems(); }
 
 /* ---------- boot ---------- */
 const applyTheme = t => document.documentElement.setAttribute('data-theme', t==='dark' ? 'dark' : 'light');

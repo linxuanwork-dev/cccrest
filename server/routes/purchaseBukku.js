@@ -189,6 +189,7 @@ router.post('/purchase-bukku/companies/:id/import', requireRole('admin'), (req, 
       );
       have.add(key);
       added++;
+      await learn(client, req.params.id, b.supplier, b.date, b.lines, true);   // old bills teach each supplier's usual items and last prices
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -234,13 +235,153 @@ const billOut = (r) => ({
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
 const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, created_at, updated_at`;
 
+// ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
+async function stockOf(companyId) {
+  const on = await pool.query('SELECT enabled FROM stock_count_settings WHERE company_id = $1', [companyId]);
+  if (!on.rows[0] || !on.rows[0].enabled) return null;
+  const { rows } = await pool.query(`SELECT path, data FROM stock_count_docs WHERE company_id = $1 AND coll = 'items'`, [companyId]);
+  return rows.map((r) => ({
+    id: r.path.slice(6), name: String(r.data.name || ''), unit: String(r.data.unit || ''), sub: String(r.data.sub || ''),
+    pack: Number(r.data.pack) > 1 ? Number(r.data.pack) : 0, account: String(r.data.account || ''), active: r.data.active !== false
+  }));
+}
+async function stockIdsProblem(companyId, ids) {
+  const want = [...new Set(ids.filter(Boolean))];
+  if (!want.length) return null;
+  const { rows } = await pool.query('SELECT path FROM stock_count_docs WHERE company_id = $1 AND path = ANY($2::text[])', [companyId, want.map((i) => 'items/' + i)]);
+  return rows.length === want.length ? null : '有一个盘点货品不存在（可能已被删除）。 A Stock Count item in this bill no longer exists.';
+}
+const ITEM_COLS = `id, supplier, alias, stock_item_id, unit, per, price, to_char(last_date, 'YYYY-MM-DD') AS last_date, account, tax, uses`;
+const itemOut = (r) => ({
+  id: String(r.id), supplier: r.supplier, alias: r.alias, item: r.stock_item_id, unit: r.unit, per: Number(r.per),
+  price: r.price == null ? null : Number(r.price), date: r.last_date || '', account: r.account, tax: r.tax, uses: r.uses
+});
+
+// Remember what each supplier sold us (name, buying unit, last price) so the next bill is mostly clicking; `bump` = count this as a new use.
+async function learn(db, companyId, supplier, date, lines, bump) {
+  for (const l of lines) {
+    for (const alias of [...new Set([l.desc, l.as].filter(Boolean))]) {
+      await db.query(
+        `INSERT INTO purchase_bukku_items (company_id, supplier, alias, stock_item_id, unit, per, price, last_date, account, tax, uses)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11)
+         ON CONFLICT (company_id, supplier, alias) DO UPDATE SET
+           stock_item_id = CASE WHEN EXCLUDED.stock_item_id <> '' THEN EXCLUDED.stock_item_id ELSE purchase_bukku_items.stock_item_id END,
+           unit = CASE WHEN EXCLUDED.unit <> '' THEN EXCLUDED.unit ELSE purchase_bukku_items.unit END,
+           per = CASE WHEN EXCLUDED.unit <> '' THEN EXCLUDED.per ELSE purchase_bukku_items.per END,
+           price = CASE WHEN EXCLUDED.last_date IS NOT NULL AND (purchase_bukku_items.last_date IS NULL OR EXCLUDED.last_date >= purchase_bukku_items.last_date)
+                        THEN EXCLUDED.price ELSE purchase_bukku_items.price END,
+           last_date = GREATEST(purchase_bukku_items.last_date, EXCLUDED.last_date),
+           account = CASE WHEN EXCLUDED.account <> '' THEN EXCLUDED.account ELSE purchase_bukku_items.account END,
+           tax = CASE WHEN EXCLUDED.tax <> '' THEN EXCLUDED.tax ELSE purchase_bukku_items.tax END,
+           uses = purchase_bukku_items.uses + EXCLUDED.uses, updated_at = now()`,
+        [companyId, supplier, alias, l.item || '', l.unit || '', l.per > 0 ? l.per : 1, l.price, validIso(date) ? date : null, l.account || '', l.tax || '', bump ? 1 : 0]
+      );
+    }
+  }
+}
+
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await enabledSettings(req, res); if (!s) return;
-  const [sup, bills] = await Promise.all([
+  const [sup, bills, items, stock] = await Promise.all([
     pool.query('SELECT id, name, code, account, tags FROM purchase_bukku_contacts WHERE company_id = $1 ORDER BY name', [req.params.companyId]),
-    pool.query(`SELECT ${BILL_COLS} FROM purchase_bukku_bills WHERE company_id = $1`, [req.params.companyId])
+    pool.query(`SELECT ${BILL_COLS} FROM purchase_bukku_bills WHERE company_id = $1`, [req.params.companyId]),
+    pool.query(`SELECT ${ITEM_COLS} FROM purchase_bukku_items WHERE company_id = $1 ORDER BY supplier, alias`, [req.params.companyId]),
+    stockOf(req.params.companyId)
   ]);
-  res.json({ mgr: isMgr(req), company: { name: s.name, short: s.short, account: s.account }, suppliers: sup.rows.map(supOut), bills: bills.rows.map(billOut) });
+  res.json({
+    mgr: isMgr(req), company: { name: s.name, short: s.short, account: s.account }, suppliers: sup.rows.map(supOut), bills: bills.rows.map(billOut),
+    items: items.rows.map(itemOut), hasStock: !!stock, stock: stock || []
+  });
+});
+
+// ---- each supplier's usual items (and the link to Stock Count items) ----
+function cleanItem(b) {
+  b = b || {};
+  const supplier = normName(b.supplier), alias = String(b.alias == null ? '' : b.alias).toUpperCase().replace(/\s+/g, ' ').trim();
+  if (!supplier || supplier.length > 150) return { error: '请填供应商。 The supplier is required.' };
+  if (!alias || alias.length > 200) return { error: '请填项目名称。 The item name is required.' };
+  const per = Number(b.per == null || b.per === '' ? 1 : b.per);
+  if (!Number.isFinite(per) || per <= 0 || per > 1000000) return { error: '「一个盘点单位 = 几个」要大于 0。 The number per Stock Count unit must be more than 0.' };
+  const price = b.price === '' || b.price == null ? null : Number(b.price);
+  if (price !== null && (!Number.isFinite(price) || price < 0)) return { error: '单价不对。 The price is not valid.' };
+  return {
+    supplier, alias, item: String(b.item || '').trim().slice(0, 80), unit: String(b.unit || '').trim().toUpperCase().slice(0, 20),
+    per: Math.round(per * 10000) / 10000, price: price === null ? null : Math.round(price * 10000) / 10000,
+    account: String(b.account || '').trim().slice(0, 20), tax: String(b.tax || '').trim().toUpperCase().slice(0, 20)
+  };
+}
+router.post(BASE + '/items', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = cleanItem(req.body);
+  if (b.error) return bad(res, b.error);
+  const problem = await stockIdsProblem(req.params.companyId, [b.item]);
+  if (problem) return bad(res, problem);
+  const { rows } = await pool.query(
+    `INSERT INTO purchase_bukku_items (company_id, supplier, alias, stock_item_id, unit, per, price, account, tax)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     ON CONFLICT (company_id, supplier, alias) DO UPDATE SET stock_item_id = $4, unit = $5, per = $6, price = $7, account = $8, tax = $9, updated_at = now()
+     RETURNING ${ITEM_COLS}`,
+    [req.params.companyId, b.supplier, b.alias, b.item, b.unit, b.per, b.price, b.account, b.tax]
+  );
+  res.status(201).json(itemOut(rows[0]));
+});
+router.put(BASE + '/items/:id', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = cleanItem(req.body);
+  if (b.error) return bad(res, b.error);
+  const problem = await stockIdsProblem(req.params.companyId, [b.item]);
+  if (problem) return bad(res, problem);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE purchase_bukku_items SET supplier = $3, alias = $4, stock_item_id = $5, unit = $6, per = $7, price = $8, account = $9, tax = $10, updated_at = now()
+        WHERE id = $1 AND company_id = $2 RETURNING ${ITEM_COLS}`,
+      [Number(req.params.id) || 0, req.params.companyId, b.supplier, b.alias, b.item, b.unit, b.per, b.price, b.account, b.tax]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(itemOut(rows[0]));
+  } catch (err) {
+    if (err.code === '23505') return bad(res, '这个供应商已经有同名的项目。 That supplier already has an item with this name.');
+    throw err;
+  }
+});
+router.delete(BASE + '/items/:id', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  await pool.query('DELETE FROM purchase_bukku_items WHERE id = $1 AND company_id = $2', [Number(req.params.id) || 0, req.params.companyId]);
+  res.json({ ok: true });
+});
+// Many at once (pasted from Excel): supplier | name on the invoice | Stock Count item (system name) | buying unit | how many per 1 Stock Count unit | price
+router.post(BASE + '/items/bulk', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  const rows = req.body && req.body.rows;
+  if (!Array.isArray(rows) || !rows.length || rows.length > 3000) return bad(res, 'Invalid request');
+  const stock = await stockOf(req.params.companyId);
+  const byName = new Map((stock || []).map((x) => [normName(x.name), x.id]));
+  let saved = 0; const skipped = [];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const [i, r] of rows.entries()) {
+      const sys = normName(r && r.stock);
+      if (sys && !byName.has(sys)) { skipped.push({ row: i + 1, alias: String((r && r.alias) || ''), why: '系统里找不到这个盘点货品：' + sys }); continue; }
+      const b = cleanItem({ supplier: r && r.supplier, alias: r && r.alias, item: sys ? byName.get(sys) : '', unit: r && r.unit, per: r && r.per, price: r && r.price });
+      if (b.error) { skipped.push({ row: i + 1, alias: String((r && r.alias) || ''), why: b.error }); continue; }
+      await client.query(
+        `INSERT INTO purchase_bukku_items (company_id, supplier, alias, stock_item_id, unit, per, price)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (company_id, supplier, alias) DO UPDATE SET stock_item_id = $4, unit = $5, per = $6,
+           price = COALESCE($7, purchase_bukku_items.price), updated_at = now()`,
+        [req.params.companyId, b.supplier, b.alias, b.item, b.unit, b.per, b.price]
+      );
+      saved++;
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  res.json({ saved, skipped });
 });
 
 // ---- suppliers (manager only) ----
@@ -303,7 +444,16 @@ function cleanBill(b) {
     const rawPrice = l && l.price;
     const price = rawPrice === '' || rawPrice == null ? NaN : Number(rawPrice), qty = Number(l && l.qty);
     if (!desc || !Number.isFinite(price) || price < 0) return { error: '每一行都要有项目和单价。 Every line needs an item and a unit price.' };
-    lines.push({ desc, account: String((l && l.account) || '').trim().slice(0, 20), qty: Number.isFinite(qty) && qty > 0 ? qty : 1, price, tax: String((l && l.tax) || '').trim().toUpperCase().slice(0, 20) });
+    const line = { desc, account: String((l && l.account) || '').trim().slice(0, 20), qty: Number.isFinite(qty) && qty > 0 ? qty : 1, price, tax: String((l && l.tax) || '').trim().toUpperCase().slice(0, 20) };
+    // Stock Count link: the Stock Count item this line is, and what it was bought in (a carton, a pack...: `per` of them make 1 Stock Count unit)
+    const item = String((l && l.item) || '').trim().slice(0, 80);
+    const unit = String((l && l.unit) || '').trim().toUpperCase().slice(0, 20);
+    const rawPer = Number(l && l.per);
+    const as = String((l && l.as) || '').trim().toUpperCase().slice(0, 200);
+    if (item) line.item = item;
+    if (unit) { line.unit = unit; line.per = Number.isFinite(rawPer) && rawPer > 0 ? Math.round(rawPer * 10000) / 10000 : 1; }
+    if (as && as !== desc) line.as = as;
+    lines.push(line);
   }
   const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
   return { supplier, no, date: b.date, lines, total, code: String(b.code || '').trim().toUpperCase().slice(0, 30), ref: String(b.ref || '').trim().slice(0, 60), tags: String(b.tags || '').trim().slice(0, 100), desc: String(b.desc || '').trim().slice(0, 200), dupAck: b.dupAck === true };
@@ -318,13 +468,14 @@ router.post(BASE + '/bills', ...guard(2), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const b = cleanBill(req.body);
   if (b.error) return bad(res, b.error);
-  const problem = await staffSupplierProblem(req, b.supplier);
+  const problem = await staffSupplierProblem(req, b.supplier) || await stockIdsProblem(req.params.companyId, b.lines.map((l) => l.item));
   if (problem) return bad(res, problem);
   const { rows } = await pool.query(
     `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$12) RETURNING ${BILL_COLS}`,
     [req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub]
   );
+  try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, true); } catch (err) { console.error('purchase items learn failed:', err); }
   res.status(201).json(billOut(rows[0]));
 });
 
@@ -336,13 +487,14 @@ router.put(BASE + '/bills/:id', ...guard(2), async (req, res) => {
   if (old[0].status === 'exported' && !isMgr(req)) return res.status(403).json({ error: '已导出的单据只有 manager 可以修改。 Only a manager can change an exported bill.' });
   const b = cleanBill(req.body);
   if (b.error) return bad(res, b.error);
-  const problem = await staffSupplierProblem(req, b.supplier);
+  const problem = await staffSupplierProblem(req, b.supplier) || await stockIdsProblem(req.params.companyId, b.lines.map((l) => l.item));
   if (problem) return bad(res, problem);
   const { rows } = await pool.query(
     `UPDATE purchase_bukku_bills SET supplier = $3, code = $4, no = $5, ref = $6, bill_date = $7, tags = $8, description = $9, lines = $10::jsonb, total = $11,
        dup_ack = $12, updated_by = $13, updated_at = now() WHERE id = $1 AND company_id = $2 RETURNING ${BILL_COLS}`,
     [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub]
   );
+  try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, false); } catch (err) { console.error('purchase items learn failed:', err); }
   const shape = (x) => ({ supplier: x.supplier, no: x.no, date: x.date || x.bill_date, tags: x.tags, lines: x.lines.map((l) => l.desc + ' | ' + l.account + ' | ' + l.qty + ' x ' + l.price) });
   await docs.logUpdate(req, req.params.companyId, 'purchase_bukku_bill', old[0].no, docs.diffObjects(shape(old[0]), shape(b)));
   res.json(billOut(rows[0]));

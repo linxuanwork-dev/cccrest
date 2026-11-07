@@ -292,7 +292,7 @@ body.is-mgr .noman-only{display:none!important}
         <div id="bulkBar" class="savebar" style="position:static;margin:0 0 10px" hidden><span class="small" id="bulkInfo">直接在单价栏打新价钱，Enter 跳下一项，改完按保存。</span><div class="row"><button type="button" class="btn sm" id="bulkCancel">取消</button><button type="button" class="btn pri" id="bulkSave" disabled>保存单价</button></div></div>
         <div class="tbl-wrap" style="max-height:70vh;overflow:auto">
           <table>
-            <thead><tr><th>NO</th><th>货品 Products</th><th>Group</th><th>单位</th><th class="r">单价 RM</th><th>Account</th><th class="add-only"></th></tr></thead>
+            <thead><tr><th>货品 Products</th><th>Group</th><th>单位</th><th class="r">单价 RM</th><th>Account</th><th class="add-only"></th></tr></thead>
             <tbody id="iBody"></tbody>
           </table>
         </div>
@@ -309,7 +309,6 @@ body.is-mgr .noman-only{display:none!important}
             <label class="f mgr-only"><span>单价 Price RM</span><input id="fPrice" class="mono" inputmode="decimal"></label>
             <label class="f"><span>1 单位 = 几个小单位</span><input id="fPack" class="mono" inputmode="decimal" placeholder="例 12（不用就留空）"></label>
             <label class="f"><span>小单位</span><input id="fSub" list="unitList" placeholder="例 PKT"></label>
-            <label class="f mgr-only"><span>NO</span><input id="fNo" class="mono" inputmode="numeric" placeholder="自动"></label>
             <label class="f wide mgr-only"><span>Account（留空用分组预设）</span><input id="fAcc" list="accList"><datalist id="accList"></datalist></label>
             <label class="f wide row" id="fActiveRow" hidden style="flex-direction:row;gap:6px"><input type="checkbox" id="fActive" checked style="width:auto"> <span style="font-size:13px;color:var(--ink)">在用（停用的不会出现在盘点表）</span></label>
           </div>
@@ -464,6 +463,7 @@ body.is-mgr .noman-only{display:none!important}
     '这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。': 'Stock Count is not switched on for this company. Ask the Owner to switch it on in the Control Panel.',
     '新增货品 ': 'Add item', '期末存货 RM': 'Closing stock RM', '确定结账 ': 'Confirm close',
     '明细': 'Details', '收起': 'Hide',
+    '已经有同名货品': 'An item with the same name already exists',
     '你可以新增货品、修改货品资料和删除还没有记录的货品；单价只有 CC CREST 可以改。': 'You can add items, edit item details and delete items that have no records. Only CC CREST can change prices.',
     '全部展开': 'Expand all', '全部收起': 'Collapse all', '点类别名称，展开或收起这一类的清单': 'Click a category name to open or close its list',
     '本月单价按「采购单」的进货价用 FIFO 计算：期末的货当作最近买进的几批，各批用自己的进价；没有进货记录的货品用货品资料的单价。': 'This month\'s prices are worked out by FIFO from the purchase bills: the stock at month end is treated as the most recently bought batches, each at its own purchase price. Items with no purchase records use the price in the item list.',
@@ -744,7 +744,7 @@ function monthRows(){
     const l=S.lines[it.id];
     const ep=effPack(it), pack=ep.pack, po=S.packs[it.id];
     const f=fifo?fifoCost(it,l?Number(l.qty):null):null;
-    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,no:it.no,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:f?r6(f.price):(Number(it.price)||0),fifo:f&&f.src!=='master'?f:null,qty:l?Number(l.qty):null,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
+    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:f?r6(f.price):(Number(it.price)||0),fifo:f&&f.src!=='master'?f:null,qty:l?Number(l.qty):null,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
   });
   return rows;
 }
@@ -1127,7 +1127,7 @@ $('closeBtn').addEventListener('click',()=>{
   $('closeNo').onclick=()=>{msg.hidden=true;};
   $('closeGo').onclick=async()=>{
     const lines={};
-    rows.forEach(r=>{ if(r.qty) lines[r.id]={no:r.no??'',name:r.name,group:r.group,gi:r.gi,unit:r.unit,account:r.account,price:r.price,qty:r.qty,...(r.fifo?{src:r.fifo.src}:{})}; if(r.pack && lines[r.id]) Object.assign(lines[r.id],{pack:r.pack,sub:r.sub,big:r.big,loose:r.loose}); });
+    rows.forEach(r=>{ if(r.qty) lines[r.id]={name:r.name,group:r.group,gi:r.gi,unit:r.unit,account:r.account,price:r.price,qty:r.qty,...(r.fifo?{src:r.fifo.src}:{})}; if(r.pack && lines[r.id]) Object.assign(lines[r.id],{pack:r.pack,sub:r.sub,big:r.big,loose:r.loose}); });
     const byGroup={}; t.byGroup.forEach((v,k)=>byGroup[k]=r2(v));
     const byAccount={}; t.byAcc.forEach((v,k)=>byAccount[k]=r2(v));
     try{
@@ -1184,8 +1184,8 @@ $('exportBtn').addEventListener('click',async()=>{
   const rows=monthRows(), t=totals(rows), c=closing(), p=S.closings[prevMonth(S.month)];
   const asAt=lastDay(S.month)+'/'+S.month.slice(5)+'/'+S.month.slice(0,4);
   const wb=XLSX.utils.book_new();
-  const head=['NO','PRODUCTS','GROUP','PRICE','ACCOUNT','QTY','UNIT','AMOUNT','COUNT DETAIL'];
-  const line=r=>[r.no??'',r.name,r.group,r.price||0,r.account,r.qty??0,r.unit,r2((r.qty||0)*(r.price||0)),r.pack&&r.qty?fmtCount(r):''];
+  const head=['PRODUCTS','GROUP','PRICE','ACCOUNT','QTY','UNIT','AMOUNT','COUNT DETAIL'];
+  const line=r=>[r.name,r.group,r.price||0,r.account,r.qty??0,r.unit,r2((r.qty||0)*(r.price||0)),r.pack&&r.qty?fmtCount(r):''];
   const sum=[[(S.cfgName||'MINIFISH SDN BHD')],['CLOSING STOCK REPORT AS AT '+asAt],['STOCK COUNT DATE: '+(dmy(countDate())||'-')],[c?'Status: CLOSED':'Status: NOT CLOSED (draft)'],[],
     ['GROUP','CLOSING (RM)','PREVIOUS MONTH (RM)']];
   t.byGroup.forEach((v,k)=>sum.push([k,r2(v),p&&p.byGroup?(p.byGroup[k]||0):'']));
@@ -1193,13 +1193,13 @@ $('exportBtn').addEventListener('click',async()=>{
   t.byAcc.forEach((v,k)=>sum.push([k,r2(v)]));
   const ws0=XLSX.utils.aoa_to_sheet(sum); ws0['!cols']=[{wch:40},{wch:16},{wch:20}];
   XLSX.utils.book_append_sheet(wb,ws0,'SUMMARY');
-  const all=[head,...rows.map(line),['','TOTAL','','','','','',t.total]];
-  const ws1=XLSX.utils.aoa_to_sheet(all); ws1['!cols']=[{wch:5},{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:7},{wch:12},{wch:20}];
+  const all=[head,...rows.map(line),['TOTAL','','','','','',t.total]];
+  const ws1=XLSX.utils.aoa_to_sheet(all); ws1['!cols']=[{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:7},{wch:12},{wch:20}];
   XLSX.utils.book_append_sheet(wb,ws1,'ALL ITEMS');
   const groups=[...new Set(rows.map(r=>r.group))];
   groups.forEach(g=>{
     const gr=rows.filter(r=>r.group===g);
-    const ws=XLSX.utils.aoa_to_sheet([head,...gr.map(line),['','TOTAL','','','','','',r2(t.byGroup.get(g)||0)]]);
+    const ws=XLSX.utils.aoa_to_sheet([head,...gr.map(line),['TOTAL','','','','','',r2(t.byGroup.get(g)||0)]]);
     ws['!cols']=ws1['!cols'];
     XLSX.utils.book_append_sheet(wb,ws,g.replace(/[\\\/?*\[\]:]/g,' ').slice(0,31));
   });
@@ -1229,12 +1229,12 @@ function renderItems(){
   const q=norm($('iQ').value), g=$('iGroup').value, off=$('iOff').checked;
   const rows=sortItems(S.items.filter(i=>(off||i.active!==false)&&(!g||i.groupId===g)&&(!q||norm(i.name).includes(q))));
   $('iBody').innerHTML = rows.length ? rows.map(i=>`<tr class="${i.active===false?'off':''}">
-    <td class="mono small">${esc(i.no??'')}</td><td style="min-width:240px">${esc(i.name)}${i.active===false?' <span class="pill mute">停用</span>':''}</td>
+    <td style="min-width:240px">${esc(i.name)}${i.active===false?' <span class="pill mute">停用</span>':''}</td>
     <td class="small">${esc(groupName(i))}</td><td class="small">${esc(i.unit||'')}${Number(i.pack)>1?`<div class="muted">1 = ${esc(qfmt(i.pack))} ${esc(i.sub||'PKT')}</div>`:''}</td>
     <td class="r mono">${S.bulk ? `<input class="bp${S.bulkP[i.id]!==undefined?' chg':''}" data-bp="${esc(i.id)}" inputmode="decimal" value="${esc(S.bulkP[i.id]!==undefined?S.bulkP[i.id]:(Number(i.price)>0?i.price:''))}" aria-label="${esc(i.name)} 单价">` : (Number(i.price)>0?money(i.price):'<span class="pill warn">无</span>')}${i.priceAt?`<div class="small muted" style="font-family:var(--f-body)">${new Date(i.priceAt).toLocaleDateString('en-GB')}</div>`:''}</td>
     <td class="small" style="white-space:nowrap">${esc(itemAccount(i))}${i.account?'':' <span class="muted">(分组)</span>'}</td>
     <td class="r add-only" style="white-space:nowrap"><button class="btn sm" data-edit="${esc(i.id)}">改</button> <button class="btn sm danger" data-idel="${esc(i.id)}">删</button></td></tr>`).join('')
-    : `<tr><td colspan="7" class="empty">${S.items.length?'找不到':'还没有货品。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
+    : `<tr><td colspan="6" class="empty">${S.items.length?'找不到':'还没有货品。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
 }
 ['iQ','iGroup','iOff'].forEach(id=>$(id).addEventListener('input',renderItems));
 /* bulk price edit */
@@ -1285,21 +1285,20 @@ $('iBody').addEventListener('click',async e=>{
   }
   const b=e.target.closest('[data-edit]'); if(!b) return;
   const i=S.items.find(x=>x.id===b.dataset.edit); S.editItem=i.id;
-  $('fName').value=i.name; $('fGroup').value=i.groupId||''; $('fUnit').value=i.unit||''; $('fPrice').value=i.price||''; $('fNo').value=i.no??''; $('fPack').value=Number(i.pack)>1?i.pack:''; $('fSub').value=i.sub||''; $('fAcc').value=i.account||''; $('fActive').checked=i.active!==false;
+  $('fName').value=i.name; $('fGroup').value=i.groupId||''; $('fUnit').value=i.unit||''; $('fPrice').value=i.price||''; $('fPack').value=Number(i.pack)>1?i.pack:''; $('fSub').value=i.sub||''; $('fAcc').value=i.account||''; $('fActive').checked=i.active!==false;
   $('iFormTitle').textContent='修改货品'; $('fActiveRow').hidden=false; $('iCancel').hidden=false; $('fName').focus();
 });
 function iReset(){ S.editItem=null; $('iForm').reset(); $('fActive').checked=true; $('fActiveRow').hidden=true; $('iFormTitle').textContent='新增货品'; $('iCancel').hidden=true; }
 $('iCancel').addEventListener('click',iReset);
-const nextNo = () => S.items.reduce((m,i)=>Math.max(m,Number(i.no)||0),0)+1;
 $('iForm').addEventListener('submit',async e=>{
   e.preventDefault();
   const name=norm($('fName').value); if(!name) return;
   const groupId=$('fGroup').value; if(!groupId) return toast('先到「分组」新增分组');
   const dupe=S.items.find(i=>norm(i.name)===name && i.id!==S.editItem);
-  if(dupe) return toast('已经有同名货品（NO '+(dupe.no??'')+'）');
+  if(dupe) return toast('已经有同名货品');
   const ex=S.editItem?S.items.find(i=>i.id===S.editItem):null;
   const price=r2(String($('fPrice').value).replace(/,/g,''));
-  const body=Object.assign({},ex||{},{name,groupId,unit:$('fUnit').value.trim(),price,account:$('fAcc').value.trim(),active:ex?$('fActive').checked:true,no:Number($('fNo').value)||(ex&&ex.no)||nextNo(),updatedAt:Date.now(),pack:Number($('fPack').value)>1?Number($('fPack').value):0,sub:Number($('fPack').value)>1?($('fSub').value.trim().toUpperCase()||'PKT'):''});
+  const body=Object.assign({},ex||{},{name,groupId,unit:$('fUnit').value.trim(),price,account:$('fAcc').value.trim(),active:ex?$('fActive').checked:true,updatedAt:Date.now(),pack:Number($('fPack').value)>1?Number($('fPack').value):0,sub:Number($('fPack').value)>1?($('fSub').value.trim().toUpperCase()||'PKT'):''});
   if(!ex || Number(ex.price)!==price) body.priceAt=Date.now();
   delete body.id;
   try{
@@ -1325,21 +1324,20 @@ function itemDiff(a,b,gname){
   if(!same(a.account,b.account)) c.push(['Account',a.account||'',b.account||'']);
   if((Number(a.pack)||0)!==(Number(b.pack)||0) || (Number(a.pack)>1 && !same(a.sub,b.sub))) c.push(['箱数',descPack(a.pack,a.sub,a.unit),descPack(b.pack,b.sub,b.unit)]);
   if((a.active!==false)!==(b.active!==false)) c.push(['状态',a.active===false?'停用':'在用',b.active===false?'停用':'在用']);
-  if(!same(a.no,b.no)) c.push(['NO',a.no??'',b.no??'']);
   return c;
 }
 /* ---------- import (Excel file or paste) with preview ---------- */
 const cleanAcc = v => String(v??'').replace(/ /g,' ').replace(/\s+/g,' ').trim();
 const numOrU = v => { const t=String(v??'').replace(/,/g,'').trim(); if(t==='') return undefined; const n=Number(t); return isFinite(n)?n:undefined; };
 function rowsFromArrays(arr, hasHeader){
-  let h=-1, col={name:0,group:1,price:2,account:3,unit:4,pack:5,sub:6,no:-1};
+  let h=-1, col={name:0,group:1,price:2,account:3,unit:4,pack:5,sub:6};
   if(hasHeader){
     h=arr.findIndex(r=>(r||[]).some(c=>norm(c)==='PRODUCTS'));
     if(h<0) return {err:'找不到 PRODUCTS 栏。第一行要有 PRODUCTS、GROUP、PRICE 这些标题。'};
-    col={name:-1,group:-1,price:-1,account:-1,unit:-1,pack:-1,sub:-1,no:-1};
+    col={name:-1,group:-1,price:-1,account:-1,unit:-1,pack:-1,sub:-1};
     (arr[h]||[]).forEach((c,i)=>{ const k=norm(c);
       if(k==='PRODUCTS') col.name=i; else if(k==='GROUP') col.group=i; else if(k==='PRICE'||k==='单价') col.price=i;
-      else if(k==='ACCOUNT') col.account=i; else if(k==='UNIT'||k==='单位') col.unit=i; else if(k==='NO') col.no=i;
+      else if(k==='ACCOUNT') col.account=i; else if(k==='UNIT'||k==='单位') col.unit=i;   // a NO column in an old file is ignored
       else if(/PACK|PER CTN|几个|箱数/.test(k)) col.pack=i; else if(/SUB|小单位/.test(k)) col.sub=i; });
     const body=arr.slice(h+1);
     // the original STOCK LISTING has no header on the Account (E) and Unit (G) columns
@@ -1351,7 +1349,7 @@ function rowsFromArrays(arr, hasHeader){
   arr.slice(h+1).forEach(r=>{
     if(!r) return; const name=norm(get(r,'name')); if(!name || name==='TOTAL' || name==='PRODUCTS') return;
     if(seen.has(name)){ dup.push(name); return; } seen.add(name);
-    out.push({name, no:numOrU(get(r,'no')), group:norm(get(r,'group'))||undefined, price:col.price>=0?numOrU(get(r,'price')):undefined,
+    out.push({name, group:norm(get(r,'group'))||undefined, price:col.price>=0?numOrU(get(r,'price')):undefined,
       account:col.account>=0?(cleanAcc(get(r,'account'))||undefined):undefined, unit:col.unit>=0?(String(get(r,'unit')??'').trim()||undefined):undefined,
       pack:col.pack>=0?numOrU(get(r,'pack')):undefined, sub:col.sub>=0?(String(get(r,'sub')??'').trim().toUpperCase()||undefined):undefined});
   });
@@ -1366,7 +1364,7 @@ function planImport(rows){
     const ex=byName.get(r.name);
     const pick=(k,d)=>r[k]!==undefined?r[k]:d;
     if(!ex){
-      const b={name:r.name,group:r.group||'OTHERS',unit:r.unit||'',price:r2(r.price||0),account:r.account||'',pack:Number(r.pack)>1?r.pack:0,sub:Number(r.pack)>1?(r.sub||'PKT'):'',no:r.no,active:true};
+      const b={name:r.name,group:r.group||'OTHERS',unit:r.unit||'',price:r2(r.price||0),account:r.account||'',pack:Number(r.pack)>1?r.pack:0,sub:Number(r.pack)>1?(r.sub||'PKT'):'',active:true};
       if(!gByName.has(b.group)) plan.newGroups.add(b.group);
       plan.add.push(b); return;
     }
@@ -1402,8 +1400,7 @@ function showImport(res, source){
 async function applyImport(){
   if(!S.imp) return; const {plan,source}=S.imp; const off=$('impOff')&&$('impOff').checked;
   const go=$('impGo'); go.disabled=true;
-  const gmap=new Map(S.groups.map(g=>[norm(g.name),g.id])); let gnext=S.groups.length, no=nextNo();
-  const used=new Set(S.items.map(i=>Number(i.no)).filter(Boolean));
+  const gmap=new Map(S.groups.map(g=>[norm(g.name),g.id])); let gnext=S.groups.length;
   const logs=[]; let n=0;
   try{
     for(const gname of plan.newGroups){ if(gmap.has(gname)) continue; const gid='g'+uid(); await put('groups/'+gid,{name:gname,account:'',order:gnext++}); gmap.set(gname,gid); logs.push({a:'group',t:gname,c:[['新增分组','',gname]],s:source}); }
@@ -1413,8 +1410,7 @@ async function applyImport(){
       await put('items/'+u.ex.id,b); logs.push({a:'item',t:b.name,c:u.diff,s:source}); n++; go.textContent='保存中 '+n+'…';
     }
     for(const a of plan.add){
-      let num=Number(a.no); if(!num||used.has(num)){ while(used.has(no)) no++; num=no++; } used.add(num);
-      const b={name:a.name,groupId:gmap.get(a.group),unit:a.unit,price:a.price,account:a.account,pack:a.pack,sub:a.sub,active:true,no:num,updatedAt:Date.now(),priceAt:Date.now()};
+      const b={name:a.name,groupId:gmap.get(a.group),unit:a.unit,price:a.price,account:a.account,pack:a.pack,sub:a.sub,active:true,updatedAt:Date.now(),priceAt:Date.now()};
       await put('items/i'+uid(),b); logs.push({a:'item-add',t:b.name,c:[['新增','',descItem(b)]],s:source}); n++; go.textContent='保存中 '+n+'…';
     }
     if(off) for(const it of plan.missing){ await patch('items/'+it.id,{active:false,updatedAt:Date.now()}); logs.push({a:'item',t:it.name,c:[['状态','在用','停用']],s:source}); n++; }
@@ -1425,9 +1421,9 @@ async function applyImport(){
 }
 $('plDown').addEventListener('click',async()=>{
   if(typeof XLSX==='undefined'||!downloads) return toast('这个画面不能下载文件');
-  const aoa=[['NO','PRODUCTS','GROUP','PRICE','ACCOUNT','UNIT','PACK (1 UNIT = ?)','SUB UNIT','PRICE UPDATED']];
-  sortItems(S.items.filter(i=>i.active!==false)).forEach(i=>aoa.push([i.no??'',i.name,groupName(i),Number(i.price)||'',itemAccount(i),i.unit||'',Number(i.pack)>1?i.pack:'',Number(i.pack)>1?(i.sub||'PKT'):'',i.priceAt?new Date(i.priceAt).toLocaleDateString('en-GB'):'']));
-  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:5},{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:10},{wch:9},{wch:13}];
+  const aoa=[['PRODUCTS','GROUP','PRICE','ACCOUNT','UNIT','PACK (1 UNIT = ?)','SUB UNIT','PRICE UPDATED']];
+  sortItems(S.items.filter(i=>i.active!==false)).forEach(i=>aoa.push([i.name,groupName(i),Number(i.price)||'',itemAccount(i),i.unit||'',Number(i.pack)>1?i.pack:'',Number(i.pack)>1?(i.sub||'PKT'):'',i.priceAt?new Date(i.priceAt).toLocaleDateString('en-GB'):'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:10},{wch:9},{wch:13}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'PRICE LIST');
   const d=new Date(), tag=d.getFullYear()+'_'+String(d.getMonth()+1).padStart(2,'0')+'_'+String(d.getDate()).padStart(2,'0');
   try{ await downloads.save({filename:`MF-STOCK PRICE LIST-${tag}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }

@@ -1,7 +1,9 @@
 const { pool } = require('../db');
 
 // Pages a user can be given a level on (keys match the permission JSON stored on the user / assignment).
-const PAGES = ['sales', 'purchases', 'bank', 'claim', 'petty', 'merchant', 'payroll', 'stock', 'home', 'docs', 'profile'];   // 'payroll' = HR: Payroll and KWSP & PERKESO
+const PAGES = ['sales', 'purchases', 'bank', 'claim', 'petty', 'merchant', 'payroll', 'stock', 'home', 'docs', 'profile', 'tuition'];   // 'payroll' = HR: Payroll and KWSP & PERKESO
+// Pages only CC CREST's own people can use (admin / manager / assigned staff): a company user never gets them, whatever is stored on the account.
+const CC_ONLY_PAGES = ['tuition'];
 const LEVEL_NAMES = { 0: 'No access', 1: 'Read Only', 2: 'Create', 3: 'Create & Update', 4: 'Full Access' };
 
 // Fills in every page with a valid level. `min` is the lowest level allowed (0 = "No access" is possible for
@@ -45,6 +47,7 @@ async function getAccess(req, page) {
   }
 
   if (role === 'client') {
+    if (CC_ONLY_PAGES.includes(page)) return { level: 0, canApprove: false, ccCrest: false };
     const { rows } = await pool.query('SELECT user_type, permissions, can_approve FROM users WHERE id = $1 AND active = true', [req.user.sub]);
     const u = rows[0];
     if (!u) return { level: 0, canApprove: false, ccCrest: false };

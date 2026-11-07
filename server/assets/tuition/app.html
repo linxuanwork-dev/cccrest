@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>补习中心 学费对账 · MT Allowance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--mute:#6b7280;--line:#e5e7eb;--pri:#2457c5;--ok:#15803d;--okbg:#e8f6ec;--warn:#b45309;--warnbg:#fdf3e3;--bad:#b91c1c;--badbg:#fdecec;--info:#1e40af;--infobg:#e8effd}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 18px;position:sticky;top:0;z-index:5}
+h1{font-size:17px;margin:0 0 8px}nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{border:1px solid var(--line);background:#fff;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:13.5px}
+nav button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+main{padding:16px 18px;max-width:1400px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}.card h3{font-size:14px;margin:12px 0 6px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.kpi{font-size:22px;font-weight:600}.mute{color:var(--mute)}.small{font-size:12px}
+input,select,textarea{font:inherit;padding:5px 8px;border:1px solid #cfd4dc;border-radius:6px;background:#fff}
+input[type=number]{width:90px}
+button.b{border:1px solid var(--pri);background:var(--pri);color:#fff;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:13.5px}
+button.g{border:1px solid #cfd4dc;background:#fff;color:var(--ink);padding:5px 10px;border-radius:7px;cursor:pointer;font-size:13px}
+button.r{border:1px solid var(--bad);background:#fff;color:var(--bad);padding:5px 10px;border-radius:7px;cursor:pointer;font-size:13px}
+button:disabled{opacity:.5;cursor:default}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--line);padding:6px 7px;text-align:left;vertical-align:top}
+th{background:#f3f4f6;font-weight:600;position:sticky;top:0}td.n,th.n{text-align:right;white-space:nowrap}
+.tw{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:12px;white-space:nowrap}
+.ok{background:var(--okbg);color:var(--ok)}.warn{background:var(--warnbg);color:var(--warn)}.bad{background:var(--badbg);color:var(--bad)}.info{background:var(--infobg);color:var(--info)}.grey{background:#eee;color:#555}
+.msg{padding:9px 12px;border-radius:8px;margin:8px 0}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:9px 16px;border-radius:8px;display:none;z-index:50;max-width:90vw}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;z-index:40;overflow:auto;padding:40px 10px}
+.modal>div{background:#fff;border-radius:12px;padding:16px 18px;width:min(760px,96vw)}
+.f{display:grid;grid-template-columns:130px 1fr;gap:7px 10px;align-items:center}
+.diffs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.diffs .card{margin:0}
+details summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>补习中心 · 学费对账 &amp; MT Allowance <span id="conn" class="tag grey">连接中…</span></h1>
+  <nav id="nav"></nav>
+</header>
+<main id="main"><div class="card">载入中…</div></main>
+<div id="toast"></div>
+<div id="modal"></div>
+<script>
+// ===== Core logic (pure, no DOM) =====
+const STOP = new Set(['BIN','BINTI','BT','BTE','AL','AP','MUHAMMAD','MUHAMAD','MOHD','MOHAMAD','MOHAMMAD','MOHAMED','MUHAMMED','NUR','NURUL','NOR','PUTRI','PUTERI','PUTRA','PUTERA','SITI','AHMAD','ABDUL','ABD','SYED','WAN','DAN','YURAN','OCT','OKT','NOV','SEPT','SEP','FEE','FEES','TUISYEN','TUITION','MATH','OCTOBER','OKTOBER','NOVEMBER','SEPTEMBER','DECEMBER','DISEMBER','DEC','HOME','TERAPI','TERAPIMATH','PAYMENT','FOR','FUND','FUNDS','TRANSFER','MONTHLY','BULAN','PAKEJ','MODUL','BARU','MEPS','DUITNOW','TRSF','JULAI','OGOS','ENCIK','PUAN','ANAK']);
+function norm(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z]/g,''); }
+function toks(s){ return (String(s==null?'':s).toUpperCase().match(/[A-Z]+/g)||[]).filter(t=>t.length>=3 && !STOP.has(t)); }
+function r2(n){ return Math.round((+n||0)*100)/100; }
+
+// ---- dates ----
+function pad(n){ return String(n).padStart(2,'0'); }
+function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function addMonths(m,k){ let [y,mo]=m.split('-').map(Number); mo+=k; while(mo>12){mo-=12;y++;} while(mo<1){mo+=12;y--;} return y+'-'+pad(mo); }
+function lastDay(m){ const [y,mo]=m.split('-').map(Number); return ymd(new Date(y,mo,0)); }
+function deadlineOf(month){ return lastDay(addMonths(month,2)); }       // 10月 -> 12月31日
+function payoutFor(paidDate, month){
+  const y=+paidDate.slice(0,4), m=+paidDate.slice(5,7), d=+paidDate.slice(8,10);
+  const thisM = y+'-'+pad(m);
+  let p = d<=10 ? thisM+'-15' : addMonths(thisM,1)+'-05';
+  const earliest = month ? addMonths(month,1)+'-05' : p;
+  return p<earliest?earliest:p;
+}
+function payoutWindow(p){ // which payment dates feed payout p
+  const m=p.slice(0,7);
+  if(p.endsWith('-15')) return {from:m+'-01', to:m+'-10', label:'收款 '+m+'-01 至 '+m+'-10'};
+  const pm=addMonths(m,-1); return {from:pm+'-11', to:lastDay(pm), label:'收款 '+pm+'-11 至 '+lastDay(pm)};
+}
+function parseDate(v){
+  if(v==null||v==='') return null;
+  if(v instanceof Date && !isNaN(v)) return ymd(v);
+  if(typeof v==='number' && v>20000 && v<80000){ const d=new Date(Math.round((v-25569)*86400000)); return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate()); }
+  const s=String(v).trim(); let m;
+  if((m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/))) return m[3]+'-'+pad(m[2])+'-'+pad(m[1]);
+  if((m=s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return m[1]+'-'+m[2]+'-'+m[3];
+  return null;
+}
+function parseAmt(v){ if(v==null||v==='') return 0; if(typeof v==='number') return v; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+
+// ---- which month a payment says it is for ----
+const MON={JAN:1,JANUARI:1,JANUARY:1,FEB:2,FEBRUARI:2,FEBRUARY:2,MAC:3,MAR:3,MARCH:3,APR:4,APRIL:4,MEI:5,MAY:5,JUN:6,JUNE:6,JUL:7,JULAI:7,JULY:7,OGOS:8,OGO:8,AUG:8,AUGUST:8,SEP:9,SEPT:9,SEPTEMBER:9,SPE:9,OKT:10,OCT:10,OKTOBER:10,OCTOBER:10,OCTO:10,NOV:11,NOVEMBER:11,DIS:12,DEC:12,DISEMBER:12,DECEMBER:12};
+function monthHint(ref, txDate){
+  const s=String(ref||'').toUpperCase(); if(!s) return [];
+  const ty=+txDate.slice(0,4), tm=+txDate.slice(5,7); const found=[];
+  const re=/BULAN\s*(\d{1,2})(?!\d)|([A-Z]+)|(\d{1,2})\s*\/\s*(\d{2,4})/g; let m;
+  while((m=re.exec(s))){ let mo=null;
+    if(m[1]){ const a=+m[1]; if(a>=1&&a<=12) mo=a; }
+    else if(m[2]){ const w=m[2]; mo=MON[w]||null; if(!mo){ for(const k of ['SEPTEMBER','OKTOBER','OCTOBER','NOVEMBER','DISEMBER','DECEMBER','JULAI','OGOS','SEPT','OKT','OCT','NOV']) if(w.endsWith(k)&&w.length<=k.length+4){ mo=MON[k]; break; } } }
+    else { const a=+m[3]; if(a>=1&&a<=12) mo=a; }
+    if(mo){ let y=ty; if(mo>tm+2) y--; if(mo<tm-9) y++; const k=y+'-'+String(mo).padStart(2,'0'); if(!found.includes(k)) found.push(k); } }
+  if(found.length===2 && /[A-Z]\s*[-–]\s*[A-Z]/.test(s)){ const out=[]; let k=found[0]; let guard=0; while(k<=found[1]&&guard++<12){ out.push(k); k=addMonths(k,1);} return out; }
+  return found.sort();
+}
+// ---- package fee / rate ----
+const DEFAULT_CLASSES={A:4,B:4,C:8,'A+':4,'B+':8,'C+':2,'S B+(2)':18,'(S)A':4,'(S)C+':4,'DA+':8,'2A+':8,'TRAIL-A+':1};
+function stdClasses(state,pkg){ const p=state.packages&&state.packages[pkg]; return (p&&+p.classes)||DEFAULT_CLASSES[pkg]||4; }
+function pkgInfo(pk, code){ return (pk && pk[code]) || null; }
+function feeFor(state, line, stu){
+  const p=pkgInfo(state.packages, line.pkg); if(p && p.fee) return +p.fee;
+  if(stu && stu.pkg===line.pkg && stu.price) return +stu.price;
+  return 0;
+}
+
+// ---- bank file parsing: returns rows {date,time,payer,ref,amount} (credits only) ----
+function findHeader(rows, need){
+  for(let i=0;i<Math.min(rows.length,60);i++){
+    const r=(rows[i]||[]).map(c=>String(c==null?'':c).trim());
+    if(need.every(n=>r.some(c=>c.toLowerCase()===n.toLowerCase()))) return {i, cols:r};
+  }
+  return null;
+}
+function colIdx(cols,name){ const n=name.toLowerCase(); let i=cols.findIndex(c=>c.toLowerCase()===n); if(i<0) i=cols.findIndex(c=>c.toLowerCase().startsWith(n)); return i; }
+function parseBank(rows){
+  let h=findHeader(rows,['Transaction Date','Credit']);
+  if(h){ // AFFIN
+    const c=h.cols, iD=colIdx(c,'Transaction Date'), iT=colIdx(c,'Transaction Time'), iN=colIdx(c,'Name'), iR=colIdx(c,'Recipient Ref No.'), iO=colIdx(c,'Other Payment Details'), iM=colIdx(c,'Remarks'), iC=colIdx(c,'Credit');
+    const out=[];
+    for(let k=h.i+1;k<rows.length;k++){ const r=rows[k]||[]; const date=parseDate(r[iD]); const amt=parseAmt(r[iC]); if(!date||!(amt>0)) continue;
+      let t=r[iT]; if(t instanceof Date) t=pad(t.getHours())+':'+pad(t.getMinutes()); else if(typeof t==='number') { const mins=Math.round(t*1440); t=pad(Math.floor(mins/60))+':'+pad(mins%60);}
+      const ref=[r[iR],r[iO],iM>=0?r[iM]:null].filter(x=>x!=null&&String(x).trim()&&String(x).trim()!=='-').map(x=>x instanceof Date?ymd(x):String(x).replace(/\s+/g,' ').trim()).join(' / ');
+      out.push({date,time:t?String(t):'',payer:String(r[iN]||'').replace(/\s+/g,' ').trim(),ref,amount:r2(amt)}); }
+    return {bank:'AFFIN', rows:out};
+  }
+  h=findHeader(rows,['Trn. Date','Credit Amount']);
+  if(h){ // Public Bank
+    const c=h.cols, iD=colIdx(c,'Trn. Date'), iNo=colIdx(c,'Cheque No/Ref No'), iC=colIdx(c,'Credit Amount'), i1=colIdx(c,'Reference 1'), i2=colIdx(c,'Reference 2'), i3=colIdx(c,'Reference 3');
+    const out=[];
+    for(let k=h.i+1;k<rows.length;k++){ const r=rows[k]||[]; const date=parseDate(r[iD]); const amt=parseAmt(r[iC]); if(!date||!(amt>0)) continue;
+      const r1=String(r[i1]||''); const payer=r1.slice(0,25).trim(); const note=r1.slice(25).trim();
+      const ref=[note,r[i2],r[i3]].filter(x=>x!=null&&String(x).trim()).map(x=>String(x).replace(/\s+/g,' ').trim()).join(' / ');
+      out.push({date,time:String(r[iNo]||''),payer,ref,amount:r2(amt)}); }
+    return {bank:'PBB', rows:out};
+  }
+  return null;
+}
+function parseBankMapped(rows, map){ // generic: map={header,date,payer,ref,credit}
+  const out=[];
+  for(let k=map.header+1;k<rows.length;k++){ const r=rows[k]||[]; const date=parseDate(r[map.date]); const amt=parseAmt(r[map.credit]); if(!date||!(amt>0)) continue;
+    out.push({date,time:'',payer:String(r[map.payer]||'').replace(/\s+/g,' ').trim(),ref:map.ref>=0?String(r[map.ref]||'').replace(/\s+/g,' ').trim():'',amount:r2(amt)}); }
+  return out;
+}
+function hashStr(s){ let h1=0x811c9dc5,h2=0x1234567; for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i); h1=Math.imul(h1^c,16777619)>>>0; h2=Math.imul(h2^c,2246822507)>>>0; } return h1.toString(36)+h2.toString(36); }
+function txIds(bank, rows){ const seen={}; return rows.map(r=>{ const base=[bank,r.date,r.time,norm(r.payer),r.amount.toFixed(2),norm(r.ref)].join('|'); seen[base]=(seen[base]||0)+1; return 't'+hashStr(base+'#'+seen[base]); }); }
+
+// ---- matching ----
+// students: array of {uid, no, name, branch, status, parents:[..], pkg, price}
+function famKey(s){ return (s.parents||[]).map(norm).filter(p=>p.length>=8); }
+function nameScore(refT, name){
+  const nt=toks(name); let sc=0;
+  for(const a of refT){ for(const b of nt){ if(a===b) sc+=1; else if(a.length>=4&&b.length>=4&&(a.startsWith(b.slice(0,4))&&b.startsWith(a.slice(0,4)))) sc+=0.5; else if(a.length>=6 && b.length>=4 && a.includes(b)) sc+=0.5; } }
+  return sc;
+}
+function studentFee(state, s){ const p=pkgInfo(state.packages,s.pkg); return (p&&p.fee)?+p.fee:(+s.price||0); }
+function combos(arr, target, feeOf){
+  const res=[]; const n=arr.length; if(n>8) return res;
+  for(let mask=1; mask<(1<<n); mask++){ let sum=0; const pick=[]; for(let i=0;i<n;i++) if(mask&(1<<i)){ sum+=feeOf(arr[i]); pick.push(arr[i]); } if(Math.abs(sum-target)<0.01) res.push(pick); }
+  return res;
+}
+// returns {status:'auto'|'review'|'unmatched', how, alloc:[{uid,amt}], sugg:[uid]}
+function matchTx(state, tx, pool, paidSet){
+  const p=norm(tx.payer); const amt=+tx.amount;
+  const feeOf=s=>studentFee(state,s);
+  const byUid=Object.fromEntries(pool.map(s=>[s.uid,s]));
+  const rk=p+'|'+amt.toFixed(2);
+  const rule=state.rules && state.rules.amt && state.rules.amt[rk];
+  if(rule && rule.length && rule.every(u=>byUid[u])){
+    return {status:'auto', how:'已记住的付款人', alloc:splitAlloc(rule.map(u=>byUid[u]),amt,feeOf), sugg:rule};
+  }
+  const refT=toks(tx.ref);
+  let fam=[], how='';
+  const ruleFam = state.rules && state.rules.payer && state.rules.payer[p];
+  if(ruleFam && ruleFam.length){ fam=ruleFam.map(u=>byUid[u]).filter(Boolean); how='已记住的家庭'; }
+  if(!fam.length && p.length>=8){
+    fam=pool.filter(s=>famKey(s).some(pp=>pp.startsWith(p.slice(0,18))||p.startsWith(pp.slice(0,18))));
+    how='父母名字';
+  }
+  if(!fam.length){
+    const sc=pool.map(s=>[nameScore(refT,s.name),s]).filter(x=>x[0]>=1).sort((a,b)=>b[0]-a[0]);
+    if(sc.length){ const best=sc[0][0]; const top=sc.filter(x=>x[0]===best).map(x=>x[1]);
+      if(top.length<=3){ const fks=new Set(top.flatMap(famKey)); fam=pool.filter(s=>top.includes(s)||famKey(s).some(k=>fks.has(k))); how='备注里的学生名'; } }
+  }
+  if(!fam.length) return {status:'unmatched', how:'找不到', alloc:[], sugg:[]};
+  const active=fam.filter(s=>s.status==='Active'); if(active.length) fam=active;
+  if(fam.length===1 && how!=='备注里的学生名') return {status:'auto', how, alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]};
+  if(fam.length===1) return {status: how==='备注里的学生名'?(Math.abs(feeOf(fam[0])-amt)<0.01?'auto':'review'):'auto', how, alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]};
+  // several kids: choose by amount
+  let cs=combos(fam,amt,feeOf), mult=1;
+  for(let k=2;k<=3 && !cs.length;k++){ cs=combos(fam,amt/k,feeOf); if(cs.length) mult=k; }
+  const scoreOf=c=>c.reduce((a,s)=>a+nameScore(refT,s.name)-(paidSet&&paidSet.has(s.uid)?3:0),0);
+  if(cs.length){
+    cs.sort((a,b)=>scoreOf(b)-scoreOf(a));
+    const unique = cs.length===1 || scoreOf(cs[0])>scoreOf(cs[1]);
+    const pick=cs[0];
+    return {status: unique?'auto':'review', how: how+'+金额'+(mult>1?'（'+mult+'个月）':''), alloc:pick.map(s=>({uid:s.uid,amt:r2(feeOf(s)*mult)})), sugg:fam.map(s=>s.uid)};
+  }
+  // amount doesn't fit any combination: suggest by name in ref
+  const named=fam.filter(s=>nameScore(refT,s.name)>=1);
+  const pick=named.length?named:fam;
+  return {status:'review', how: how+'（金额对不上）', alloc:splitAlloc(pick,amt,feeOf), sugg:fam.map(s=>s.uid)};
+}
+function splitAlloc(list, amt, feeOf){
+  if(list.length===1) return [{uid:list[0].uid, amt}];
+  const fees=list.map(feeOf); const tot=fees.reduce((a,b)=>a+b,0);
+  let left=amt; return list.map((s,i)=>{ let a = i===list.length-1? r2(left) : r2(tot? amt*fees[i]/tot : amt/list.length); left-=a; return {uid:s.uid, amt:a}; });
+}
+
+// ---- ledger: FIFO per student ----
+// returns map uid -> {charges:[{month,amount,paid,paidDate,line,deadline}], credit, payments:[...]}
+function buildLedger(state){
+  const L={}; Object.defineProperty(L,'_tx',{value:{},writable:true,enumerable:false});
+  const get=uid=>L[uid]||(L[uid]={charges:[],payments:[],credit:0});
+  for(const s of allStudents(state)){
+    const o=+s.opening||0;
+    if(o>0) get(s.uid).charges.push({month:'期初',amount:o,deadline:null,line:null,opening:true});
+    else if(o<0) get(s.uid).payments.push({date:'2000-01-01',amt:-o,txid:'opening',desc:'期初预付'});
+  }
+  const months=Object.values(state.rosters||{}).filter(r=>r.confirmed).sort((a,b)=>a.month<b.month?-1:1);
+  for(const r of months){ for(const ln of r.lines||[]){ if(!ln.uid) continue; const s=findStu(state,ln.uid);
+      get(ln.uid).charges.push({month:r.month, branch:r.branch, amount:feeFor(state,ln,s), deadline:r.month>=((state.config&&state.config.ruleStart)||'2026-10')?deadlineOf(r.month):null, line:ln}); } }
+  for(const bm of Object.values(state.bank||{})) for(const t of Object.values(bm.tx||{})){
+    if(t.status==='ignore'||t.status==='unmatched') continue;
+    if(t.status==='review') continue; // not confirmed yet
+    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:monthHint(t.ref,t.date),explicit:Array.isArray(a.months)});
+  }
+  const tuitionFirst = state.config && state.config.payOrder==='tuitionFirst';
+  for(const uid in L){ const e=L[uid];
+    if(tuitionFirst) e.charges.sort((a,b)=>(a.opening?1:0)-(b.opening?1:0));
+    e.payments.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+    for(const c of e.charges){ c.paid=0; c.paidDate=null; c.cov=[]; }
+    for(const p of e.payments){ p.rem=p.amt; p.applied=[]; }
+    const firstMonth=(e.charges.find(c=>!c.opening)||{}).month;
+    const apply=(p,c)=>{ const need=r2(c.amount-c.paid); if(need<=0.001||p.rem<=0.001) return; const take=Math.min(need,p.rem); p.rem=r2(p.rem-take); c.paid=r2(c.paid+take); c.cov.push({txid:p.txid,date:p.date,amt:r2(take)}); p.applied.push({month:c.month,amt:r2(take)}); if(c.amount-c.paid<=0.001) c.paidDate=p.date; };
+    // phase 1: payments that say which month they are for
+    for(const p of e.payments){ for(const m of (p.months||[])){ let c=e.charges.find(x=>x.month===m);
+        if(!c && (!firstMonth || m<firstMonth)) c=e.charges.find(x=>x.opening);
+        if(c) apply(p,c); } }
+    // phase 2: the rest, oldest charge first
+    for(const p of e.payments){ for(const c of e.charges){ if(p.rem<=0.001) break; apply(p,c); } }
+    for(const c of e.charges){ if(c.amount<=0){ c.paidDate=c.opening?null:'n/a'; } else if(c.paidDate){ c.paidDate=c.cov.reduce((a,x)=>x.date>a?x.date:a,''); } }
+    e.credit=r2(e.payments.reduce((a,p)=>a+p.rem,0));
+    for(const p of e.payments){ if(p.txid!=='opening') L._tx[p.txid+'|'+uid]=p.applied; }
+  }
+  return L;
+}
+function allStudents(state){ const out=[]; for(const b in (state.students||{})) for(const no in (state.students[b].list||{})){ const s=state.students[b].list[no]; out.push(Object.assign({uid:b+':'+no, no, branch:b},s)); } return out; }
+function findStu(state,uid){ const [b,no]=uid.split(':'); const s=state.students&&state.students[b]&&state.students[b].list[no]; return s?Object.assign({uid,no,branch:b},s):null; }
+
+// ---- outstanding ----
+function outstanding(state, L, today){
+  const rows=[];
+  for(const uid in L){ const s=findStu(state,uid); if(!s) continue;
+    for(const c of L[uid].charges){ const owe=r2(c.amount-c.paid); if(owe<=0.001) continue;
+      const late = c.deadline && today>c.deadline;
+      const daysLeft = c.deadline? Math.round((new Date(c.deadline)-new Date(today))/86400000):null;
+      rows.push({uid, s, month:c.month, amount:c.amount, paid:c.paid, owe, deadline:c.deadline, late, daysLeft, mt:(c.line&&c.line.mt)||s.mt||'', branch:c.branch||s.branch}); } }
+  rows.sort((a,b)=>(a.branch+a.mt).localeCompare(b.branch+b.mt)||((a.daysLeft??-1e9)-(b.daysLeft??-1e9)));
+  return rows;
+}
+
+// ---- allowance ----
+function allowanceLines(state, L){
+  const out=[];
+  for(const uid in L){ const s=findStu(state,uid);
+    for(const c of L[uid].charges){ if(!c.line) continue; const p=pkgInfo(state.packages,c.line.pkg); const rate=p?+p.rate||0:0; const classes=+c.line.classes||0; const amount=r2(rate*classes);
+      let status, payout=null;
+      if(c.paidDate && c.paidDate!=='n/a'){ if(!c.deadline || c.paidDate<=c.deadline){ status='payable'; payout=payoutFor(c.paidDate,c.month);} else status='forfeit'; }
+      else if(c.paidDate==='n/a'){ status='payable'; payout=addMonths(c.month,1)+'-05'; }
+      else status='pending';
+      out.push({uid,s,month:c.month,branch:c.branch,mt:c.line.mt,pkg:c.line.pkg,classes,rate,amount,paidDate:c.paidDate,deadline:c.deadline,status,payout,noRate:!p}); } }
+  return out;
+}
+
+// ---- roster parse (teacher allowance sheet) ----
+function parseRoster(rows){
+  const lines=[]; let mt=null, inOut=false;
+  for(const r of rows){ if(!r) continue; const a=r[0], b=r[1];
+    if(typeof a==='string' && /^\s*MT\b/i.test(a)){ mt=a.trim().replace(/\s+/g,' ').toUpperCase(); inOut=false; continue; }
+    if(typeof b==='string' && /OUTSTANDING|BANK DETAIL/i.test(b)){ inOut=true; continue; }
+    if(!mt||inOut) continue;
+    if(typeof a==='number' && typeof b==='string' && b.trim() && r[2]!=null && String(r[2]).trim()){
+      const ticks=r.slice(3).filter(c=>typeof c==='string' && (/[✔✓√]/.test(c) || /^\s*[vV\/]\s*$/.test(c))).length;
+      const code=r.slice(3).find(c=>typeof c==='string' && /^\s*[A-Z]{1,3}\d{2,5}\s*$/.test(c));
+      lines.push({mt, name:b.trim().replace(/\s+/g,' '), pkg:String(r[2]).trim(), classes:ticks, no:code?code.trim():''}); }
+  }
+  return lines;
+}
+function matchName(name, list){
+  const n=norm(name); let hit=list.find(s=>norm(s.name)===n); if(hit) return {s:hit,exact:true};
+  const nt=new Set(toks(name)); let best=null,bs=0;
+  for(const s of list){ const st=toks(s.name); if(!st.length) continue; const inter=st.filter(t=>nt.has(t)).length; const sc=inter/Math.max(st.length,nt.size); if(sc>bs){bs=sc;best=s;} }
+  return bs>=0.6?{s:best,exact:false,score:bs}:null;
+}
+function mtMatches(masterMt, rosterMt){ const a=norm(masterMt).replace(/^MT/,''), b=norm(rosterMt).replace(/^MT/,''); return !!a && !!b && (a===b || a.includes(b) || b.includes(a)); }
+
+// ---- master list parse ----
+function parseMaster(rows){
+  const h=findHeader(rows,['CODE','NO']); if(!h) return null;
+  const c=h.cols; const ix=n=>colIdx(c,n);
+  const iC=ix('CODE'),iN=ix('NO'),iNm=ix('Name'),iS=ix('Status'),iE=ix('Enrolled'),iP1=ix('Parent Name'),iP2=ix('Parent or Guardian'),iP3=ix('Guardian Partner'),iM=ix('MT'),iPk=ix('PACKAGE'),iPr=ix('PRICE'),iG=ix('Gender');
+  const out=[];
+  for(let k=h.i+1;k<rows.length;k++){ const r=rows[k]||[]; const no=String(r[iN]||'').trim(); const name=String(r[iNm]||'').replace(/\s+/g,' ').trim(); if(!no||!name||!/^[A-Za-z]*\d+/.test(no)) continue;
+    let st=String(r[iS]||'Active').trim(); let transferNote='';
+    if(/^TRF/i.test(st)){ transferNote=st; st='Transferred'; } else if(/withdraw/i.test(st)) st='Withdrawn'; else if(/active/i.test(st)) st='Active';
+    out.push({no, code:String(r[iC]||'').trim(), name, status:st, transferNote, enrolled:parseDate(r[iE])||'', parents:[r[iP1],r[iP2],r[iP3]].filter(x=>x&&String(x).trim()).map(x=>String(x).trim()), mt:String(r[iM]||'').trim(), pkg:String(r[iPk]||'').trim(), price:parseAmt(r[iPr])||0, gender:iG>=0?String(r[iG]||''):''}); }
+  return out;
+}
+// Bukku aged receivables -> {no: amount}
+function parseAging(rows){
+  const h=findHeader(rows,['Customer','Total']); if(!h) return null; const iCu=colIdx(h.cols,'Customer'), iT=colIdx(h.cols,'Total');
+  const out={}; for(let k=h.i+1;k<rows.length;k++){ const r=rows[k]||[]; const m=String(r[iCu]||'').match(/^\s*([A-Za-z]*\d+)\s*-/); if(!m) continue; out[m[1]]=parseAmt(r[iT]); } return out;
+}
+
+
+</script>
+<script>
+const BRANCHES=['BBU','TST','TDA'];
+const S={students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
+let db=null, downloads=null, canWrite=true, loaded={};
+const UI={tab:'home',branch:'BBU',stuStatus:'Active',stuQ:'',rBranch:'BBU',rMonth:'2026-10',draft:null,bBank:'AFFIN',bMonth:'2026-10',bFilter:'need',oBranch:'ALL',oMt:'ALL',oLate:true,payout:null,expBank:'AFFIN',expMonth:'2026-10'};
+const TABS=[['home','总览'],['stu','学生 Master'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const today=()=>ymd(new Date());
+function toast(t,ms=2600){ const e=$('#toast'); e.textContent=t; e.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>e.style.display='none',ms); }
+function cfg(){ const c=Object.assign({bankBranches:{AFFIN:['BBU'],PBB:['TST','TDA']},payMethod:{AFFIN:'AFB-ONLINE TRANSFER',PBB:'PBB-ONLINE TRANSFER'},deposit:{AFFIN:'1000-11',PBB:''}},S.config||{}); c.inv=Object.assign({number:'IV-{B}-[YY][MM]-[3DIGIT]',account:'5000-02',desc:'{B}-YURAN {MM}{YY}',product:'',tax:''},c.inv||{}); return c; }
+
+// ---------- db ----------
+const queues={};
+function save(path,data){ if(!db){toast('没有连接数据库，无法保存');return Promise.reject();}
+  const q=(queues[path]||Promise.resolve()).then(()=>db.doc(path).set(JSON.parse(JSON.stringify(data)))).catch(e=>{ console.error(e); toast('保存失败：'+(e&&e.message||e&&e.code||e)); if(e&&e.code==='invalid_argument'){canWrite=false;} throw e; });
+  queues[path]=q.catch(()=>{}); return q; }
+/* ---------- storage: the CC CREST server. A local copy (memo) is changed first so the screen reacts at once; the server is the real store.
+   `db` has the two calls this page uses: db.collection(name).onSnapshot(cb) and db.doc('coll/id').set(data). ---------- */
+const QS=new URLSearchParams(location.search), CID=QS.get('company')||'';
+const API='/api/companies/'+encodeURIComponent(CID)+'/tuition';
+const COLLS=['students','settings','rosters','bank'];
+const memo={students:{},settings:{},rosters:{},bank:{}}, subs={students:[],settings:[],rosters:[],bank:[]};
+let MGR=false, firstSync=false, syncRev=-1, inflight=0, syncing=false, syncAgain=false, needForce=true, syncT;
+async function http(method,url,body){
+  const r=await fetch(API+url,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ const err=new Error(j.error||('请求失败 ('+r.status+')')); err.code=r.status; throw err; }
+  return j;
+}
+const stable=v=>JSON.stringify(v,(k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.keys(x).sort().reduce((o,key)=>{o[key]=x[key];return o;},{}):x);
+const snapOf=c=>({docs:Object.entries(memo[c]).map(([id,d])=>({id,data:()=>d})),metadata:{fromCache:false}});
+function notify(c){ if(firstSync) subs[c].forEach(cb=>cb(snapOf(c))); }
+function applySync(docs){
+  COLLS.forEach(c=>{ const nxt={}; (docs[c]||[]).forEach(r=>{ nxt[r.id]=r.data; }); if(stable(memo[c])!==stable(nxt)){ memo[c]=nxt; notify(c); } });
+}
+function syncSoon(force){ if(force) needForce=true; clearTimeout(syncT); syncT=setTimeout(sync,120); }
+async function sync(){
+  if(syncing){ syncAgain=true; return; }
+  syncing=true;
+  try{
+    const d=await http('GET','/sync'+((needForce||syncRev<0)?'':'?rev='+syncRev));
+    needForce=false;
+    if(inflight>0){ needForce=true; syncAgain=true; }          // a save is on its way: look again after it
+    else if(!d.same){ syncRev=d.rev; applySync(d.docs); }
+    if(!firstSync){ firstSync=true; COLLS.forEach(notify); }   // the first time: each collection is delivered once
+  }catch(e){
+    needForce=true;
+    $('#conn').className='tag bad'; $('#conn').textContent='连接不上服务器：'+(e&&e.message||e);
+  }finally{
+    syncing=false;
+    if(syncAgain){ syncAgain=false; syncSoon(); }
+  }
+}
+db={
+  collection:name=>({onSnapshot:cb=>{ subs[name].push(cb); if(firstSync) cb(snapOf(name)); return ()=>{ subs[name]=subs[name].filter(f=>f!==cb); }; }}),
+  doc:p=>({set:async data=>{
+    if(!canWrite){ const e=new Error('你只有查看权限，不能保存。'); e.code=403; throw e; }
+    const [c,id]=p.split('/'); const old=memo[c][id];
+    memo[c][id]=data; notify(c);
+    inflight++;
+    try{ await http('POST','/batch',{ops:[{op:'set',path:p,data}]}); }
+    catch(e){ if(old===undefined) delete memo[c][id]; else memo[c][id]=old; notify(c); throw e; }
+    finally{ inflight--; }
+    syncSoon(true);
+  }})
+};
+// Excel files are built in the browser; the server adds the print stamp (who / when) to the footer, and if that fails the plain file is still saved
+downloads={save:async({filename,data})=>{
+  let blob=new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  try{
+    if(/\.xlsx$/i.test(filename)){
+      const r=await fetch(API+'/stamp',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:data});
+      if(r.ok) blob=await r.blob();
+    }
+  }catch(e){ console.error('stamp',e); }
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}};
+async function init(){
+  if(!CID){ $('#conn').className='tag bad'; $('#conn').textContent='缺少公司编号'; render(); return; }
+  let me;
+  try{ me=await http('GET',''); }catch(e){ $('#conn').className='tag bad'; $('#conn').textContent=(e&&e.message)||'连接不上服务器'; render(); return; }
+  if(!me.enabled){ $('#conn').className='tag bad'; $('#conn').textContent='这家公司还没有开通'; render(); return; }
+  MGR=!!me.mgr; canWrite=!!me.canWrite;
+  const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
+  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
+  db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
+  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{}}; if(d.id==='config') S.config=v; }); done('settings'); });
+  db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
+  db.collection('bank').onSnapshot(s=>{ S.bank={}; s.docs.forEach(d=>S.bank[d.id]=d.data()); done('bank'); });
+  await sync();
+  setInterval(()=>{ if(!document.hidden) syncSoon(); },10000);   // pick up what other people saved
+}
+let _rt=null; function render(){ clearTimeout(_rt); _rt=setTimeout(renderNow,30); }
+function renderNow(){
+  $('#nav').innerHTML=TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}</button>`).join('');
+  const f={home:vHome,stu:vStu,roster:vRoster,bank:vBank,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
+  const keep=document.activeElement&&document.activeElement.id; const pos=keep?document.activeElement.selectionStart:null;
+  $('#main').innerHTML=f();
+  if(keep){ const e=document.getElementById(keep); if(e){ e.focus(); try{ if(pos!=null) e.setSelectionRange(pos,pos);}catch(_){}} }
+}
+function readFile(input){ return new Promise((res,rej)=>{ const f=input.files[0]; if(!f) return rej('没有选文件'); const r=new FileReader(); r.onload=e=>{ try{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true}); res({wb,name:f.name}); }catch(x){ rej(x); } }; r.readAsArrayBuffer(f); }); }
+function sheetRows(ws){ return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:false}); }
+async function saveXlsx(filename, sheets){ // sheets: [[name, aoa],...]
+  const wb=XLSX.utils.book_new(); for(const [n,a] of sheets) XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a),n.slice(0,31));
+  const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  if(!downloads){ toast('这个画面不能下载文件'); return; }
+  try{ await downloads.save({filename,data:new Uint8Array(buf)}); }catch(e){ if(e&&e.code!=='declined') toast('下载失败：'+(e.code||e)); }
+}
+function copyText(t){ navigator.clipboard.writeText(t).then(()=>toast('已复制，可以贴到 WhatsApp'),()=>{ modal(`<h3>复制下面的文字</h3><textarea style="width:100%;height:360px">${esc(t)}</textarea><div class="row" style="margin-top:8px"><button class="g" onclick="closeModal()">关闭</button></div>`); }); }
+function modal(html){ $('#modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div>${html}</div></div>`; }
+function closeModal(){ $('#modal').innerHTML=''; }
+function brOpts(sel,withAll){ return (withAll?['ALL']:[]).concat(BRANCHES).map(b=>`<option ${b===sel?'selected':''} value="${b}">${b==='ALL'?'全部 branch':b}</option>`).join(''); }
+function stuList(b){ return Object.entries((S.students[b]||{}).list||{}).map(([no,s])=>Object.assign({uid:b+':'+no,no,branch:b},s)); }
+function stuName(uid){ const s=findStu(S,uid); return s?s.no+' '+s.name:uid; }
+function ledger(){ return buildLedger(S); }
+function lastBankDate(bank){ let m=''; for(const d of Object.values(S.bank)) if(d.bank===bank) for(const t of Object.values(d.tx||{})) if(t.date>m) m=t.date; return m; }
+function reviewCount(){ let n=0; for(const d of Object.values(S.bank)) for(const t of Object.values(d.tx||{})) if(t.status==='review'||t.status==='unmatched') n++; return n; }
+function payoutList(){ const out=[]; let m='2026-10'; const end=addMonths(today().slice(0,7),2); while(m<=end){ out.push(m+'-05',m+'-15'); m=addMonths(m,1);} return out; }
+
+// ---------- 总览 ----------
+function vHome(){
+  const L=ledger(); const o=outstanding(S,L,today()); const al=allowanceLines(S,L);
+  const cards=BRANCHES.map(b=>{ const st=stuList(b); const act=st.filter(s=>s.status==='Active').length;
+    const rs=Object.values(S.rosters).filter(r=>r.branch===b&&r.confirmed).sort((a,c)=>a.month<c.month?1:-1)[0];
+    const ob=o.filter(x=>x.branch===b); const owe=ob.reduce((a,x)=>a+x.owe,0); const late=ob.filter(x=>x.late).length;
+    return `<div class="card"><h2>${b}</h2><div class="kpi">${act} <span class="small mute">Active 学生</span></div>
+      <div class="small">最新老师名单：${rs?rs.month+'（'+rs.lines.length+' 人）':'<span class="tag warn">还没有</span>'}</div>
+      <div class="small">欠款：<b>RM ${money(owe)}</b>（${ob.length} 笔，<span class="${late?'tag bad':''}">${late} 笔过期</span>）</div></div>`; }).join('');
+  const nextP=payoutList().filter(p=>p>=today()).slice(0,2).map(p=>{ const sum=al.filter(x=>x.status==='payable'&&x.payout===p).reduce((a,x)=>a+x.amount,0); return `<li>${p}：RM ${money(sum)} <span class="mute small">（${payoutWindow(p).label}）</span></li>`; }).join('');
+  const rc=reviewCount();
+  const empty=false;
+  return `${empty?`<div class="card" style="border-color:var(--pri)"><h2>第一次使用</h2><p>系统还是空的。可以先载入你给的 BBU 10月资料：学生 Master（141 人，期初欠款用 Bukku 1/10/2026 的 aging）、10月老师名单（126 行）、Affin 10月入账（89 笔，已自动配对）、你之前的 Match Overrides 对照表、package 价目表。</p><button class="b" id="seedBtn" onclick="loadSeed()">载入 BBU 10月资料</button></div>`:''}
+  <div class="grid">${cards}</div>
+  <div class="card"><h2>待办</h2>
+   <ul>
+    <li>银行入账待你确认 / 找不到学生：<b>${rc}</b> 笔 ${rc?`<button class="g" onclick="UI.tab='bank';UI.bFilter='need';render()">去处理</button>`:''}</li>
+    <li>银行资料更新至：Affin ${lastBankDate('AFFIN')||'—'}，Public Bank ${lastBankDate('PBB')||'—'}</li>
+   </ul>
+   <h3>接下来的 Allowance 发放</h3><ul>${nextP}</ul></div>
+  <div class="card small mute"><b>每月流程：</b> ① 学生 Master 更新（新学生 / 停课 / 转 branch） → ② 上传老师名单，看跟上个月的不同，确认 → ③ 上传银行 statement（每星期或月中都可以，重复的会自动跳过） → ④ 处理"待确认"的入账 → ⑤ 欠款清单发给补习中心 → ⑥ 5号 / 15号 出 MT Allowance → ⑦ 导出 Bukku Sales Payment。<br>
+  规则：学费要在开单月份 + 2 个月的月底前付（10月 → 12月31日），过期就不出 allowance。1–10号收到的钱 → 当月15号发；11号–月底收到的 → 下个月5号发。</div>`;
+}
+
+// ---------- 学生 ----------
+function vStu(){
+  const b=UI.branch; const q=norm(UI.stuQ);
+  let list=stuList(b).filter(s=>UI.stuStatus==='ALL'||s.status===UI.stuStatus).filter(s=>!q||norm(s.name+s.no+s.code+(s.parents||[]).join(' ')+s.mt).includes(q)).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true}));
+  const noMt=stuList(b).filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)).length;
+  return `<div class="card"><div class="row">
+   <select onchange="UI.branch=this.value;render()">${brOpts(b)}</select>
+   <select onchange="UI.stuStatus=this.value;render()">${['Active','Withdrawn','Transferred','ALL'].map(x=>`<option ${x===UI.stuStatus?'selected':''} value="${x}">${{Active:'在读 Active',Withdrawn:'停课 Withdrawn',Transferred:'已转 branch',ALL:'全部'}[x]}</option>`).join('')}</select>
+   <input id="stuq" placeholder="搜名字 / 编号 / 父母 / MT" value="${esc(UI.stuQ)}" oninput="UI.stuQ=this.value;render()" style="width:240px">
+   <button class="b" onclick="editStu(null)">＋ 新增学生</button>
+   <span style="flex:1"></span>
+   <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">导入 master list Excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importMaster(this)"></label>
+   <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
+  </div>
+  ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
+  <div class="small mute" style="margin:6px 0">${list.length} 人。导入会更新同编号的学生，不会删掉已有的。</div>
+  <div class="tw"><table><tr><th>编号</th><th>Bukku code</th><th>学生</th><th>状态</th><th>MT</th><th>Pkg</th><th class="n">学费</th><th>父母 / 付款人</th><th class="n">期初欠款</th><th></th></tr>
+  ${list.map(s=>`<tr><td>${esc(s.no)}</td><td>${esc(s.code)}</td><td>${esc(s.name)}${s.transferFrom?`<div class="small mute">从 ${esc(s.transferFrom)} 转来</div>`:''}${s.transferTo?`<div class="small mute">转去 ${esc(s.transferTo)}</div>`:''}</td>
+   <td>${stTag(s.status)}</td><td>${esc(s.mt)||'<span class="tag warn">没有</span>'}</td><td>${esc(s.pkg)||'<span class="tag warn">没有</span>'}</td><td class="n">${money(studentFee(S,s))}</td>
+   <td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${s.opening?money(s.opening):''}</td><td><button class="g" onclick="editStu('${s.uid}')">编辑</button> <button class="g" onclick="stmt('${s.uid}')">账目</button></td></tr>`).join('')}
+  </table></div></div>`;
+}
+function stTag(s){ return s==='Active'?'<span class="tag ok">Active</span>':s==='Withdrawn'?'<span class="tag grey">停课</span>':s==='Transferred'?'<span class="tag info">已转</span>':`<span class="tag warn">${esc(s)}</span>`; }
+function nextNo(b){ const l=stuList(b); let pre='',w=3,max=0; for(const s of l){ const m=s.no.match(/^([A-Za-z]*)(\d+)$/); if(m){ pre=m[1]; w=m[2].length; max=Math.max(max,+m[2]); } } if(!l.length) pre=b[0]; return pre+String(max+1).padStart(w,'0'); }
+function nextCode(b){ const l=stuList(b); let pre='',w=4,max=0; for(const s of l){ const m=(s.code||'').match(/^(.*?)(\d+)$/); if(m){ pre=m[1]; w=m[2].length; max=Math.max(max,+m[2]); } } return pre?pre+String(max+1).padStart(w,'0'):''; }
+function chgListHtml(cs){ return cs.length?cs.map((c,i)=>`<div class="small">${esc(c.from)} 起：${c.mt?'MT → <b>'+esc(c.mt)+'</b> ':''}${c.pkg?'Package → <b>'+esc(c.pkg)+'</b>':''} <a href="#" onclick="UI._chg.splice(${i},1);document.getElementById('chgList').innerHTML=chgListHtml(UI._chg);return false">删</a></div>`).join(''):'<div class="small mute">没有</div>'; }
+function chgAdd(){ const from=$('#c_from').value, mt=$('#c_mt').value.trim().toUpperCase(), pkg=$('#c_pkg').value.trim(); if(!from||(!mt&&!pkg)) return toast('请填月份和新 MT 或新 package');
+  UI._chg=UI._chg.filter(c=>c.from!==from); UI._chg.push({from,mt,pkg}); UI._chg.sort((x,y)=>x.from<y.from?-1:1); $('#chgList').innerHTML=chgListHtml(UI._chg); $('#c_mt').value=''; $('#c_pkg').value=''; }
+function applyChanges(s, month, sinceMonth, mt, pkg){ const notes=[]; for(const c of (s.changes||[])){ if(c.from<=month && (!sinceMonth||c.from>sinceMonth)){ if(c.mt&&c.mt!==mt){ mt=c.mt; notes.push('换 MT'); } if(c.pkg&&c.pkg!==pkg){ pkg=c.pkg; notes.push('换 package'); } } } return {mt,pkg,notes}; }
+function editStu(uid){
+  const s=uid?findStu(S,uid):{branch:UI.branch,no:nextNo(UI.branch),code:nextCode(UI.branch),name:'',status:'Active',parents:[],mt:'',pkg:'',price:0,opening:0,gender:''};
+  const pk=Object.keys(S.packages); UI._chg=JSON.parse(JSON.stringify(s.changes||[]));
+  modal(`<h3>${uid?'编辑学生':'新增学生'}（${s.branch}）</h3><div class="f">
+   <label>编号</label><input id="e_no" value="${esc(s.no)}" ${uid?'disabled':''}>
+   <label>Bukku code</label><input id="e_code" value="${esc(s.code)}">
+   <label>学生名字</label><input id="e_name" value="${esc(s.name)}">
+   <label>性别 / 服装</label><select id="e_gender">${['','男','女长袖','女短袖'].map(g=>`<option ${g===(s.gender||'')?'selected':''}>${g}</option>`).join('')}</select>
+   <label>状态</label><select id="e_status">${['Active','Withdrawn','Transferred'].map(x=>`<option ${x===s.status?'selected':''}>${x}</option>`).join('')}</select>
+   <label>MT</label><input id="e_mt" value="${esc(s.mt)}">
+   <label>Package</label><input id="e_pkg" list="pkl" value="${esc(s.pkg)}"><datalist id="pkl">${pk.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
+   <label>父母 / 付款人名字<div class="small mute">一行一个，银行上的名字也可以加</div></label><textarea id="e_par" rows="3">${esc((s.parents||[]).join('\n'))}</textarea>
+   <label>期初欠款 RM<div class="small mute">负数 = 预付</div></label><input id="e_open" type="number" step="0.01" value="${s.opening||0}">
+   <label>开始上课月份</label><input id="e_start" type="month" value="${esc(s.startMonth||(uid?'':today().slice(0,7)))}">
+  </div>
+  <details style="margin-top:12px" ${(s.changes||[]).length?'open':''}><summary>预先登记：换 MT / 换 package</summary>
+   <div class="small mute" style="margin:6px 0">知道下个月要换的话，先在这里登记。复制上个月名单时会自动用新的 MT / package。</div>
+   <div id="chgList">${chgListHtml(s.changes||[])}</div>
+   <div class="row" style="margin-top:6px"><input id="c_from" type="month" value="${addMonths(today().slice(0,7),1)}"><input id="c_mt" placeholder="新 MT（不换就空着）" style="width:170px"><input id="c_pkg" list="pkl" placeholder="新 package" style="width:110px"><button class="g" onclick="chgAdd()">加</button></div>
+  </details>
+  ${uid&&s.status!=='Transferred'?`<details style="margin-top:12px"><summary>转 branch</summary><div class="f" style="margin-top:8px">
+   <label>转去</label><select id="t_b" onchange="document.getElementById('t_no').value=nextNo(this.value);document.getElementById('t_code').value=nextCode(this.value)">${BRANCHES.filter(x=>x!==s.branch).map(x=>`<option>${x}</option>`).join('')}</select>
+   <label>新编号</label><input id="t_no" value="${esc(nextNo(BRANCHES.filter(x=>x!==s.branch)[0]))}">
+   <label>新 Bukku code</label><input id="t_code" value="${esc(nextCode(BRANCHES.filter(x=>x!==s.branch)[0]))}">
+   <label>从几月开始</label><input id="t_m" type="month" value="${today().slice(0,7)}">
+   <span></span><div><button class="b" onclick="doTransfer('${uid}')">确认转 branch</button> <span class="small mute">旧编号的欠款会留在旧 branch；之后的单开在新 branch。</span></div></div></details>`:''}
+  <div class="row" style="margin-top:14px"><button class="b" onclick="saveStu('${uid||''}','${s.branch}')">保存</button><button class="g" onclick="closeModal()">取消</button></div>`);
+}
+async function saveStu(uid,b){
+  const no=uid?uid.split(':')[1]:$('#e_no').value.trim(); if(!no) return toast('请填编号');
+  const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); doc.list=doc.list||{};
+  if(!uid&&doc.list[no]) return toast('这个编号已经有了');
+  const old=doc.list[no]||{};
+  doc.list[no]=Object.assign(old,{code:$('#e_code').value.trim(),name:$('#e_name').value.trim().replace(/\s+/g,' '),gender:$('#e_gender').value,status:$('#e_status').value,mt:$('#e_mt').value.trim(),pkg:$('#e_pkg').value.trim(),parents:$('#e_par').value.split('\n').map(x=>x.trim()).filter(Boolean),opening:+$('#e_open').value||0,startMonth:$('#e_start').value||'',changes:UI._chg||[]});
+  if(!old.created) doc.list[no].created=today();
+  await save('students/'+b,doc); closeModal(); toast('已保存');
+}
+async function doTransfer(uid){
+  const s=findStu(S,uid); const nb=$('#t_b').value, nno=$('#t_no').value.trim(), m=$('#t_m').value; if(!nno) return toast('请填新编号');
+  const dn=JSON.parse(JSON.stringify(S.students[nb]||{list:{}})); dn.list=dn.list||{}; if(dn.list[nno]) return toast(nb+' 已经有 '+nno);
+  const {uid:_u,no:_n,branch:_b,...rest}=s;
+  dn.list[nno]=Object.assign({},rest,{code:$('#t_code').value.trim(),status:'Active',opening:0,transferFrom:s.branch+':'+s.no,transferMonth:m,created:today()}); delete dn.list[nno].transferTo;
+  await save('students/'+nb,dn);
+  const dold=JSON.parse(JSON.stringify(S.students[s.branch])); Object.assign(dold.list[s.no],{status:'Transferred',transferTo:nb+':'+nno,transferMonth:m});
+  await save('students/'+s.branch,dold);
+  // payer rules: point family to new uid too
+  closeModal(); toast('已转去 '+nb+' '+nno);
+}
+async function importMaster(input){
+  try{ const {wb}=await readFile(input); let rows=null,out=null;
+    for(const n of wb.SheetNames){ const r=sheetRows(wb.Sheets[n]); const p=parseMaster(r); if(p&&p.length){ out=p; rows=n; break; } }
+    input.value=''; if(!out) return toast('找不到有 CODE / NO / Name 栏的 sheet');
+    const b=UI.branch; const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); doc.list=doc.list||{}; let add=0,upd=0;
+    for(const s of out){ const {no,transferNote,...rest}=s; if(doc.list[no]){ const o=doc.list[no]; Object.assign(o,rest,{opening:o.opening||0,transferTo:o.transferTo,transferFrom:o.transferFrom}); if(!rest.gender) o.gender=o.gender||''; if(transferNote) o.note=transferNote; upd++; } else { doc.list[no]=Object.assign(rest,{opening:0,created:today()}); if(transferNote) doc.list[no].note=transferNote; add++; } }
+    await save('students/'+b,doc); toast(`${b}：新增 ${add}，更新 ${upd}（sheet：${rows}）`,4000);
+  }catch(e){ input.value=''; toast('读取失败：'+e); }
+}
+async function importAging(input){
+  try{ const {wb}=await readFile(input); let ag=null; for(const n of wb.SheetNames){ ag=parseAging(sheetRows(wb.Sheets[n])); if(ag&&Object.keys(ag).length) break; }
+    input.value=''; if(!ag) return toast('找不到 Bukku Aged Receivables（Customer / Total 栏）');
+    const b=UI.branch; const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); let n=0, miss=[];
+    for(const no in doc.list) doc.list[no].opening=0;
+    for(const [no,amt] of Object.entries(ag)){ if(doc.list[no]){ doc.list[no].opening=amt; n++; } else miss.push(no); }
+    await save('students/'+b,doc); toast(`期初欠款已更新 ${n} 人${miss.length?'；找不到编号：'+miss.join(', '):''}`,5000);
+  }catch(e){ input.value=''; toast('读取失败：'+e); }
+}
+
+// ---------- 老师名单 ----------
+function rosterId(b,m){ return b+'_'+m; }
+function prevRoster(b,m){ return Object.values(S.rosters).filter(r=>r.branch===b&&r.confirmed&&r.month<m).sort((a,c)=>a.month<c.month?1:-1)[0]||null; }
+function vRoster(){
+  const b=UI.rBranch, m=UI.rMonth; const cur=S.rosters[rosterId(b,m)];
+  const d=UI.draft && UI.draft.branch===b && UI.draft.month===m ? UI.draft : null;
+  const r=d||cur;
+  let body='';
+  if(r){ const prev=prevRoster(b,m); body=rosterDiff(r,prev,!!d)+rosterTable(r,!!d); }
+  else { const pv=prevRoster(b,m); body=plannedCard(b,m)+`<div class="card"><h2>${b} ${m} 还没有老师名单</h2>
+    <p>老师交的是照片或 PDF 也没关系，可以先用下面的方法建好名单，再对照照片改堂数：</p>
+    <div class="row">${pv?`<button class="b" onclick="copyPrev()">从上个月（${pv.month}）复制名单</button>`:''}<button class="g" onclick="fromMaster()">用学生 Master 生成（所有 Active 学生，按 MT 分）</button></div>
+    <p class="small mute">堂数会先填 package 的标准堂数（例如 A = 4 堂、C = 8 堂），停课和已转 branch 的学生不会放进来。表里会显示这个月有没有付钱。</p>
+    <p class="small mute">或者上传老师的 Excel（旧格式或系统的模板都可以）。</p></div>`; }
+  const list=Object.values(S.rosters).filter(x=>x.branch===b).sort((a,c)=>a.month<c.month?1:-1).map(x=>`<button class="g" onclick="UI.rMonth='${x.month}';UI.draft=null;render()">${x.month}${x.confirmed?'':' (草稿)'}</button>`).join(' ');
+  return `<div class="card"><div class="row">
+   <select onchange="UI.rBranch=this.value;UI.draft=null;render()">${brOpts(b)}</select>
+   <input type="month" value="${m}" onchange="UI.rMonth=this.value;UI.draft=null;render()">
+   <label class="b" style="padding:6px 12px;border-radius:7px;background:var(--pri);color:#fff;cursor:pointer">上传老师名单 Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importRoster(this)"></label>
+   <button class="g" onclick="addRosterLine()">＋ 手动加一行</button>
+   <button class="g" onclick="tplDownload()">下载老师 Excel 模板</button>
+   <span class="small mute">已有：${list||'—'}</span></div>
+   ${d?`<div class="msg warn">这是<b>还没保存</b>的名单。看完下面的不同之后，按「确认保存」。 <button class="b" onclick="confirmRoster()">确认保存 ${b} ${m}</button> <label class="small"><input type="checkbox" id="syncM" checked> 同时把 package / MT 更新到学生 Master</label> <button class="g" onclick="UI.draft=null;render()">放弃</button></div>`:''}
+   ${cur&&!d?`<div class="msg ok">✅ ${b} ${m} 名单已确认（${cur.lines.length} 行）。要改可以直接改下面的表，或重新上传。 <button class="g" onclick="editRoster()">修改</button></div>`:''}
+  </div>${body}`;
+}
+function rosterDiff(r,prev,isDraft){
+  const lines=r.lines||[]; const pm={}; (prev?prev.lines:[]).forEach(l=>{ if(l.uid) pm[l.uid]=l; });
+  const cm={}; lines.forEach(l=>{ if(l.uid){ (cm[l.uid]=cm[l.uid]||[]).push(l); } });
+  const nw=[],gone=[],pkg=[],mt=[],dup=[],nomaster=[],hq=[],norate=[],zero=[];
+  for(const l of lines){ const s=l.uid&&findStu(S,l.uid);
+    if(!l.uid){ nomaster.push(l); continue; }
+    if(prev && !pm[l.uid]) nw.push(l);
+    if(prev && pm[l.uid] && pm[l.uid].pkg!==l.pkg) pkg.push([l,pm[l.uid]]);
+    if(prev && pm[l.uid] && pm[l.uid].mt!==l.mt) mt.push([l,pm[l.uid]]);
+    if(s && s.pkg && s.pkg!==l.pkg) hq.push([l,s]);
+    if(!S.packages[l.pkg]) norate.push(l);
+    if(!l.classes) zero.push(l); }
+  for(const u in cm) if(cm[u].length>1) dup.push(cm[u]);
+  if(prev) for(const u in pm) if(!cm[u]){ const s=findStu(S,u); gone.push([pm[u],s]); }
+  const box=(title,cls,items,fn,extra='')=>`<div class="card"><h3><span class="tag ${cls}">${items.length}</span> ${title}</h3>${items.length?`<div class="small" style="max-height:180px;overflow:auto">${items.map(fn).join('<br>')}</div>`:'<span class="small mute">没有</span>'}${extra}</div>`;
+  const sn=l=>esc((l.uid?findStu(S,l.uid).no+' ':'')+l.name);
+  return `<div class="card"><h2>跟${prev?'上个月（'+prev.month+'）':'Master list'}比较 <span class="small mute">${lines.length} 行</span></h2><div class="diffs">
+   ${box('不在学生 Master（新学生？）','bad',nomaster,l=>`${esc(l.name)} · ${esc(l.mt)} · ${esc(l.pkg)} ${isDraft?`<button class="g" onclick="linkLine(${lines.indexOf(l)})">选学生 / 新增</button>`:''}`)}
+   ${prev?box('🆕 新出现（上个月没有）','info',nw,l=>`${sn(l)} · ${esc(l.mt)} · ${esc(l.pkg)}`):''}
+   ${prev?box('❌ 上个月有、这个月没报','warn',gone,([l,s])=>`${sn(l)} · ${esc(l.mt)} ${s&&s.status==='Active'?`<button class="g" onclick="setStatus('${l.uid}','Withdrawn')">设为停课</button>`:stTag(s&&s.status)}`,'<div class="small mute" style="margin-top:6px">可能是停课、漏报或转 branch，请确认。</div>'):''}
+   ${prev?box('🔄 换 package','warn',pkg,([l,p])=>`${sn(l)}：${esc(p.pkg)} → <b>${esc(l.pkg)}</b>`):''}
+   ${prev?box('👥 换 MT','warn',mt,([l,p])=>`${sn(l)}：${esc(p.mt)} → <b>${esc(l.mt)}</b>`):''}
+   ${box('⚠️ 同一个学生出现两次','bad',dup,ls=>`${sn(ls[0])}：${ls.map(l=>esc(l.mt)).join('、')}`)}
+   ${box('Package 跟 Master 不同（总部资料？）','grey',hq,([l,s])=>`${sn(l)}：Master ${esc(s.pkg)} / 老师 <b>${esc(l.pkg)}</b>`)}
+   ${box('Package 没有设学费 / rate','bad',norate,l=>`${sn(l)} · ${esc(l.pkg)}`,'<div class="small mute" style="margin-top:6px">到「设置」加 package。</div>')}
+   ${box('0 堂课','grey',zero,l=>`${sn(l)} · ${esc(l.mt)}`)}
+  </div></div>`;
+}
+function rosterTable(r,editable){
+  const ed=editable||UI.rosterEdit; const lines=r.lines||[];
+  const byMt={}; lines.forEach((l,i)=>{ (byMt[l.mt]=byMt[l.mt]||[]).push([l,i]); });
+  const paid=paidSetFor(r.month); const paidNext=paidSetFor(addMonths(r.month,1));
+  return `<div class="card"><h2>名单内容 ${r.source?`<span class="tag info">${r.source==='master'?'从学生 Master 生成':'从 '+esc(r.source.slice(5))+' 复制'}，堂数是标准堂数</span>`:''}</h2><div class="tw"><table><tr><th>MT</th><th>#</th><th>学生</th><th>Pkg</th><th class="n">堂数</th><th class="n">Rate</th><th class="n">Allowance</th><th class="n">学费</th><th>${r.month.slice(5)}/${addMonths(r.month,1).slice(5)} 月有付钱？</th>${ed?'<th></th>':''}</tr>
+  ${Object.entries(byMt).map(([mt,ls])=>ls.map(([l,i],k)=>{ const p=S.packages[l.pkg]; const s=l.uid&&findStu(S,l.uid);
+    return `<tr><td>${ed?`<input value="${esc(l.mt)}" style="width:120px" onchange="lineSet(${i},'mt',this.value.trim().toUpperCase())">`:(k?'':'<b>'+esc(mt)+'</b>')}</td><td>${k+1}</td><td>${l.uid?esc(s?s.no+' '+s.name:l.uid):`<span class="tag bad">未连</span> ${esc(l.name)}`}${l.note?` <span class="tag info">${esc(l.note)}</span>`:''}</td>
+     <td>${ed?`<input value="${esc(l.pkg)}" style="width:80px" onchange="lineSet(${i},'pkg',this.value)">`:esc(l.pkg)}</td>
+     <td class="n">${ed?`<input type="number" value="${l.classes}" style="width:60px" onchange="lineSet(${i},'classes',+this.value)">`:l.classes}</td>
+     <td class="n">${p?p.rate:'?'}</td><td class="n">${p?money(p.rate*l.classes):'?'}</td><td class="n">${money(feeFor(S,l,s))}</td><td>${l.uid&&(paid.has(l.uid)||paidNext.has(l.uid))?'<span class="tag ok">有</span>':'<span class="tag warn">没有</span>'}</td>
+     ${ed?`<td><button class="g" onclick="linkLine(${i})">换学生</button> <button class="r" onclick="delLine(${i})">删</button></td>`:''}</tr>`; }).join('')).join('')}
+  </table></div></div>`;
+}
+function plannedCard(b,m){ const pv=prevRoster(b,m); const since=pv?pv.month:'';
+  const ch=[], nw=[]; for(const s of stuList(b)){ if(s.status!=='Active') continue; for(const c of (s.changes||[])) if(c.from<=m&&(!since||c.from>since)) ch.push([s,c]);
+    if(s.startMonth&&s.startMonth<=m&&(!since||s.startMonth>since)) nw.push(s); }
+  return `<div class="card"><h2>${m} 预先登记的变更</h2><div class="small mute">在「学生 Master」编辑学生就可以登记：新学生填「开始上课月份」，换 MT / package 填「从几月起」。</div>
+   <div class="row" style="align-items:flex-start;gap:30px;margin-top:8px"><div><b>🆕 新学生（${nw.length}）</b><div class="small">${nw.map(s=>esc(s.no+' '+s.name)+' · '+esc(s.mt||'没 MT')+' · '+esc(s.pkg||'没 package')).join('<br>')||'—'}</div></div>
+   <div><b>🔄 换 MT / package（${ch.length}）</b><div class="small">${ch.map(([s,c])=>esc(s.no+' '+s.name)+'：'+(c.mt?'MT → '+esc(c.mt)+' ':'')+(c.pkg?'Pkg → '+esc(c.pkg):'')).join('<br>')||'—'}</div></div></div></div>`; }
+function copyPrev(){ const b=UI.rBranch,m=UI.rMonth; const pv=prevRoster(b,m); const lines=[]; let nChg=0;
+  for(const l of pv.lines){ const s=findStu(S,l.uid); if(!s||s.status!=='Active') continue; const r=applyChanges(s,m,pv.month,l.mt,l.pkg); if(r.notes.length) nChg++;
+    lines.push({mt:r.mt,uid:l.uid,name:s.name,pkg:r.pkg,classes:stdClasses(S,r.pkg),note:r.notes.join('、')}); }
+  const have=new Set(lines.map(l=>l.uid));
+  const extra=stuList(b).filter(s=>s.status==='Active'&&!have.has(s.uid)&&(s.startMonth?(s.startMonth<=m&&s.startMonth>pv.month):(s.created&&s.created>pv.month)));
+  extra.forEach(s=>{ const r=applyChanges(s,m,null,s.mt,s.pkg); lines.push({mt:(r.mt||'MT ?').toUpperCase(),uid:s.uid,name:s.name,pkg:r.pkg,classes:stdClasses(S,r.pkg),note:'新学生'}); });
+  UI.draft={branch:b,month:m,lines,confirmed:false,source:'copy '+pv.month}; UI.rosterEdit=true; render();
+  toast(`已复制 ${lines.length} 行（新学生 ${extra.length}，预先登记的变更 ${nChg}）。package 用上个月的，有错再改`,5000); }
+function fromMaster(){ const b=UI.rBranch,m=UI.rMonth; const lines=stuList(b).filter(s=>s.status==='Active').sort((x,y)=>(x.mt||'').localeCompare(y.mt||'')||x.name.localeCompare(y.name)).map(s=>({mt:(s.mt||'MT ?').toUpperCase(),uid:s.uid,name:s.name,pkg:s.pkg,classes:stdClasses(S,s.pkg)}));
+  UI.draft={branch:b,month:m,lines,confirmed:false,source:'master'}; UI.rosterEdit=true; render(); toast(`已生成 ${lines.length} 行，请对照老师的照片改堂数`,4000); }
+function tplDownload(){ const b=UI.rBranch,m=UI.rMonth; const cur=UI.draft&&UI.draft.branch===b&&UI.draft.month===m?UI.draft:(S.rosters[rosterId(b,m)]||prevRoster(b,m));
+  let lines=cur?cur.lines.filter(l=>{const s=findStu(S,l.uid);return s&&s.status==='Active';}):stuList(b).filter(s=>s.status==='Active').map(s=>({mt:(s.mt||'MT ?').toUpperCase(),uid:s.uid,pkg:s.pkg}));
+  const by={}; lines.forEach(l=>(by[l.mt]=by[l.mt]||[]).push(l));
+  const sheets=Object.keys(by).sort().map(mt=>{ const aoa=[[mt,null,null,b+' '+m+'　上课的格子打 ✔（或 v），缺课打 X。新学生加在最后，编号可以空着。'],['#','学生名字','Package','1','2','3','4','5','6','7','8','编号']];
+    by[mt].forEach((l,i)=>{ const s=findStu(S,l.uid); aoa.push([i+1,s?s.name:l.name,l.pkg,null,null,null,null,null,null,null,null,s?s.no:'']); });
+    for(let k=0;k<5;k++) aoa.push([by[mt].length+k+1,null,null]);
+    return [mt.replace(/[\\\/?*\[\]:]/g,' ').slice(0,31),aoa]; });
+  if(!sheets.length) return toast('没有学生可以放进模板');
+  saveXlsx(`老师名单模板_${b}_${m}.xlsx`,sheets); }
+function curRosterForEdit(){ const b=UI.rBranch,m=UI.rMonth; if(!UI.draft||UI.draft.branch!==b||UI.draft.month!==m){ const c=S.rosters[rosterId(b,m)]; UI.draft=c?JSON.parse(JSON.stringify(c)):{branch:b,month:m,lines:[],confirmed:false}; } return UI.draft; }
+function editRoster(){ curRosterForEdit(); render(); }
+function lineSet(i,k,v){ const d=curRosterForEdit(); d.lines[i][k]=v; render(); }
+function delLine(i){ const d=curRosterForEdit(); d.lines.splice(i,1); render(); }
+function addRosterLine(){ const d=curRosterForEdit(); const mts=[...new Set(d.lines.map(l=>l.mt))];
+  modal(`<h3>手动加一行</h3><div class="f"><label>MT</label><input id="al_mt" list="mtl" value="${esc(mts[0]||'MT ')}"><datalist id="mtl">${mts.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+   <label>学生</label><select id="al_u">${stuList(UI.rBranch).filter(s=>s.status==='Active').sort((a,c)=>a.name.localeCompare(c.name)).map(s=>`<option value="${s.uid}">${esc(s.no+' '+s.name)}</option>`).join('')}</select>
+   <label>Package</label><input id="al_p" list="pkl2"><datalist id="pkl2">${Object.keys(S.packages).map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
+   <label>堂数</label><input id="al_c" type="number" value="4"></div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="(function(){const d=curRosterForEdit();const u=$('#al_u').value;const s=findStu(S,u);d.lines.push({mt:$('#al_mt').value.trim().toUpperCase(),uid:u,name:s.name,pkg:$('#al_p').value.trim()||s.pkg,classes:+$('#al_c').value||0});closeModal();render();})()">加</button><button class="g" onclick="closeModal()">取消</button></div>`); }
+function linkLine(i){ const d=curRosterForEdit(); const l=d.lines[i]; const st=stuList(UI.rBranch).sort((a,c)=>a.name.localeCompare(c.name));
+  modal(`<h3>「${esc(l.name)}」是哪个学生？</h3><p class="small mute">${esc(l.mt)} · ${esc(l.pkg)} · ${l.classes} 堂</p>
+   <select id="ll_u" style="width:100%">${st.map(s=>`<option value="${s.uid}">${esc(s.no+' '+s.name+' ('+s.status+')')}</option>`).join('')}</select>
+   <div class="row" style="margin-top:10px"><button class="b" onclick="(function(){const d=curRosterForEdit();d.lines[${i}].uid=$('#ll_u').value;closeModal();render();})()">连到这个学生</button>
+   <button class="g" onclick="newStuFromLine(${i})">新增为新学生</button><button class="g" onclick="closeModal()">取消</button></div>`); }
+async function newStuFromLine(i){ const d=curRosterForEdit(); const l=d.lines[i]; const b=UI.rBranch; const no=nextNo(b);
+  const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); doc.list=doc.list||{}; doc.list[no]={code:nextCode(b),name:l.name,status:'Active',parents:[],mt:l.mt,pkg:l.pkg,price:0,opening:0,gender:'',created:today()};
+  await save('students/'+b,doc); l.uid=b+':'+no; closeModal(); render(); toast('已新增 '+no+'，记得到学生 Master 补父母名字和性别'); }
+async function setStatus(uid,st){ const s=findStu(S,uid); const doc=JSON.parse(JSON.stringify(S.students[s.branch])); doc.list[s.no].status=st; await save('students/'+s.branch,doc); toast(s.no+' → '+st); }
+async function importRoster(input){
+  try{ const {wb}=await readFile(input); input.value=''; let lines=[];
+    for(const n of wb.SheetNames){ lines=lines.concat(parseRoster(sheetRows(wb.Sheets[n]))); }
+    if(!lines.length) return toast('读不到名单：需要「MT 名字」一行，下面是 编号 / 学生名字 / package / ✔');
+    const pool=stuList(UI.rBranch); let fz=0;
+    for(const l of lines){ const byNo=l.no&&pool.find(s=>s.no===l.no); if(byNo){ l.uid=byNo.uid; continue; } const m=matchName(l.name,pool); if(m){ l.uid=m.s.uid; if(!m.exact){ l.fuzzy=true; fz++; } } }
+    UI.draft={branch:UI.rBranch,month:UI.rMonth,lines,confirmed:false};
+    render(); toast(`读到 ${lines.length} 行${fz?'，'+fz+' 个名字是近似配对，请看一下':''}`,4000);
+  }catch(e){ input.value=''; toast('读取失败：'+e); }
+}
+async function confirmRoster(){
+  const d=UI.draft; const un=d.lines.filter(l=>!l.uid).length; if(un) return toast(`还有 ${un} 行没连到学生`);
+  const sync=$('#syncM')&&$('#syncM').checked;
+  const doc={branch:d.branch,month:d.month,lines:d.lines.map(l=>({mt:l.mt,uid:l.uid,name:l.name||'',pkg:l.pkg,classes:+l.classes||0,note:l.note||''})),confirmed:true,savedAt:new Date().toISOString(),source:d.source||'excel'};
+  await save('rosters/'+rosterId(d.branch,d.month),doc);
+  if(sync){ const sd=JSON.parse(JSON.stringify(S.students[d.branch])); for(const l of doc.lines){ const no=l.uid.split(':')[1]; if(sd.list[no]){ sd.list[no].pkg=l.pkg; sd.list[no].mt=l.mt; if(sd.list[no].status!=='Active'&&sd.list[no].status!=='Transferred') sd.list[no].status='Active'; } } await save('students/'+d.branch,sd); }
+  UI.draft=null; UI.rosterEdit=false; toast('已确认保存'); render();
+}
+
+// ---------- 银行 ----------
+function bankDocId(bank,month){ return bank+'_'+month; }
+function poolFor(bank){ return (cfg().bankBranches[bank]||BRANCHES).flatMap(b=>stuList(b)); }
+function vBank(){
+  const bank=UI.bBank, m=UI.bMonth; const doc=S.bank[bankDocId(bank,m)]; const tx=Object.values((doc||{}).tx||{}).sort((a,c)=>(a.date+a.time)<(c.date+c.time)?-1:1);
+  const cnt={auto:0,manual:0,review:0,unmatched:0,ignore:0}; tx.forEach(t=>cnt[t.status]=(cnt[t.status]||0)+1);
+  const f=UI.bFilter; const show=tx.filter(t=>f==='all'||(f==='need'?(t.status==='review'||t.status==='unmatched'):t.status===f));
+  const months=[...new Set(Object.values(S.bank).filter(d=>d.bank===bank).map(d=>d.month))].sort().reverse();
+  const tot=tx.filter(t=>t.status!=='ignore').reduce((a,t)=>a+t.amount,0);
+  const LG=ledger();
+  return `<div class="card"><div class="row">
+   <select onchange="UI.bBank=this.value;render()">${['AFFIN','PBB'].map(x=>`<option ${x===bank?'selected':''} value="${x}">${x==='AFFIN'?'Affin（BBU）':'Public Bank（TST / TDA）'}</option>`).join('')}</select>
+   <input type="month" value="${m}" onchange="UI.bMonth=this.value;render()">
+   <label class="b" style="padding:6px 12px;border-radius:7px;background:var(--pri);color:#fff;cursor:pointer">上传银行 statement<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importBank(this)"></label>
+   <span class="small mute">有资料的月份：${months.map(x=>`<a href="#" onclick="UI.bMonth='${x}';render();return false">${x}</a>`).join(' ')||'—'}</span></div>
+   <div class="small mute" style="margin-top:6px">可以每星期或月中上传，已经上传过的交易会自动跳过。只读入账（Credit）。Affin / Public Bank 格式自动认；其他格式会让你选栏位。</div></div>
+  <div class="card"><div class="row" style="margin-bottom:8px">
+   ${[['need','待处理',cnt.review+cnt.unmatched,'bad'],['auto','自动配对',cnt.auto,'ok'],['manual','手动确认',cnt.manual,'info'],['ignore','非学费',cnt.ignore,'grey'],['all','全部',tx.length,'grey']].map(([k,t,n,c])=>`<button class="${f===k?'b':'g'}" onclick="UI.bFilter='${k}';render()">${t} <span class="tag ${c}">${n}</span></button>`).join('')}
+   <span style="flex:1"></span><span class="small">本月入账（学费）：<b>RM ${money(tot)}</b></span></div>
+  <div class="tw"><table><tr><th>日期</th><th>付款人</th><th>备注</th><th class="n">金额</th><th>状态</th><th>学生</th><th></th></tr>
+  ${show.map(t=>`<tr><td>${t.date}<div class="small mute">${esc(t.time)}</div></td><td>${esc(t.payer)}</td><td class="small">${esc(t.ref)}</td><td class="n">${money(t.amount)}</td>
+   <td>${txTag(t)}<div class="small mute">${esc(t.how||'')}</div></td><td class="small">${(t.alloc||[]).map(a=>`<a href="#" onclick="stmt('${a.uid}');return false">${esc(stuName(a.uid))}</a> <b>${money(a.amt)}</b>${appliedTxt(LG,t.id,a)}`).join('<br>')}</td>
+   <td><button class="${t.status==='review'||t.status==='unmatched'?'b':'g'}" onclick="openTx('${doc?bankDocId(bank,m):''}','${t.id}')">${t.status==='review'||t.status==='unmatched'?'处理':'改'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="mute">没有</td></tr>'}
+  </table></div></div>`;
+}
+function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return ''; const parts=ap.map(x=>(x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
+function monthOpts(uid,cur,LG){ LG=LG||ledger(); const ch=(LG[uid]||{charges:[]}).charges;
+  const opts=[['hint','自动（看备注写的月份，没写就先还最旧的）'],['auto','自动（先还最旧的）']];
+  for(const c of ch) opts.push([c.opening?'期初':c.month, (c.opening?'期初 / 以前的欠款':c.month)+'（应付 '+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'）']);
+  if(cur&&!opts.some(o=>o[0]===cur)) opts.push([cur,cur+'（这个月没有应付）']);
+  return opts.map(([v,l])=>`<option value="${v}" ${v===cur?'selected':''}>${l}</option>`).join(''); }
+function monKey(a){ return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]):'auto'; }
+function monVal(k){ return k==='hint'?undefined:k==='auto'?[]:[k==='期初'?'0000-00':k]; }
+function txTag(t){ return {auto:'<span class="tag ok">自动</span>',manual:'<span class="tag info">已确认</span>',review:'<span class="tag warn">待确认</span>',unmatched:'<span class="tag bad">找不到</span>',ignore:'<span class="tag grey">非学费</span>'}[t.status]||t.status; }
+function paidSetFor(month){ const s=new Set(); for(const d of Object.values(S.bank)) if(d.month===month) for(const t of Object.values(d.tx||{})) if(t.status==='auto'||t.status==='manual') (t.alloc||[]).forEach(a=>s.add(a.uid)); return s; }
+async function importBank(input){
+  try{ const {wb,name}=await readFile(input); input.value=''; let res=null, rowsAll=null;
+    for(const n of wb.SheetNames){ const r=sheetRows(wb.Sheets[n]); const p=parseBank(r); if(p&&p.rows.length){ res=p; break; } if(!rowsAll) rowsAll=r; }
+    if(!res){ return mapBank(rowsAll||[]); }
+    await ingestBank(res.bank,res.rows,name);
+  }catch(e){ input.value=''; console.error(e); toast('读取失败：'+e); }
+}
+function mapBank(rows){
+  let hi=0; for(let i=0;i<Math.min(rows.length,40);i++){ if((rows[i]||[]).filter(c=>typeof c==='string'&&c.trim()).length>=3){ hi=i; break; } }
+  const cols=(rows[hi]||[]).map((c,i)=>`<option value="${i}">${i+1}. ${esc(c)}</option>`).join('');
+  UI._map=rows;
+  modal(`<h3>不认识这个格式，请选栏位</h3><p class="small mute">（PDF 转出来的 Excel 也可以，只要有日期、付款人、金额）</p><div class="f">
+   <label>这是哪个银行</label><select id="m_bank"><option value="AFFIN">Affin（BBU）</option><option value="PBB">Public Bank（TST / TDA）</option></select>
+   <label>标题在第几行</label><input id="m_h" type="number" value="${hi+1}">
+   <label>日期</label><select id="m_d">${cols}</select><label>付款人名字</label><select id="m_p">${cols}</select>
+   <label>备注</label><select id="m_r"><option value="-1">（没有）</option>${cols}</select><label>入账金额 Credit</label><select id="m_c">${cols}</select></div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="(async function(){const map={header:+$('#m_h').value-1,date:+$('#m_d').value,payer:+$('#m_p').value,ref:+$('#m_r').value,credit:+$('#m_c').value};const rows=parseBankMapped(UI._map,map);closeModal();if(!rows.length)return toast('读不到任何入账，请检查栏位');await ingestBank($('#m_bank')?$('#m_bank').value:'AFFIN',rows,'');})()">读入</button><button class="g" onclick="closeModal()">取消</button></div>`);
+  setTimeout(()=>{ const b=$('#m_bank'); if(b) b.value=UI.bBank; },0);
+}
+async function ingestBank(bank,rows,fname){
+  const ids=txIds(bank,rows); const pool=poolFor(bank); const byMonth={}; let dup=0, add=0; const stat={auto:0,review:0,unmatched:0};
+  const existing=new Set(); for(const d of Object.values(S.bank)) if(d.bank===bank) Object.keys(d.tx||{}).forEach(k=>existing.add(k));
+  rows.forEach((r,i)=>{ const id=ids[i]; if(existing.has(id)){ dup++; return; } const m=r.date.slice(0,7); (byMonth[m]=byMonth[m]||[]).push(Object.assign({id,bank},r)); });
+  for(const m of Object.keys(byMonth).sort()){
+    const did=bankDocId(bank,m); const doc=JSON.parse(JSON.stringify(S.bank[did]||{bank,month:m,tx:{}})); doc.tx=doc.tx||{};
+    const paid=paidSetFor(m);
+    for(const t of byMonth[m]){ const r=matchTx(S,t,pool,paid); t.status=r.status; t.how=r.how; t.alloc=r.alloc.map(a=>({uid:a.uid,amt:a.amt})); t.sugg=r.sugg; if(r.status==='auto') r.alloc.forEach(a=>paid.add(a.uid)); stat[r.status]++; doc.tx[t.id]=t; add++; }
+    doc.updatedAt=new Date().toISOString(); await save('bank/'+did,doc);
+  }
+  UI.bBank=bank; const ms=[...new Set(rows.map(r=>r.date.slice(0,7)))].sort(); if(ms.length) UI.bMonth=ms[ms.length-1]; UI.bFilter='need';
+  modal(`<h3>银行资料已读入</h3><ul><li>新交易：<b>${add}</b> 笔</li><li>已经上传过（跳过）：${dup} 笔</li><li>✅ 自动配对：${stat.auto}</li><li>🟡 待你确认：${stat.review}</li><li>❓ 找不到学生：${stat.unmatched}</li></ul><button class="b" onclick="closeModal();render()">去处理</button>`);
+  render();
+}
+function openTx(did,id){
+  const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
+  const sug=[...new Set([...(t.sugg||[]),...(t.alloc||[]).map(a=>a.uid)])];
+  UI._tx={did,id,sel:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,a.amt])),mon:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,monKey(a)])),extra:sug.filter(u=>!(t.alloc||[]).some(a=>a.uid===u))};
+  drawTx();
+}
+function drawTx(){
+  const {did,id,sel,extra}=UI._tx; const LG=ledger(); const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
+  const shown=[...new Set([...Object.keys(sel),...extra])];
+  const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0);
+  modal(`<h3>${t.date} · ${esc(t.payer)} · RM ${money(t.amount)}</h3><div class="small mute">备注：${esc(t.ref)||'—'}　${esc(t.how||'')}</div>
+   <h3>这笔钱是哪个学生的？</h3>
+   <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}</div>
+   <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th></tr>
+   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td></tr>`; }).join('')}
+   </table>
+   <div class="row" style="margin:8px 0"><input id="txq" placeholder="搜其他学生（名字 / 编号 / 父母）" style="width:300px" oninput="txSearch(this.value)"><div id="txres" class="small"></div></div>
+   <div class="${Math.abs(sum-t.amount)<0.01?'msg ok':'msg warn'}">已分配 RM ${money(sum)} / RM ${money(t.amount)}${Math.abs(sum-t.amount)>=0.01?'（差 RM '+money(t.amount-sum)+'）':''}</div>
+   <label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="txConfirm()" ${Object.keys(sel).length?'':'disabled'}>确认</button><button class="g" onclick="txIgnore()">不是学费（忽略）</button>${t.status!=='review'&&t.status!=='unmatched'?'<button class="g" onclick="txReset()">改回待确认</button>':''}<button class="g" onclick="closeModal()">取消</button></div>`);
+}
+function txToggle(u,on){ const st=UI._tx; if(on){ const s=findStu(S,u); const t=S.bank[st.did].tx[st.id]; const left=t.amount-Object.values(st.sel).reduce((a,b)=>a+(+b||0),0); st.sel[u]=r2(left>0?Math.min(left,studentFee(S,s)||left):studentFee(S,s)); } else { delete st.sel[u]; if(!st.extra.includes(u)) st.extra.push(u); } drawTx(); }
+function txSearch(q){ const n=norm(q); const box=$('#txres'); if(n.length<3){ box.innerHTML=''; return; } const pool=poolFor(S.bank[UI._tx.did].bank);
+  const hits=pool.filter(s=>norm(s.name+s.no+(s.parents||[]).join(' ')).includes(n)).slice(0,8);
+  box.innerHTML=hits.map(s=>`<a href="#" onclick="UI._tx.extra.push('${s.uid}');txToggle('${s.uid}',true);return false">${esc(s.no+' '+s.name)}</a>`).join(' · ')||'找不到'; }
+async function txConfirm(){
+  const {did,id,sel}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id];
+  const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0); if(Math.abs(sum-t.amount)>=0.01 && !confirmInline()) return;
+  t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mv=monVal((UI._tx.mon||{})[uid]||'hint'); if(mv) o.months=mv; return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
+  await save('bank/'+did,doc);
+  if($('#tx_rem')&&$('#tx_rem').checked){ const p=norm(t.payer); if(p.length>=4){ const rules=JSON.parse(JSON.stringify(S.rules)); rules.amt[p+'|'+(+t.amount).toFixed(2)]=t.alloc.map(a=>a.uid);
+      const fam=new Set(rules.payer[p]||[]); t.alloc.forEach(a=>fam.add(a.uid)); rules.payer[p]=[...fam]; await save('settings/rules',rules); } }
+  closeModal(); toast('已确认');
+}
+function confirmInline(){ if(UI._tx.warned) return true; UI._tx.warned=true; toast('分配的金额跟入账不一样，再按一次「确认」就照这样保存'); return false; }
+async function txIgnore(){ const {did,id}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); doc.tx[id].status='ignore'; doc.tx[id].alloc=[]; await save('bank/'+did,doc); closeModal(); toast('已标为非学费'); }
+async function txReset(){ const {did,id}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); doc.tx[id].status='review'; await save('bank/'+did,doc); closeModal(); }
+
+function stmt(uid){ const s=findStu(S,uid); if(!s) return; const LG=ledger(); const e=LG[uid]||{charges:[],payments:[],credit:0};
+  const txOf={}; for(const [did,d] of Object.entries(S.bank)) for(const t of Object.values(d.tx||{})) txOf[t.id]=[did,t];
+  modal(`<h3>${esc(s.no+' '+s.name)} <span class="small mute">${s.branch} · ${esc(s.mt)} · ${esc(s.pkg)}</span></h3>
+   <div class="small mute">父母：${(s.parents||[]).map(esc).join(' / ')||'—'}</div>
+   ${e.charges.some(c=>!c.opening)?'':'<div class="msg warn">这个学生还没有在任何已确认的老师名单里，所以只有期初欠款。</div>'}
+   <h3>应付</h3><table><tr><th>月份</th><th class="n">应付</th><th class="n">已付</th><th class="n">欠</th><th>付清日期</th><th>期限</th></tr>
+   ${e.charges.map(c=>`<tr><td>${c.month}</td><td class="n">${money(c.amount)}</td><td class="n">${money(c.paid)}</td><td class="n">${c.amount-c.paid>0.001?'<b>'+money(c.amount-c.paid)+'</b>':''}</td><td>${c.paidDate&&c.paidDate!=='n/a'?c.paidDate:''}${c.paidDate&&c.deadline&&c.paidDate>c.deadline?' <span class="tag bad">过期才付</span>':''}</td><td>${c.deadline||''}</td></tr>`).join('')||'<tr><td colspan="6" class="mute">没有</td></tr>'}</table>
+   <h3>付款 <span class="small mute">（可以改「付哪个月」，改了马上重算）</span></h3><table><tr><th>日期</th><th>付款人 / 备注</th><th class="n">金额</th><th>算在</th><th>付哪个月</th></tr>
+   ${e.payments.map(p=>{ if(p.txid==='opening') return `<tr><td>—</td><td>期初预付</td><td class="n">${money(p.amt)}</td><td>${(p.applied||[]).map(x=>x.month).join(', ')}</td><td></td></tr>`; const [did,t]=txOf[p.txid]||[]; const al=t&&t.alloc.find(x=>x.uid===uid);
+     return `<tr><td>${p.date}</td><td class="small">${esc(t?t.payer:'')}<br>${esc(t?t.ref:'')}</td><td class="n">${money(p.amt)}</td><td>${(p.applied||[]).map(x=>x.month+(p.applied.length>1?' '+money(x.amt):'')).join('<br>')||'—'}</td>
+      <td>${al?`<select style="max-width:200px" onchange="setPayMonth('${did}','${p.txid}','${uid}',this.value)">${monthOpts(uid,monKey(al),LG)}</select>`:''}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mute">没有</td></tr>'}</table>
+   ${e.credit?`<div class="msg info">多付 / 还没用的钱：RM ${money(e.credit)}</div>`:''}
+   <div class="row" style="margin-top:12px"><button class="g" onclick="closeModal()">关闭</button></div>`); }
+async function setPayMonth(did,txid,uid,k){ const doc=JSON.parse(JSON.stringify(S.bank[did])); const al=doc.tx[txid].alloc.find(x=>x.uid===uid); const mv=monVal(k); if(mv) al.months=mv; else delete al.months; if(doc.tx[txid].status==='auto') doc.tx[txid].status='manual';
+  await save('bank/'+did,doc); setTimeout(()=>stmt(uid),150); toast('已改，重新计算'); }
+// ---------- 欠款 ----------
+function vOwe(){
+  const L=ledger(); const t=today(); let o=outstanding(S,L,t);
+  const b=UI.oBranch; if(b!=='ALL') o=o.filter(x=>x.branch===b);
+  const mts=[...new Set(o.map(x=>x.mt))].sort(); if(UI.oMt!=='ALL') o=o.filter(x=>x.mt===UI.oMt);
+  if(!UI.oLate) o=o.filter(x=>!x.late);
+  const tot=o.reduce((a,x)=>a+x.owe,0);
+  const upd=b==='BBU'?'Affin '+(lastBankDate('AFFIN')||'—'):b==='ALL'?'Affin '+(lastBankDate('AFFIN')||'—')+' / Public Bank '+(lastBankDate('PBB')||'—'):'Public Bank '+(lastBankDate('PBB')||'—');
+  return `<div class="card"><div class="row">
+   <select onchange="UI.oBranch=this.value;UI.oMt='ALL';render()">${brOpts(b,true)}</select>
+   <select onchange="UI.oMt=this.value;render()"><option value="ALL">全部 MT</option>${mts.map(m=>`<option ${m===UI.oMt?'selected':''}>${esc(m)}</option>`).join('')}</select>
+   <label class="small"><input type="checkbox" ${UI.oLate?'checked':''} onchange="UI.oLate=this.checked;render()"> 包括已过期</label>
+   <span style="flex:1"></span>
+   <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>
+   <div class="small mute" style="margin-top:6px">银行资料更新至：${upd}。只算已确认的老师名单和已配对的入账；「待处理」的银行入账还没算进去（现在 ${reviewCount()} 笔）。</div></div>
+  <div class="card"><h2>${o.length} 笔，共 RM ${money(tot)}</h2><div class="tw"><table><tr><th>Branch</th><th>MT</th><th>编号</th><th>学生</th><th>父母</th><th>月份</th><th class="n">应付</th><th class="n">已付</th><th class="n">欠</th><th>期限</th><th>状态</th></tr>
+  ${o.map(x=>`<tr><td>${x.branch}</td><td>${esc(x.mt)}</td><td>${esc(x.s.no)}</td><td><a href="#" onclick="stmt('${x.uid}');return false">${esc(x.s.name)}</a> ${x.s.status!=='Active'?stTag(x.s.status):''}</td><td class="small">${esc((x.s.parents||[])[1]||(x.s.parents||[])[0]||'')}</td><td>${x.month}</td><td class="n">${money(x.amount)}</td><td class="n">${x.paid?money(x.paid):''}</td><td class="n"><b>${money(x.owe)}</b></td><td>${x.deadline||'—'}</td>
+   <td>${x.deadline?(x.late?'<span class="tag bad">过期，不出 allowance</span>':x.daysLeft<=14?`<span class="tag warn">还剩 ${x.daysLeft} 天</span>`:`<span class="tag grey">还剩 ${x.daysLeft} 天</span>`):'<span class="tag grey">期初</span>'}</td></tr>`).join('')||'<tr><td colspan="11" class="mute">没有欠款 🎉</td></tr>'}
+  </table></div></div>`;
+}
+function oweRows(){ const L=ledger(); let o=outstanding(S,L,today()); if(UI.oBranch!=='ALL') o=o.filter(x=>x.branch===UI.oBranch); if(UI.oMt!=='ALL') o=o.filter(x=>x.mt===UI.oMt); if(!UI.oLate) o=o.filter(x=>!x.late); return o; }
+function oweExcel(){ const o=oweRows(); saveXlsx(`欠款清单_${UI.oBranch}_${today()}.xlsx`,[['欠款',[['欠款清单 '+UI.oBranch+'（更新 '+today()+'）'],[],['Branch','MT','编号','学生','父母','月份','应付','已付','欠','期限','状态'],...o.map(x=>[x.branch,x.mt,x.s.no,x.s.name,(x.s.parents||[]).join(' / '),x.month,x.amount,x.paid,x.owe,x.deadline||'',x.deadline?(x.late?'过期':'还剩 '+x.daysLeft+' 天'):'期初'])]]]); }
+function oweText(){ const o=oweRows(); const by={}; o.forEach(x=>{ const k=x.branch+' · '+x.mt; (by[k]=by[k]||[]).push(x); });
+  let t=`*欠款清单*（更新至 ${today()}）\n`; for(const k of Object.keys(by).sort()){ t+=`\n*${k}*\n`; by[k].forEach((x,i)=>{ t+=`${i+1}. ${x.s.no} ${x.s.name} – ${x.month} RM${money(x.owe)}${x.deadline?(x.late?' ❗过期':' (期限 '+x.deadline+')'):''}\n`; }); }
+  t+=`\n总共：RM ${money(o.reduce((a,x)=>a+x.owe,0))}`; copyText(t); }
+
+// ---------- Allowance ----------
+function mtKey(b,mt){ return b+'|'+mt; }
+function vAllow(){
+  const pl=payoutList(); if(!UI.payout){ UI.payout=pl.find(p=>p>=today())||pl[pl.length-1]; }
+  const p=UI.payout; const w=payoutWindow(p); const L=ledger(); const all=allowanceLines(S,L);
+  const pay=all.filter(x=>x.status==='payable'&&x.payout===p);
+  const pend=all.filter(x=>x.status==='pending'); const forf=all.filter(x=>x.status==='forfeit'||(x.status==='pending'&&today()>x.deadline));
+  const byMt={}; pay.forEach(x=>{ const k=mtKey(x.branch,x.mt); (byMt[k]=byMt[k]||[]).push(x); });
+  const pendMt={}; pend.filter(x=>today()<=x.deadline).forEach(x=>{ const k=mtKey(x.branch,x.mt); (pendMt[k]=pendMt[k]||[]).push(x); });
+  const keys=[...new Set([...Object.keys(byMt),...Object.keys(pendMt)])].sort();
+  let grand=0;
+  const secs=keys.map(k=>{ const [b,mt]=k.split('|'); const ls=(byMt[k]||[]).sort((a,c)=>a.month.localeCompare(c.month)||a.s.name.localeCompare(c.s.name)); const sub=ls.reduce((a,x)=>a+x.amount,0);
+    const rec=(S.mts.list||{})[k]||{}; const ded=(rec.deductions||[]); const here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p).length;
+    const net=sub-(here?+here.amt:0); grand+=net; const pd=pendMt[k]||[];
+    return `<div class="card"><h2>${esc(mt)} <span class="small mute">${b}</span></h2>
+     ${ls.length?`<table><tr><th>学生</th><th>月份</th><th>Pkg</th><th class="n">堂数</th><th class="n">Rate</th><th class="n">Allowance</th><th>付款日期</th></tr>
+     ${ls.map(x=>`<tr><td>${esc(x.s.no+' '+x.s.name)}</td><td>${x.month}</td><td>${esc(x.pkg)}${x.noRate?' <span class="tag bad">没 rate</span>':''}</td><td class="n">${x.classes}</td><td class="n">${x.rate}</td><td class="n">${money(x.amount)}</td><td>${x.paidDate}${x.month<addMonths(p.slice(0,7),-1)?' <span class="tag info">迟付补发</span>':''}</td></tr>`).join('')}</table>`:'<div class="small mute">这期没有可以出的</div>'}
+     <div class="row" style="margin-top:8px;justify-content:flex-end;gap:16px"><span>小计 <b>RM ${money(sub)}</b></span>
+      <span>Training fee ${here?`<b>- RM ${money(here.amt)}</b>（${n}/6，单号 ${esc(here.billNo||'—')}） <button class="g" onclick="dedDel('${k}','${p}')">取消</button>`:`<button class="g" onclick="dedAdd('${k}','${p}',${n})">扣 training fee（已扣 ${n}/6）</button>`}</span>
+      <span>实发 <b style="font-size:16px">RM ${money(net)}</b></span></div>
+     ${pd.length?`<details style="margin-top:6px"><summary class="small">⏳ 暂扣 ${pd.length} 个学生（还没付，期限内付了就会出）RM ${money(pd.reduce((a,x)=>a+x.amount,0))}</summary><div class="small">${pd.map(x=>`${esc(x.s.no+' '+x.s.name)} – ${x.month} – RM ${money(x.amount)}（期限 ${x.deadline}）`).join('<br>')}</div></details>`:''}
+    </div>`; }).join('');
+  return `<div class="card"><div class="row"><span>发放日期</span><select onchange="UI.payout=this.value;render()">${pl.map(x=>`<option ${x===p?'selected':''}>${x}</option>`).join('')}</select>
+   <span class="tag info">${w.label}</span><span style="flex:1"></span><span>这期总共实发 <b>RM ${money(grand)}</b></span>
+   <button class="g" onclick="allowExcel()">下载 Excel</button></div>
+   <div class="small mute" style="margin-top:6px">Allowance = 堂数 × rate。只出「学费已在期限内付清」的学生；按付款日期分到 15号 或 5号 那期。待处理的银行入账（${reviewCount()} 笔）还没算进去。</div></div>
+   ${secs||'<div class="card mute">这期没有资料（需要已确认的老师名单 + 已配对的入账）</div>'}
+   ${forf.length?`<div class="card"><details><summary>🚫 超过期限、不出 allowance：${forf.length} 笔（RM ${money(forf.reduce((a,x)=>a+x.amount,0))}）</summary><div class="small" style="margin-top:6px">${forf.map(x=>`${x.branch} ${esc(x.mt)} – ${esc(x.s.no+' '+x.s.name)} – ${x.month}（期限 ${x.deadline}${x.paidDate?'，'+x.paidDate+' 才付':'，还没付'}）`).join('<br>')}</div></details></div>`:''}`;
+}
+function dedAdd(k,p,n){ modal(`<h3>扣 Training fee（第 ${n+1}/6 期）</h3><div class="f"><label>金额 RM</label><input id="d_a" type="number" value="60"><label>总部单号</label><input id="d_b" placeholder="例如 P8049280"></div>
+  <div class="row" style="margin-top:12px"><button class="b" onclick="dedSave('${k}','${p}')">保存</button><button class="g" onclick="closeModal()">取消</button></div>`); }
+async function dedSave(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); m.list=m.list||{}; const r=m.list[k]=m.list[k]||{deductions:[]}; r.deductions=(r.deductions||[]).filter(d=>d.payout!==p); r.deductions.push({payout:p,amt:+$('#d_a').value||0,billNo:$('#d_b').value.trim()}); r.deductions.sort((a,b)=>a.payout<b.payout?-1:1); await save('settings/mts',m); closeModal(); toast('已保存'); }
+async function dedDel(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); const r=m.list[k]; r.deductions=r.deductions.filter(d=>d.payout!==p); await save('settings/mts',m); }
+function allowExcel(){ const p=UI.payout; const L=ledger(); const pay=allowanceLines(S,L).filter(x=>x.status==='payable'&&x.payout===p); const rows=[['Allowance 发放 '+p+'（'+payoutWindow(p).label+'）'],[],['Branch','MT','编号','学生','月份','Pkg','堂数','Rate','Allowance','付款日期']];
+  const by={}; pay.forEach(x=>{ const k=mtKey(x.branch,x.mt); (by[k]=by[k]||[]).push(x); });
+  for(const k of Object.keys(by).sort()){ const [b,mt]=k.split('|'); let sub=0; by[k].forEach(x=>{ rows.push([b,mt,x.s.no,x.s.name,x.month,x.pkg,x.classes,x.rate,x.amount,x.paidDate]); sub+=x.amount; });
+    const d=(((S.mts.list||{})[k]||{}).deductions||[]).find(d=>d.payout===p); rows.push(['','','','小计','','','','',sub]); if(d) rows.push(['','','','Training fee（单号 '+(d.billNo||'')+'）','','','','',-d.amt]); rows.push(['','','','实发 '+mt,'','','','',sub-(d?d.amt:0)]); rows.push([]); }
+  saveXlsx(`MT_Allowance_${p}.xlsx`,[['Allowance',rows]]); }
+
+// ---------- 设置 ----------
+function vSet(){
+  const pk=Object.entries(S.packages).sort((a,b)=>a[0].localeCompare(b[0])); const c=cfg();
+  return `<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
+   <table style="max-width:720px"><tr><th>Package</th><th class="n">学费 RM</th><th class="n">Rate / 堂 RM</th><th class="n">标准堂数 / 月</th><th></th></tr>
+   ${pk.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n"><input type="number" step="0.01" value="${v.fee||0}" onchange="pkSet('${esc(k)}','fee',+this.value)"></td><td class="n"><input type="number" step="0.01" value="${v.rate||0}" onchange="pkSet('${esc(k)}','rate',+this.value)"></td><td class="n"><input type="number" value="${stdClasses(S,k)}" onchange="pkSet('${esc(k)}','classes',+this.value)"></td><td><button class="r" onclick="pkDel('${esc(k)}')">删</button></td></tr>`).join('')}
+   <tr><td><input id="pk_n" placeholder="新 package" style="width:100px"></td><td class="n"><input id="pk_f" type="number"></td><td class="n"><input id="pk_r" type="number"></td><td class="n"><input id="pk_c" type="number" value="4"></td><td><button class="b" onclick="pkSet($('#pk_n').value.trim(),null)">加</button></td></tr></table></div>
+  <div class="card"><h2>付款先还哪一笔</h2><div class="row">
+   <label><input type="radio" name="po" ${c.payOrder!=='tuitionFirst'?'checked':''} onchange="cfgTop('payOrder','fifo')"> 先还旧欠款（期初 / 模块），再还每月学费 — 跟 Bukku 一样按先后</label>
+   <label><input type="radio" name="po" ${c.payOrder==='tuitionFirst'?'checked':''} onchange="cfgTop('payOrder','tuitionFirst')"> 先还每月学费（allowance 先出），旧欠款最后还</label></div>
+   <div class="small mute" style="margin-top:6px">影响：哪个月份算"已付"，所以会影响 allowance 和欠款清单的月份，总欠款不变。</div></div>
+  <div class="card"><h2>银行设置</h2><table style="max-width:720px"><tr><th>银行</th><th>哪些 branch</th><th>Bukku Payment Method</th><th>Bukku Deposit Account</th></tr>
+   ${['AFFIN','PBB'].map(b=>`<tr><td>${b}</td><td><input value="${esc(c.bankBranches[b].join(','))}" onchange="cfgSet('bankBranches','${b}',this.value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))"></td><td><input value="${esc(c.payMethod[b])}" onchange="cfgSet('payMethod','${b}',this.value)"></td><td><input value="${esc(c.deposit[b])}" onchange="cfgSet('deposit','${b}',this.value)"></td></tr>`).join('')}</table></div>
+  <div class="card"><h2>导出 Bukku Sales Invoice（每月学费）</h2><div class="row">
+   <select onchange="UI.invBranch=this.value">${brOpts(UI.invBranch||'BBU')}</select>
+   <input type="month" value="${UI.invMonth||UI.expMonth}" onchange="UI.invMonth=this.value"><button class="b" onclick="exportInvoices()">下载 Bukku import 文件</button></div>
+   <div class="small mute" style="margin:6px 0">用「已确认的老师名单」开单：一个学生一张 invoice，金额 = package 学费，日期 = 那个月 1 号。学费是 0 或没有 Bukku code 的学生会列出来，不会导出。</div>
+   <table style="max-width:820px"><tr><th>号码格式</th><th>Account</th><th>Item Description</th><th>Product</th><th>Tax</th></tr>
+   <tr><td><input value="${esc(c.inv.number)}" onchange="cfgInv('number',this.value)" style="width:220px"></td><td><input value="${esc(c.inv.account)}" onchange="cfgInv('account',this.value)" style="width:90px"></td><td><input value="${esc(c.inv.desc)}" onchange="cfgInv('desc',this.value)" style="width:220px"></td><td><input value="${esc(c.inv.product)}" onchange="cfgInv('product',this.value)" style="width:110px"></td><td><input value="${esc(c.inv.tax)}" onchange="cfgInv('tax',this.value)" style="width:60px"></td></tr></table>
+   <div class="small mute">{B} = branch，{MM}{YY} = 月份；[YY][MM]-[3DIGIT] 让 Bukku 自动跑号。<b>请确认 Account 和 Item Description 跟你 Bukku 里的一样。</b></div></div>
+  <div class="card"><h2>导出 Bukku Sales Payment</h2><div class="row">
+   <select onchange="UI.expBank=this.value">${['AFFIN','PBB'].map(x=>`<option ${x===UI.expBank?'selected':''}>${x}</option>`).join('')}</select>
+   <input type="month" value="${UI.expMonth}" onchange="UI.expMonth=this.value"><button class="b" onclick="exportPayments()">下载 Bukku import 文件</button></div>
+   <div class="small mute" style="margin-top:6px">只导出已配对（自动 / 已确认）的入账，一个学生一行。号码用 OR-[branch][YY][MM]-[3DIGIT]，让 Bukku 自动跑号。</div></div>`;
+}
+async function pkSet(k,f,v){ if(!k) return toast('请填 package 名称'); const doc={list:JSON.parse(JSON.stringify(S.packages))}; if(f===null){ doc.list[k]={fee:+$('#pk_f').value||0,rate:+$('#pk_r').value||0,classes:+$('#pk_c').value||4}; } else { doc.list[k]=doc.list[k]||{}; doc.list[k][f]=v; } await save('settings/packages',doc); }
+async function pkDel(k){ const doc={list:JSON.parse(JSON.stringify(S.packages))}; delete doc.list[k]; await save('settings/packages',doc); }
+async function cfgTop(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c[k]=v; await save('settings/config',c); toast('已保存'); }
+async function cfgInv(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.inv[k]=v; await save('settings/config',c); toast('已保存'); }
+function exportInvoices(){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth; const r=S.rosters[rosterId(b,m)]; if(!r||!r.confirmed) return toast(b+' '+m+' 还没有已确认的老师名单');
+  const c=cfg().inv; const mm=m.slice(5,7), yy=m.slice(2,4); const fill=s=>String(s||'').replace(/\{B\}/g,b).replace(/\{MM\}/g,mm).replace(/\{YY\}/g,yy);
+  const date='01/'+mm+'/'+m.slice(0,4); const rows=[], bad=[]; const seen=new Set();
+  for(const l of r.lines){ const s=findStu(S,l.uid); if(!s){ bad.push(l.name+'：找不到学生'); continue; } if(seen.has(l.uid)) continue; seen.add(l.uid);
+    const fee=feeFor(S,l,s); if(!(fee>0)){ bad.push(s.no+' '+s.name+'：package '+l.pkg+' 没有学费'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; }
+    rows.push([null,s.code,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc)+' - '+s.no+' '+s.name+' ('+l.pkg+')',1,null,null,fee,null,c.tax||null]); }
+  const head=[['#','TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['#',b+' '+m+' 学费，'+rows.length+' 张，RM '+money(rows.reduce((x,y)=>x+y[18],0))],
+    ['$','Customer Code (1) *','No. (2)','Reference No.','Date (D) *','Payment Term (3)','Due Date (D) (4)','Currency (5)','Rate (6)','Tags (7)','Title','Description','Product (8)','Account (9) *','Item Description *','Quantity (10)','UOM (11)','Location (12)','Unit Price *','Discount (13)','Tax (14)']];
+  saveXlsx(`Bukku_SalesInvoice_${b}_${m}.xlsx`,[['Worksheet',head.concat(rows)]].concat(bad.length?[['没有导出',[['没有导出的学生'],...bad.map(x=>[x])]]]:[]));
+  if(bad.length) modal(`<h3>${bad.length} 个学生没有导出</h3><div class="small">${bad.map(esc).join('<br>')}</div><p class="small mute">补好资料后再导出一次（这份清单也在 Excel 的第二张 sheet）。</p><button class="g" onclick="closeModal()">关闭</button>`); }
+async function cfgSet(g,b,v){ const c=JSON.parse(JSON.stringify(cfg())); c[g][b]=v; await save('settings/config',c); toast('已保存'); }
+function dmy(d){ return d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4); }
+function exportPayments(){
+  const bank=UI.expBank, m=UI.expMonth; const doc=S.bank[bankDocId(bank,m)]; if(!doc) return toast('这个月没有 '+bank+' 资料');
+  const c=cfg(); const tx=Object.values(doc.tx||{}).filter(t=>t.status==='auto'||t.status==='manual').sort((a,b)=>(a.date+a.time)<(b.date+b.time)?-1:1);
+  const need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').length;
+  const head=[['#','TEMPLATE FOR SALES PAYMENTS'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['$','Contact Code (1)','Legal Name (2)','No. (3)','Reference No.','Date (D) *','Currency (4)','Rate (5)','Amount (6) *','Payment Method (7)','Deposit Account (8) *','Fee Amount (9)','Fee Account (10)','Tags (11)','Description','Invoice No. (12)','Amount (13)']];
+  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; rows.push([null,s.code,s.no+'-'+s.name,'OR-'+s.branch+'[YY][MM]-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
+  saveXlsx(`Bukku_SalesPayment_${bank}_${m}.xlsx`,[['Worksheet',head.concat(rows)]]);
+  if(need) toast(`注意：还有 ${need} 笔待处理的入账没有导出`,4000);
+}
+const _vSet=vSet;
+vSet=function(){ return MGR ? _vSet() : '<div class="card"><div class="msg warn">价目表、Allowance 设定和银行 / 发票设置只有 manager 可以改。需要改的话请找 CC CREST manager。</div></div>'; };
+init();
+</script>
+</body>
+</html>

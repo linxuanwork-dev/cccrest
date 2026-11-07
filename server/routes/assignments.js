@@ -23,7 +23,7 @@ function resolveAccess(staffIds, provided, existingRows) {
     const existing = existingRows.find((r) => r.staff_id === id);
     const g = given[id];
     if (g && g.permissions !== undefined && !validLevels(g.permissions, 0)) return { error: 'Invalid page level (use 0 No access to 4 Full Access).' };
-    const base = existing ? existing.permissions : normaliseLevels({}, 0, 3);
+    const base = existing ? existing.permissions : Object.assign(normaliseLevels({}, 0, 3), { tuition: 0 });   // Tuition & Allowance is only given on purpose
     const permissions = normaliseLevels(Object.assign({}, base, g && g.permissions ? g.permissions : {}), 0, 0);
     const canApprove = g && typeof g.canApprove === 'boolean' ? g.canApprove : (existing ? existing.can_approve : false);
     if (canApprove && permissions.sales < 3) return { error: 'An approver needs Sales Summary at L3 (Create & Update) or above.' };
@@ -34,7 +34,7 @@ function resolveAccess(staffIds, provided, existingRows) {
 
 // "KAREN: Sales L3, Purchases L1, Payroll No access (approver)" for the activity log.
 function accessText(name, a) {
-  const label = { sales: 'Sales', purchases: 'Purchases', bank: 'Bank', claim: 'Claim', petty: 'Petty', merchant: 'Merchant', payroll: 'HR', stock: 'Stock Count', home: 'Dashboard', docs: 'Documents', profile: 'Company Profile' };
+  const label = { sales: 'Sales', purchases: 'Purchases', bank: 'Bank', claim: 'Claim', petty: 'Petty', merchant: 'Merchant', payroll: 'HR', stock: 'Stock Count', home: 'Dashboard', docs: 'Documents', profile: 'Company Profile', tuition: 'Tuition & Allowance' };
   const parts = PAGES.map((p) => (a.permissions[p] === 0 ? `${label[p]} ${LEVEL_NAMES[0]}` : `${label[p]} L${a.permissions[p]}`));
   return `${name}: ${parts.join(', ')}${a.canApprove ? ' (approver)' : ''}`;
 }
@@ -182,7 +182,7 @@ router.patch('/assignment-requests/:id', requireRole('admin'), async (req, res) 
       const resolved = access.resolved || {};
       await client.query('DELETE FROM company_staff WHERE company_id = $1', [request.company_id]);
       for (const staffId of request.requested_staff_ids) {
-        const a = resolved[staffId] || { permissions: normaliseLevels({}, 0, 3), canApprove: false };
+        const a = resolved[staffId] || { permissions: Object.assign(normaliseLevels({}, 0, 3), { tuition: 0 }), canApprove: false };
         await client.query('INSERT INTO company_staff (company_id, staff_id, permissions, can_approve) VALUES ($1,$2,$3,$4)',
           [request.company_id, staffId, JSON.stringify(a.permissions), a.canApprove]);
       }

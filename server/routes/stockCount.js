@@ -162,16 +162,17 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   const ops = req.body && req.body.ops;
   if (!Array.isArray(ops) || !ops.length || ops.length > 100) return bad(res, 'Invalid request');
   const mgr = isMgr(req), clientMgr = isClientMgr(req), uid = String(req.user.sub);
-  const months = new Set(), mustBeNew = [], itemDeletes = [];
+  const months = new Set(), mustBeNew = [], mustExist = [], itemDeletes = [];
   const deny = () => res.status(403).json({ error: '你没有权限做这个操作。 You are not allowed to do this.' });
   for (const o of ops) {
     if (!o || !['set', 'update', 'delete'].includes(o.op) || typeof o.path !== 'string' || !PATH_RE.test(o.path)) return bad(res, 'Invalid request');
     const top = o.path.split('/')[0];
     if (!mgr && ['groups', 'items', 'closing', 'settings'].includes(top)) {
-      // a client manager may only add (a path that does not exist yet) and delete an item
+      // a client manager may add items and groups (a path that does not exist yet), edit and delete items, but never change a price
       if (top === 'closing' || top === 'settings' || !clientMgr) return deny();
-      if (o.op === 'update' || (o.op === 'delete' && top === 'groups')) return deny();
+      if (top === 'groups' && o.op !== 'set') return deny();
       if (o.op === 'set') mustBeNew.push(o.path);
+      if (o.op === 'update') mustExist.push(o.path);
     }
     if (o.op === 'delete' && top === 'items') itemDeletes.push(o.path.slice(6));
     if (o.op !== 'delete') {
@@ -179,7 +180,10 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
       // who did it is whoever is signed in, whatever the page says
       if ('by' in o.data) o.data.by = uid;
       if (top === 'closing') o.data.closedBy = uid;
-      if (top === 'items' && !mgr) { o.data.price = 0; delete o.data.priceAt; }   // only CC CREST sets prices
+      if (top === 'items' && !mgr) {   // only CC CREST sets prices (and the Account); a client manager's edit leaves them as they are
+        if (o.op === 'set') { o.data.price = 0; delete o.data.priceAt; }
+        else { delete o.data.price; delete o.data.priceAt; delete o.data.account; delete o.data.no; }
+      }
     }
     if (top === 'counts') months.add(o.path.split('/')[1]);
   }
@@ -187,6 +191,10 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   if (mustBeNew.length) {
     const { rows } = await pool.query('SELECT 1 FROM stock_count_docs WHERE company_id = $1 AND path = ANY($2::text[])', [cid, mustBeNew]);
     if (rows.length) return deny();
+  }
+  if (mustExist.length) {   // an edit changes an item that is there; it never creates one
+    const { rows } = await pool.query('SELECT path FROM stock_count_docs WHERE company_id = $1 AND path = ANY($2::text[])', [cid, mustExist]);
+    if (rows.length !== new Set(mustExist).size) return deny();
   }
   if (itemDeletes.length) {   // an item that has records (a count, or a closed month) cannot be deleted: make it inactive instead
     const { rows } = await pool.query(

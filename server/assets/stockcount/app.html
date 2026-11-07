@@ -101,6 +101,7 @@ body:not(.is-mgr) .mgr-only{display:none!important}
 body.is-mgr .staff-only{display:none!important}
 body:not(.can-add) .add-only{display:none!important}
 body.can-add .noadd-only{display:none!important}
+body.is-mgr .noman-only{display:none!important}
 .role{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--muted);white-space:nowrap}
 
 /* count sheet */
@@ -298,6 +299,7 @@ body.can-add .noadd-only{display:none!important}
       </div>
       <aside>
         <p class="panel small muted noadd-only" style="margin:0">货品和单价只有 manager 可以新增或修改。少了货品请通知 manager。</p>
+        <p class="panel small muted add-only noman-only" style="margin:0">你可以新增货品、修改货品资料和删除还没有记录的货品；单价只有 CC CREST 可以改。</p>
         <form class="panel add-only" id="iForm" autocomplete="off">
           <h2 style="margin-bottom:10px" id="iFormTitle">新增货品</h2>
           <div class="fields" style="grid-template-columns:1fr 1fr">
@@ -307,8 +309,8 @@ body.can-add .noadd-only{display:none!important}
             <label class="f mgr-only"><span>单价 Price RM</span><input id="fPrice" class="mono" inputmode="decimal"></label>
             <label class="f"><span>1 单位 = 几个小单位</span><input id="fPack" class="mono" inputmode="decimal" placeholder="例 12（不用就留空）"></label>
             <label class="f"><span>小单位</span><input id="fSub" list="unitList" placeholder="例 PKT"></label>
-            <label class="f"><span>NO</span><input id="fNo" class="mono" inputmode="numeric" placeholder="自动"></label>
-            <label class="f wide"><span>Account（留空用分组预设）</span><input id="fAcc" list="accList"><datalist id="accList"></datalist></label>
+            <label class="f mgr-only"><span>NO</span><input id="fNo" class="mono" inputmode="numeric" placeholder="自动"></label>
+            <label class="f wide mgr-only"><span>Account（留空用分组预设）</span><input id="fAcc" list="accList"><datalist id="accList"></datalist></label>
             <label class="f wide row" style="flex-direction:row;gap:6px"><input type="checkbox" id="fActive" checked style="width:auto"> <span style="font-size:13px;color:var(--ink)">在用（停用的不会出现在盘点表）</span></label>
           </div>
           <div class="row" style="margin-top:12px;justify-content:flex-end">
@@ -462,6 +464,7 @@ body.can-add .noadd-only{display:none!important}
     '这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。': 'Stock Count is not switched on for this company. Ask the Owner to switch it on in the Control Panel.',
     '新增货品 ': 'Add item', '期末存货 RM': 'Closing stock RM', '确定结账 ': 'Confirm close',
     '明细': 'Details', '收起': 'Hide',
+    '你可以新增货品、修改货品资料和删除还没有记录的货品；单价只有 CC CREST 可以改。': 'You can add items, edit item details and delete items that have no records. Only CC CREST can change prices.',
     '全部展开': 'Expand all', '全部收起': 'Collapse all', '点类别名称，展开或收起这一类的清单': 'Click a category name to open or close its list',
     '本月单价按「采购单」的进货价用 FIFO 计算：期末的货当作最近买进的几批，各批用自己的进价；没有进货记录的货品用货品资料的单价。': 'This month\'s prices are worked out by FIFO from the purchase bills: the stock at month end is treated as the most recently bought batches, each at its own purchase price. Items with no purchase records use the price in the item list.',
     '（正在读取采购记录…）': '(loading the purchase records…)', '还在读取采购记录，等几秒再按结账': 'Still loading the purchase records — wait a few seconds, then press Close',
@@ -1230,7 +1233,7 @@ function renderItems(){
     <td class="small">${esc(groupName(i))}</td><td class="small">${esc(i.unit||'')}${Number(i.pack)>1?`<div class="muted">1 = ${esc(qfmt(i.pack))} ${esc(i.sub||'PKT')}</div>`:''}</td>
     <td class="r mono">${S.bulk ? `<input class="bp${S.bulkP[i.id]!==undefined?' chg':''}" data-bp="${esc(i.id)}" inputmode="decimal" value="${esc(S.bulkP[i.id]!==undefined?S.bulkP[i.id]:(Number(i.price)>0?i.price:''))}" aria-label="${esc(i.name)} 单价">` : (Number(i.price)>0?money(i.price):'<span class="pill warn">无</span>')}${i.priceAt?`<div class="small muted" style="font-family:var(--f-body)">${new Date(i.priceAt).toLocaleDateString('en-GB')}</div>`:''}</td>
     <td class="small" style="white-space:nowrap">${esc(itemAccount(i))}${i.account?'':' <span class="muted">(分组)</span>'}</td>
-    <td class="r add-only" style="white-space:nowrap"><button class="btn sm mgr-only" data-edit="${esc(i.id)}">改</button> <button class="btn sm danger" data-idel="${esc(i.id)}">删</button></td></tr>`).join('')
+    <td class="r add-only" style="white-space:nowrap"><button class="btn sm" data-edit="${esc(i.id)}">改</button> <button class="btn sm danger" data-idel="${esc(i.id)}">删</button></td></tr>`).join('')
     : `<tr><td colspan="7" class="empty">${S.items.length?'找不到':'还没有货品。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
 }
 ['iQ','iGroup','iOff'].forEach(id=>$(id).addEventListener('input',renderItems));
@@ -1300,8 +1303,14 @@ $('iForm').addEventListener('submit',async e=>{
   if(!ex || Number(ex.price)!==price) body.priceAt=Date.now();
   delete body.id;
   try{
-    await put('items/'+(ex?ex.id:'i'+uid()),body);
-    logIt([{a:ex?'item':'item-add',t:name,c:ex?itemDiff(ex,body):[['新增', '', descItem(body)]]}]);
+    if(ex && !S.mgr){   // a client manager changes the item's details but never the price or Account (the server enforces it too)
+      const upd={name,groupId,unit:body.unit,active:body.active,pack:body.pack,sub:body.sub,updatedAt:Date.now()};
+      await patch('items/'+ex.id,upd);
+      logIt([{a:'item',t:name,c:itemDiff(ex,Object.assign({},ex,upd))}]);
+    }else{
+      await put('items/'+(ex?ex.id:'i'+uid()),body);
+      logIt([{a:ex?'item':'item-add',t:name,c:ex?itemDiff(ex,body):[['新增', '', descItem(body)]]}]);
+    }
     toast('已保存 '+name); iReset();
   }catch(err){dbErr(err)}
 });

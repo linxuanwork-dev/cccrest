@@ -483,11 +483,17 @@ function vStu(){
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
   ${badMt.length?`<div class="msg warn">有 Active 学生的 MT 不在 ${b} 的 MT 名单里：${badMt.map(esc).join('、')}</div>`:''}
   <div class="small mute" style="margin:6px 0">${list.length} 人。导入会更新同编号的学生，不会删掉已有的。</div>
-  <div class="tw"><table><tr><th>编号</th><th>Bukku code</th><th>学生</th><th>状态</th><th>MT</th><th>Pkg</th><th class="n">学费</th><th>父母 / 付款人</th><th class="n">期初欠款</th><th></th></tr>
-  ${list.map(s=>`<tr><td>${esc(s.no)}</td><td>${esc(s.code)}</td><td>${esc(s.name)}${s.transferFrom?`<div class="small mute">从 ${esc(s.transferFrom)} 转来</div>`:''}${s.transferTo?`<div class="small mute">转去 ${esc(s.transferTo)}</div>`:''}</td>
-   <td>${stTag(s.status)}</td><td>${esc(s.mt)||'<span class="tag warn">没有</span>'}</td><td>${esc(s.pkg)||'<span class="tag warn">没有</span>'}</td><td class="n">${money(studentFee(S,s))}</td>
+  <div class="tw"><table><tr><th>编号</th><th>Bukku code</th><th>学生</th><th>状态</th><th>转校 Transfer</th><th>MT</th><th>Pkg</th><th class="n">学费</th><th>父母 / 付款人</th><th class="n">期初欠款</th><th></th></tr>
+  ${list.map(s=>`<tr><td>${esc(s.no)}</td><td>${esc(s.code)}</td><td>${esc(s.name)}</td>
+   <td>${stTag(s.status)}</td><td class="small">${trfCell(s)}</td><td>${esc(s.mt)||'<span class="tag warn">没有</span>'}</td><td>${esc(s.pkg)||'<span class="tag warn">没有</span>'}</td><td class="n">${money(studentFee(S,s))}</td>
    <td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${s.opening?money(s.opening):''}</td><td><button class="g" onclick="editStu('${s.uid}')">编辑</button> <button class="g" onclick="stmt('${s.uid}')">账目</button></td></tr>`).join('')}
   </table></div></div>`;
+}
+// transfer column: where the student came from / went to (BBU:B154 -> "BBU B154"), with the month; an old master-list note ("TRF TDA 1025") shows when there is no link yet
+function trfCell(s){
+  const f=x=>String(x||'').replace(':',' '), m=s.transferMonth?' <span class="mute">('+esc(s.transferMonth)+')</span>':'';
+  const o=[]; if(s.transferFrom) o.push('<span class="tag info">转来</span> 从 '+esc(f(s.transferFrom))+m); if(s.transferTo) o.push('<span class="tag warn">转出</span> 去 '+esc(f(s.transferTo))+m);
+  if(!o.length&&s.note&&/^TRF/i.test(s.note)) o.push(esc(s.note)); return o.join('<br>');
 }
 function stTag(s){ return s==='Active'?'<span class="tag ok">Active</span>':s==='Withdrawn'?'<span class="tag grey">停课</span>':s==='Transferred'?'<span class="tag info">已转</span>':`<span class="tag warn">${esc(s)}</span>`; }
 function nextNo(b){ const l=stuList(b); let pre='',w=3,max=0; for(const s of l){ const m=s.no.match(/^([A-Za-z]*)(\d+)$/); if(m){ pre=m[1]; w=m[2].length; max=Math.max(max,+m[2]); } } if(!l.length) pre=b[0]; return pre+String(max+1).padStart(w,'0'); }

@@ -14,4 +14,5 @@ module.exports = {
   '每期金额 RM': ['Amount per instalment RM', 'Jumlah setiap ansuran RM'],
   '/6 月份': ['/6 month', '/6 bulan'],
   '不填的话用：Fast Track ABC、ABB、ABD、ABK、ABS。每个 package 的堂数上限用上面「Package 价目表」里的「标准堂数」，MT 不能改。': ['If left empty: Fast Track ABC, ABB, ABD, ABK, ABS. The maximum classes of each package come from “Standard classes” in the “Package price list” above; the MT cannot change them.', 'Jika dikosongkan: Fast Track ABC, ABB, ABD, ABK, ABS. Had sesi setiap pakej diambil daripada “Sesi standard” dalam “Senarai harga pakej” di atas; MT tidak boleh mengubahnya.'],
+  'Training fee 6/6 已扣完': ['Training fee 6/6 fully deducted', 'Yuran latihan 6/6 telah ditolak sepenuhnya'],
 };

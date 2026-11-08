@@ -870,7 +870,9 @@ function mtKey(b,mt){ return b+'|'+mt; }
 // continues one month after the one before it. {exempt:true} = old MT, nothing to deduct.
 function trainOf(k){ const r=(S.mts.list||{})[k]; return (r&&r.training)||null; }
 function trainSched(k){ const t=trainOf(k); if(!t||t.exempt) return null; const ms=t.months||[], out=[]; for(let i=0;i<6;i++){ out.push(ms[i]||(i&&out[i-1]?addMonths(out[i-1],1):'')); } return out; }
-function trainDue(k,p){ const t=trainOf(k); if(!t||t.exempt||p.slice(8)!=='05') return null; const sch=trainSched(k), i=sch.indexOf(p.slice(0,7)); if(i<0||!(+t.amt>0)) return null; return {n:i+1,amt:+t.amt,bill:t.bill||''}; }
+// how many instalments were already deducted before payout p (recorded by hand, or scheduled and not skipped): after 6 nothing more is deducted
+function trainDoneBefore(k,p){ const rec=(S.mts.list||{})[k]||{}, ded=rec.deductions||[]; let n=ded.filter(d=>d.payout<p&&!d.skip).length; (trainSched(k)||[]).forEach(m=>{ if(m&&m+'-05'<p&&!ded.some(d=>d.payout===m+'-05')) n++; }); return n; }
+function trainDue(k,p){ const t=trainOf(k); if(!t||t.exempt||p.slice(8)!=='05'||trainDoneBefore(k,p)>=6) return null; const sch=trainSched(k), i=sch.indexOf(p.slice(0,7)); if(i<0||!(+t.amt>0)) return null; return {n:i+1,amt:+t.amt,bill:t.bill||''}; }
 function vAllow(){
   const pl=payoutList(); if(!UI.payout){ UI.payout=pl.find(p=>p>=today())||pl[pl.length-1]; }
   const p=UI.payout; const w=payoutWindow(p); const L=ledger(); const all=allowanceLines(S,L);
@@ -887,7 +889,7 @@ function vAllow(){
      ${ls.length?`<table><tr><th>学生</th><th>月份</th><th>Pkg</th><th class="n">堂数</th><th class="n">Rate</th><th class="n">Allowance</th><th>付款日期</th></tr>
      ${ls.map(x=>`<tr><td>${esc(x.s.no+' '+x.s.name)}</td><td>${x.month}</td><td>${esc(x.pkg)}${x.noRate?' <span class="tag bad">没 rate</span>':''}</td><td class="n">${x.classes}</td><td class="n">${x.rate}</td><td class="n">${money(x.amount)}</td><td>${x.paidDate}${x.month<addMonths(p.slice(0,7),-1)?' <span class="tag info">迟付补发</span>':''}</td></tr>`).join('')}</table>`:'<div class="small mute">这期没有可以出的</div>'}
      <div class="row" style="margin-top:8px;justify-content:flex-end;gap:16px"><span>小计 <b>RM ${money(sub)}</b></span>
-      <span>Training fee ${here?(here.skip?`<span class="mute">这期不扣</span> <button class="g" onclick="dedDel('${k}','${p}')">恢复</button>`:`<b>- RM ${money(here.amt)}</b>（${here.n||n}/6，单号 ${esc(here.billNo||'—')}） <button class="g" onclick="dedDel('${k}','${p}')">取消</button>`):due?`<b>- RM ${money(due.amt)}</b>（${due.n}/6，单号 ${esc(due.bill||'—')}，按 training 记录） <button class="g" onclick="dedSkip('${k}','${p}',${due.n})">这期不扣</button>`:exempt?'<span class="mute">TRAINING 不扣</span>':`<button class="g" onclick="dedAdd('${k}','${p}',${n})">扣 training fee（已扣 ${n}/6）</button>`}</span>
+      <span>Training fee ${here?(here.skip?`<span class="mute">这期不扣</span> <button class="g" onclick="dedDel('${k}','${p}')">恢复</button>`:`<b>- RM ${money(here.amt)}</b>（${here.n||n}/6，单号 ${esc(here.billNo||'—')}） <button class="g" onclick="dedDel('${k}','${p}')">取消</button>`):due?`<b>- RM ${money(due.amt)}</b>（${due.n}/6，单号 ${esc(due.bill||'—')}，按 training 记录） <button class="g" onclick="dedSkip('${k}','${p}',${due.n})">这期不扣</button>`:exempt?'<span class="mute">TRAINING 不扣</span>':trainDoneBefore(k,p)>=6?'<span class="mute">Training fee 6/6 已扣完</span>':`<button class="g" onclick="dedAdd('${k}','${p}',${n})">扣 training fee（已扣 ${n}/6）</button>`}</span>
       <span>实发 <b style="font-size:16px">RM ${money(net)}</b></span></div>
      ${pd.length?`<details style="margin-top:6px"><summary class="small">⏳ 暂扣 ${pd.length} 个学生（还没付，期限内付了就会出）RM ${money(pd.reduce((a,x)=>a+x.amount,0))}</summary><div class="small">${pd.map(x=>`${esc(x.s.no+' '+x.s.name)} – ${x.month} – RM ${money(x.amount)}（期限 ${x.deadline}）`).join('<br>')}</div></details>`:''}
     </div>`; }).join('');

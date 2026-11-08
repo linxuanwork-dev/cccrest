@@ -51,6 +51,7 @@ details summary{cursor:pointer;font-weight:600}
 // ===== Core logic (pure, no DOM) =====
 const STOP = new Set(['BIN','BINTI','BT','BTE','AL','AP','MUHAMMAD','MUHAMAD','MOHD','MOHAMAD','MOHAMMAD','MOHAMED','MUHAMMED','NUR','NURUL','NOR','PUTRI','PUTERI','PUTRA','PUTERA','SITI','AHMAD','ABDUL','ABD','SYED','WAN','DAN','YURAN','OCT','OKT','NOV','SEPT','SEP','FEE','FEES','TUISYEN','TUITION','MATH','OCTOBER','OKTOBER','NOVEMBER','SEPTEMBER','DECEMBER','DISEMBER','DEC','HOME','TERAPI','TERAPIMATH','PAYMENT','FOR','FUND','FUNDS','TRANSFER','MONTHLY','BULAN','PAKEJ','MODUL','BARU','MEPS','DUITNOW','TRSF','JULAI','OGOS','ENCIK','PUAN','ANAK']);
 function norm(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z]/g,''); }
+function normA(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,''); }   // for searching: letters and digits (student numbers like B047)
 function toks(s){ return (String(s==null?'':s).toUpperCase().match(/[A-Z]+/g)||[]).filter(t=>t.length>=3 && !STOP.has(t)); }
 function r2(n){ return Math.round((+n||0)*100)/100; }
 
@@ -467,8 +468,8 @@ function vHome(){
 
 // ---------- 学生 ----------
 function vStu(){
-  const b=UI.branch; const q=norm(UI.stuQ);
-  let list=stuList(b).filter(s=>UI.stuStatus==='ALL'||s.status===UI.stuStatus).filter(s=>!q||norm(s.name+s.no+s.code+(s.parents||[]).join(' ')+s.mt).includes(q)).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true}));
+  const b=UI.branch; const q=normA(UI.stuQ);
+  let list=stuList(b).filter(s=>UI.stuStatus==='ALL'||s.status===UI.stuStatus).filter(s=>!q||normA(s.name+s.no+s.code+(s.parents||[]).join(' ')+s.mt).includes(q)).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true}));
   const noMt=stuList(b).filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)).length;
   const mtNames=(S.mts.names||{})[b]||[]; const badMt=mtNames.length?[...new Set(stuList(b).filter(s=>s.status==='Active'&&s.mt&&!mtNames.includes(s.mt)).map(s=>s.mt))]:[];
   return `<div class="card"><div class="row">
@@ -789,9 +790,9 @@ function drawTx(){
    <div class="row" style="margin-top:12px"><button class="b" onclick="txConfirm()" ${Object.keys(sel).length?'':'disabled'}>确认</button><button class="g" onclick="txIgnore()">不是学费（忽略）</button>${t.status!=='review'&&t.status!=='unmatched'?'<button class="g" onclick="txReset()">改回待确认</button>':''}<button class="g" onclick="closeModal()">取消</button></div>`);
 }
 function txToggle(u,on){ const st=UI._tx; if(on){ const s=findStu(S,u); const t=S.bank[st.did].tx[st.id]; const left=t.amount-Object.values(st.sel).reduce((a,b)=>a+(+b||0),0); st.sel[u]=r2(left>0?Math.min(left,studentFee(S,s)||left):studentFee(S,s)); } else { delete st.sel[u]; if(!st.extra.includes(u)) st.extra.push(u); } drawTx(); }
-function txSearch(q){ const n=norm(q); const box=$('#txres'); if(n.length<3){ box.innerHTML=''; return; } const pool=poolFor(S.bank[UI._tx.did].bank);
-  const hits=pool.filter(s=>norm(s.name+s.no+(s.parents||[]).join(' ')).includes(n)).slice(0,8);
-  box.innerHTML=hits.map(s=>`<a href="#" onclick="UI._tx.extra.push('${s.uid}');txToggle('${s.uid}',true);return false">${esc(s.no+' '+s.name)}</a>`).join(' · ')||'找不到'; }
+function txSearch(q){ const n=normA(q); const box=$('#txres'); if(n.length<2){ box.innerHTML=''; return; } const pool=poolFor(S.bank[UI._tx.did].bank);
+  const hits=pool.filter(s=>normA(s.name+s.no+s.code+(s.parents||[]).join(' ')).includes(n)).slice(0,12);
+  box.innerHTML=hits.map(s=>`<a href="#" onclick="UI._tx.extra.push('${s.uid}');txToggle('${s.uid}',true);return false">${esc(s.no+' '+s.name)}${s.status&&s.status!=='Active'?' ('+esc(s.status)+')':''}</a>`).join('<br>')||'找不到'; }
 async function txConfirm(){
   const {did,id,sel}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id];
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0); if(Math.abs(sum-t.amount)>=0.01 && !confirmInline()) return;

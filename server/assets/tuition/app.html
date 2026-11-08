@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>(function(){try{var q=new URLSearchParams(location.search),s=localStorage.getItem("tfa_lang");if(s&&q.get("lang")!==s&&["zh","en","ms"].indexOf(s)>-1){q.set("lang",s);location.replace(location.pathname+"?"+q.toString());}}catch(e){}})();</script>
+<script>(function(){try{var q=new URLSearchParams(location.search),s=localStorage.getItem("tfa_lang");if(s==="ms"&&q.get("lang")!=="ms"&&!q.get("fromshell")){q.set("lang",s);location.replace(location.pathname+"?"+q.toString());}}catch(e){}})();</script>
 <title>补习中心 学费对账 · MT Allowance</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -324,10 +324,10 @@ function parseAging(rows){
 </script>
 <script>
 const BRANCHES=['BBU','TST','TDA'];
-const S={mtp:{},claims:{},students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
+const S={mtp:{},claims:{},hqbills:{},students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
 let db=null, downloads=null, canWrite=true, loaded={};
 const UI={tab:'home',branch:'BBU',stuStatus:'Active',stuQ:'',rBranch:'BBU',rMonth:'2026-10',draft:null,bBank:'AFFIN',bMonth:'2026-10',bFilter:'need',oBranch:'ALL',oMt:'ALL',oLate:true,payout:null,expBank:'AFFIN',expMonth:'2026-10'};
-let TABS=[['home','总览'],['stu','Contact 学生 / MT'],['claim','MT Claim'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
+let TABS=[['home','总览'],['stu','Contact 学生 / MT'],['claim','MT Claim'],['roster','老师名单'],['bank','银行对账'],['hq','HQ 进货单'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -350,8 +350,8 @@ document.getElementById('langsw').innerHTML=[['zh','中文'],['en','EN'],['ms','
 const HOWM=/*HOWM*/{};
 function howTxt(h){ h=String(h||''); if(!HOWM.months) return h; return h.replace(/（(\d+)个月）/g,(m,n)=>HOWM.months.replace('{n}',n)).replace(/已记住的付款人|已记住的家庭|父母名字|备注里的学生名|找不到|手动确认|\+金额|（金额对不上）/g,m=>HOWM[m]||m); }
 const API='/api/companies/'+encodeURIComponent(CID)+'/tuition';
-const COLLS=['students','settings','rosters','bank','claims'];
-const memo={students:{},settings:{},rosters:{},bank:{},claims:{}}, subs={students:[],settings:[],rosters:[],bank:[],claims:[]};
+const COLLS=['students','settings','rosters','bank','claims','hqbills'];
+const memo={students:{},settings:{},rosters:{},bank:{},claims:{},hqbills:{}}, subs={students:[],settings:[],rosters:[],bank:[],claims:[],hqbills:[]};
 let MGR=false, firstSync=false, syncRev=-1, inflight=0, syncing=false, syncAgain=false, needForce=true, syncT;
 async function http(method,url,body){
   const r=await fetch(API+url,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
@@ -416,19 +416,20 @@ async function init(){
   if(!me.enabled){ $('#conn').className='tag bad'; $('#conn').textContent='这家公司还没有开通'; render(); return; }
   MGR=!!me.mgr; canWrite=!!me.canWrite;
   const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
-  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
+  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims','hqbills'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
   db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
   db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
   db.collection('bank').onSnapshot(s=>{ S.bank={}; s.docs.forEach(d=>S.bank[d.id]=d.data()); done('bank'); });
   db.collection('claims').onSnapshot(s=>{ S.claims={}; s.docs.forEach(d=>S.claims[d.id]=d.data()); done('claims'); });
+  db.collection('hqbills').onSnapshot(s=>{ S.hqbills={}; s.docs.forEach(d=>S.hqbills[d.id]=d.data()); done('hqbills'); });
   await sync();
   setInterval(()=>{ if(!document.hidden) syncSoon(); },10000);   // pick up what other people saved
 }
 let _rt=null; function render(){ clearTimeout(_rt); _rt=setTimeout(renderNow,30); }
 function renderNow(){
   $('#nav').innerHTML=TABS.length>1?TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}</button>`).join(''):'';
-  const f={home:vHome,stu:vContact,claim:vClaim,roster:vRoster,bank:vBank,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
+  const f={home:vHome,stu:vContact,claim:vClaim,roster:vRoster,bank:vBank,hq:vHq,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
   const keep=document.activeElement&&document.activeElement.id; const pos=keep?document.activeElement.selectionStart:null;
   $('#main').innerHTML=f();
   if(keep){ const e=document.getElementById(keep); if(e){ e.focus(); try{ if(pos!=null) e.setSelectionRange(pos,pos);}catch(_){}} }
@@ -964,7 +965,7 @@ function allowExcel(){ const p=UI.payout; const L=ledger(); const pay=allowanceL
 // ---------- 设置 ----------
 function vSet(){
   const pk=Object.entries(S.packages).sort((a,b)=>a[0].localeCompare(b[0])); const c=cfg();
-  return claimCard()+`<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
+  return claimCard()+hqCard()+`<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
    <table style="max-width:720px"><tr><th>Package</th><th class="n">学费 RM</th><th class="n">Rate / 堂 RM</th><th class="n">标准堂数 / 月</th><th></th></tr>
    ${pk.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n"><input type="number" step="0.01" value="${v.fee||0}" onchange="pkSet('${esc(k)}','fee',+this.value)"></td><td class="n"><input type="number" step="0.01" value="${v.rate||0}" onchange="pkSet('${esc(k)}','rate',+this.value)"></td><td class="n"><input type="number" value="${stdClasses(S,k)}" onchange="pkSet('${esc(k)}','classes',+this.value)"></td><td><button class="r" onclick="pkDel('${esc(k)}')">删</button></td></tr>`).join('')}
    <tr><td><input id="pk_n" placeholder="新 package" style="width:100px"></td><td class="n"><input id="pk_f" type="number"></td><td class="n"><input id="pk_r" type="number"></td><td class="n"><input id="pk_c" type="number" value="4"></td><td><button class="b" onclick="pkSet($('#pk_n').value.trim(),null)">加</button></td></tr></table></div>
@@ -1095,6 +1096,158 @@ function claimCard(){
    <div class="small mute" style="margin-top:4px">不填的话用：Fast Track ABC、ABB、ABD、ABK、ABS。每个 package 的堂数上限用上面「Package 价目表」里的「标准堂数」，MT 不能改。</div></div>`;
 }
 async function claimProdsSave(v){ const c=JSON.parse(JSON.stringify(cfg())); c.claimProducts=v.split(',').map(x=>x.trim()).filter(Boolean); await save('settings/config',c); toast('已保存'); }
+
+// ---------- HQ 进货单（QC GROUP 开给各 branch 的单）：上传后自动开单给 klien ----------
+// Lines with a client name (registration, seasonal, module, jersey, reactive) become a sales invoice to that client, priced from the sales price list
+// (not the HQ price), numbered IV-[BRANCH]-R / M / O-[YY][MM]-[3DIGIT] and dated with the HQ invoice date. Fast Track (no client) is stock only.
+const HQ_DEF={module:80,regMale:200,regFemale:210,regFemaleShort:200,seasonal:0,reactive:20};
+function hqCfg(){ const h=(S.config&&S.config.hq)||{}; return Object.assign({},HQ_DEF,h,{fast:Object.assign({},h.fast||{})}); }
+const HQ_KINDS=[['registration','Registration'],['seasonal','Seasonal'],['module','Module'],['jersey','Jersey'],['reactive','Reactive'],['other','Other'],['fasttrack','Fast Track (stock)'],['stock','Stock (no client)']];
+const HQ_SERIES={registration:'R',seasonal:'R',module:'M',jersey:'O',reactive:'O',other:'O'};
+const HQ_ACCOUNT={R:'5000-01',M:'5000-03',O:'5000-04'};
+const invoiced=k=>!!HQ_SERIES[k];
+function hqPrice(l,stu,cfg){
+  const k=l.kind, g=l.gender||(stu&&stu.gender)||'', short=/PENDEK|SHORT/i.test(l.jersey||'');
+  if(k==='module') return {p:cfg.module};
+  if(k==='registration'){ if(g==='女长袖') return {p:cfg.regFemale}; if(g==='女短袖'||short) return {p:cfg.regFemaleShort}; if(g==='男') return {p:cfg.regMale}; return {p:cfg.regMale,note:'gender?'}; }
+  if(k==='seasonal') return cfg.seasonal>0?{p:cfg.seasonal}:{p:l.hqPrice,note:'seasonal price?'};
+  if(k==='reactive') return {p:cfg.reactive};
+  if(k==='jersey'||k==='other') return {p:l.hqPrice};
+  return {p:0};
+}
+function hqLineFrom(it,b){
+  const list=stuList(b), f=it.fields||{}, mt=f.client?matchName(f.client,list):null;
+  const l={kind:it.kind,title:it.title,client:f.client||'',module:f.module||'',jersey:f.jersey||'',game:f.game||'',qty:it.qty||1,hqPrice:it.price,uid:mt&&mt.exact?mt.s.uid:null,guess:mt&&!mt.exact?mt.s.uid:null,newStudent:false,gender:'',skip:false};
+  const stu=l.uid?findStu(S,l.uid):null; l.price=hqPrice(l,stu,hqCfg()).p; return l;
+}
+function vHq(){
+  const bills=Object.entries(S.hqbills||{}).map(([id,d])=>Object.assign({id},d)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const stock=hqStock();
+  return `<div class="card"><h2>HQ 进货单</h2><div class="small mute">上传 QC GROUP 开给 branch 的单（PDF）。有 klien 名字的行（注册、模块、Jersi、Reactive、Seasonal）自动开 invoice 给 klien，金额用「设置」里的售价表，日期用 HQ 单的日期；Fast Track 没有 klien，只记库存。</div>
+   <div class="row" style="margin:8px 0"><label class="g" style="padding:6px 12px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">上传 HQ 单 PDF<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="hqUpload(this)"></label>
+    <span style="flex:1"></span><button class="g" onclick="hqFastOpen()">Fast Track 开单（从 MT Claim）</button></div>
+   <div class="tw"><table><tr><th>日期</th><th>HQ 单号</th><th>Branch</th><th class="n">行数</th><th class="n">HQ 金额</th><th class="n">开给 klien</th><th>状态</th><th></th></tr>
+   ${bills.map(b=>{ const inv=(b.lines||[]).filter(l=>invoiced(l.kind)&&!l.skip); const tot=inv.reduce((a,l)=>a+l.price*(l.qty||1),0);
+    return `<tr><td>${esc(b.date)}</td><td>${esc(b.invoiceNo)}</td><td>${esc(b.branch)}</td><td class="n">${(b.lines||[]).length}</td><td class="n">${money(b.total)}</td><td class="n">${money(tot)}</td><td>${b.exportedAt?'<span class="tag ok">已导出 '+esc(b.exportedAt)+'</span>':'<span class="tag warn">还没导出</span>'}</td><td><button class="g" onclick="hqOpen('${esc(b.id)}')">打开</button></td></tr>`; }).join('')||'<tr><td colspan="8" class="mute">还没有 HQ 单</td></tr>'}</table></div></div>
+  <div class="card"><h2>库存（Fast Track / 没有 klien 的货）</h2><div class="small mute">进货 = HQ 单上的数量；已售 = MT Claim 批准后 MT 给学生打勾的产品。</div>
+   <div class="tw"><table style="max-width:760px"><tr><th>Branch</th><th>货品</th><th class="n">进货</th><th class="n">已售</th><th class="n">库存</th></tr>
+   ${stock.map(x=>`<tr><td>${esc(x.branch)}</td><td>${esc(x.name)}</td><td class="n">${x.bought}</td><td class="n">${x.sold}</td><td class="n"><b ${x.bought-x.sold<0?'style="color:#b91c1c"':''}>${x.bought-x.sold}</b></td></tr>`).join('')||'<tr><td colspan="5" class="mute">还没有库存记录</td></tr>'}</table></div></div>`;
+}
+const nk=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function hqStock(){
+  const items={};   // branch|key -> {branch,name,bought,sold}
+  const get=(b,name)=>{ const k=b+'|'+nk(name); return items[k]||(items[k]={branch:b,name,bought:0,sold:0}); };
+  for(const d of Object.values(S.hqbills||{})) for(const l of d.lines||[]) if(!invoiced(l.kind)&&!l.skip) get(d.branch,l.title).bought+=+l.qty||0;
+  for(const c of Object.values(S.claims||{})) if(c.status==='approved') for(const l of c.lines||[]) for(const p of l.products||[]){
+    const hit=Object.values(items).find(x=>x.branch===c.branch&&(nk(x.name).includes(nk(p))||nk(p).includes(nk(x.name))));
+    (hit||get(c.branch,p)).sold++; }
+  return Object.values(items).sort((a,b)=>a.branch.localeCompare(b.branch)||a.name.localeCompare(b.name));
+}
+async function hqUpload(input){
+  const f=input.files[0]; input.value=''; if(!f) return;
+  toast('读取中…',8000);
+  try{
+    const r=await fetch(API+'/hq-parse?name='+encodeURIComponent(f.name),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:await f.arrayBuffer()});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||('请求失败 ('+r.status+')'));
+    const b=j.branch||'BBU';
+    UI._hq={id:null,branch:b,invoiceNo:j.invoiceNo,date:j.date,total:j.total||j.due,itemsTotal:j.itemsTotal,totalMatches:j.totalMatches,file:f.name,lines:j.items.map(it=>hqLineFrom(it,b))};
+    const old=S.hqbills[b+'_'+j.invoiceNo]; if(old){ if(!confirm('这张 HQ 单（'+j.invoiceNo+'）已经上传过了。重新读取会取代之前的设定，继续？')) return; }
+    drawHq();
+  }catch(e){ toast('读不到这张单：'+(e&&e.message||e),6000); }
+}
+function hqOpen(id){ const d=S.hqbills[id]; if(!d) return; UI._hq=Object.assign(JSON.parse(JSON.stringify(d)),{id}); drawHq(); }
+function hqSetBranch(b){ const h=UI._hq; h.branch=b; h.lines.forEach(l=>{ if(!l.newStudent){ const m=l.client?matchName(l.client,stuList(b)):null; l.uid=m&&m.exact?m.s.uid:null; l.guess=m&&!m.exact?m.s.uid:null; } }); hqReprice(); drawHq(); }
+function hqReprice(){ const cfg=hqCfg(); UI._hq.lines.forEach(l=>{ if(!l.manual){ const stu=l.uid?findStu(S,l.uid):null; l.price=hqPrice(l,stu,cfg).p; } }); }
+function hqKind(i,v){ const l=UI._hq.lines[i]; l.kind=v; l.manual=false; hqReprice(); drawHq(); }
+function hqGender(i,v){ const l=UI._hq.lines[i]; l.gender=v; hqReprice(); drawHq(); }
+function hqPriceSet(i,v){ const l=UI._hq.lines[i]; l.price=+v||0; l.manual=true; drawHq(); }
+function hqStu(i,txt){ const h=UI._hq, l=h.lines[i]; const t=String(txt||'').trim();
+  if(!t){ l.uid=null; l.newStudent=false; } else if(t==='＋ 新学生'){ l.uid=null; l.newStudent=true; } else { const s=stuList(h.branch).find(x=>(x.no+' '+x.name)===t); if(!s) return toast('请从列表里选学生'); l.uid=s.uid; l.newStudent=false; }
+  l.guess=null; hqReprice(); drawHq(); }
+function hqSkip(i,on){ UI._hq.lines[i].skip=on; drawHq(); }
+function drawHq(){
+  const h=UI._hq, cfg=hqCfg(), list=stuList(h.branch), dup=new Set();
+  const rows=h.lines.map((l,i)=>{ const stu=l.uid?findStu(S,l.uid):null, g=hqPrice(l,stu,cfg), flags=[];
+    if(invoiced(l.kind)&&!l.skip){ if(!l.uid&&!l.newStudent) flags.push(['bad','找不到这个学生：选学生，或选「＋ 新学生」']); else if(stu&&!stu.code) flags.push(['bad','这个学生没有 Bukku code']); if(l.newStudent) flags.push(['warn','新学生：保存后加进学生名单，要在 Bukku 开联系人，再回来填 Bukku code']); if(l.guess){ const gs=findStu(S,l.guess); flags.push(['warn','像是 '+(gs?gs.no+' '+gs.name:'')+'（请确认）']); } if(g.note==='gender?'&&!l.gender&&!(stu&&stu.gender)) flags.push(['warn','没有性别：先当男生 RM'+cfg.regMale+'，女生长袖请选性别']); if(g.note==='seasonal price?') flags.push(['warn','还没设 Seasonal 售价，暂用 HQ 价']); }
+    return `<tr style="${l.skip?'opacity:.45':''}"><td>${i+1}</td><td>${esc(l.client||'—')}<div class="small mute">${esc(l.title)}${l.module?' · '+esc(l.module):''}${l.jersey?' · '+esc(l.jersey):''}${l.game?' · '+esc(l.game):''}</div></td>
+     <td><select onchange="hqKind(${i},this.value)">${HQ_KINDS.map(k=>`<option value="${k[0]}" ${k[0]===l.kind?'selected':''}>${k[1]}</option>`).join('')}</select></td>
+     <td>${invoiced(l.kind)?`<input list="hqstu" value="${esc(stu?stu.no+' '+stu.name:(l.newStudent?'＋ 新学生':''))}" placeholder="选学生" style="width:210px" onchange="hqStu(${i},this.value)">${l.kind==='registration'?`<select onchange="hqGender(${i},this.value)">${['','男','女长袖','女短袖'].map(x=>`<option ${x===(l.gender||(stu&&stu.gender)||'')?'selected':''}>${x}</option>`).join('')}</select>`:''}`:'<span class="mute small">没有 invoice</span>'}</td>
+     <td class="n">${money(l.hqPrice)}</td><td class="n">${invoiced(l.kind)?`<input type="number" step="0.01" value="${l.price}" style="width:80px" onchange="hqPriceSet(${i},this.value)">`:''}</td>
+     <td class="small">${flags.map(f=>`<div><span class="tag ${f[0]}">${esc(f[1])}</span></div>`).join('')}</td><td><label class="small"><input type="checkbox" ${l.skip?'checked':''} onchange="hqSkip(${i},this.checked)"> 不开</label></td></tr>`; }).join('');
+  const inv=h.lines.filter(l=>invoiced(l.kind)&&!l.skip), tot=r2(inv.reduce((a,l)=>a+l.price*(l.qty||1),0));
+  modal(`<h3>HQ 单 ${esc(h.invoiceNo)} · ${esc(h.date)}</h3>
+   <div class="row"><select onchange="hqSetBranch(this.value)">${brOpts(h.branch)}</select><span class="small mute">${esc(h.file||'')}</span><span style="flex:1"></span><span class="small">HQ 金额 RM ${money(h.total)}</span></div>
+   ${h.totalMatches===false?`<div class="msg warn">各行加起来 RM ${money(h.itemsTotal)}，跟单上的总数 RM ${money(h.total)} 不一样，可能有一行没读到，请对照 PDF。</div>`:''}
+   <datalist id="hqstu">${list.map(s=>`<option value="${esc(s.no+' '+s.name)}">`).join('')}<option value="＋ 新学生"></datalist>
+   <div class="tw" style="max-height:60vh;overflow:auto"><table><tr><th>#</th><th>Klien / 货品</th><th>类型</th><th>学生</th><th class="n">HQ 价</th><th class="n">售价 RM</th><th>对照</th><th></th></tr>${rows}</table></div>
+   <div class="small" style="margin-top:6px">开给 klien ${inv.length} 张，共 RM ${money(tot)}；不开 invoice（库存）${h.lines.filter(l=>!invoiced(l.kind)).length} 行。号码 IV-${h.branch}-R/M/O-${(h.date||'').slice(2,4)}${(h.date||'').slice(5,7)}-[3DIGIT]，日期 ${esc(h.date)}。</div>
+   <div class="row" style="margin-top:10px"><button class="b" onclick="hqSave(false)">保存</button><button class="b" onclick="hqSave(true)">保存并导出 Bukku</button><button class="g" onclick="closeModal()">关闭</button></div>`);
+}
+async function hqSave(exp){
+  const h=UI._hq; if(!h.invoiceNo||!h.date) return toast('这张单没有读到单号或日期');
+  const sd=JSON.parse(JSON.stringify(S.students[h.branch]||{list:{}})); sd.list=sd.list||{}; let added=0;
+  for(const l of h.lines){ if(l.newStudent&&!l.uid&&!l.skip&&invoiced(l.kind)){
+    const dup=Object.entries(sd.list).find(([no,s])=>norm(s.name)===norm(l.client)); if(dup){ l.uid=h.branch+':'+dup[0]; l.newStudent=false; continue; }
+    const no=nextNoIn(sd.list,h.branch); sd.list[no]={code:'',name:String(l.client).replace(/\s+/g,' ').trim().toUpperCase(),status:'Active',enrolled:h.date,mt:'',pkg:'',price:0,parents:[],opening:0,gender:l.gender||'',created:today(),history:[{d:today(),t:'status',from:'',to:'Active',note:'HQ 单 '+h.invoiceNo}]};
+    l.uid=h.branch+':'+no; l.newStudent=false; added++; } }
+  if(added) await save('students/'+h.branch,sd);
+  const doc=Object.assign({},h,{savedAt:new Date().toISOString()}); delete doc.id; const id=h.branch+'_'+h.invoiceNo;
+  if(exp){ const r=hqExportRows(doc); doc.exportedAt=today(); await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); hqDownload(doc,r); }
+  else { await save('hqbills/'+id,doc); closeModal(); toast('已保存'+(added?'，新学生 '+added+' 个已加进学生名单（要补 Bukku code 和 MT / package）':''),5000); }
+}
+function hqExportRows(d){
+  const [Y,M]=[d.date.slice(0,4),d.date.slice(5,7)], yy=Y.slice(2), dt=d.date.slice(8,10)+'/'+M+'/'+Y, rows=[], bad=[];
+  for(const l of d.lines){ if(!invoiced(l.kind)||l.skip) continue; const s=l.uid?findStu(S,l.uid):null;
+    if(!s){ bad.push(l.client+'：找不到学生'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; } if(!(l.price>0)){ bad.push(s.no+' '+s.name+'：售价是 0'); continue; }
+    const T=HQ_SERIES[l.kind], g=l.gender||s.gender||'';
+    const prod=l.kind==='registration'?(g==='男'||!g?'REGISTRATION-MALE':'REGISTRATION-FEMALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
+    const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
+    const det=[l.title,l.module,l.jersey,l.game].filter(Boolean).join(' / ');
+    rows.push([null,s.code,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null]); }
+  return {rows,bad};
+}
+function hqDownload(d,r){
+  const head=[['#','TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['#','HQ '+d.invoiceNo+' · '+d.branch+' · '+r.rows.length+' invoices, RM '+money(r.rows.reduce((x,y)=>x+y[18]*y[15],0))],
+    ['$','Customer Code (1) *','No. (2)','Reference No.','Date (D) *','Payment Term (3)','Due Date (D) (4)','Currency (5)','Rate (6)','Tags (7)','Title','Description','Product (8)','Account (9) *','Item Description *','Quantity (10)','UOM (11)','Location (12)','Unit Price *','Discount (13)','Tax (14)']];
+  saveXlsx(`Bukku_SalesInvoice_HQ_${d.branch}_${d.invoiceNo}.xlsx`,[['Worksheet',head.concat(r.rows)]].concat(r.bad.length?[['没有导出',[['没有导出'],...r.bad.map(x=>[x])]]]:[]));
+  if(r.bad.length) modal(`<h3>${r.bad.length} 行没有导出</h3><div class="small">${r.bad.map(esc).join('<br>')}</div><p class="small mute">补好之后再按一次「保存并导出 Bukku」。</p><button class="g" onclick="closeModal()">关闭</button>`);
+  else closeModal();
+}
+// Fast Track: the products an MT ticks on an approved claim are sold to that student (no HQ client name), invoiced here
+function hqFastOpen(){
+  const m=UI.hqFM||addMonths(today().slice(0,7),-1), b=UI.hqFB||'BBU', cfg=hqCfg();
+  const lines=hqFastLines(b,m);
+  modal(`<h3>Fast Track 开单（从 MT Claim）</h3><div class="row"><select onchange="UI.hqFB=this.value;hqFastOpen()">${brOpts(b)}</select><input type="month" value="${m}" onchange="UI.hqFM=this.value;hqFastOpen()"></div>
+   <div class="small mute" style="margin:6px 0">只算已批准的 MT Claim 里打勾的产品。售价在「设置」→ HQ 单 / 售价 里填；没有售价的产品不会导出。</div>
+   <div class="tw"><table><tr><th>学生</th><th>MT</th><th>产品</th><th class="n">售价</th><th>对照</th></tr>${lines.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.mt)}</td><td>${esc(x.prod)}</td><td class="n">${x.price?money(x.price):'—'}</td><td class="small">${x.bad?'<span class="tag bad">'+esc(x.bad)+'</span>':''}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">这个月没有</td></tr>'}</table></div>
+   <div class="row" style="margin-top:10px"><button class="b" onclick="hqFastExport()">导出 Bukku</button><button class="g" onclick="closeModal()">关闭</button></div>`);
+}
+function hqFastLines(b,m){
+  const cfg=hqCfg(), out=[];
+  for(const c of Object.values(S.claims||{})) if(c.status==='approved'&&c.branch===b&&c.month===m) for(const l of c.lines||[]) for(const p of l.products||[]){
+    const s=l.uid?findStu(S,l.uid):null, price=+(cfg.fast||{})[p]||0; let bad=''; if(!s) bad='找不到学生'; else if(!s.code) bad='没有 Bukku code'; else if(!price) bad='没有售价';
+    out.push({s,name:l.name,mt:c.mt,prod:p,price,bad}); }
+  return out;
+}
+function hqFastExport(){
+  const b=UI.hqFB||'BBU', m=UI.hqFM||addMonths(today().slice(0,7),-1), Y=m.slice(0,4), M=m.slice(5,7), dt=lastDay(m).slice(8,10)+'/'+M+'/'+Y;
+  const lines=hqFastLines(b,m), ok=lines.filter(x=>!x.bad), bad=lines.filter(x=>x.bad).map(x=>x.name+' / '+x.prod+'：'+x.bad);
+  const rows=ok.map(x=>[null,x.s.code,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,null,HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null]);
+  const head=[['#','TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['#','Fast Track '+b+' '+m+' · '+rows.length+' invoices'],
+    ['$','Customer Code (1) *','No. (2)','Reference No.','Date (D) *','Payment Term (3)','Due Date (D) (4)','Currency (5)','Rate (6)','Tags (7)','Title','Description','Product (8)','Account (9) *','Item Description *','Quantity (10)','UOM (11)','Location (12)','Unit Price *','Discount (13)','Tax (14)']];
+  if(!rows.length) return toast('没有可以导出的');
+  saveXlsx(`Bukku_SalesInvoice_FastTrack_${b}_${m}.xlsx`,[['Worksheet',head.concat(rows)]].concat(bad.length?[['没有导出',[['没有导出'],...bad.map(x=>[x])]]]:[]));
+  if(bad.length) toast(bad.length+' 行没有导出（看 Excel 第二张 sheet）',5000);
+}
+function hqCard(){
+  const c=hqCfg(), prods=((S.config||{}).claimProducts&&S.config.claimProducts.length)?S.config.claimProducts:['Fast Track ABC','Fast Track ABB','Fast Track ABD','Fast Track ABK','Fast Track ABS'];
+  const inp=(k,l)=>`<label>${l}</label><input type="number" step="0.01" value="${c[k]||''}" style="width:110px" onchange="hqCfgSet('${k}',+this.value)">`;
+  return `<div class="card"><h2>HQ 单 / 售价</h2><div class="small mute">HQ 单上的金额是进货价；开给 klien 的 invoice 用这里的售价。Jersi 和其他行用 HQ 单上的价钱。</div>
+   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regMale','注册（男）RM')}${inp('regFemale','注册（女长袖）RM')}${inp('regFemaleShort','注册（女短袖）RM')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}${inp('reactive','Reactive / activation RM')}</div>
+   <h3 style="margin-top:12px">Fast Track 售价</h3><div class="f" style="max-width:480px">${prods.map(p=>`<label>${esc(p)} RM</label><input type="number" step="0.01" value="${(c.fast||{})[p]||''}" style="width:110px" onchange="hqFastSet('${esc(p)}',+this.value)">`).join('')}</div></div>`;
+}
+async function hqCfgSet(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }
+async function hqFastSet(p,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq.fast=Object.assign({},c.hq.fast||{}); c.hq.fast[p]=v; await save('settings/config',c); toast('已保存'); }
 
 // ---------- MT 资料（老师：银行账号、IC、加入日期；只有 manager 看得到） ----------
 function mtpCard(){

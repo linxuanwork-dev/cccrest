@@ -7,6 +7,7 @@ const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const tuitionLang = require('../lib/tuitionLang');
+const hqBill = require('../lib/hqBill');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -29,7 +30,7 @@ const router = express.Router();
 
 const PAGE = path.join(__dirname, '..', 'assets', 'tuition', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
-const PATH_RE = /^(students|settings|rosters|bank|claims)\/[A-Za-z0-9_.:-]{1,80}$/;
+const PATH_RE = /^(students|settings|rosters|bank|claims|hqbills)\/[A-Za-z0-9_.:-]{1,80}$/;
 const MGR_ONLY = new Set(['settings/packages', 'settings/config', 'settings/mts', 'settings/mtprofiles']);   // fees, allowance rates, bank / invoice settings, MT deductions, MT profiles
 const MGR_READ = new Set(['settings/mtprofiles']);   // not even sent to non-managers: the MTs' bank account and IC numbers
 const MAX_DOC = 900 * 1024;
@@ -98,7 +99,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   const s = await enabledSettings(req, res); if (!s) return;
   if (req.query.rev !== undefined && String(s.rev) === String(req.query.rev)) return res.json({ same: true, rev: s.rev });
   const { rows } = await pool.query('SELECT path, coll, data FROM tuition_docs WHERE company_id = $1', [req.params.companyId]);
-  const by = { students: [], settings: [], rosters: [], bank: [], claims: [] };
+  const by = { students: [], settings: [], rosters: [], bank: [], claims: [], hqbills: [] };
   const mgr = isMgr(req);
   rows.forEach((r) => { if (!mgr && MGR_READ.has(r.path)) return; (by[r.coll] = by[r.coll] || []).push({ id: r.path.slice(r.coll.length + 1), data: r.data }); });
   res.json({ rev: s.rev, docs: by });
@@ -145,6 +146,17 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
     client.release();
   }
   res.json({ ok: true });
+});
+
+// ---- HQ bills (QC GROUP -> a branch): read the PDF into its lines; the page does the matching, pricing and the Bukku file ----
+router.post(BASE + '/hq-parse', ...guard(2), express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Invalid request');
+  let text;
+  try { text = (await require('pdf-parse/lib/pdf-parse.js')(req.body)).text; } catch (e) { return bad(res, '读不到这个 PDF。 Cannot read this PDF.'); }
+  const bill = hqBill.parseBill(text, String(req.query.name || ''));
+  if (!bill.items.length) return bad(res, '这个 PDF 里找不到账单的行（要 QC GROUP 的 HQ 单）。 No bill lines found: it must be a QC GROUP HQ bill.');
+  res.json(bill);
 });
 
 // ---- MT Claim form logins (DIDIK MULIA): a manager opens a login for each MT; the MT fills the claim form on /mt-claim ----

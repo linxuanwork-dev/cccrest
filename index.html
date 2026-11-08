@@ -3090,11 +3090,13 @@
     var stf = document.getElementById('stock-frame');
     if(stf && stf.contentWindow) stf.contentWindow.postMessage({ type:'stock-lang', lang:lang }, location.origin);
     // the Tuition & Allowance pages are made by the server in one language: follow the portal language (reloads them)
-    try{ localStorage.setItem('tfa_lang', lang === 'zh' ? 'zh' : 'en'); }catch(e){}
-    ['tuition-frame', 'contact-frame', 'mtclaim-frame'].forEach(function(id){ var f = document.getElementById(id); if(f && f.dataset.loadedFor){ delete f.dataset.loadedFor; f.removeAttribute('src'); } });
     applyTranslations();
-    refreshDynamicContent();
-    if(typeof renderTuition === 'function' && CURRENT_ROLE && CURRENT_ROLE !== 'client') renderTuition();
+    try{ refreshDynamicContent(); }catch(e){ console.error('refreshDynamicContent', e); }
+    try{
+      localStorage.setItem('tfa_lang', lang === 'zh' ? 'zh' : 'en');   // choosing EN / 中文 in the portal also ends a Bahasa Melayu choice
+      ['tuition-frame', 'contact-frame', 'mtclaim-frame'].forEach(function(id){ var f = document.getElementById(id); if(f && f.dataset.loadedFor){ delete f.dataset.loadedFor; f.removeAttribute('src'); } });
+      if(typeof renderTuition === 'function' && CURRENT_ROLE && CURRENT_ROLE !== 'client') renderTuition();
+    }catch(e){ console.error('tuition language', e); }
   }
 
   function refreshDynamicContent(){
@@ -4285,7 +4287,7 @@
   var TFA_PANELS = ['panel-tuition', 'panel-contact', 'panel-mtclaim'], tfaCompanyId = null;
   // the Tuition & Allowance page in the language the person picked on it (zh / en / ms); first time: the portal language
   function tfaSrc(companyId, view){
-    var lang = 'en'; try{ lang = localStorage.getItem('tfa_lang') || (LANG === 'zh' ? 'zh' : 'en'); }catch(e){}
+    var lang = LANG === 'zh' ? 'zh' : 'en'; try{ if(localStorage.getItem('tfa_lang') === 'ms') lang = 'ms'; }catch(e){}
     return '/api/tuition/app?company=' + companyId + (view ? '&view=' + view : '') + '&lang=' + lang + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
   }
   function tfaOpen(frameId, view){

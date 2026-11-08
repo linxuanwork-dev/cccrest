@@ -320,7 +320,7 @@ function parseAging(rows){
 </script>
 <script>
 const BRANCHES=['BBU','TST','TDA'];
-const S={students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
+const S={mtp:{},students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
 let db=null, downloads=null, canWrite=true, loaded={};
 const UI={tab:'home',branch:'BBU',stuStatus:'Active',stuQ:'',rBranch:'BBU',rMonth:'2026-10',draft:null,bBank:'AFFIN',bMonth:'2026-10',bFilter:'need',oBranch:'ALL',oMt:'ALL',oLate:true,payout:null,expBank:'AFFIN',expMonth:'2026-10'};
 const TABS=[['home','总览'],['stu','学生 Master'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
@@ -408,7 +408,7 @@ async function init(){
   const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
   const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
-  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='config') S.config=v; }); done('settings'); });
+  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
   db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
   db.collection('bank').onSnapshot(s=>{ S.bank={}; s.docs.forEach(d=>S.bank[d.id]=d.data()); done('bank'); });
   await sync();
@@ -888,7 +888,7 @@ function allowExcel(){ const p=UI.payout; const L=ledger(); const pay=allowanceL
 // ---------- 设置 ----------
 function vSet(){
   const pk=Object.entries(S.packages).sort((a,b)=>a[0].localeCompare(b[0])); const c=cfg();
-  return `<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
+  return mtpCard()+`<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
    <table style="max-width:720px"><tr><th>Package</th><th class="n">学费 RM</th><th class="n">Rate / 堂 RM</th><th class="n">标准堂数 / 月</th><th></th></tr>
    ${pk.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n"><input type="number" step="0.01" value="${v.fee||0}" onchange="pkSet('${esc(k)}','fee',+this.value)"></td><td class="n"><input type="number" step="0.01" value="${v.rate||0}" onchange="pkSet('${esc(k)}','rate',+this.value)"></td><td class="n"><input type="number" value="${stdClasses(S,k)}" onchange="pkSet('${esc(k)}','classes',+this.value)"></td><td><button class="r" onclick="pkDel('${esc(k)}')">删</button></td></tr>`).join('')}
    <tr><td><input id="pk_n" placeholder="新 package" style="width:100px"></td><td class="n"><input id="pk_f" type="number"></td><td class="n"><input id="pk_r" type="number"></td><td class="n"><input id="pk_c" type="number" value="4"></td><td><button class="b" onclick="pkSet($('#pk_n').value.trim(),null)">加</button></td></tr></table></div>
@@ -910,6 +910,41 @@ function vSet(){
    <input type="month" value="${UI.expMonth}" onchange="UI.expMonth=this.value"><button class="b" onclick="exportPayments()">下载 Bukku import 文件</button></div>
    <div class="small mute" style="margin-top:6px">只导出已配对（自动 / 已确认）的入账，一个学生一行。号码用 OR-[branch][YY][MM]-[3DIGIT]，让 Bukku 自动跑号。</div></div>`;
 }
+// ---------- MT 资料（老师：银行账号、IC、加入日期；只有 manager 看得到） ----------
+function mtpCard(){
+  const f=UI.mtpB||'ALL', q=norm(UI.mtpQ||'');
+  const list=Object.entries(S.mtp||{}).map(([k,v])=>Object.assign({key:k},v)).filter(m=>(f==='ALL'||m.branch===f)&&(!q||norm(m.mt+m.name).includes(q))).sort((a,b)=>BRANCHES.indexOf(a.branch)-BRANCHES.indexOf(b.branch)||a.mt.localeCompare(b.mt));
+  return `<div class="card"><h2>MT 资料</h2><div class="small mute">老师的银行账号和 IC 只有 manager 看得到，付 Allowance 时对照用。在职的 MT 会出现在学生 / 老师名单的 MT 选项里。</div>
+   <div class="row" style="margin:8px 0"><select onchange="UI.mtpB=this.value;render()"><option value="ALL">全部 branch</option>${BRANCHES.map(x=>`<option ${x===f?'selected':''}>${x}</option>`).join('')}</select>
+   <input placeholder="搜 MT / 姓名" value="${esc(UI.mtpQ||'')}" oninput="UI.mtpQ=this.value;render()" style="width:200px"><button class="b" onclick="mtpEdit(null)">＋ 新增 MT</button></div>
+   <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>姓名</th><th>银行账号</th><th>IC</th><th>IC copy</th><th>加入日期</th><th>状态</th><th></th></tr>
+   ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
+}
+function mtpEdit(key){
+  const m=key?Object.assign({},(S.mtp||{})[key]):{branch:UI.mtpB&&UI.mtpB!=='ALL'?UI.mtpB:BRANCHES[0],mt:'MT ',name:'',bank:'',ic:'',icCopy:false,joined:'',active:true};
+  modal(`<h3>${key?'编辑 MT':'新增 MT'}</h3><div class="f">
+   <label>Branch</label>${key?`<input value="${esc(m.branch)}" disabled>`:`<select id="mp_b">${BRANCHES.map(x=>`<option ${x===m.branch?'selected':''}>${x}</option>`).join('')}</select>`}
+   <label>MT（名单里的名字）</label><input id="mp_mt" value="${esc(m.mt)}" ${key?'disabled':''}>
+   <label>姓名</label><input id="mp_n" value="${esc(m.name)}">
+   <label>银行账号</label><input id="mp_bank" value="${esc(m.bank)}" placeholder="例如 MBB 151427351163">
+   <label>IC</label><input id="mp_ic" value="${esc(m.ic)}">
+   <label>IC copy</label><label><input id="mp_icc" type="checkbox" ${m.icCopy?'checked':''}> 已收到</label>
+   <label>加入日期</label><input id="mp_j" type="date" value="${esc(m.joined||'')}">
+   <label>状态</label><label><input id="mp_a" type="checkbox" ${m.active!==false?'checked':''}> 在职（不勾 = 已离职，MT 选项里不再出现）</label></div>
+   <div class="row" style="margin-top:14px"><button class="b" onclick="mtpSave('${esc(key||'')}')">保存</button><button class="g" onclick="closeModal()">取消</button>${key?`<span style="flex:1"></span><button class="g" onclick="mtpDel('${esc(key)}')">删除</button>`:''}</div>`);
+}
+async function mtpSave(key){
+  const b=key?(S.mtp[key].branch):$('#mp_b').value, mt=(key?S.mtp[key].mt:$('#mp_mt').value.trim().replace(/\s+/g,' ').toUpperCase());
+  if(!mt||mt==='MT') return toast('请填 MT 的名字'); const k=key||(b+':'+mt); if(!key&&(S.mtp||{})[k]) return toast(b+' 已经有 '+mt);
+  const doc={list:JSON.parse(JSON.stringify(S.mtp||{}))}; const active=$('#mp_a').checked;
+  doc.list[k]={branch:b,mt,name:$('#mp_n').value.trim().replace(/\s+/g,' ').toUpperCase(),bank:$('#mp_bank').value.trim(),ic:$('#mp_ic').value.trim(),icCopy:$('#mp_icc').checked,joined:$('#mp_j').value||'',active};
+  const m=JSON.parse(JSON.stringify(S.mts)); m.names=m.names||{}; const names=(m.names[b]||[]).slice(); const has=names.includes(mt);
+  if(active&&!has){ names.push(mt); m.names[b]=names; } else if(!active&&has){ m.names[b]=names.filter(x=>x!==mt); }
+  await save('settings/mtprofiles',doc); if(JSON.stringify(m.names)!==JSON.stringify(S.mts.names||{})) await save('settings/mts',m);
+  closeModal(); const still=!active&&stuList(b).filter(s=>s.status==='Active'&&s.mt===mt).length;
+  toast(still?'已保存。注意：还有 '+still+' 个 Active 学生的 MT 是 '+mt:'已保存',still?5000:2500);
+}
+async function mtpDel(key){ if(!confirm('删除这个 MT 的资料？（MT 选项里的名字不会删）')) return; const doc={list:JSON.parse(JSON.stringify(S.mtp||{}))}; delete doc.list[key]; await save('settings/mtprofiles',doc); closeModal(); }
 async function pkSet(k,f,v){ if(!k) return toast('请填 package 名称'); const doc={list:JSON.parse(JSON.stringify(S.packages))}; if(f===null){ doc.list[k]={fee:+$('#pk_f').value||0,rate:+$('#pk_r').value||0,classes:+$('#pk_c').value||4}; } else { doc.list[k]=doc.list[k]||{}; doc.list[k][f]=v; } await save('settings/packages',doc); }
 async function pkDel(k){ const doc={list:JSON.parse(JSON.stringify(S.packages))}; delete doc.list[k]; await save('settings/packages',doc); }
 async function cfgTop(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c[k]=v; await save('settings/config',c); toast('已保存'); }

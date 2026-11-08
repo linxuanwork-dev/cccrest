@@ -27,7 +27,8 @@ const router = express.Router();
 const PAGE = path.join(__dirname, '..', 'assets', 'tuition', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
 const PATH_RE = /^(students|settings|rosters|bank)\/[A-Za-z0-9_.:-]{1,80}$/;
-const MGR_ONLY = new Set(['settings/packages', 'settings/config', 'settings/mts']);   // fees, allowance rates, bank / invoice settings, MT deductions
+const MGR_ONLY = new Set(['settings/packages', 'settings/config', 'settings/mts', 'settings/mtprofiles']);   // fees, allowance rates, bank / invoice settings, MT deductions, MT profiles
+const MGR_READ = new Set(['settings/mtprofiles']);   // not even sent to non-managers: the MTs' bank account and IC numbers
 const MAX_DOC = 900 * 1024;
 
 async function loadSettings(companyId) {
@@ -95,7 +96,8 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   if (req.query.rev !== undefined && String(s.rev) === String(req.query.rev)) return res.json({ same: true, rev: s.rev });
   const { rows } = await pool.query('SELECT path, coll, data FROM tuition_docs WHERE company_id = $1', [req.params.companyId]);
   const by = { students: [], settings: [], rosters: [], bank: [] };
-  rows.forEach((r) => { (by[r.coll] = by[r.coll] || []).push({ id: r.path.slice(r.coll.length + 1), data: r.data }); });
+  const mgr = isMgr(req);
+  rows.forEach((r) => { if (!mgr && MGR_READ.has(r.path)) return; (by[r.coll] = by[r.coll] || []).push({ id: r.path.slice(r.coll.length + 1), data: r.data }); });
   res.json({ rev: s.rev, docs: by });
 });
 

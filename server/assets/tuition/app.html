@@ -534,7 +534,7 @@ function applyChanges(s, month, sinceMonth, mt, pkg){ const notes=[]; for(const 
 function histAdd(s,type,from,to,note){ if(String(from||'')===String(to||'')) return; (s.history=s.history||[]).push({d:today(),t:type,from:from||'',to:to||'',note:note||''}); if(s.history.length>300) s.history=s.history.slice(-300); }
 function histChanges(s,o0,note){ histAdd(s,'mt',o0.mt,s.mt,note); histAdd(s,'pkg',o0.pkg,s.pkg,note); histAdd(s,'status',o0.status,s.status,note); }
 function histHtml(s){ const h=(s.history||[]).slice().reverse(); if(!h.length) return '<div class="small mute">还没有记录</div>';
-  const L={mt:'MT',pkg:'Package',status:'状态',branch:'Branch'};
+  const L={mt:'MT',pkg:'Package',status:'状态',branch:'Branch',name:'名字'};
   return '<table class="small"><tr><th>日期</th><th>项目</th><th>变更</th><th>原因</th></tr>'+h.map(x=>`<tr><td>${esc(x.d)}</td><td>${L[x.t]||esc(x.t)}</td><td>${esc(x.from||'—')} → <b>${esc(x.to||'—')}</b></td><td class="mute">${esc(x.note||'')}</td></tr>`).join('')+'</table>'; }
 function editStu(uid){
   const s=uid?findStu(S,uid):{branch:UI.branch,no:nextNo(UI.branch),code:nextCode(UI.branch),name:'',status:'Active',parents:[],mt:'',pkg:'',price:0,opening:0,gender:''};

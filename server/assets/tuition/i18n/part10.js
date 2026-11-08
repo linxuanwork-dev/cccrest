@@ -34,4 +34,5 @@ module.exports = {
   '变更原因': ['Reason for the change', 'Sebab perubahan'],
   '写进历史记录（可以不填）': ['Written into the history (optional)', 'Ditulis dalam sejarah (pilihan)'],
   '例如：暂停 2 个月，家长出国': ['for example: paused for 2 months, parents abroad', 'contoh: dijeda 2 bulan, ibu bapa di luar negara'],
+  '名字': ['Name', 'Nama'],
 };

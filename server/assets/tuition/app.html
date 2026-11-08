@@ -519,6 +519,12 @@ function chgListHtml(cs){ return cs.length?cs.map((c,i)=>`<div class="small">${e
 function chgAdd(){ const from=$('#c_from').value, mt=$('#c_mt').value.trim().toUpperCase(), pkg=$('#c_pkg').value.trim(); if(!from||(!mt&&!pkg)) return toast('请填月份和新 MT 或新 package');
   UI._chg=UI._chg.filter(c=>c.from!==from); UI._chg.push({from,mt,pkg}); UI._chg.sort((x,y)=>x.from<y.from?-1:1); $('#chgList').innerHTML=chgListHtml(UI._chg); $('#c_mt').value=''; $('#c_pkg').value=''; }
 function applyChanges(s, month, sinceMonth, mt, pkg){ const notes=[]; for(const c of (s.changes||[])){ if(c.from<=month && (!sinceMonth||c.from>sinceMonth)){ if(c.mt&&c.mt!==mt){ mt=c.mt; notes.push('换 MT'); } if(c.pkg&&c.pkg!==pkg){ pkg=c.pkg; notes.push('换 package'); } } } return {mt,pkg,notes}; }
+// History of a student (s.history, oldest first): when the MT, package, status or branch changed, from what to what, and why
+function histAdd(s,type,from,to,note){ if(String(from||'')===String(to||'')) return; (s.history=s.history||[]).push({d:today(),t:type,from:from||'',to:to||'',note:note||''}); if(s.history.length>300) s.history=s.history.slice(-300); }
+function histChanges(s,o0,note){ histAdd(s,'mt',o0.mt,s.mt,note); histAdd(s,'pkg',o0.pkg,s.pkg,note); histAdd(s,'status',o0.status,s.status,note); }
+function histHtml(s){ const h=(s.history||[]).slice().reverse(); if(!h.length) return '<div class="small mute">还没有记录</div>';
+  const L={mt:'MT',pkg:'Package',status:'状态',branch:'Branch'};
+  return '<table class="small"><tr><th>日期</th><th>项目</th><th>变更</th><th>原因</th></tr>'+h.map(x=>`<tr><td>${esc(x.d)}</td><td>${L[x.t]||esc(x.t)}</td><td>${esc(x.from||'—')} → <b>${esc(x.to||'—')}</b></td><td class="mute">${esc(x.note||'')}</td></tr>`).join('')+'</table>'; }
 function editStu(uid){
   const s=uid?findStu(S,uid):{branch:UI.branch,no:nextNo(UI.branch),code:nextCode(UI.branch),name:'',status:'Active',parents:[],mt:'',pkg:'',price:0,opening:0,gender:''};
   const pk=Object.keys(S.packages); UI._chg=JSON.parse(JSON.stringify(s.changes||[]));
@@ -539,6 +545,7 @@ function editStu(uid){
    <div id="chgList">${chgListHtml(s.changes||[])}</div>
    <div class="row" style="margin-top:6px"><input id="c_from" type="month" value="${addMonths(today().slice(0,7),1)}"><input id="c_mt" list="mtn" placeholder="新 MT（不换就空着）" style="width:170px"><input id="c_pkg" list="pkl" placeholder="新 package" style="width:110px"><button class="g" onclick="chgAdd()">加</button></div>
   </details>
+  ${uid?`<details style="margin-top:12px"><summary>历史记录 History（MT / Package / 状态 / 转 branch）</summary><div style="margin-top:6px">${histHtml(s)}</div></details>`:''}
   ${uid&&s.status!=='Transferred'?`<details style="margin-top:12px"><summary>转 branch</summary><div class="f" style="margin-top:8px">
    <label>转去</label><select id="t_b" onchange="document.getElementById('t_no').value=nextNo(this.value);document.getElementById('t_code').value=nextCode(this.value)">${BRANCHES.filter(x=>x!==s.branch).map(x=>`<option>${x}</option>`).join('')}</select>
    <label>新编号</label><input id="t_no" value="${esc(nextNo(BRANCHES.filter(x=>x!==s.branch)[0]))}">
@@ -551,18 +558,19 @@ async function saveStu(uid,b){
   const no=uid?uid.split(':')[1]:$('#e_no').value.trim(); if(!no) return toast('请填编号');
   const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); doc.list=doc.list||{};
   if(!uid&&doc.list[no]) return toast('这个编号已经有了');
-  const old=doc.list[no]||{};
+  const old=doc.list[no]||{}; const o0={mt:old.mt||'',pkg:old.pkg||'',status:old.status||''};
   doc.list[no]=Object.assign(old,{code:$('#e_code').value.trim(),name:$('#e_name').value.trim().replace(/\s+/g,' '),gender:$('#e_gender').value,status:$('#e_status').value,mt:$('#e_mt').value.trim(),pkg:$('#e_pkg').value.trim(),parents:$('#e_par').value.split('\n').map(x=>x.trim()).filter(Boolean),opening:+$('#e_open').value||0,startMonth:$('#e_start').value||'',changes:UI._chg||[]});
-  if(!old.created) doc.list[no].created=today();
+  if(!old.created) doc.list[no].created=today(); else histChanges(doc.list[no],o0,'手动修改');
   await save('students/'+b,doc); closeModal(); toast('已保存');
 }
 async function doTransfer(uid){
   const s=findStu(S,uid); const nb=$('#t_b').value, nno=$('#t_no').value.trim(), m=$('#t_m').value; if(!nno) return toast('请填新编号');
   const dn=JSON.parse(JSON.stringify(S.students[nb]||{list:{}})); dn.list=dn.list||{}; if(dn.list[nno]) return toast(nb+' 已经有 '+nno);
   const {uid:_u,no:_n,branch:_b,...rest}=s;
-  dn.list[nno]=Object.assign({},rest,{code:$('#t_code').value.trim(),status:'Active',opening:0,transferFrom:s.branch+':'+s.no,transferMonth:m,created:today()}); delete dn.list[nno].transferTo;
+  dn.list[nno]=Object.assign({},rest,{code:$('#t_code').value.trim(),status:'Active',opening:0,transferFrom:s.branch+':'+s.no,transferMonth:m,created:today(),history:JSON.parse(JSON.stringify(s.history||[]))}); delete dn.list[nno].transferTo;
+  histAdd(dn.list[nno],'branch',s.branch+' '+s.no,nb+' '+nno,'转 branch '+m);
   await save('students/'+nb,dn);
-  const dold=JSON.parse(JSON.stringify(S.students[s.branch])); Object.assign(dold.list[s.no],{status:'Transferred',transferTo:nb+':'+nno,transferMonth:m});
+  const dold=JSON.parse(JSON.stringify(S.students[s.branch])); Object.assign(dold.list[s.no],{status:'Transferred',transferTo:nb+':'+nno,transferMonth:m}); histAdd(dold.list[s.no],'branch',s.branch+' '+s.no,nb+' '+nno,'转 branch '+m); histAdd(dold.list[s.no],'status',s.status,'Transferred','转 branch '+m);
   await save('students/'+s.branch,dold);
   // payer rules: point family to new uid too
   closeModal(); toast('已转去 '+nb+' '+nno);
@@ -572,7 +580,7 @@ async function importMaster(input){
     for(const n of wb.SheetNames){ const r=sheetRows(wb.Sheets[n]); const p=parseMaster(r); if(p&&p.length){ out=p; rows=n; break; } }
     input.value=''; if(!out) return toast('找不到有 CODE / NO / Name 栏的 sheet');
     const b=UI.branch; const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); doc.list=doc.list||{}; let add=0,upd=0;
-    for(const s of out){ const {no,transferNote,...rest}=s; if(doc.list[no]){ const o=doc.list[no]; Object.assign(o,rest,{opening:o.opening||0,transferTo:o.transferTo,transferFrom:o.transferFrom}); if(!rest.gender) o.gender=o.gender||''; if(transferNote) o.note=transferNote; upd++; } else { doc.list[no]=Object.assign(rest,{opening:0,created:today()}); if(transferNote) doc.list[no].note=transferNote; add++; } }
+    for(const s of out){ const {no,transferNote,...rest}=s; if(doc.list[no]){ const o=doc.list[no]; const o0={mt:o.mt||'',pkg:o.pkg||'',status:o.status||''}; Object.assign(o,rest,{opening:o.opening||0,transferTo:o.transferTo,transferFrom:o.transferFrom}); histChanges(o,o0,'导入 master list'); if(!rest.gender) o.gender=o.gender||''; if(transferNote) o.note=transferNote; upd++; } else { doc.list[no]=Object.assign(rest,{opening:0,created:today()}); if(transferNote) doc.list[no].note=transferNote; add++; } }
     await save('students/'+b,doc); toast(`${b}：新增 ${add}，更新 ${upd}（sheet：${rows}）`,4000);
   }catch(e){ input.value=''; toast('读取失败：'+e); }
 }
@@ -712,7 +720,7 @@ async function confirmRoster(){
   const sync=$('#syncM')&&$('#syncM').checked;
   const doc={branch:d.branch,month:d.month,lines:d.lines.map(l=>({mt:l.mt,uid:l.uid,name:l.name||'',pkg:l.pkg,classes:+l.classes||0,note:l.note||''})),confirmed:true,savedAt:new Date().toISOString(),source:d.source||'excel'};
   await save('rosters/'+rosterId(d.branch,d.month),doc);
-  if(sync){ const sd=JSON.parse(JSON.stringify(S.students[d.branch])); for(const l of doc.lines){ const no=l.uid.split(':')[1]; if(sd.list[no]){ sd.list[no].pkg=l.pkg; sd.list[no].mt=l.mt; if(sd.list[no].status!=='Active'&&sd.list[no].status!=='Transferred') sd.list[no].status='Active'; } } await save('students/'+d.branch,sd); }
+  if(sync){ const sd=JSON.parse(JSON.stringify(S.students[d.branch])); for(const l of doc.lines){ const no=l.uid.split(':')[1]; if(sd.list[no]){ const x=sd.list[no], o0={mt:x.mt||'',pkg:x.pkg||'',status:x.status||''}; x.pkg=l.pkg; x.mt=l.mt; if(x.status!=='Active'&&x.status!=='Transferred') x.status='Active'; histChanges(x,o0,'老师名单确认 '+doc.month); } } await save('students/'+d.branch,sd); }
   UI.draft=null; UI.rosterEdit=false; toast('已确认保存'); render();
 }
 
@@ -1055,7 +1063,7 @@ function claimReview(id){
    ${A.rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.l.name)}${r.s?' <span class="mute small">'+esc(r.s.no)+'</span>':''}<div class="small mute">${(r.l.dates||[]).map(d=>esc(d.slice(8))).join(', ')}</div></td><td>${esc(r.l.pkg)}</td><td class="n">${r.classes}</td><td>${esc(r.l.fee)}</td><td>${sysTag(r)}</td><td class="n">${money(r.amount)}</td>
     <td class="small">${(r.l.products||[]).map(esc).join(', ')}${r.l.remark?'<div class="mute">'+esc(r.l.remark)+'</div>':''}</td>
     <td class="small">${r.flags.map(f=>`<div><span class="tag ${f.t==='info'?'':f.t}">${esc(f.x)}</span></div>`).join('')}
-     ${sub&&MGR?(!r.s?`<label><input type="checkbox" id="ap_new_${r.i}" checked> 加进学生名单</label>`:'')+(r.s&&(r.s.pkg||'')!==r.l.pkg?`<label><input type="checkbox" id="ap_pkg_${r.i}" checked> 更新 master package</label>`:'')+(r.s&&(r.s.mt||'')!==c.mt?`<label><input type="checkbox" id="ap_mt_${r.i}" checked> 更新 master MT</label>`:''):''}</td></tr>`).join('')}</table></div>
+     ${sub&&MGR?(!r.s?`<label><input type="checkbox" id="ap_new_${r.i}" checked> 加进学生名单</label>`:'')+(r.s&&((r.s.pkg||'')!==r.l.pkg||(r.s.mt||'')!==c.mt)?'<div class="small" style="color:#b45309">批准后会更新 Master，并记入学生历史</div>':''):''}</td></tr>`).join('')}</table></div>
    ${A.missing.length?`<div class="msg warn" style="margin-top:8px">Master 里属于这位 MT、但没出现在表格里的 Active 学生：${A.missing.map(esc).join('；')}</div>`:''}
    ${sub&&MGR?`<div class="row" style="margin-top:12px"><button class="b" onclick="claimApprove('${esc(id)}')">批准，更新老师名单</button><input id="cl_note" placeholder="退回原因（会给 MT 看到）" style="flex:1;min-width:200px"><button class="g" onclick="claimReturn('${esc(id)}')">退回给 MT</button><button class="g" onclick="closeModal()">关闭</button></div>`
     :`<div class="row" style="margin-top:12px"><button class="g" onclick="closeModal()">关闭</button>${sub&&!MGR?'<span class="small mute">只有 manager 可以批准</span>':''}</div>`}`);
@@ -1067,8 +1075,8 @@ async function claimApprove(id){
   if(A.rosterConfirmed&&!confirm('这个月的老师名单已经确认过了，批准会改动它。继续？')) return;
   const sd=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); sd.list=sd.list||{}; let changed=false; const lines2=[], skipped=[];
   for(const r of A.rows){ let uid=r.l.uid; const on=k=>{ const e=document.getElementById(k+'_'+r.i); return !!(e&&e.checked); };
-    if(!r.s){ if(on('ap_new')){ const no=nextNoIn(sd.list,b); sd.list[no]={code:'',name:r.l.name,status:'Active',enrolled:(r.l.dates||[])[0]||(c.month+'-01'),mt:c.mt,pkg:r.l.pkg,price:0,parents:[],opening:0,created:today()}; uid=b+':'+no; changed=true; } else { uid=null; skipped.push(r.l.name); } }
-    else { const sx=sd.list[uid.split(':')[1]]; if(on('ap_pkg')){ sx.pkg=r.l.pkg; changed=true; } if(on('ap_mt')){ sx.mt=c.mt; changed=true; } }
+    if(!r.s){ if(on('ap_new')){ const no=nextNoIn(sd.list,b); sd.list[no]={code:'',name:r.l.name,status:'Active',enrolled:(r.l.dates||[])[0]||(c.month+'-01'),mt:c.mt,pkg:r.l.pkg,price:0,parents:[],opening:0,created:today()}; histAdd(sd.list[no],'mt','',c.mt,'新学生，MT claim '+c.month); histAdd(sd.list[no],'pkg','',r.l.pkg,'新学生，MT claim '+c.month); uid=b+':'+no; changed=true; } else { uid=null; skipped.push(r.l.name); } }
+    else { const sx=sd.list[uid.split(':')[1]], why='MT claim '+c.month+'（'+c.mt+'）'; if((sx.pkg||'')!==r.l.pkg){ histAdd(sx,'pkg',sx.pkg,r.l.pkg,why); sx.pkg=r.l.pkg; changed=true; } if((sx.mt||'')!==c.mt){ histAdd(sx,'mt',sx.mt,c.mt,why); sx.mt=c.mt; changed=true; } }
     lines2.push(Object.assign({},r.l,{uid})); }
   const ro=S.rosters[rid]||null;
   const lines=((ro&&ro.lines)||[]).filter(l=>l.mt!==c.mt).concat(lines2.filter(l=>l.uid).map(l=>({mt:c.mt,pkg:l.pkg,uid:l.uid,classes:(l.dates||[]).length})));

@@ -545,6 +545,7 @@ function editStu(uid){
    <label>学生名字</label><input id="e_name" value="${esc(s.name)}">
    <label>性别 / 服装</label><select id="e_gender">${['','男','女长袖','女短袖'].map(g=>`<option ${g===(s.gender||'')?'selected':''}>${g}</option>`).join('')}</select>
    <label>状态</label><select id="e_status">${['Active','Registered','Deactive','Withdrawn','Transferred'].map(x=>`<option ${x===s.status?'selected':''}>${x}</option>`).join('')}</select>
+   ${uid?`<label>变更原因<div class="small mute">写进历史记录（可以不填）</div></label><input id="e_why" placeholder="例如：暂停 2 个月，家长出国">`:''}
    <label>MT</label><input id="e_mt" list="mtn" value="${esc(s.mt)}"><datalist id="mtn">${((S.mts.names||{})[s.branch]||[]).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
    <label>Package</label><input id="e_pkg" list="pkl" value="${esc(s.pkg)}"><datalist id="pkl">${pk.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
    <label>父母 / 付款人名字<div class="small mute">一行一个，银行上的名字也可以加</div></label><textarea id="e_par" rows="3">${esc((s.parents||[]).join('\n'))}</textarea>
@@ -571,7 +572,7 @@ async function saveStu(uid,b){
   if(!uid&&doc.list[no]) return toast('这个编号已经有了');
   const old=doc.list[no]||{}; const o0={mt:old.mt||'',pkg:old.pkg||'',status:old.status||''};
   doc.list[no]=Object.assign(old,{code:$('#e_code').value.trim(),name:$('#e_name').value.trim().replace(/\s+/g,' '),gender:$('#e_gender').value,status:$('#e_status').value,mt:$('#e_mt').value.trim(),pkg:$('#e_pkg').value.trim(),parents:$('#e_par').value.split('\n').map(x=>x.trim()).filter(Boolean),opening:+$('#e_open').value||0,startMonth:$('#e_start').value||'',changes:UI._chg||[]});
-  if(!old.created) doc.list[no].created=today(); else histChanges(doc.list[no],o0,'手动修改');
+  if(!old.created) doc.list[no].created=today(); else histChanges(doc.list[no],o0,($('#e_why')&&$('#e_why').value.trim())||'手动修改');
   await save('students/'+b,doc); closeModal(); toast('已保存');
 }
 async function doTransfer(uid){

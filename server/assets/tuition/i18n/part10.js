@@ -31,4 +31,7 @@ module.exports = {
   '暂停': ['Paused', 'Dijeda'],
   '暂停的学生（要恢复上课时改回 Active）': ['Paused students (set back to Active when classes resume)', 'Murid dijeda (tukar balik kepada Active apabila kelas disambung)'],
   '个学生暂停中（不开学费、不在 MT Claim 里）；恢复上课时把状态改回 Active': [' students are paused (no tuition invoice, not on the MT Claims); set the status back to Active when classes resume', ' murid dijeda (tiada invois yuran, tiada dalam MT Claim); tukar status kembali kepada Active apabila kelas disambung'],
+  '变更原因': ['Reason for the change', 'Sebab perubahan'],
+  '写进历史记录（可以不填）': ['Written into the history (optional)', 'Ditulis dalam sejarah (pilihan)'],
+  '例如：暂停 2 个月，家长出国': ['for example: paused for 2 months, parents abroad', 'contoh: dijeda 2 bulan, ibu bapa di luar negara'],
 };

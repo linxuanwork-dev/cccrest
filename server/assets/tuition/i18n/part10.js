@@ -27,4 +27,8 @@ module.exports = {
   '仍然导出其余': ['Export the other ', 'Tetap eksport ', ],
   '张': [' anyway', ' lagi'],
   '笔待处理的银行入账还没有配对，不会导出，会少开 receipt。': [' bank receipts still to handle are not matched and will not be exported, so receipts would be missing.', ' terimaan bank belum dipadankan dan tidak akan dieksport, jadi resit akan terlepas.'],
+  '暂停 Deactive': ['Paused (Deactive)', 'Dijeda (Deactive)'],
+  '暂停': ['Paused', 'Dijeda'],
+  '暂停的学生（要恢复上课时改回 Active）': ['Paused students (set back to Active when classes resume)', 'Murid dijeda (tukar balik kepada Active apabila kelas disambung)'],
+  '个学生暂停中（不开学费、不在 MT Claim 里）；恢复上课时把状态改回 Active': [' students are paused (no tuition invoice, not on the MT Claims); set the status back to Active when classes resume', ' murid dijeda (tiada invois yuran, tiada dalam MT Claim); tukar status kembali kepada Active apabila kelas disambung'],
 };

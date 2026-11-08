@@ -310,7 +310,7 @@ function parseMaster(rows){
   const out=[];
   for(let k=h.i+1;k<rows.length;k++){ const r=rows[k]||[]; const no=String(r[iN]||'').trim(); const name=String(r[iNm]||'').replace(/\s+/g,' ').trim(); if(!no||!name||!/^[A-Za-z]*\d+/.test(no)) continue;
     let st=String(r[iS]||'Active').trim(); let transferNote='';
-    if(/^TRF/i.test(st)){ transferNote=st; st='Transferred'; } else if(/withdraw/i.test(st)) st='Withdrawn'; else if(/active/i.test(st)) st='Active';
+    if(/^TRF/i.test(st)){ transferNote=st; st='Transferred'; } else if(/withdraw/i.test(st)) st='Withdrawn'; else if(/deactiv|pause|暂停/i.test(st)) st='Deactive'; else if(/active/i.test(st)) st='Active';
     out.push({no, code:String(r[iC]||'').trim(), name, status:st, transferNote, enrolled:parseDate(r[iE])||'', parents:[r[iP1],r[iP2],r[iP3]].filter(x=>x&&String(x).trim()).map(x=>String(x).trim()), mt:String(r[iM]||'').trim(), pkg:String(r[iPk]||'').trim(), price:parseAmt(r[iPr])||0, gender:iG>=0?String(r[iG]||''):''}); }
   return out;
 }
@@ -456,10 +456,10 @@ function payoutList(){ const out=[]; let m='2026-10'; const end=addMonths(today(
 // ---------- 总览 ----------
 // things that are not finished yet (they would be forgotten otherwise): registered students without package / MT, students without a Bukku code, claims waiting
 function todoUnfinished(){
-  const all=BRANCHES.flatMap(b=>stuList(b)), reg=all.filter(s=>s.status==='Registered'), noPk=all.filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)), noCode=all.filter(s=>(s.status==='Active'||s.status==='Registered')&&!s.code), wait=Object.values(S.claims||{}).filter(c=>c.status==='submitted').length;
+  const all=BRANCHES.flatMap(b=>stuList(b)), reg=all.filter(s=>s.status==='Registered'), pause=all.filter(s=>s.status==='Deactive'), noPk=all.filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)), noCode=all.filter(s=>(s.status==='Active'||s.status==='Registered')&&!s.code), wait=Object.values(S.claims||{}).filter(c=>c.status==='submitted').length;
   const by=(a)=>BRANCHES.map(b=>[b,a.filter(s=>s.branch===b).length]).filter(x=>x[1]).map(x=>x[0]+' '+x[1]).join('，');
   const li=(n,t,d)=>n?`<li>${t}：<b>${n}</b> <span class="small mute">${d||''}</span></li>`:'';
-  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
+  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
 }
 function vHome(){
   const L=ledger(); const o=outstanding(S,L,today()); const al=allowanceLines(S,L);
@@ -499,7 +499,7 @@ function vStu(){
   const mtNames=(S.mts.names||{})[b]||[]; const badMt=mtNames.length?[...new Set(stuList(b).filter(s=>s.status==='Active'&&s.mt&&!mtNames.includes(s.mt)).map(s=>s.mt))]:[];
   return `<div class="card"><div class="row">
    <select onchange="UI.branch=this.value;render()">${brOpts(b)}</select>
-   <select onchange="UI.stuStatus=this.value;render()">${['Active','Registered','Withdrawn','Transferred','ALL'].map(x=>`<option ${x===UI.stuStatus?'selected':''} value="${x}">${{Active:'在读 Active',Registered:'已报名（还没上课）',Withdrawn:'停课 Withdrawn',Transferred:'已转 branch',ALL:'全部'}[x]}</option>`).join('')}</select>
+   <select onchange="UI.stuStatus=this.value;render()">${['Active','Registered','Deactive','Withdrawn','Transferred','ALL'].map(x=>`<option ${x===UI.stuStatus?'selected':''} value="${x}">${{Active:'在读 Active',Registered:'已报名（还没上课）',Deactive:'暂停 Deactive',Withdrawn:'停课 Withdrawn',Transferred:'已转 branch',ALL:'全部'}[x]}</option>`).join('')}</select>
    <input id="stuq" placeholder="搜名字 / 编号 / 父母 / MT" value="${esc(UI.stuQ)}" oninput="UI.stuQ=this.value;render()" style="width:240px">
    <button class="b" onclick="editStu(null)">＋ 新增学生</button>
    <span style="flex:1"></span>
@@ -507,6 +507,7 @@ function vStu(){
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
+  ${stuList(b).filter(s=>s.status==='Deactive').length?`<div class="msg info">${stuList(b).filter(s=>s.status==='Deactive').length} 个学生暂停中（不开学费、不在 MT Claim 里）；恢复上课时把状态改回 Active</div>`:''}
   ${stuList(b).filter(s=>s.status==='Registered').length?`<div class="msg info">${stuList(b).filter(s=>s.status==='Registered').length} 个已报名的学生还没上课，package 和 MT 还没决定（决定后填好，把状态改成 Active）</div>`:''}
   ${badMt.length?`<div class="msg warn">有 Active 学生的 MT 不在 ${b} 的 MT 名单里：${badMt.map(esc).join('、')}</div>`:''}
   <div class="small mute" style="margin:6px 0">${list.length} 人。导入会更新同编号的学生，不会删掉已有的。</div>
@@ -522,7 +523,7 @@ function trfCell(s){
   const o=[]; if(s.transferFrom) o.push('<span class="tag info">转来</span> 从 '+esc(f(s.transferFrom))+m); if(s.transferTo) o.push('<span class="tag warn">转出</span> 去 '+esc(f(s.transferTo))+m);
   if(!o.length&&s.note&&/^TRF/i.test(s.note)) o.push(esc(s.note)); return o.join('<br>');
 }
-function stTag(s){ return s==='Active'?'<span class="tag ok">Active</span>':s==='Registered'?'<span class="tag info">已报名</span>':s==='Withdrawn'?'<span class="tag grey">停课</span>':s==='Transferred'?'<span class="tag info">已转</span>':`<span class="tag warn">${esc(s)}</span>`; }
+function stTag(s){ return s==='Active'?'<span class="tag ok">Active</span>':s==='Registered'?'<span class="tag info">已报名</span>':s==='Deactive'?'<span class="tag warn">暂停</span>':s==='Withdrawn'?'<span class="tag grey">停课</span>':s==='Transferred'?'<span class="tag info">已转</span>':`<span class="tag warn">${esc(s)}</span>`; }
 function nextNo(b){ const l=stuList(b); let pre='',w=3,max=0; for(const s of l){ const m=s.no.match(/^([A-Za-z]*)(\d+)$/); if(m){ pre=m[1]; w=m[2].length; max=Math.max(max,+m[2]); } } if(!l.length) pre=b[0]; return pre+String(max+1).padStart(w,'0'); }
 function nextCode(b){ const l=stuList(b); let pre='',w=4,max=0; for(const s of l){ const m=(s.code||'').match(/^(.*?)(\d+)$/); if(m){ pre=m[1]; w=m[2].length; max=Math.max(max,+m[2]); } } return pre?pre+String(max+1).padStart(w,'0'):''; }
 function chgListHtml(cs){ return cs.length?cs.map((c,i)=>`<div class="small">${esc(c.from)} 起：${c.mt?'MT → <b>'+esc(c.mt)+'</b> ':''}${c.pkg?'Package → <b>'+esc(c.pkg)+'</b>':''} <a href="#" onclick="UI._chg.splice(${i},1);document.getElementById('chgList').innerHTML=chgListHtml(UI._chg);return false">删</a></div>`).join(''):'<div class="small mute">没有</div>'; }
@@ -543,7 +544,7 @@ function editStu(uid){
    <label>Bukku code</label><input id="e_code" value="${esc(s.code)}">
    <label>学生名字</label><input id="e_name" value="${esc(s.name)}">
    <label>性别 / 服装</label><select id="e_gender">${['','男','女长袖','女短袖'].map(g=>`<option ${g===(s.gender||'')?'selected':''}>${g}</option>`).join('')}</select>
-   <label>状态</label><select id="e_status">${['Active','Registered','Withdrawn','Transferred'].map(x=>`<option ${x===s.status?'selected':''}>${x}</option>`).join('')}</select>
+   <label>状态</label><select id="e_status">${['Active','Registered','Deactive','Withdrawn','Transferred'].map(x=>`<option ${x===s.status?'selected':''}>${x}</option>`).join('')}</select>
    <label>MT</label><input id="e_mt" list="mtn" value="${esc(s.mt)}"><datalist id="mtn">${((S.mts.names||{})[s.branch]||[]).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
    <label>Package</label><input id="e_pkg" list="pkl" value="${esc(s.pkg)}"><datalist id="pkl">${pk.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
    <label>父母 / 付款人名字<div class="small mute">一行一个，银行上的名字也可以加</div></label><textarea id="e_par" rows="3">${esc((s.parents||[]).join('\n'))}</textarea>

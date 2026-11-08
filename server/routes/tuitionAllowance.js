@@ -32,7 +32,8 @@ const PAGE = path.join(__dirname, '..', 'assets', 'tuition', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
 const PATH_RE = /^(students|settings|rosters|bank|claims|hqbills)\/[A-Za-z0-9_.:-]{1,80}$/;
 const MGR_ONLY = new Set(['settings/packages', 'settings/config', 'settings/mts', 'settings/mtprofiles']);   // fees, allowance rates, bank / invoice settings, MT deductions, MT profiles
-const MGR_READ = new Set(['settings/mtprofiles']);   // not even sent to non-managers: the MTs' bank account and IC numbers
+const MGR_READ = new Set(['settings/mtprofiles']);
+const ADMIN_ONLY = new Set(['settings/packages', 'settings/config']);   // price list, allowance rates, bank / invoice / HQ price settings: the CC CREST admin (Owner) only   // not even sent to non-managers: the MTs' bank account and IC numbers
 const MAX_DOC = 900 * 1024;
 
 async function loadSettings(companyId) {
@@ -90,7 +91,7 @@ async function enabledSettings(req, res) {
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await loadSettings(req.params.companyId);
   if (!s) return res.status(404).json({ error: 'Not found' });
-  res.json({ enabled: s.enabled, name: s.name, uid: String(req.user.sub), mgr: isMgr(req), canWrite: !!(req.pageAccess && req.pageAccess.level >= 2) });
+  res.json({ enabled: s.enabled, name: s.name, uid: String(req.user.sub), mgr: isMgr(req), admin: !!(req.user && req.user.role === 'admin'), canWrite: !!(req.pageAccess && req.pageAccess.level >= 2) });
 });
 
 // Everything the page shows, in one request. The page asks again every few seconds with the revision it has and gets "same" back
@@ -115,6 +116,7 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   const mgr = isMgr(req);
   for (const o of ops) {
     if (!o || !['set', 'delete'].includes(o.op) || typeof o.path !== 'string' || !PATH_RE.test(o.path)) return bad(res, 'Invalid request');
+    if (ADMIN_ONLY.has(o.path) && !(req.user && req.user.role === 'admin')) return res.status(403).json({ error: '价目表和设置只有 CC admin 可以改。 Only the CC CREST admin can change the price list and settings.' });
     if (MGR_ONLY.has(o.path) && !mgr) return res.status(403).json({ error: '价目表、Allowance 设定和银行设置只有 manager 可以改。 Only a manager can change the price list and settings.' });
     if (o.path.startsWith('claims/') && !mgr) return res.status(403).json({ error: 'MT claim 只有 manager 可以批准或退回。 Only a manager can approve or return a claim.' });
     if (o.op === 'set' && (!isObj(o.data) || JSON.stringify(o.data).length > MAX_DOC)) return bad(res, 'Invalid request');

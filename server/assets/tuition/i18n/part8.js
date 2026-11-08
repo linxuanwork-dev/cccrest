@@ -1,0 +1,16 @@
+module.exports = {
+  '选 branch 和月份，系统自动取这个 branch 所有 Active 学生：一个学生一张 invoice，金额 = Master 里的 package 学费，日期 = 那个月 1 号。学费是 0 或没有 Bukku code 的学生会列出来，不会导出；跟老师名单不一样的也会列出来。': ['Choose the branch and month: the system takes all active students of that branch automatically, one invoice per student, amount = the package fee in the Master, date = the 1st of that month. Students whose fee is 0 or who have no Bukku code are listed and not exported; students that differ from the teacher roster are listed too.', 'Pilih cawangan dan bulan: sistem mengambil semua murid aktif cawangan itu secara automatik, satu invois setiap murid, jumlah = yuran pakej dalam Master, tarikh = 1hb bulan itu. Murid yang yurannya 0 atau tiada kod Bukku disenaraikan dan tidak dieksport; murid yang berbeza daripada senarai guru juga disenaraikan.'],
+  '没有 Active 学生': ['has no active students', 'tiada murid aktif'],
+  '：Active，但不在这个月的老师名单里': [': active, but not in this months teacher roster', ': aktif, tetapi tiada dalam senarai guru bulan ini'],
+  '：在老师名单里，但不是 Active（或还没开始上课）': [': in the teacher roster, but not active (or not started yet)', ': ada dalam senarai guru, tetapi tidak aktif (atau belum bermula)'],
+  '对照老师名单': ['Compare with roster', 'Banding dengan senarai guru'],
+  '跟老师名单不一样的学生': ['Students that differ from the teacher roster', 'Murid yang berbeza daripada senarai guru'],
+  '跟老师名单不一样：': ['Different from the teacher roster: ', 'Berbeza daripada senarai guru: '],
+  '个学生跟老师名单不一样（看 Excel 最后一张 sheet）': [' students differ from the teacher roster (see the last sheet of the Excel)', ' murid berbeza daripada senarai guru (lihat helaian terakhir Excel)'],
+  '价目表、Allowance 设定和银行 / 发票设置只有 CC admin 可以改。导出在下面。': ['The price list, Allowance settings and bank / invoice settings can only be changed by the CC admin. Exports are below.', 'Senarai harga, tetapan Elaun dan tetapan bank / invois hanya boleh diubah oleh admin CC. Eksport di bawah.'],
+  '选 branch 和月份，系统自动取这个 branch 所有 Active 学生：一个学生一张 invoice，金额 = Master 里的 package 学费。': ['Choose the branch and month: the system takes all active students of that branch automatically, one invoice per student, amount = the package fee in the Master.', 'Pilih cawangan dan bulan: sistem mengambil semua murid aktif cawangan itu secara automatik, satu invois setiap murid, jumlah = yuran pakej dalam Master.'],
+  '已报名（还没上课）': ['Registered (not started yet)', 'Berdaftar (belum bermula)'],
+  '已报名': ['Registered', 'Berdaftar'],
+  '个已加进学生名单，状态「已报名」（要补 Bukku code；package 和 MT 等上课前决定了再填）': [' added to the student list with status “Registered” (Bukku code to be filled in; package and MT can be filled in once decided before classes start)', ' ditambah ke senarai murid dengan status “Berdaftar” (kod Bukku perlu diisi; pakej dan MT diisi apabila diputuskan sebelum kelas bermula)'],
+  '新学生：保存后加进学生名单（状态「已报名」，package 和 MT 之后再填）；要在 Bukku 开联系人，再回来填 Bukku code': ['New student: added to the student list when saved (status “Registered”, package and MT later); create the contact in Bukku, then come back and fill in the Bukku code', 'Murid baharu: ditambah ke senarai murid apabila disimpan (status “Berdaftar”, pakej dan MT kemudian); buka kenalan di Bukku, kemudian isi kod Bukku di sini'],
+};

@@ -344,7 +344,7 @@ function save(path,data){ if(!db){toast('没有连接数据库，无法保存');
    `db` has the two calls this page uses: db.collection(name).onSnapshot(cb) and db.doc('coll/id').set(data). ---------- */
 const QS=new URLSearchParams(location.search), CID=QS.get('company')||'';
 const VIEW=QS.get('view')||'';   // the CC CREST menu opens this page on one view only: contact (students / MT) or claim (MT Claim)
-if(VIEW==='contact'){ TABS=TABS.filter(x=>x[0]==='stu'); UI.tab='stu'; } else if(VIEW==='claim'){ TABS=TABS.filter(x=>x[0]==='claim'); UI.tab='claim'; }
+if(VIEW==='contact'){ TABS=TABS.filter(x=>x[0]==='stu'); UI.tab='stu'; } else if(VIEW==='claim'){ TABS=TABS.filter(x=>x[0]==='claim'); UI.tab='claim'; } else if(!VIEW){ TABS=TABS.filter(x=>x[0]!=='stu'&&x[0]!=='claim'); }   // Contact and MT Claim have their own menu items
 function setPageLang(l){ try{ localStorage.setItem('tfa_lang',l); }catch(e){} const q=new URLSearchParams(location.search); q.set('lang',l); location.href=location.pathname+'?'+q.toString(); }
 document.getElementById('langsw').innerHTML=[['zh','中文'],['en','EN'],['ms','BM']].map(x=>`<a href="#" onclick="setPageLang('${x[0]}');return false" style="margin-left:6px;${x[0]===(document.documentElement.lang||'zh')?'font-weight:700;color:#1d2330':'color:#6b7280'}">${x[1]}</a>`).join('');
 const HOWM=/*HOWM*/{};

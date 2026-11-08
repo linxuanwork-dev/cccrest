@@ -150,7 +150,8 @@ async function load(month){
   try{
     const me=await call('GET','/me?month='+st.month); st.me=me;
     const c=me.claim; st.status=c?c.status:'new'; st.note=(c&&c.note)||'';
-    if(c&&c.lines&&c.lines.length) st.lines=c.lines.map(l=>({uid:l.uid||null,name:l.name,pkg:l.pkg||'',dates:(l.dates||[]).slice(),fee:l.fee||'',products:(l.products||[]).slice(),remark:l.remark||''}));
+    if(c&&(c.status==='submitted'||c.status==='approved')) st.lines=[];
+    else if(c&&c.lines&&c.lines.length) st.lines=c.lines.map(l=>({uid:l.uid||null,name:l.name,pkg:l.pkg||'',dates:(l.dates||[]).slice(),fee:l.fee||'',products:(l.products||[]).slice(),remark:l.remark||''}));
     else st.lines=me.students.filter(s=>s.own).map(s=>({uid:s.uid,name:s.name,pkg:s.pkg&&me.packages[s.pkg]?s.pkg:'',dates:[],fee:'',products:[],remark:''}));
     st.dirty=false; st.view='form'; st.errList=null;
   }catch(e){ if(st.view!=='login'){ st.view='form'; toast(e.message,5000); } }
@@ -252,7 +253,7 @@ function lineHtml(l,i){
 }
 function vForm(){
   const me=st.me; if(!me) return `<div style="display:flex;justify-content:flex-end">${langBar()}</div><div class="card">${t('load_fail')} <button onclick="load()">${t('retry')}</button></div>`;
-  const ed=editable(), months=[addM(curMonth(),-3),addM(curMonth(),-2),addM(curMonth(),-1),curMonth(),addM(curMonth(),1)];
+  const ed=editable(), months=Array.from({length:15},(_,i)=>addM(curMonth(),i-13));   // 13 months back, this month and next
   const used=new Set(st.lines.map(l=>l.uid).filter(Boolean));
   const own=me.students.filter(s=>s.own&&!used.has(s.uid)), others=me.students.filter(s=>!s.own&&!used.has(s.uid));
   const total=st.lines.reduce((a,l)=>a+l.dates.length*rateOf(l),0);
@@ -260,12 +261,12 @@ function vForm(){
     ${langBar()}<select onchange="changeMonth(this.value)">${months.map(m=>`<option value="${m}" ${m===st.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select><button class="g" onclick="logout()">${t('signout')}</button></div>
    ${statusBanner()}
    ${st.errList?`<div class="msg bad"><b>${t('fix')}</b><br>${st.errList.map(esc).join('<br>')}</div>`:''}
-   ${st.lines.map(lineHtml).join('')||`<div class="card mute">${t('empty')}</div>`}
+   ${ed?(st.lines.map(lineHtml).join('')||`<div class="card mute">${t('empty')}</div>`):''}
    ${ed?`<div class="card"><h2>${t('add_h')}</h2><div class="row"><select id="addSel" style="flex:1;min-width:220px"><option value="">${t('choose')}</option>
      ${own.length?`<optgroup label="${esc(t('my_students'))}">${own.map(s=>`<option value="${esc(s.uid)}">${esc(s.name)}</option>`).join('')}</optgroup>`:''}
      ${others.length?`<optgroup label="${esc(t('other_students',{b:me.branch}))}">${others.map(s=>`<option value="${esc(s.uid)}">${esc(s.name)}</option>`).join('')}</optgroup>`:''}
      <option value="__new">${t('new_opt')}</option></select><button onclick="addStudent()">${t('add')}</button></div></div>`:''}
-   <div class="card"><b>${t('total')}: RM ${money(total)}</b> <span class="mute small">${t('total_note',{n:st.lines.length})}</span></div>
+   ${ed?`<div class="card"><b>${t('total')}: RM ${money(total)}</b> <span class="mute small">${t('total_note',{n:st.lines.length})}</span></div>`:''}
    ${ed?`<div class="bar"><button ${st.busy?'disabled':''} onclick="saveDraft()">${t('save_draft')}</button><button class="b" ${st.busy?'disabled':''} onclick="submit()">${t('submit')}</button></div>`:''}`;
 }
 function changeMonth(m){ if(st.dirty&&!confirm(t('unsaved'))){ render(); return; } load(m); }

@@ -131,7 +131,9 @@ router.get('/mt-claim/me', mtAuth, async (req, res) => {
     .map(([no, s]) => ({ uid: u.branch + ':' + no, no, name: s.name, pkg: s.pkg || '', own: s.mt === u.mt }));
   const packages = {};
   Object.keys(pk).forEach((k) => { if (pkOk(pk, k)) packages[k] = { classes: stdClasses(pk, k), rate: +pk[k].rate || 0 }; });
-  const claim = await getDoc(u.company_id, claimPath(u, month));
+  let claim = await getDoc(u.company_id, claimPath(u, month));
+  // once submitted the claim belongs to the office: the MT only sees that it was submitted (the history is in the CC CREST system)
+  if (claim && ['submitted', 'approved'].includes(claim.status)) claim = { status: claim.status, month: claim.month, submittedAt: claim.submittedAt, lines: [] };
   const products = Array.isArray(cfg.claimProducts) && cfg.claimProducts.length ? cfg.claimProducts : DEFAULT_PRODUCTS;
   res.json({ mt: u.mt, branch: u.branch, month, students, packages, products, claim });
 });
@@ -197,7 +199,7 @@ async function saveClaim(u, month, lines, status, extra) {
 }
 function monthAllowed(month) {
   const n = new Date(), cur = n.getFullYear() * 12 + n.getMonth(), m = +month.slice(0, 4) * 12 + (+month.slice(5, 7) - 1);
-  return m >= cur - 4 && m <= cur + 1;
+  return m >= cur - 24 && m <= cur + 1;   // up to two years back (a late claim), one month ahead
 }
 
 router.put('/mt-claim/claim', mtAuth, async (req, res) => {

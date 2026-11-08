@@ -454,6 +454,13 @@ function reviewCount(){ let n=0; for(const d of Object.values(S.bank)) for(const
 function payoutList(){ const out=[]; let m='2026-10'; const end=addMonths(today().slice(0,7),2); while(m<=end){ out.push(m+'-05',m+'-15'); m=addMonths(m,1);} return out; }
 
 // ---------- 总览 ----------
+// things that are not finished yet (they would be forgotten otherwise): registered students without package / MT, students without a Bukku code, claims waiting
+function todoUnfinished(){
+  const all=BRANCHES.flatMap(b=>stuList(b)), reg=all.filter(s=>s.status==='Registered'), noPk=all.filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)), noCode=all.filter(s=>(s.status==='Active'||s.status==='Registered')&&!s.code), wait=Object.values(S.claims||{}).filter(c=>c.status==='submitted').length;
+  const by=(a)=>BRANCHES.map(b=>[b,a.filter(s=>s.branch===b).length]).filter(x=>x[1]).map(x=>x[0]+' '+x[1]).join('，');
+  const li=(n,t,d)=>n?`<li>${t}：<b>${n}</b> <span class="small mute">${d||''}</span></li>`:'';
+  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
+}
 function vHome(){
   const L=ledger(); const o=outstanding(S,L,today()); const al=allowanceLines(S,L);
   const cards=BRANCHES.map(b=>{ const st=stuList(b); const act=st.filter(s=>s.status==='Active').length;
@@ -470,6 +477,7 @@ function vHome(){
   <div class="card"><h2>待办</h2>
    <ul>
     <li>银行入账待你确认 / 找不到学生：<b>${rc}</b> 笔 ${rc?`<button class="g" onclick="UI.tab='bank';UI.bFilter='need';render()">去处理</button>`:''}</li>
+    ${todoUnfinished()}
     <li>银行资料更新至：Affin ${lastBankDate('AFFIN')||'—'}，Public Bank ${lastBankDate('PBB')||'—'}</li>
    </ul>
    <h3>接下来的 Allowance 发放</h3><ul>${nextP}</ul></div>
@@ -499,6 +507,7 @@ function vStu(){
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
+  ${stuList(b).filter(s=>s.status==='Registered').length?`<div class="msg info">${stuList(b).filter(s=>s.status==='Registered').length} 个已报名的学生还没上课，package 和 MT 还没决定（决定后填好，把状态改成 Active）</div>`:''}
   ${badMt.length?`<div class="msg warn">有 Active 学生的 MT 不在 ${b} 的 MT 名单里：${badMt.map(esc).join('、')}</div>`:''}
   <div class="small mute" style="margin:6px 0">${list.length} 人。导入会更新同编号的学生，不会删掉已有的。</div>
   <div class="tw"><table><tr><th>编号</th><th>Bukku code</th><th>学生</th><th>状态</th><th>转校 Transfer</th><th>MT</th><th>Pkg</th><th class="n">学费</th><th>父母 / 付款人</th><th class="n">期初欠款</th><th></th></tr>
@@ -1001,7 +1010,7 @@ function vClaim(){
   claims.filter(c=>!users.some(u=>u.id===c.mtUserId)).forEach(c=>rows.push({u:null,c,branch:c.branch,mt:c.mt}));
   rows.sort((x,y)=>BRANCHES.indexOf(x.branch)-BRANCHES.indexOf(y.branch)||x.mt.localeCompare(y.mt));
   const cnt=k=>rows.filter(r=>(r.c?r.c.status:'none')===k).length;
-  return `<div class="card"><h2>MT Claim</h2><div class="row"><select onchange="UI.cBranch=this.value;render()">${brOpts(b,true)}</select>
+  return tallyCard(b,m)+`<div class="card"><h2>MT Claim</h2><div class="row"><select onchange="UI.cBranch=this.value;render()">${brOpts(b,true)}</select>
    <input type="month" value="${m}" onchange="UI.cMonth=this.value;render()">
    <span class="small mute">待批准 ${cnt('submitted')} · 草稿 ${cnt('draft')} · 退回 ${cnt('returned')} · 已批准 ${cnt('approved')} · 还没开始 ${cnt('none')}</span></div>
    <div class="small mute" style="margin:6px 0">MT 用自己的账号在 <b>${esc(claimUrl())}</b> 填表。提交后你在这里对照系统（付款、deadline、master 名单），批准后会更新老师名单；有错就退回。</div>
@@ -1047,10 +1056,30 @@ function claimAnalysis(c){
       if(l.fee==='DONE'&&sys.status==='pending') flags.push({t:'warn',x:'MT 写 DONE，系统还没找到付款'});
       if(l.fee==='BELUM'&&sys.status==='payable') flags.push({t:'warn',x:'MT 写 BELUM，系统已有付款（'+(sys.paidDate||'')+'）'}); }
     if(l.pkg&&!(+p.rate>0)) flags.push({t:'warn',x:'这个 package 还没设 allowance rate'});
+    if(l.uid){ const o=Object.entries(S.claims||{}).find(([k,x])=>x.branch===b&&x.month===m&&x.mt!==c.mt&&(x.status==='submitted'||x.status==='approved')&&(x.lines||[]).some(y=>y.uid===l.uid)); if(o) flags.push({t:'bad',x:'这个学生也在 '+o[1].mt+' 的 claim 里'}); }
+    if(s&&s.status!=='Active') flags.push({t:'bad',x:'Master 里这个学生不是 Active（'+s.status+'）'});
     return {l,i,s,sys,classes,rate,amount:r2(rate*classes),flags}; });
   const used=new Set(c.lines.map(l=>l.uid).filter(Boolean));
   const missing=Object.entries(stuL).filter(([no,s])=>s.status==='Active'&&s.mt===c.mt&&!used.has(b+':'+no)).map(([no,s])=>no+' '+s.name);
   return {rows,missing,rosterConfirmed:!!(ro&&ro.confirmed)};
+}
+// Active students of a branch (that month) against the students on the submitted / approved claims of that month
+function claimTally(b,m){
+  const act=feeStudents(b,m), actSet=new Set(act.map(s=>s.uid)), by={}, news=[];
+  Object.values(S.claims||{}).filter(c=>c.branch===b&&c.month===m&&(c.status==='submitted'||c.status==='approved')).forEach(c=>(c.lines||[]).forEach(l=>{ if(!l.uid){ news.push(l.name+'（'+c.mt+'）'); return; } (by[l.uid]=by[l.uid]||new Set()).add(c.mt); }));
+  const name=u=>{ const s=findStu(S,u); return s?s.no+' '+s.name:u; };
+  return {act:act.length,claimed:Object.keys(by).length,missing:act.filter(s=>!by[s.uid]).map(s=>s.no+' '+s.name+(s.mt?'（'+s.mt+'）':'')),extra:Object.keys(by).filter(u=>!actSet.has(u)).map(u=>name(u)+'（'+[...by[u]].join('、')+'）'),dups:Object.keys(by).filter(u=>by[u].size>1).map(u=>name(u)+'：'+[...by[u]].join('、')),news};
+}
+function tallyCard(b,m){
+  const rows=(b==='ALL'?BRANCHES:[b]).map(x=>[x,claimTally(x,m)]).filter(([x,t])=>t.act||t.claimed||t.news.length);
+  if(!rows.length) return '';
+  return `<div class="card"><h2>对照 Active 学生</h2><div class="small mute">MT Claim 里的学生要跟 Master 里的 Active 学生对得上：每个 Active 学生都在某一位 MT 的 claim 里，而且只在一位 MT 那里。</div>
+   ${rows.map(([x,t])=>{ const ok=!t.missing.length&&!t.extra.length&&!t.dups.length&&!t.news.length;
+    return `<div style="margin-top:8px"><b>${x}</b>：Active ${t.act} 位，已在 claim 里 ${t.claimed} 位 ${ok?'<span class="tag ok">对得上 ✔</span>':'<span class="tag warn">还没对上</span>'}
+    ${t.missing.length?`<details><summary class="small">还没出现在任何 claim 里的 Active 学生：${t.missing.length}</summary><div class="small">${t.missing.map(esc).join('<br>')}</div></details>`:''}
+    ${t.extra.length?`<details><summary class="small">在 claim 里，但不是 Active 的学生：${t.extra.length}</summary><div class="small">${t.extra.map(esc).join('<br>')}</div></details>`:''}
+    ${t.dups.length?`<details open><summary class="small">同时在两位 MT 的 claim 里：${t.dups.length}</summary><div class="small">${t.dups.map(esc).join('<br>')}</div></details>`:''}
+    ${t.news.length?`<details><summary class="small">新学生（等批准后加进名单）：${t.news.length}</summary><div class="small">${t.news.map(esc).join('<br>')}</div></details>`:''}</div>`; }).join('')}</div>`;
 }
 function claimReview(id){
   const c=S.claims[id]; if(!c) return; const A=claimAnalysis(c), sub=c.status==='submitted', tot=r2(A.rows.reduce((a,r)=>a+r.amount,0));
@@ -1183,7 +1212,7 @@ function drawHq(){
    <div class="small" style="margin-top:6px">开给 klien ${inv.length} 张，共 RM ${money(tot)}；不开 invoice（库存）${h.lines.filter(l=>!invoiced(l.kind)).length} 行。号码 IV-${h.branch}-R/M/O-${(h.date||'').slice(2,4)}${(h.date||'').slice(5,7)}-[3DIGIT]，日期 ${esc(h.date)}。</div>
    <div class="row" style="margin-top:10px"><button class="b" onclick="hqSave(false)">保存</button><button class="b" onclick="hqSave(true)">保存并导出 Bukku</button><button class="g" onclick="closeModal()">关闭</button></div>`);
 }
-async function hqSave(exp){
+async function hqSave(exp,force){
   const h=UI._hq; if(!h.invoiceNo||!h.date) return toast('这张单没有读到单号或日期');
   const sd=JSON.parse(JSON.stringify(S.students[h.branch]||{list:{}})); sd.list=sd.list||{}; let added=0;
   for(const l of h.lines){ if(l.newStudent&&!l.uid&&!l.skip&&invoiced(l.kind)){
@@ -1192,7 +1221,9 @@ async function hqSave(exp){
     l.uid=h.branch+':'+no; l.newStudent=false; added++; } }
   if(added) await save('students/'+h.branch,sd);
   const doc=Object.assign({},h,{savedAt:new Date().toISOString()}); delete doc.id; const id=h.branch+'_'+h.invoiceNo;
-  if(exp){ const r=hqExportRows(doc); doc.exportedAt=today(); await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); hqDownload(doc,r); }
+  if(exp){ const r=hqExportRows(doc);
+    if(r.bad.length&&!force){ await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); return exportGate(r.bad.length+' 行不会开单。',r.bad,r.rows.length,'hqSave(true,true)'); }
+    doc.exportedAt=today(); await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); hqDownload(doc,r); }
   else { await save('hqbills/'+id,doc); closeModal(); toast('已保存'+(added?'，新学生 '+added+' 个已加进学生名单，状态「已报名」（要补 Bukku code；package 和 MT 等上课前决定了再填）':''),5000); }
 }
 function hqExportRows(d){
@@ -1203,13 +1234,12 @@ function hqExportRows(d){
     const prod=l.kind==='registration'?(g==='男'||!g?'REGISTRATION-MALE':'REGISTRATION-FEMALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
     const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
     const det=[l.title,l.module,l.jersey,l.game].filter(Boolean).join(' / ');
-    rows.push([null,s.code,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null]); }
+    rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null,null,null]); }
   return {rows,bad};
 }
 function hqDownload(d,r){
-  const head=[['#','TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['#','HQ '+d.invoiceNo+' · '+d.branch+' · '+r.rows.length+' invoices, RM '+money(r.rows.reduce((x,y)=>x+y[18]*y[15],0))],
-    ['$','Customer Code (1) *','No. (2)','Reference No.','Date (D) *','Payment Term (3)','Due Date (D) (4)','Currency (5)','Rate (6)','Tags (7)','Title','Description','Product (8)','Account (9) *','Item Description *','Quantity (10)','UOM (11)','Location (12)','Unit Price *','Discount (13)','Tax (14)']];
-  saveXlsx(`DM-Bukku-Sales Invoice-${d.branch}-${d.date.slice(0,4)}_${d.date.slice(5,7)}-HQ ${d.invoiceNo}.xlsx`,[['Worksheet',head.concat(r.rows)]].concat(r.bad.length?[['没有导出',[['没有导出'],...r.bad.map(x=>[x])]]]:[]));
+  if(r.rows.length) bukkuFile('invoice',r.rows,`DM-Bukku-Sales Invoice-${d.branch}-${d.date.slice(0,4)}_${d.date.slice(5,7)}-HQ ${d.invoiceNo}.xlsx`);
+  notExported(`DM-Bukku-Sales Invoice-${d.branch}-${d.date.slice(0,4)}_${d.date.slice(5,7)}-HQ ${d.invoiceNo}-没有导出.xlsx`,'没有导出',r.bad);
   if(r.bad.length) modal(`<h3>${r.bad.length} 行没有导出</h3><div class="small">${r.bad.map(esc).join('<br>')}</div><p class="small mute">补好之后再按一次「保存并导出 Bukku」。</p><button class="g" onclick="closeModal()">关闭</button>`);
   else closeModal();
 }
@@ -1229,15 +1259,15 @@ function hqFastLines(b,m){
     out.push({s,name:l.name,mt:c.mt,prod:p,price,bad}); }
   return out;
 }
-function hqFastExport(){
+function hqFastExport(force){
   const b=UI.hqFB||'BBU', m=UI.hqFM||addMonths(today().slice(0,7),-1), Y=m.slice(0,4), M=m.slice(5,7), dt=lastDay(m).slice(8,10)+'/'+M+'/'+Y;
   const lines=hqFastLines(b,m), ok=lines.filter(x=>!x.bad), bad=lines.filter(x=>x.bad).map(x=>x.name+' / '+x.prod+'：'+x.bad);
-  const rows=ok.map(x=>[null,x.s.code,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,null,HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null]);
-  const head=[['#','TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['#','Fast Track '+b+' '+m+' · '+rows.length+' invoices'],
-    ['$','Customer Code (1) *','No. (2)','Reference No.','Date (D) *','Payment Term (3)','Due Date (D) (4)','Currency (5)','Rate (6)','Tags (7)','Title','Description','Product (8)','Account (9) *','Item Description *','Quantity (10)','UOM (11)','Location (12)','Unit Price *','Discount (13)','Tax (14)']];
+  const rows=ok.map(x=>[x.s.code,x.s.no+'-'+x.s.name,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,null,HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null,null,null]);
+  if(bad.length&&!force) return exportGate(bad.length+' 行不会开单。',bad,rows.length,'hqFastExport(true)');
   if(!rows.length) return toast('没有可以导出的');
-  saveXlsx(`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${m.slice(5,7)}-Fast Track.xlsx`,[['Worksheet',head.concat(rows)]].concat(bad.length?[['没有导出',[['没有导出'],...bad.map(x=>[x])]]]:[]));
-  if(bad.length) toast(bad.length+' 行没有导出（看 Excel 第二张 sheet）',5000);
+  bukkuFile('invoice',rows,`DM-Bukku-Sales Invoice-${b}-${Y}_${M}-Fast Track.xlsx`);
+  notExported(`DM-Bukku-Sales Invoice-${b}-${Y}_${M}-Fast Track-没有导出.xlsx`,'没有导出',bad);
+  if(bad.length) toast(bad.length+' 行没有导出（清单在另一个小 Excel 里）',5000);
 }
 function hqCard(){
   const c=hqCfg(), prods=((S.config||{}).claimProducts&&S.config.claimProducts.length)?S.config.claimProducts:['Fast Track ABC','Fast Track ABB','Fast Track ABD','Fast Track ABK','Fast Track ABS'];
@@ -1303,32 +1333,50 @@ async function cfgInv(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.inv[k]=
 function pkgOnMonth(s,m){ let p=s.pkg||''; (s.changes||[]).slice().sort((a,c)=>a.from<c.from?-1:1).forEach(c=>{ if(c.from<=m&&c.pkg) p=c.pkg; }); return p; }
 // Active students of a branch that owe the fee of month m (not yet started / stopped / transferred ones do not)
 function feeStudents(b,m){ return stuList(b).filter(s=>s.status==='Active'&&(!s.startMonth||s.startMonth<=m)&&(!s.enrolled||String(s.enrolled).slice(0,7)<=m)).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true})); }
-function exportInvoices(){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
+function exportInvoices(force){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
   const c=cfg().inv; const mm=m.slice(5,7), yy=m.slice(2,4); const fill=s=>String(s||'').replace(/\{B\}/g,b).replace(/\{MM\}/g,mm).replace(/\{YY\}/g,yy);
   const date='01/'+mm+'/'+m.slice(0,4); const rows=[], bad=[]; const act=feeStudents(b,m);
   if(!act.length) return toast(b+' '+m+' 没有 Active 学生');
   for(const s of act){ const pkg=pkgOnMonth(s,m), fee=feeFor(S,{pkg},s);
     if(!(fee>0)){ bad.push(s.no+' '+s.name+'：package '+(pkg||'（没有）')+' 没有学费'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; }
-    rows.push([null,s.code,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc)+' - '+s.no+' '+s.name+' ('+pkg+')',1,null,null,fee,null,c.tax||null]); }
+    rows.push([s.code,s.no+'-'+s.name,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc)+' - '+s.no+' '+s.name+' ('+pkg+')',1,null,null,fee,null,c.tax||null,null,null]); }
   // compared with the confirmed teacher roster of that month (information only)
   const ro=S.rosters[rosterId(b,m)], diff=[];
   if(ro&&ro.confirmed){ const onRo=new Set((ro.lines||[]).map(l=>l.uid)), actSet=new Set(act.map(s=>s.uid));
     act.filter(s=>!onRo.has(s.uid)).forEach(s=>diff.push(s.no+' '+s.name+'：Active，但不在这个月的老师名单里'));
     [...onRo].filter(u=>!actSet.has(u)).forEach(u=>{ const s=findStu(S,u); diff.push((s?s.no+' '+s.name:u)+'：在老师名单里，但不是 Active（或还没开始上课）'); }); }
-  const head=[['#','TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['#',b+' '+m+' 学费，'+rows.length+' 张，RM '+money(rows.reduce((x,y)=>x+y[18],0))],
-    ['$','Customer Code (1) *','No. (2)','Reference No.','Date (D) *','Payment Term (3)','Due Date (D) (4)','Currency (5)','Rate (6)','Tags (7)','Title','Description','Product (8)','Account (9) *','Item Description *','Quantity (10)','UOM (11)','Location (12)','Unit Price *','Discount (13)','Tax (14)']];
-  saveXlsx(`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}.xlsx`,[['Worksheet',head.concat(rows)]].concat(bad.length?[['没有导出',[['没有导出的学生'],...bad.map(x=>[x])]]]:[]).concat(diff.length?[['对照老师名单',[['跟老师名单不一样的学生'],...diff.map(x=>[x])]]]:[]));
-  if(bad.length) modal(`<h3>${bad.length} 个学生没有导出</h3><div class="small">${bad.map(esc).join('<br>')}</div><p class="small mute">补好资料后再导出一次（这份清单也在 Excel 的第二张 sheet）。</p>${diff.length?`<div class="small" style="margin-top:8px"><b>跟老师名单不一样：</b><br>${diff.map(esc).join('<br>')}</div>`:''}<button class="g" onclick="closeModal()">关闭</button>`); else if(diff.length) toast(diff.length+' 个学生跟老师名单不一样（看 Excel 最后一张 sheet）',5000); }
+  if((bad.length||diff.length)&&!force) return exportGate((bad.length?bad.length+' 个学生不会开单（没有 Bukku code，或学费是 0）。':'')+(diff.length?diff.length+' 个学生跟这个月的老师名单不一样。':''),bad.concat(diff),rows.length,'exportInvoices(true)');
+  if(!rows.length) return toast('没有可以导出的学生');
+  bukkuFile('invoice',rows,`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}.xlsx`);
+  notExported(`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}-没有导出.xlsx`,'没有导出的学生',bad.concat(diff.map(x=>'（跟老师名单不一样）'+x)));
+  if(bad.length) modal(`<h3>${bad.length} 个学生没有导出</h3><div class="small">${bad.map(esc).join('<br>')}</div><p class="small mute">补好资料后再导出一次（这份清单也存成另一个小 Excel 了）。</p>${diff.length?`<div class="small" style="margin-top:8px"><b>跟老师名单不一样：</b><br>${diff.map(esc).join('<br>')}</div>`:''}<button class="g" onclick="closeModal()">关闭</button>`); else if(diff.length) toast(diff.length+' 个学生跟老师名单不一样（清单在另一个小 Excel 里）',5000); }
 async function cfgSet(g,b,v){ const c=JSON.parse(JSON.stringify(cfg())); c[g][b]=v; await save('settings/config',c); toast('已保存'); }
+// a Bukku import file: the server fills Bukku's own template with these rows (cells from column B on)
+async function bukkuFile(type,rows,filename){
+  try{
+    const r=await fetch(API+'/bukku-file',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,rows})});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||('请求失败 ('+r.status+')')); }
+    const url=URL.createObjectURL(await r.blob()), a=document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }catch(e){ toast('下载失败：'+(e&&e.message||e),6000); }
+}
+// the list of what was not exported goes into a small file of its own (the import file only holds invoices / payments)
+// shown instead of exporting when some invoices / receipts would be left out: fix the data first, or export the rest on purpose
+function exportGate(msg,items,okN,go){
+  modal(`<h3>导出前检查</h3><div class="msg warn">${msg}请先检查、补好资料再导出，不然会漏开单。</div>
+   <div class="small" style="max-height:50vh;overflow:auto">${items.map(esc).join('<br>')}</div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="closeModal()">先去补资料</button><button class="g" onclick="closeModal();${go}">仍然导出其余 ${okN} 张</button></div>`);
+}
+function notExported(filename,title,lines){ if(lines.length) saveXlsx(filename,[[title,[[title],...lines.map(x=>[x])]]]); }
 function dmy(d){ return d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4); }
-function exportPayments(){
+function exportPayments(force){
   const bank=UI.expBank, m=UI.expMonth; const doc=S.bank[bankDocId(bank,m)]; if(!doc) return toast('这个月没有 '+bank+' 资料');
   const c=cfg(); const tx=Object.values(doc.tx||{}).filter(t=>t.status==='auto'||t.status==='manual').sort((a,b)=>(a.date+a.time)<(b.date+b.time)?-1:1);
   const need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').length;
-  const head=[['#','TEMPLATE FOR SALES PAYMENTS'],['#',"Lines that start with '#' are comments and will be ignored by the system during import."],['$','Contact Code (1)','Legal Name (2)','No. (3)','Reference No.','Date (D) *','Currency (4)','Rate (5)','Amount (6) *','Payment Method (7)','Deposit Account (8) *','Fee Amount (9)','Fee Account (10)','Tags (11)','Description','Invoice No. (12)','Amount (13)']];
-  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; rows.push([null,s.code,s.no+'-'+s.name,'OR-'+s.branch+'[YY][MM]-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
-  saveXlsx(`Bukku_SalesPayment_${bank}_${m}.xlsx`,[['Worksheet',head.concat(rows)]]);
-  if(need) toast(`注意：还有 ${need} 笔待处理的入账没有导出`,4000);
+  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; rows.push([s.code,s.no+'-'+s.name,'OR-'+s.branch+'[YY][MM]-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
+  if(need&&!force) return exportGate(need+' 笔待处理的银行入账还没有配对，不会导出，会少开 receipt。',Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').map(t=>t.date+' '+t.payer+' RM '+money(t.amount)),rows.length,'exportPayments(true)');
+  if(!rows.length) return toast('没有可以导出的入账');
+  bukkuFile('payment',rows,`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}.xlsx`);
 }
 function exportOnly(){
   return `<div class="card"><div class="msg warn">价目表、Allowance 设定和银行 / 发票设置只有 CC admin 可以改。导出在下面。</div></div>

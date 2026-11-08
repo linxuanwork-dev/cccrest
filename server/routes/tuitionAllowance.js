@@ -150,6 +150,31 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- Bukku import files: the rows are written into Bukku's own template (server/assets/tuition/bukku), so the comment lines, the
+// column headings, the column order and the formats are exactly what Bukku gives. rows = arrays of cells starting at column B. ----
+const BUKKU_TEMPLATES = { invoice: 'sales-invoice-template.xlsx', payment: 'sales-payment-template.xlsx' };
+router.post(BASE + '/bukku-file', ...guard(1), async (req, res) => {
+  const type = req.body && req.body.type, rows = req.body && req.body.rows;
+  if (!BUKKU_TEMPLATES[type] || !Array.isArray(rows) || rows.length > 3000) return bad(res, 'Invalid request');
+  for (const r of rows) {
+    if (!Array.isArray(r) || r.length > 30 || r.some((v) => v !== null && !['string', 'number'].includes(typeof v))) return bad(res, 'Invalid request');
+  }
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(path.join(__dirname, '..', 'assets', 'tuition', 'bukku', BUKKU_TEMPLATES[type]));
+  const ws = wb.worksheets[0];
+  let hdr = 0;
+  for (let i = 1; i <= 80 && !hdr; i++) { if (/^Contact Code/.test(String(ws.getRow(i).getCell(2).value || ''))) hdr = i; }
+  if (!hdr) return bad(res, 'Template problem');
+  for (let i = hdr + 1; i <= ws.rowCount; i++) ws.getRow(i).eachCell({ includeEmpty: false }, (c) => { c.value = null; });   // the sample lines
+  rows.forEach((cells, k) => {
+    const row = ws.getRow(hdr + 1 + k);
+    cells.forEach((v, j) => { if (v !== null && v !== '') row.getCell(2 + j).value = v; });
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(Buffer.from(buf));
+});
+
 // ---- HQ bills (QC GROUP -> a branch): read the PDF into its lines; the page does the matching, pricing and the Bukku file ----
 router.post(BASE + '/hq-parse', ...guard(2), express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
   if (!await enabledSettings(req, res)) return;

@@ -6,6 +6,8 @@ const { pool } = require('../db');
 const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const router = express.Router();
 
@@ -26,7 +28,7 @@ const router = express.Router();
 
 const PAGE = path.join(__dirname, '..', 'assets', 'tuition', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
-const PATH_RE = /^(students|settings|rosters|bank)\/[A-Za-z0-9_.:-]{1,80}$/;
+const PATH_RE = /^(students|settings|rosters|bank|claims)\/[A-Za-z0-9_.:-]{1,80}$/;
 const MGR_ONLY = new Set(['settings/packages', 'settings/config', 'settings/mts', 'settings/mtprofiles']);   // fees, allowance rates, bank / invoice settings, MT deductions, MT profiles
 const MGR_READ = new Set(['settings/mtprofiles']);   // not even sent to non-managers: the MTs' bank account and IC numbers
 const MAX_DOC = 900 * 1024;
@@ -95,7 +97,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   const s = await enabledSettings(req, res); if (!s) return;
   if (req.query.rev !== undefined && String(s.rev) === String(req.query.rev)) return res.json({ same: true, rev: s.rev });
   const { rows } = await pool.query('SELECT path, coll, data FROM tuition_docs WHERE company_id = $1', [req.params.companyId]);
-  const by = { students: [], settings: [], rosters: [], bank: [] };
+  const by = { students: [], settings: [], rosters: [], bank: [], claims: [] };
   const mgr = isMgr(req);
   rows.forEach((r) => { if (!mgr && MGR_READ.has(r.path)) return; (by[r.coll] = by[r.coll] || []).push({ id: r.path.slice(r.coll.length + 1), data: r.data }); });
   res.json({ rev: s.rev, docs: by });
@@ -112,6 +114,7 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   for (const o of ops) {
     if (!o || !['set', 'delete'].includes(o.op) || typeof o.path !== 'string' || !PATH_RE.test(o.path)) return bad(res, 'Invalid request');
     if (MGR_ONLY.has(o.path) && !mgr) return res.status(403).json({ error: '价目表、Allowance 设定和银行设置只有 manager 可以改。 Only a manager can change the price list and settings.' });
+    if (o.path.startsWith('claims/') && !mgr) return res.status(403).json({ error: 'MT claim 只有 manager 可以批准或退回。 Only a manager can approve or return a claim.' });
     if (o.op === 'set' && (!isObj(o.data) || JSON.stringify(o.data).length > MAX_DOC)) return bad(res, 'Invalid request');
   }
   const cid = req.params.companyId;
@@ -141,6 +144,58 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
     client.release();
   }
   res.json({ ok: true });
+});
+
+// ---- MT Claim form logins (DIDIK MULIA): a manager opens a login for each MT; the MT fills the claim form on /mt-claim ----
+const PW_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const newPassword = () => Array.from(crypto.randomBytes(10)).map((b) => PW_CHARS[b % PW_CHARS.length]).join('');
+const slug = (t) => String(t || '').toLowerCase().replace(/^mt\s+/, '').replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, '').slice(0, 14);
+const mtOut = (r) => ({ id: r.id, branch: r.branch, mt: r.mt, username: r.username, active: r.active, mustChange: r.must_change, lastLogin: r.last_login });
+
+router.get(BASE + '/mt-users', ...guard(3), async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM tuition_mt_users WHERE company_id = $1 ORDER BY branch, mt', [req.params.companyId]);
+  res.json(rows.map(mtOut));
+});
+
+router.post(BASE + '/mt-users', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, branch = String(b.branch || ''), mt = String(b.mt || '').trim().toUpperCase();
+  if (!['BBU', 'TST', 'TDA'].includes(branch) || !mt || mt.length > 80) return bad(res, 'Invalid request');
+  let username = String(b.username || '').trim().toLowerCase();
+  if (!username) username = slug(mt) + '.' + branch.toLowerCase();
+  if (!/^[a-z0-9._-]{3,40}$/.test(username)) return bad(res, '用户名只能用英文字母、数字、点、横线，3 到 40 个字。');
+  const pw = newPassword();
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO tuition_mt_users (company_id, branch, mt, username, password_hash) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.params.companyId, branch, mt, username, await bcrypt.hash(pw, 10)]
+    );
+    await logActivity(req.user.sub, 'Opened an MT claim login', mt, branch);
+    res.json({ user: mtOut(rows[0]), password: pw });
+  } catch (e) {
+    if (e.code === '23505') return bad(res, '这位 MT 已经有账号了，或者这个用户名被用了。 That MT already has a login, or the user name is taken.');
+    throw e;
+  }
+});
+
+router.post(BASE + '/mt-users/:id/reset', ...guard(3), async (req, res) => {
+  const pw = newPassword();
+  const { rows } = await pool.query(
+    'UPDATE tuition_mt_users SET password_hash = $3, must_change = true WHERE id = $1 AND company_id = $2 RETURNING *',
+    [req.params.id, req.params.companyId, await bcrypt.hash(pw, 10)]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  await logActivity(req.user.sub, 'Reset an MT claim password', rows[0].mt, rows[0].branch);
+  res.json({ user: mtOut(rows[0]), password: pw });
+});
+
+router.put(BASE + '/mt-users/:id', ...guard(3), async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE tuition_mt_users SET active = $3 WHERE id = $1 AND company_id = $2 RETURNING *',
+    [req.params.id, req.params.companyId, !!(req.body && req.body.active)]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json({ user: mtOut(rows[0]) });
 });
 
 // The page builds its Excel files in the browser; this puts the system's print stamp (date + user, in the print footer) on them

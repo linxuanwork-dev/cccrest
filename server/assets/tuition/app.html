@@ -321,10 +321,10 @@ function parseAging(rows){
 </script>
 <script>
 const BRANCHES=['BBU','TST','TDA'];
-const S={mtp:{},students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
+const S={mtp:{},claims:{},students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
 let db=null, downloads=null, canWrite=true, loaded={};
 const UI={tab:'home',branch:'BBU',stuStatus:'Active',stuQ:'',rBranch:'BBU',rMonth:'2026-10',draft:null,bBank:'AFFIN',bMonth:'2026-10',bFilter:'need',oBranch:'ALL',oMt:'ALL',oLate:true,payout:null,expBank:'AFFIN',expMonth:'2026-10'};
-const TABS=[['home','总览'],['stu','学生 Master'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
+const TABS=[['home','总览'],['stu','Contact 学生 / MT'],['claim','MT Claim'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -341,8 +341,8 @@ function save(path,data){ if(!db){toast('没有连接数据库，无法保存');
    `db` has the two calls this page uses: db.collection(name).onSnapshot(cb) and db.doc('coll/id').set(data). ---------- */
 const QS=new URLSearchParams(location.search), CID=QS.get('company')||'';
 const API='/api/companies/'+encodeURIComponent(CID)+'/tuition';
-const COLLS=['students','settings','rosters','bank'];
-const memo={students:{},settings:{},rosters:{},bank:{}}, subs={students:[],settings:[],rosters:[],bank:[]};
+const COLLS=['students','settings','rosters','bank','claims'];
+const memo={students:{},settings:{},rosters:{},bank:{},claims:{}}, subs={students:[],settings:[],rosters:[],bank:[],claims:[]};
 let MGR=false, firstSync=false, syncRev=-1, inflight=0, syncing=false, syncAgain=false, needForce=true, syncT;
 async function http(method,url,body){
   const r=await fetch(API+url,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
@@ -407,18 +407,19 @@ async function init(){
   if(!me.enabled){ $('#conn').className='tag bad'; $('#conn').textContent='这家公司还没有开通'; render(); return; }
   MGR=!!me.mgr; canWrite=!!me.canWrite;
   const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
-  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
+  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
   db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
   db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
   db.collection('bank').onSnapshot(s=>{ S.bank={}; s.docs.forEach(d=>S.bank[d.id]=d.data()); done('bank'); });
+  db.collection('claims').onSnapshot(s=>{ S.claims={}; s.docs.forEach(d=>S.claims[d.id]=d.data()); done('claims'); });
   await sync();
   setInterval(()=>{ if(!document.hidden) syncSoon(); },10000);   // pick up what other people saved
 }
 let _rt=null; function render(){ clearTimeout(_rt); _rt=setTimeout(renderNow,30); }
 function renderNow(){
   $('#nav').innerHTML=TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}</button>`).join('');
-  const f={home:vHome,stu:vStu,roster:vRoster,bank:vBank,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
+  const f={home:vHome,stu:vContact,claim:vClaim,roster:vRoster,bank:vBank,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
   const keep=document.activeElement&&document.activeElement.id; const pos=keep?document.activeElement.selectionStart:null;
   $('#main').innerHTML=f();
   if(keep){ const e=document.getElementById(keep); if(e){ e.focus(); try{ if(pos!=null) e.setSelectionRange(pos,pos);}catch(_){}} }
@@ -466,7 +467,13 @@ function vHome(){
   规则：学费要在开单月份 + 2 个月的月底前付（10月 → 12月31日），过期就不出 allowance。1–10号收到的钱 → 当月15号发；11号–月底收到的 → 下个月5号发。</div>`;
 }
 
-// ---------- 学生 ----------
+// ---------- Contact：学生 Master 和 MT Master ----------
+function vContact(){
+  const sub=UI.cSub||'stu';
+  const tabs=`<div class="row" style="margin-bottom:8px"><button class="${sub==='stu'?'b':'g'}" onclick="UI.cSub='stu';render()">学生 Master List</button><button class="${sub==='mt'?'b':'g'}" onclick="UI.cSub='mt';render()">MT Master List</button></div>`;
+  if(sub==='mt') return tabs+(MGR?mtpCard():'<div class="card"><div class="msg warn">MT 的银行账号和 IC 只有 manager 看得到。</div></div>');
+  return tabs+vStu();
+}
 function vStu(){
   const b=UI.branch; const q=normA(UI.stuQ);
   let list=stuList(b).filter(s=>UI.stuStatus==='ALL'||s.status===UI.stuStatus).filter(s=>!q||normA(s.name+s.no+s.code+(s.parents||[]).join(' ')+s.mt).includes(q)).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true}));
@@ -781,14 +788,15 @@ function drawTx(){
   modal(`<h3>${t.date} · ${esc(t.payer)} · RM ${money(t.amount)}</h3><div class="small mute">备注：${esc(t.ref)||'—'}　${esc(t.how||'')}</div>
    <h3>这笔钱是哪个学生的？</h3>
    <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}</div>
-   <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th></tr>
-   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td></tr>`; }).join('')}
+   <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th><th></th></tr>
+   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td><td><button class="g" title="从这个列表拿掉" onclick="txRemove('${u}')">✕</button></td></tr>`; }).join('')}
    </table>
    <div class="row" style="margin:8px 0"><input id="txq" placeholder="搜其他学生（名字 / 编号 / 父母）" style="width:300px" oninput="txSearch(this.value)"><div id="txres" class="small"></div></div>
    <div class="${Math.abs(sum-t.amount)<0.01?'msg ok':'msg warn'}">已分配 RM ${money(sum)} / RM ${money(t.amount)}${Math.abs(sum-t.amount)>=0.01?'（差 RM '+money(t.amount-sum)+'）':''}</div>
    <label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>
    <div class="row" style="margin-top:12px"><button class="b" onclick="txConfirm()" ${Object.keys(sel).length?'':'disabled'}>确认</button><button class="g" onclick="txIgnore()">不是学费（忽略）</button>${t.status!=='review'&&t.status!=='unmatched'?'<button class="g" onclick="txReset()">改回待确认</button>':''}<button class="g" onclick="closeModal()">取消</button></div>`);
 }
+function txRemove(u){ const st=UI._tx; delete st.sel[u]; delete st.mon[u]; st.extra=st.extra.filter(x=>x!==u); drawTx(); }
 function txToggle(u,on){ const st=UI._tx; if(on){ const s=findStu(S,u); const t=S.bank[st.did].tx[st.id]; const left=t.amount-Object.values(st.sel).reduce((a,b)=>a+(+b||0),0); st.sel[u]=r2(left>0?Math.min(left,studentFee(S,s)||left):studentFee(S,s)); } else { delete st.sel[u]; if(!st.extra.includes(u)) st.extra.push(u); } drawTx(); }
 function txSearch(q){ const n=normA(q); const box=$('#txres'); if(n.length<2){ box.innerHTML=''; return; } const pool=poolFor(S.bank[UI._tx.did].bank);
   const hits=pool.filter(s=>normA(s.name+s.no+s.code+(s.parents||[]).join(' ')).includes(n)).slice(0,12);
@@ -889,7 +897,7 @@ function allowExcel(){ const p=UI.payout; const L=ledger(); const pay=allowanceL
 // ---------- 设置 ----------
 function vSet(){
   const pk=Object.entries(S.packages).sort((a,b)=>a[0].localeCompare(b[0])); const c=cfg();
-  return mtpCard()+`<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
+  return claimCard()+`<div class="card"><h2>Package 价目表</h2><div class="small mute">学费 = 每月向家长收的；Rate = 每堂给老师的 allowance。</div>
    <table style="max-width:720px"><tr><th>Package</th><th class="n">学费 RM</th><th class="n">Rate / 堂 RM</th><th class="n">标准堂数 / 月</th><th></th></tr>
    ${pk.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n"><input type="number" step="0.01" value="${v.fee||0}" onchange="pkSet('${esc(k)}','fee',+this.value)"></td><td class="n"><input type="number" step="0.01" value="${v.rate||0}" onchange="pkSet('${esc(k)}','rate',+this.value)"></td><td class="n"><input type="number" value="${stdClasses(S,k)}" onchange="pkSet('${esc(k)}','classes',+this.value)"></td><td><button class="r" onclick="pkDel('${esc(k)}')">删</button></td></tr>`).join('')}
    <tr><td><input id="pk_n" placeholder="新 package" style="width:100px"></td><td class="n"><input id="pk_f" type="number"></td><td class="n"><input id="pk_r" type="number"></td><td class="n"><input id="pk_c" type="number" value="4"></td><td><button class="b" onclick="pkSet($('#pk_n').value.trim(),null)">加</button></td></tr></table></div>
@@ -911,6 +919,116 @@ function vSet(){
    <input type="month" value="${UI.expMonth}" onchange="UI.expMonth=this.value"><button class="b" onclick="exportPayments()">下载 Bukku import 文件</button></div>
    <div class="small mute" style="margin-top:6px">只导出已配对（自动 / 已确认）的入账，一个学生一行。号码用 OR-[branch][YY][MM]-[3DIGIT]，让 Bukku 自动跑号。</div></div>`;
 }
+
+// ---------- MT Claim（MT 自己填的 claim form，manager 批准） ----------
+const CST={draft:['草稿','warn'],submitted:['已提交','info'],approved:['已批准','ok'],returned:['已退回','bad'],none:['还没开始','grey']};
+const claimUrl=()=>location.origin+'/mt-claim';
+async function loadMtUsers(){ if(!MGR) return; try{ UI.mtUsers=await http('GET','/mt-users'); }catch(e){ UI.mtUsers=[]; toast('载入 MT 账号失败：'+e.message); } UI._mtLoading=false; render(); }
+function vClaim(){
+  const m=UI.cMonth||(UI.cMonth=addMonths(today().slice(0,7),-1)), b=UI.cBranch||'ALL';
+  if(MGR&&!UI.mtUsers&&!UI._mtLoading){ UI._mtLoading=true; loadMtUsers(); }
+  const claims=Object.entries(S.claims||{}).map(([id,c])=>Object.assign({id},c)).filter(c=>c.month===m&&(b==='ALL'||c.branch===b));
+  const users=(UI.mtUsers||[]).filter(u=>u.active&&(b==='ALL'||u.branch===b));
+  const rows=users.map(u=>({u,c:claims.find(c=>c.mtUserId===u.id)||null,branch:u.branch,mt:u.mt}));
+  claims.filter(c=>!users.some(u=>u.id===c.mtUserId)).forEach(c=>rows.push({u:null,c,branch:c.branch,mt:c.mt}));
+  rows.sort((x,y)=>BRANCHES.indexOf(x.branch)-BRANCHES.indexOf(y.branch)||x.mt.localeCompare(y.mt));
+  const cnt=k=>rows.filter(r=>(r.c?r.c.status:'none')===k).length;
+  return `<div class="card"><h2>MT Claim</h2><div class="row"><select onchange="UI.cBranch=this.value;render()">${brOpts(b,true)}</select>
+   <input type="month" value="${m}" onchange="UI.cMonth=this.value;render()">
+   <span class="small mute">待批准 ${cnt('submitted')} · 草稿 ${cnt('draft')} · 退回 ${cnt('returned')} · 已批准 ${cnt('approved')} · 还没开始 ${cnt('none')}</span></div>
+   <div class="small mute" style="margin:6px 0">MT 用自己的账号在 <b>${esc(claimUrl())}</b> 填表。提交后你在这里对照系统（付款、deadline、master 名单），批准后会更新老师名单；有错就退回。</div>
+   <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>状态</th><th class="n">学生</th><th class="n">堂数</th><th>提交时间</th><th></th></tr>
+   ${rows.map(r=>{ const c=r.c, k=c?c.status:'none', t=CST[k]||CST.none, n=c?(c.lines||[]).length:0, cl=c?(c.lines||[]).reduce((a,l)=>a+(l.dates||[]).length,0):0;
+    return `<tr><td>${esc(r.branch)}</td><td>${esc(r.mt)}</td><td><span class="tag ${t[1]}">${t[0]}</span></td><td class="n">${n||''}</td><td class="n">${cl||''}</td><td class="small">${c&&c.submittedAt?esc(c.submittedAt.slice(0,16).replace('T',' ')):''}</td><td>${c&&k!=='draft'?`<button class="${k==='submitted'?'b':'g'}" onclick="claimReview('${esc(c.id)}')">${k==='submitted'?'检查 / 批准':'查看'}</button>`:''}</td></tr>`; }).join('')||'<tr><td colspan="7" class="mute">'+(MGR&&!UI.mtUsers?'载入中…':'这个月没有 claim，或者还没有开 MT 账号')+'</td></tr>'}</table></div></div>`+(MGR?mtUsersCard():'');
+}
+function mtUsersCard(){
+  const us=UI.mtUsers||[], br=UI.uBranch||BRANCHES[0];
+  const have=new Set(us.map(u=>u.branch+'|'+u.mt)), names=((S.mts.names||{})[br]||[]).filter(x=>!have.has(br+'|'+x));
+  return `<div class="card"><h2>MT 账号</h2><div class="small mute">每位 MT 一个用户名。开账号后会给你一个临时密码（只显示一次），MT 第一次登录要自己改密码。</div>
+   <div class="tw"><table style="max-width:820px"><tr><th>Branch</th><th>MT</th><th>用户名</th><th>最后登录</th><th>状态</th><th></th></tr>
+   ${us.map(u=>`<tr><td>${esc(u.branch)}</td><td>${esc(u.mt)}</td><td>${esc(u.username)}</td><td class="small">${u.lastLogin?esc(String(u.lastLogin).slice(0,16).replace('T',' ')):'<span class="mute">还没登录</span>'}${u.mustChange&&u.lastLogin?' <span class="tag warn">要改密码</span>':''}</td><td>${u.active?'<span class="tag ok">启用</span>':'<span class="tag grey">停用</span>'}</td>
+    <td><button class="g" onclick="mtuReset(${u.id})">重设密码</button> <button class="g" onclick="mtuActive(${u.id},${!u.active})">${u.active?'停用':'启用'}</button></td></tr>`).join('')||'<tr><td colspan="6" class="mute">还没有账号</td></tr>'}</table></div>
+   <div class="row" style="margin-top:8px"><select onchange="UI.uBranch=this.value;render()">${brOpts(br)}</select>
+    <select id="mu_mt"><option value="">— 选 MT —</option>${names.map(x=>`<option>${esc(x)}</option>`).join('')}</select>
+    <input id="mu_user" placeholder="用户名（不填就自动）" style="width:190px"><button class="b" onclick="mtuAdd()">开账号</button></div></div>`;
+}
+function pwModal(r,what){
+  modal(`<h3>${what}</h3><div class="f"><label>MT</label><div>${esc(r.user.mt)} (${esc(r.user.branch)})</div><label>网址</label><div><b>${esc(claimUrl())}</b></div><label>用户名</label><div><b>${esc(r.user.username)}</b></div><label>临时密码</label><div><b style="font-size:18px;letter-spacing:1px">${esc(r.password)}</b></div></div>
+   <div class="msg warn" style="margin-top:10px">这个密码只显示这一次，请现在抄下来给 MT。MT 第一次登录要自己改密码。</div><button class="b" onclick="closeModal()">我抄好了</button>`);
+}
+async function mtuAdd(){ const mt=$('#mu_mt').value, br=UI.uBranch||BRANCHES[0]; if(!mt) return toast('请选 MT');
+  try{ const r=await http('POST','/mt-users',{branch:br,mt,username:$('#mu_user').value.trim()}); await loadMtUsers(); pwModal(r,'已开账号'); }catch(e){ toast(e.message,5000); } }
+async function mtuReset(id){ if(!confirm('重设这位 MT 的密码？旧密码会失效。')) return; try{ const r=await http('POST','/mt-users/'+id+'/reset'); await loadMtUsers(); pwModal(r,'新的临时密码'); }catch(e){ toast(e.message,5000); } }
+async function mtuActive(id,on){ try{ await http('PUT','/mt-users/'+id,{active:on}); await loadMtUsers(); }catch(e){ toast(e.message,5000); } }
+
+function nextNoIn(list,b){ const ks=Object.keys(list||{}); let pre=b[0],w=3,max=0; for(const no of ks){ const m=no.match(/^([A-Za-z]*)(\d+)$/); if(m){ pre=m[1]; w=m[2].length; max=Math.max(max,+m[2]); } } return pre+String(max+1).padStart(w,'0'); }
+// compare a claim with the system: what the master list, the roster and the payments say
+function claimAnalysis(c){
+  const b=c.branch, m=c.month, rid=rosterId(b,m), ro=S.rosters[rid]||null, stuL=(S.students[b]||{}).list||{};
+  const known=c.lines.filter(l=>l.uid&&stuL[l.uid.split(':')[1]]);
+  const merged=((ro&&ro.lines)||[]).filter(l=>l.mt!==c.mt).concat(known.map(l=>({mt:c.mt,pkg:l.pkg,uid:l.uid,classes:l.dates.length})));
+  const st2=Object.assign({},S,{rosters:Object.assign({},S.rosters,{[rid]:{lines:merged,month:m,branch:b,confirmed:true}})});
+  const al=allowanceLines(st2,buildLedger(st2)).filter(x=>x.month===m&&x.mt===c.mt), by={}; al.forEach(x=>{ by[x.uid]=x; });
+  const rows=c.lines.map((l,i)=>{
+    const s=l.uid?findStu(S,l.uid):null, sys=l.uid?by[l.uid]:null, p=S.packages[l.pkg]||{}, classes=(l.dates||[]).length, rate=+p.rate||0, flags=[];
+    if(!s) flags.push({t:'bad',x:'新学生，不在名单里'});
+    else { if((s.pkg||'')!==l.pkg) flags.push({t:'warn',x:'Master 的 package 是 '+(s.pkg||'（没有）')}); if((s.mt||'')!==c.mt) flags.push({t:'warn',x:'Master 的 MT 是 '+(s.mt||'（没有）')}); }
+    const other=ro&&(ro.lines||[]).find(x=>x.uid===l.uid&&x.mt!==c.mt); if(other) flags.push({t:'warn',x:'老师名单里这个学生在 '+other.mt+' 名下'});
+    const prev=ro&&(ro.lines||[]).find(x=>x.uid===l.uid&&x.mt===c.mt); if(prev&&(prev.pkg!==l.pkg||(+prev.classes||0)!==classes)) flags.push({t:'info',x:'老师名单现在是 '+prev.pkg+' · '+(prev.classes||0)+' 堂'});
+    if(sys){ if(sys.status==='forfeit') flags.push({t:'bad',x:'付款迟过 deadline（'+sys.deadline+'），不出 allowance'});
+      if(l.fee==='DONE'&&sys.status==='pending') flags.push({t:'warn',x:'MT 写 DONE，系统还没找到付款'});
+      if(l.fee==='BELUM'&&sys.status==='payable') flags.push({t:'warn',x:'MT 写 BELUM，系统已有付款（'+(sys.paidDate||'')+'）'}); }
+    if(l.pkg&&!(+p.rate>0)) flags.push({t:'warn',x:'这个 package 还没设 allowance rate'});
+    return {l,i,s,sys,classes,rate,amount:r2(rate*classes),flags}; });
+  const used=new Set(c.lines.map(l=>l.uid).filter(Boolean));
+  const missing=Object.entries(stuL).filter(([no,s])=>s.status==='Active'&&s.mt===c.mt&&!used.has(b+':'+no)).map(([no,s])=>no+' '+s.name);
+  return {rows,missing,rosterConfirmed:!!(ro&&ro.confirmed)};
+}
+function claimReview(id){
+  const c=S.claims[id]; if(!c) return; const A=claimAnalysis(c), sub=c.status==='submitted', tot=r2(A.rows.reduce((a,r)=>a+r.amount,0));
+  const pay=A.rows.filter(r=>r.sys&&r.sys.status==='payable').reduce((a,r)=>a+r.amount,0), pend=A.rows.filter(r=>!r.sys||r.sys.status==='pending').reduce((a,r)=>a+r.amount,0), forf=A.rows.filter(r=>r.sys&&r.sys.status==='forfeit').reduce((a,r)=>a+r.amount,0);
+  const sysTag=r=>!r.sys?'<span class="tag grey">—</span>':r.sys.status==='payable'?'<span class="tag ok">已付 '+esc(r.sys.paidDate||'')+'</span>':r.sys.status==='forfeit'?'<span class="tag bad">迟付 '+esc(r.sys.paidDate||'')+'</span>':'<span class="tag warn">没找到付款</span>';
+  modal(`<h3>${esc(c.mt)} (${esc(c.branch)}) · ${esc(c.month)} <span class="tag ${(CST[c.status]||CST.none)[1]}">${(CST[c.status]||CST.none)[0]}</span></h3>
+   <div class="small mute">MT 申报 allowance RM ${money(tot)}：系统已见付款 RM ${money(pay)} · 还没找到付款 RM ${money(pend)} · 付款迟过 deadline（不出） RM ${money(forf)}</div>
+   ${A.rosterConfirmed&&sub?'<div class="msg warn">这个月的老师名单已经确认过了，批准后会改动它，请到「老师名单」再确认一次。</div>':''}
+   ${c.note?`<div class="msg info">退回原因：${esc(c.note)}</div>`:''}
+   <div class="tw"><table><tr><th>#</th><th>学生</th><th>Package</th><th class="n">堂数</th><th>MT 写</th><th>系统</th><th class="n">Allowance</th><th>产品 / 备注</th><th>对照</th></tr>
+   ${A.rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.l.name)}${r.s?' <span class="mute small">'+esc(r.s.no)+'</span>':''}<div class="small mute">${(r.l.dates||[]).map(d=>esc(d.slice(8))).join(', ')}</div></td><td>${esc(r.l.pkg)}</td><td class="n">${r.classes}</td><td>${esc(r.l.fee)}</td><td>${sysTag(r)}</td><td class="n">${money(r.amount)}</td>
+    <td class="small">${(r.l.products||[]).map(esc).join(', ')}${r.l.remark?'<div class="mute">'+esc(r.l.remark)+'</div>':''}</td>
+    <td class="small">${r.flags.map(f=>`<div><span class="tag ${f.t==='info'?'':f.t}">${esc(f.x)}</span></div>`).join('')}
+     ${sub&&MGR?(!r.s?`<label><input type="checkbox" id="ap_new_${r.i}" checked> 加进学生名单</label>`:'')+(r.s&&(r.s.pkg||'')!==r.l.pkg?`<label><input type="checkbox" id="ap_pkg_${r.i}" checked> 更新 master package</label>`:'')+(r.s&&(r.s.mt||'')!==c.mt?`<label><input type="checkbox" id="ap_mt_${r.i}" checked> 更新 master MT</label>`:''):''}</td></tr>`).join('')}</table></div>
+   ${A.missing.length?`<div class="msg warn" style="margin-top:8px">Master 里属于这位 MT、但没出现在表格里的 Active 学生：${A.missing.map(esc).join('；')}</div>`:''}
+   ${sub&&MGR?`<div class="row" style="margin-top:12px"><button class="b" onclick="claimApprove('${esc(id)}')">批准，更新老师名单</button><input id="cl_note" placeholder="退回原因（会给 MT 看到）" style="flex:1;min-width:200px"><button class="g" onclick="claimReturn('${esc(id)}')">退回给 MT</button><button class="g" onclick="closeModal()">关闭</button></div>`
+    :`<div class="row" style="margin-top:12px"><button class="g" onclick="closeModal()">关闭</button>${sub&&!MGR?'<span class="small mute">只有 manager 可以批准</span>':''}</div>`}`);
+}
+async function claimReturn(id){ const c=S.claims[id]; const note=($('#cl_note').value||'').trim(); if(!note) return toast('请写退回原因，MT 才知道改什么');
+  await save('claims/'+id,Object.assign({},c,{status:'returned',note,returnedAt:new Date().toISOString()})); closeModal(); toast('已退回给 '+c.mt); }
+async function claimApprove(id){
+  const c=S.claims[id]; if(!c||c.status!=='submitted') return; const A=claimAnalysis(c), b=c.branch, rid=rosterId(b,c.month);
+  if(A.rosterConfirmed&&!confirm('这个月的老师名单已经确认过了，批准会改动它。继续？')) return;
+  const sd=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); sd.list=sd.list||{}; let changed=false; const lines2=[], skipped=[];
+  for(const r of A.rows){ let uid=r.l.uid; const on=k=>{ const e=document.getElementById(k+'_'+r.i); return !!(e&&e.checked); };
+    if(!r.s){ if(on('ap_new')){ const no=nextNoIn(sd.list,b); sd.list[no]={code:'',name:r.l.name,status:'Active',enrolled:(r.l.dates||[])[0]||(c.month+'-01'),mt:c.mt,pkg:r.l.pkg,price:0,parents:[],opening:0,created:today()}; uid=b+':'+no; changed=true; } else { uid=null; skipped.push(r.l.name); } }
+    else { const sx=sd.list[uid.split(':')[1]]; if(on('ap_pkg')){ sx.pkg=r.l.pkg; changed=true; } if(on('ap_mt')){ sx.mt=c.mt; changed=true; } }
+    lines2.push(Object.assign({},r.l,{uid})); }
+  const ro=S.rosters[rid]||null;
+  const lines=((ro&&ro.lines)||[]).filter(l=>l.mt!==c.mt).concat(lines2.filter(l=>l.uid).map(l=>({mt:c.mt,pkg:l.pkg,uid:l.uid,classes:(l.dates||[]).length})));
+  try{
+    if(changed) await save('students/'+b,sd);
+    await save('rosters/'+rid,Object.assign({},ro||{},{lines,month:c.month,branch:b,savedAt:new Date().toISOString(),confirmed:ro?!!ro.confirmed:false}));
+    await save('claims/'+id,Object.assign({},c,{status:'approved',lines:lines2,approvedAt:new Date().toISOString(),note:''}));
+  }catch(e){ return toast('没有存成功，请再试一次：'+(e&&e.message||e),6000); }
+  closeModal(); toast('已批准，'+b+' '+c.month+' 的老师名单已更新'+(skipped.length?'（没加进名单：'+skipped.join('、')+'）':'')+'。请到「老师名单」确认。',6000);
+}
+function claimCard(){
+  const prods=((S.config||{}).claimProducts||[]).join(', ');
+  return `<div class="card"><h2>MT Claim 表格</h2><div class="small mute">MT 的网址：<b>${esc(claimUrl())}</b>（MT 在「MT Claim」页由 manager 开账号）。</div>
+   <label class="small mute" style="display:block;margin-top:8px">Fast-track 产品（MT 在每个学生后面打勾选；用逗号分开）</label>
+   <input value="${esc(prods)}" placeholder="Modul ABC, Modul ABS, Modul FT ABC &amp; ABS" style="width:100%;max-width:560px" onchange="claimProdsSave(this.value)">
+   <div class="small mute" style="margin-top:4px">不填的话用：Modul ABC、Modul ABS、Modul FT ABC &amp; ABS。每个 package 的堂数上限用上面「Package 价目表」里的「标准堂数」，MT 不能改。</div></div>`;
+}
+async function claimProdsSave(v){ const c=JSON.parse(JSON.stringify(cfg())); c.claimProducts=v.split(',').map(x=>x.trim()).filter(Boolean); await save('settings/config',c); toast('已保存'); }
+
 // ---------- MT 资料（老师：银行账号、IC、加入日期；只有 manager 看得到） ----------
 function mtpCard(){
   const f=UI.mtpB||'ALL', q=norm(UI.mtpQ||'');
@@ -919,7 +1037,7 @@ function mtpCard(){
    <div class="row" style="margin:8px 0"><select onchange="UI.mtpB=this.value;render()"><option value="ALL">全部 branch</option>${BRANCHES.map(x=>`<option ${x===f?'selected':''}>${x}</option>`).join('')}</select>
    <input placeholder="搜 MT / 姓名" value="${esc(UI.mtpQ||'')}" oninput="UI.mtpQ=this.value;render()" style="width:200px"><button class="b" onclick="mtpEdit(null)">＋ 新增 MT</button></div>
    <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>姓名</th><th>银行账号</th><th>IC</th><th>IC copy</th><th>加入日期</th><th>状态</th><th></th></tr>
-   ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
+   ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}${m.note?'<div class="small mute">'+esc(m.note)+'</div>':''}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
 }
 function mtpEdit(key){
   const m=key?Object.assign({},(S.mtp||{})[key]):{branch:UI.mtpB&&UI.mtpB!=='ALL'?UI.mtpB:BRANCHES[0],mt:'MT ',name:'',bank:'',ic:'',icCopy:false,joined:'',active:true};

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>MT Claim Form</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1c2430;--mute:#667085;--line:#d9dee6;--pri:#1f5fbf;--ok:#1a7f4b;--warn:#b26a00;--bad:#c0392b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:12px 16px 90px}
+h1{font-size:19px;margin:0}
+h2{font-size:16px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.top .sp{flex:1}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);max-width:100%}
+input[type=checkbox]{width:18px;height:18px;padding:0}
+button{font:inherit;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+button.b{background:var(--pri);border-color:var(--pri);color:#fff}
+button.g{color:var(--mute)}
+button:disabled{opacity:.5;cursor:default}
+.mute{color:var(--mute)} .small{font-size:13px}
+.msg{padding:9px 12px;border-radius:8px;margin:10px 0;font-size:14px}
+.msg.warn{background:#fff4e0;color:#7a4a00} .msg.bad{background:#fde8e6;color:#8b1f14} .msg.ok{background:#e4f5ec;color:#0f5a33} .msg.info{background:#e8f0fc;color:#164a96}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.line{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;background:#fff}
+.line .hd{display:flex;gap:8px;align-items:flex-start}
+.line .nm{flex:1;font-weight:600}
+.dates{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.dates input{width:150px}
+.cnt{font-weight:600}
+.cnt.full{color:var(--ok)}
+.cnt.over{color:var(--bad)}
+.prods{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
+.prods label{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink);font-size:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lang{display:flex;gap:4px}
+.lang button{padding:5px 10px;font-size:13px}
+.lang button.on{background:var(--pri);border-color:var(--pri);color:#fff}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}.dates input{width:calc(50% - 4px)}}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:76px;background:#1c2430;color:#fff;padding:9px 16px;border-radius:8px;display:none;max-width:90%;z-index:9}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const API='/api/mt-claim';
+let TOKEN=''; try{ TOKEN=sessionStorage.getItem('mtc_token')||''; }catch(e){}
+
+// ---------- languages: English / Bahasa Melayu / 中文 ----------
+const LANGS=[['en','EN'],['ms','BM'],['zh','中文']];
+const TX={
+  title:{en:'MT Claim Form',ms:'Borang Tuntutan MT',zh:'MT Claim 表格'},
+  user:{en:'User name',ms:'Nama pengguna',zh:'用户名'},
+  pass:{en:'Password',ms:'Kata laluan',zh:'密码'},
+  signin:{en:'Sign in',ms:'Log masuk',zh:'登录'},
+  signout:{en:'Sign out',ms:'Log keluar',zh:'退出'},
+  need_login:{en:'Enter your user name and password.',ms:'Sila isi nama pengguna dan kata laluan.',zh:'请填用户名和密码。'},
+  session_end:{en:'Session ended. Please sign in again.',ms:'Sesi tamat. Sila log masuk semula.',zh:'登录已过期，请重新登录。'},
+  newpw_h:{en:'Choose a new password',ms:'Pilih kata laluan baharu',zh:'设定新密码'},
+  newpw_info:{en:'First time signing in: please set your own password (at least 8 characters).',ms:'Log masuk kali pertama: sila tetapkan kata laluan anda sendiri (sekurang-kurangnya 8 aksara).',zh:'第一次登录：请设定自己的密码（至少 8 个字）。'},
+  cur_pw:{en:'Current (temporary) password',ms:'Kata laluan semasa (sementara)',zh:'现在的（临时）密码'},
+  new_pw:{en:'New password',ms:'Kata laluan baharu',zh:'新密码'},
+  new_pw2:{en:'New password again',ms:'Kata laluan baharu sekali lagi',zh:'再输入一次新密码'},
+  save_pw:{en:'Save password',ms:'Simpan kata laluan',zh:'保存密码'},
+  pw_mismatch:{en:'The two new passwords are not the same.',ms:'Kedua-dua kata laluan baharu tidak sama.',zh:'两次输入的新密码不一样。'},
+  pw_changed:{en:'Password changed.',ms:'Kata laluan telah ditukar.',zh:'密码已更改。'},
+  loading:{en:'Loading…',ms:'Memuatkan…',zh:'载入中…'},
+  load_fail:{en:'Could not load.',ms:'Tidak dapat dimuatkan.',zh:'载入失败。'},
+  retry:{en:'Try again',ms:'Cuba lagi',zh:'再试一次'},
+  st_submitted:{en:'<b>Submitted</b> — waiting for the office to check. You cannot change it now.',ms:'<b>Telah dihantar</b> — menunggu semakan pejabat. Anda tidak boleh mengubahnya sekarang.',zh:'<b>已提交</b> — 等办公室检查，现在不能再改。'},
+  st_approved:{en:'<b>Approved</b> — thank you.',ms:'<b>Diluluskan</b> — terima kasih.',zh:'<b>已批准</b> — 谢谢。'},
+  st_returned:{en:'<b>Sent back by the office</b>',ms:'<b>Dikembalikan oleh pejabat</b>',zh:'<b>办公室退回了</b>'},
+  st_returned2:{en:'Please correct it and submit again.',ms:'Sila betulkan dan hantar semula.',zh:'请改好再提交。'},
+  st_draft:{en:'Draft — not submitted yet.',ms:'Draf — belum dihantar.',zh:'草稿 — 还没提交。'},
+  st_new:{en:'Not submitted yet. Fill in the classes taught and press Submit.',ms:'Belum dihantar. Isi sesi yang diajar dan tekan Hantar.',zh:'还没提交。请填上课的日期，然后按「提交」。'},
+  fix:{en:'Please fix:',ms:'Sila betulkan:',zh:'请先改好：'},
+  p_add:{en:'Add at least one student.',ms:'Tambah sekurang-kurangnya seorang murid.',zh:'请至少加一个学生。'},
+  p_name:{en:'choose a student or type the new student\'s name.',ms:'pilih murid atau taip nama murid baharu.',zh:'请选学生，或填新学生的名字。'},
+  p_pkg:{en:'choose the package.',ms:'pilih pakej.',zh:'请选 package。'},
+  p_fee:{en:'choose Yuran DONE or BELUM.',ms:'pilih Yuran DONE atau BELUM.',zh:'请选 Yuran：DONE 或 BELUM。'},
+  no_name:{en:'(no name)',ms:'(tiada nama)',zh:'(没有名字)'},
+  new_student_ph:{en:'New student\'s full name',ms:'Nama penuh murid baharu',zh:'新学生的全名'},
+  new_student_note:{en:'New student — the office will check and add to the list.',ms:'Murid baharu — pejabat akan menyemak dan menambah ke senarai.',zh:'新学生 — 办公室会检查后加进名单。'},
+  remove:{en:'Remove',ms:'Buang',zh:'删除'},
+  remove_q:{en:'Remove this student from the form?',ms:'Buang murid ini daripada borang?',zh:'把这个学生从表格里拿掉？'},
+  pkg_l:{en:'Package (Pakej)',ms:'Pakej',zh:'Package'},
+  fee_l:{en:'Yuran (fee paid?)',ms:'Yuran (sudah bayar?)',zh:'Yuran（学费付了吗？）'},
+  choose:{en:'— choose —',ms:'— pilih —',zh:'— 请选 —'},
+  max_classes:{en:'max {n} classes',ms:'maks. {n} sesi',zh:'最多 {n} 堂'},
+  dates_l:{en:'Class dates (Tarikh kelas)',ms:'Tarikh kelas',zh:'上课日期'},
+  pick_pkg_first:{en:'(choose the package first)',ms:'(pilih pakej dahulu)',zh:'(先选 package)'},
+  products_l:{en:'Fast-track products sold to this student',ms:'Produk Fast-track yang dijual kepada murid ini',zh:'卖给这个学生的 Fast-track 产品'},
+  remarks:{en:'Remarks',ms:'Catatan',zh:'备注'},
+  allowance:{en:'Allowance',ms:'Elaun',zh:'Allowance'},
+  add_h:{en:'Add a student',ms:'Tambah murid',zh:'加学生'},
+  my_students:{en:'My students',ms:'Murid saya',zh:'我的学生'},
+  other_students:{en:'Other students of {b}',ms:'Murid lain di {b}',zh:'{b} 的其他学生'},
+  new_opt:{en:'New student (not in the list)…',ms:'Murid baharu (tiada dalam senarai)…',zh:'新学生（不在名单里）…'},
+  add:{en:'Add',ms:'Tambah',zh:'加入'},
+  already:{en:'Already on the form.',ms:'Sudah ada dalam borang.',zh:'已经在表格里了。'},
+  total:{en:'Total allowance',ms:'Jumlah elaun',zh:'Allowance 合计'},
+  total_note:{en:'for {n} students (checked by the office before payment)',ms:'untuk {n} murid (disemak oleh pejabat sebelum bayaran)',zh:'共 {n} 个学生（发放前办公室会检查）'},
+  empty:{en:'No students yet. Add students below.',ms:'Belum ada murid. Tambah murid di bawah.',zh:'还没有学生，请在下面加。'},
+  save_draft:{en:'Save draft',ms:'Simpan draf',zh:'保存草稿'},
+  submit:{en:'Submit',ms:'Hantar',zh:'提交'},
+  saved:{en:'Saved.',ms:'Disimpan.',zh:'已保存。'},
+  submitted_ok:{en:'Submitted. Thank you!',ms:'Telah dihantar. Terima kasih!',zh:'已提交，谢谢！'},
+  confirm_submit:{en:'Submit the claim for {m}?\n{n} students, total allowance RM {t}.\nAfter submitting you cannot change it unless the office sends it back.',ms:'Hantar tuntutan untuk {m}?\n{n} murid, jumlah elaun RM {t}.\nSelepas dihantar anda tidak boleh mengubahnya kecuali pejabat mengembalikannya.',zh:'提交 {m} 的 claim？\n{n} 个学生，allowance 合计 RM {t}。\n提交后不能再改，除非办公室退回。'},
+  unsaved:{en:'You have unsaved changes. Leave this month without saving?',ms:'Anda ada perubahan yang belum disimpan. Tinggalkan bulan ini tanpa menyimpan?',zh:'有还没保存的修改，确定要离开这个月？'},
+  pkg_trim:{en:'Package {p}: max {n} classes, extra dates removed.',ms:'Pakej {p}: maks. {n} sesi, tarikh lebihan dibuang.',zh:'Package {p}：最多 {n} 堂，多出的日期已拿掉。'},
+  months:{en:['January','February','March','April','May','June','July','August','September','October','November','December'],ms:['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'],zh:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']}
+};
+let LANG='en';
+try{ const s=localStorage.getItem('mtc_lang'); if(s&&TX.title[s]) LANG=s; else { const n=(navigator.language||'').toLowerCase(); LANG=n.startsWith('ms')||n.startsWith('id')?'ms':n.startsWith('zh')?'zh':'en'; } }catch(e){}
+function t(k,p){ let s=(TX[k]&&TX[k][LANG])||(TX[k]&&TX[k].en)||k; if(p) s=s.replace(/\{(\w+)\}/g,(m,x)=>p[x]!=null?p[x]:m); return s; }
+function setLang(l){ LANG=l; try{localStorage.setItem('mtc_lang',l);}catch(e){} document.documentElement.lang=l==='zh'?'zh':l; render(); }
+const langBar=()=>`<div class="lang">${LANGS.map(([k,n])=>`<button class="${k===LANG?'on':''}" onclick="setLang('${k}')">${n}</button>`).join('')}</div>`;
+
+const st={view:TOKEN?'load':'login',me:null,month:'',lines:[],status:'',note:'',dirty:false,busy:false,errList:null,msg:''};
+
+function toast(m,ms=2800){ const e=$('#toast'); e.textContent=m; e.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>e.style.display='none',ms); }
+async function call(method,url,body){
+  const r=await fetch(API+url,{method,headers:Object.assign({'Content-Type':'application/json','X-Lang':LANG},TOKEN?{Authorization:'Bearer '+TOKEN}:{}),body:body===undefined?undefined:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401&&url!=='/login'&&url!=='/password'){ logout(true); throw new Error(j.error||t('session_end')); }
+  if(!r.ok) throw new Error(j.error||('Error '+r.status));
+  return j;
+}
+function logout(expired){ TOKEN=''; try{sessionStorage.removeItem('mtc_token');}catch(e){} st.view='login'; st.me=null; st.msg=expired?t('session_end'):''; render(); }
+
+// ---------- months ----------
+function curMonth(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function addM(m,n){ let y=+m.slice(0,4), k=+m.slice(5,7)-1+n; y+=Math.floor(k/12); k=((k%12)+12)%12; return y+'-'+String(k+1).padStart(2,'0'); }
+function defMonth(){ const d=new Date(); return d.getDate()<=12?addM(curMonth(),-1):curMonth(); }
+function monthLabel(m){ return t('months')[+m.slice(5,7)-1]+' '+m.slice(0,4); }
+function lastDay(m){ return new Date(+m.slice(0,4),+m.slice(5,7),0).getDate(); }
+
+// ---------- load ----------
+async function load(month){
+  st.month=month||st.month||defMonth(); st.view='load'; render();
+  try{
+    const me=await call('GET','/me?month='+st.month); st.me=me;
+    const c=me.claim; st.status=c?c.status:'new'; st.note=(c&&c.note)||'';
+    if(c&&c.lines&&c.lines.length) st.lines=c.lines.map(l=>({uid:l.uid||null,name:l.name,pkg:l.pkg||'',dates:(l.dates||[]).slice(),fee:l.fee||'',products:(l.products||[]).slice(),remark:l.remark||''}));
+    else st.lines=me.students.filter(s=>s.own).map(s=>({uid:s.uid,name:s.name,pkg:s.pkg&&me.packages[s.pkg]?s.pkg:'',dates:[],fee:'',products:[],remark:''}));
+    st.dirty=false; st.view='form'; st.errList=null;
+  }catch(e){ if(st.view!=='login'){ st.view='form'; toast(e.message,5000); } }
+  render();
+}
+
+// ---------- form helpers ----------
+const editable=()=>st.status==='new'||st.status==='draft'||st.status==='returned';
+const maxOf=l=>(l.pkg&&st.me.packages[l.pkg])?st.me.packages[l.pkg].classes:0;
+const rateOf=l=>(l.pkg&&st.me.packages[l.pkg])?st.me.packages[l.pkg].rate:0;
+function setPkg(i,v){ const l=st.lines[i]; l.pkg=v; const mx=maxOf(l); if(l.dates.length>mx){ l.dates=l.dates.slice(0,mx); toast(t('pkg_trim',{p:v,n:mx})); } st.dirty=true; render(); }
+function setDate(i,k,v){ const l=st.lines[i]; const a=l.dates.slice(); while(a.length<=k) a.push(''); a[k]=v; l.dates=a.filter(Boolean).filter((x,j,arr)=>arr.indexOf(x)===j); st.dirty=true; render(); }
+function setFee(i,v){ st.lines[i].fee=v; st.dirty=true; render(); }
+function setRemark(i,v){ st.lines[i].remark=v; st.dirty=true; }
+function togProd(i,k,on){ const p=st.me.products[k]; const l=st.lines[i]; l.products=l.products.filter(x=>x!==p); if(on) l.products.push(p); st.dirty=true; }
+function setName(i,v){ st.lines[i].name=v.toUpperCase(); st.dirty=true; }
+function delLine(i){ if(!confirm(t('remove_q'))) return; st.lines.splice(i,1); st.dirty=true; render(); }
+function addStudent(){
+  const v=$('#addSel').value; if(!v) return;
+  if(v==='__new'){ st.lines.push({uid:null,name:'',pkg:'',dates:[],fee:'',products:[],remark:''}); }
+  else { if(st.lines.some(l=>l.uid===v)) return toast(t('already')); const s=st.me.students.find(x=>x.uid===v); st.lines.push({uid:v,name:s.name,pkg:s.pkg&&st.me.packages[s.pkg]?s.pkg:'',dates:[],fee:'',products:[],remark:''}); }
+  st.dirty=true; render(); window.scrollTo(0,document.body.scrollHeight);
+}
+const payload=()=>({month:st.month,lines:st.lines.map(l=>({uid:l.uid,name:l.name,pkg:l.pkg,dates:l.dates,fee:l.fee,products:l.products,remark:l.remark}))});
+async function saveDraft(){
+  if(st.busy) return; st.busy=true; render();
+  try{ const r=await call('PUT','/claim',payload()); st.status=r.claim.status; st.dirty=false; toast(t('saved')); }
+  catch(e){ toast(e.message,6000); }
+  st.busy=false; render();
+}
+function problems(){
+  const out=[]; if(!st.lines.length) out.push(t('p_add'));
+  st.lines.forEach((l,i)=>{ const n='#'+(i+1)+' '+(l.name||t('no_name'));
+    if(!l.name) out.push(n+': '+t('p_name'));
+    if(!l.pkg) out.push(n+': '+t('p_pkg'));
+    if(!l.fee) out.push(n+': '+t('p_fee')); });
+  return out;
+}
+async function submit(){
+  const p=problems(); if(p.length){ st.errList=p; render(); window.scrollTo(0,0); return; }
+  st.errList=null;
+  const total=st.lines.reduce((a,l)=>a+l.dates.length*rateOf(l),0);
+  if(!confirm(t('confirm_submit',{m:monthLabel(st.month),n:st.lines.length,t:money(total)}))) return;
+  st.busy=true; render();
+  try{ const r=await call('POST','/submit',payload()); st.status=r.claim.status; st.dirty=false; toast(t('submitted_ok'),4000); }
+  catch(e){ toast(e.message,7000); }
+  st.busy=false; render();
+}
+
+// ---------- views ----------
+function vLogin(){
+  return `<div style="max-width:380px;margin:20px auto"><div style="display:flex;justify-content:flex-end">${langBar()}</div><div class="card"><h1>${t('title')}</h1><div class="mute small">DIDIK MULIA</div>
+  ${st.msg?`<div class="msg warn">${esc(st.msg)}</div>`:''}
+  <label>${t('user')}</label><input id="lu" autocomplete="username" autocapitalize="none" style="width:100%" onkeydown="if(event.key==='Enter')$('#lp').focus()">
+  <label>${t('pass')}</label><input id="lp" type="password" autocomplete="current-password" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
+  <div style="margin-top:14px"><button class="b" style="width:100%" onclick="doLogin()" ${st.busy?'disabled':''}>${t('signin')}</button></div></div></div>`;
+}
+async function doLogin(){
+  const u=$('#lu').value.trim(), p=$('#lp').value; if(!u||!p) return toast(t('need_login'));
+  st.busy=true; try{
+    const r=await call('POST','/login',{username:u,password:p}); TOKEN=r.token; try{sessionStorage.setItem('mtc_token',TOKEN);}catch(e){}
+    st.msg=''; st.busy=false; if(r.mustChange){ st.view='pw'; render(); } else load();
+  }catch(e){ st.busy=false; toast(e.message,5000); }
+}
+function vPw(){
+  return `<div style="max-width:380px;margin:20px auto"><div style="display:flex;justify-content:flex-end">${langBar()}</div><div class="card"><h1>${t('newpw_h')}</h1><div class="mute small">${t('newpw_info')}</div>
+  <label>${t('cur_pw')}</label><input id="pc" type="password" autocomplete="current-password" style="width:100%">
+  <label>${t('new_pw')}</label><input id="pn" type="password" autocomplete="new-password" style="width:100%">
+  <label>${t('new_pw2')}</label><input id="pn2" type="password" autocomplete="new-password" style="width:100%">
+  <div style="margin-top:14px"><button class="b" style="width:100%" onclick="doPw()">${t('save_pw')}</button></div></div></div>`;
+}
+async function doPw(){
+  const c=$('#pc').value, n=$('#pn').value, n2=$('#pn2').value; if(n!==n2) return toast(t('pw_mismatch'));
+  try{ await call('POST','/password',{current:c,password:n}); toast(t('pw_changed')); load(); }catch(e){ toast(e.message,5000); }
+}
+function statusBanner(){
+  const s=st.status;
+  if(s==='submitted') return '<div class="msg info">'+t('st_submitted')+'</div>';
+  if(s==='approved') return '<div class="msg ok">'+t('st_approved')+'</div>';
+  if(s==='returned') return '<div class="msg bad">'+t('st_returned')+(st.note?': '+esc(st.note):'')+'<br>'+t('st_returned2')+'</div>';
+  if(s==='draft') return '<div class="msg warn">'+t('st_draft')+'</div>';
+  return '<div class="msg warn">'+t('st_new')+'</div>';
+}
+function lineHtml(l,i){
+  const mx=maxOf(l), n=l.dates.length, ed=editable();
+  const cls=!l.pkg?'':(n>mx?'over':(n===mx?'full':''));
+  const pk=Object.keys(st.me.packages);
+  const slots=Array.from({length:mx},(_,k)=>`<input type="date" min="${st.month}-01" max="${st.month}-${lastDay(st.month)}" value="${esc(l.dates[k]||'')}" ${ed?'':'disabled'} onchange="setDate(${i},${k},this.value)">`).join('');
+  return `<div class="line">
+   <div class="hd"><div class="nm">${l.uid?esc(l.name):`<input value="${esc(l.name)}" placeholder="${esc(t('new_student_ph'))}" style="width:100%" ${ed?'':'disabled'} oninput="setName(${i},this.value)"><div class="small mute">${t('new_student_note')}</div>`}</div>
+    ${ed?`<button class="g" onclick="delLine(${i})" title="${esc(t('remove'))}">✕</button>`:''}</div>
+   <div class="grid2"><div><label>${t('pkg_l')}</label><select ${ed?'':'disabled'} onchange="setPkg(${i},this.value)"><option value="">${t('choose')}</option>${pk.map(p=>`<option value="${esc(p)}" ${p===l.pkg?'selected':''}>${esc(p)} (${t('max_classes',{n:st.me.packages[p].classes})})</option>`).join('')}</select></div>
+    <div><label>${t('fee_l')}</label><select ${ed?'':'disabled'} onchange="setFee(${i},this.value)"><option value="">${t('choose')}</option><option value="DONE" ${l.fee==='DONE'?'selected':''}>DONE</option><option value="BELUM" ${l.fee==='BELUM'?'selected':''}>BELUM</option></select></div></div>
+   <label>${t('dates_l')} — <span class="cnt ${cls}">${n} / ${l.pkg?mx:'?'}</span>${l.pkg?'':' <span class="mute">'+t('pick_pkg_first')+'</span>'}</label>
+   <div class="dates">${slots||'<span class="mute small">—</span>'}</div>
+   ${st.me.products.length?`<label>${t('products_l')}</label><div class="prods">${st.me.products.map((p,k)=>`<label><input type="checkbox" ${l.products.includes(p)?'checked':''} ${ed?'':'disabled'} onchange="togProd(${i},${k},this.checked)"> ${esc(p)}</label>`).join('')}</div>`:''}
+   <label>${t('remarks')}</label><input value="${esc(l.remark)}" maxlength="200" style="width:100%" ${ed?'':'disabled'} oninput="setRemark(${i},this.value)">
+   <div class="small" style="margin-top:6px">${t('allowance')}: <b>RM ${money(n*rateOf(l))}</b> <span class="mute">(${n} × RM ${money(rateOf(l))})</span></div></div>`;
+}
+function vForm(){
+  const me=st.me; if(!me) return `<div style="display:flex;justify-content:flex-end">${langBar()}</div><div class="card">${t('load_fail')} <button onclick="load()">${t('retry')}</button></div>`;
+  const ed=editable(), months=[addM(curMonth(),-3),addM(curMonth(),-2),addM(curMonth(),-1),curMonth(),addM(curMonth(),1)];
+  const used=new Set(st.lines.map(l=>l.uid).filter(Boolean));
+  const own=me.students.filter(s=>s.own&&!used.has(s.uid)), others=me.students.filter(s=>!s.own&&!used.has(s.uid));
+  const total=st.lines.reduce((a,l)=>a+l.dates.length*rateOf(l),0);
+  return `<div class="top"><div><h1>${esc(me.mt)} <span class="mute" style="font-weight:400">(${esc(me.branch)})</span></h1><div class="small mute">${t('title')}</div></div><span class="sp"></span>
+    ${langBar()}<select onchange="changeMonth(this.value)">${months.map(m=>`<option value="${m}" ${m===st.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select><button class="g" onclick="logout()">${t('signout')}</button></div>
+   ${statusBanner()}
+   ${st.errList?`<div class="msg bad"><b>${t('fix')}</b><br>${st.errList.map(esc).join('<br>')}</div>`:''}
+   ${st.lines.map(lineHtml).join('')||`<div class="card mute">${t('empty')}</div>`}
+   ${ed?`<div class="card"><h2>${t('add_h')}</h2><div class="row"><select id="addSel" style="flex:1;min-width:220px"><option value="">${t('choose')}</option>
+     ${own.length?`<optgroup label="${esc(t('my_students'))}">${own.map(s=>`<option value="${esc(s.uid)}">${esc(s.name)}</option>`).join('')}</optgroup>`:''}
+     ${others.length?`<optgroup label="${esc(t('other_students',{b:me.branch}))}">${others.map(s=>`<option value="${esc(s.uid)}">${esc(s.name)}</option>`).join('')}</optgroup>`:''}
+     <option value="__new">${t('new_opt')}</option></select><button onclick="addStudent()">${t('add')}</button></div></div>`:''}
+   <div class="card"><b>${t('total')}: RM ${money(total)}</b> <span class="mute small">${t('total_note',{n:st.lines.length})}</span></div>
+   ${ed?`<div class="bar"><button ${st.busy?'disabled':''} onclick="saveDraft()">${t('save_draft')}</button><button class="b" ${st.busy?'disabled':''} onclick="submit()">${t('submit')}</button></div>`:''}`;
+}
+function changeMonth(m){ if(st.dirty&&!confirm(t('unsaved'))){ render(); return; } load(m); }
+function render(){
+  const v={login:vLogin,pw:vPw,load:()=>`<div class="card mute">${t('loading')}</div>`,form:vForm}[st.view]||vLogin;
+  const keep=document.activeElement&&document.activeElement.id; const pos=keep?document.activeElement.selectionStart:null;
+  document.title=t('title');
+  $('#app').innerHTML=v();
+  if(keep){ const e=document.getElementById(keep); if(e&&e.focus){ e.focus(); try{ if(pos!=null) e.setSelectionRange(pos,pos);}catch(_){} } }
+}
+window.addEventListener('beforeunload',e=>{ if(st.view==='form'&&st.dirty&&editable()){ e.preventDefault(); e.returnValue=''; } });
+render(); if(TOKEN) load();
+</script>
+</body>
+</html>

@@ -866,6 +866,11 @@ function oweText(){ const o=oweRows(); const by={}; o.forEach(x=>{ const k=x.bra
 
 // ---------- Allowance ----------
 function mtKey(b,mt){ return b+'|'+mt; }
+// Training fee (the new MTs only): 6 instalments, each in a month; deducted from the allowance paid on the 5th of that month. An instalment month left empty
+// continues one month after the one before it. {exempt:true} = old MT, nothing to deduct.
+function trainOf(k){ const r=(S.mts.list||{})[k]; return (r&&r.training)||null; }
+function trainSched(k){ const t=trainOf(k); if(!t||t.exempt) return null; const ms=t.months||[], out=[]; for(let i=0;i<6;i++){ out.push(ms[i]||(i&&out[i-1]?addMonths(out[i-1],1):'')); } return out; }
+function trainDue(k,p){ const t=trainOf(k); if(!t||t.exempt||p.slice(8)!=='05') return null; const sch=trainSched(k), i=sch.indexOf(p.slice(0,7)); if(i<0||!(+t.amt>0)) return null; return {n:i+1,amt:+t.amt,bill:t.bill||''}; }
 function vAllow(){
   const pl=payoutList(); if(!UI.payout){ UI.payout=pl.find(p=>p>=today())||pl[pl.length-1]; }
   const p=UI.payout; const w=payoutWindow(p); const L=ledger(); const all=allowanceLines(S,L);
@@ -876,13 +881,13 @@ function vAllow(){
   const keys=[...new Set([...Object.keys(byMt),...Object.keys(pendMt)])].sort();
   let grand=0;
   const secs=keys.map(k=>{ const [b,mt]=k.split('|'); const ls=(byMt[k]||[]).sort((a,c)=>a.month.localeCompare(c.month)||a.s.name.localeCompare(c.s.name)); const sub=ls.reduce((a,x)=>a+x.amount,0);
-    const rec=(S.mts.list||{})[k]||{}; const ded=(rec.deductions||[]); const here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p).length;
-    const net=sub-(here?+here.amt:0); grand+=net; const pd=pendMt[k]||[];
+    const rec=(S.mts.list||{})[k]||{}; const ded=(rec.deductions||[]); const here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p&&!d.skip).length; const due=here?null:trainDue(k,p); const exempt=!!(rec.training&&rec.training.exempt);
+    const net=r2(sub-(here?(here.skip?0:+here.amt):(due?due.amt:0))); grand+=net; const pd=pendMt[k]||[];
     return `<div class="card"><h2>${esc(mt)} <span class="small mute">${b}</span> <button class="g" style="float:right" onclick="allowPdf('${k}','${p}')">PDF</button></h2>
      ${ls.length?`<table><tr><th>学生</th><th>月份</th><th>Pkg</th><th class="n">堂数</th><th class="n">Rate</th><th class="n">Allowance</th><th>付款日期</th></tr>
      ${ls.map(x=>`<tr><td>${esc(x.s.no+' '+x.s.name)}</td><td>${x.month}</td><td>${esc(x.pkg)}${x.noRate?' <span class="tag bad">没 rate</span>':''}</td><td class="n">${x.classes}</td><td class="n">${x.rate}</td><td class="n">${money(x.amount)}</td><td>${x.paidDate}${x.month<addMonths(p.slice(0,7),-1)?' <span class="tag info">迟付补发</span>':''}</td></tr>`).join('')}</table>`:'<div class="small mute">这期没有可以出的</div>'}
      <div class="row" style="margin-top:8px;justify-content:flex-end;gap:16px"><span>小计 <b>RM ${money(sub)}</b></span>
-      <span>Training fee ${here?`<b>- RM ${money(here.amt)}</b>（${n}/6，单号 ${esc(here.billNo||'—')}） <button class="g" onclick="dedDel('${k}','${p}')">取消</button>`:`<button class="g" onclick="dedAdd('${k}','${p}',${n})">扣 training fee（已扣 ${n}/6）</button>`}</span>
+      <span>Training fee ${here?(here.skip?`<span class="mute">这期不扣</span> <button class="g" onclick="dedDel('${k}','${p}')">恢复</button>`:`<b>- RM ${money(here.amt)}</b>（${here.n||n}/6，单号 ${esc(here.billNo||'—')}） <button class="g" onclick="dedDel('${k}','${p}')">取消</button>`):due?`<b>- RM ${money(due.amt)}</b>（${due.n}/6，单号 ${esc(due.bill||'—')}，按 training 记录） <button class="g" onclick="dedSkip('${k}','${p}',${due.n})">这期不扣</button>`:exempt?'<span class="mute">TRAINING 不扣</span>':`<button class="g" onclick="dedAdd('${k}','${p}',${n})">扣 training fee（已扣 ${n}/6）</button>`}</span>
       <span>实发 <b style="font-size:16px">RM ${money(net)}</b></span></div>
      ${pd.length?`<details style="margin-top:6px"><summary class="small">⏳ 暂扣 ${pd.length} 个学生（还没付，期限内付了就会出）RM ${money(pd.reduce((a,x)=>a+x.amount,0))}</summary><div class="small">${pd.map(x=>`${esc(x.s.no+' '+x.s.name)} – ${x.month} – RM ${money(x.amount)}（期限 ${x.deadline}）`).join('<br>')}</div></details>`:''}
     </div>`; }).join('');
@@ -893,15 +898,17 @@ function vAllow(){
    ${secs||'<div class="card mute">这期没有资料（需要已确认的老师名单 + 已配对的入账）</div>'}
    ${forf.length?`<div class="card"><details><summary>🚫 超过期限、不出 allowance：${forf.length} 笔（RM ${money(forf.reduce((a,x)=>a+x.amount,0))}）</summary><div class="small" style="margin-top:6px">${forf.map(x=>`${x.branch} ${esc(x.mt)} – ${esc(x.s.no+' '+x.s.name)} – ${x.month}（期限 ${x.deadline}${x.paidDate?'，'+x.paidDate+' 才付':'，还没付'}）`).join('<br>')}</div></details></div>`:''}`;
 }
-function dedAdd(k,p,n){ modal(`<h3>扣 Training fee（第 ${n+1}/6 期）</h3><div class="f"><label>金额 RM</label><input id="d_a" type="number" value="60"><label>总部单号</label><input id="d_b" placeholder="例如 P8049280"></div>
+function dedAdd(k,p,n){ const t=trainOf(k)||{}; modal(`<h3>扣 Training fee</h3><div class="f"><label>第几期</label><select id="d_n">${[1,2,3,4,5,6].map(i=>`<option ${i===Math.min(n+1,6)?'selected':''} value="${i}">${i}/6</option>`).join('')}</select><label>金额 RM</label><input id="d_a" type="number" value="${+t.amt||60}"><label>总部单号</label><input id="d_b" value="${esc(t.bill||'')}" placeholder="例如 P8049280"></div>
   <div class="row" style="margin-top:12px"><button class="b" onclick="dedSave('${k}','${p}')">保存</button><button class="g" onclick="closeModal()">取消</button></div>`); }
-async function dedSave(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); m.list=m.list||{}; const r=m.list[k]=m.list[k]||{deductions:[]}; r.deductions=(r.deductions||[]).filter(d=>d.payout!==p); r.deductions.push({payout:p,amt:+$('#d_a').value||0,billNo:$('#d_b').value.trim()}); r.deductions.sort((a,b)=>a.payout<b.payout?-1:1); await save('settings/mts',m); closeModal(); toast('已保存'); }
+async function dedSave(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); m.list=m.list||{}; const r=m.list[k]=m.list[k]||{deductions:[]}; r.deductions=(r.deductions||[]).filter(d=>d.payout!==p); r.deductions.push({payout:p,amt:+$('#d_a').value||0,billNo:$('#d_b').value.trim(),n:+$('#d_n').value||1}); r.deductions.sort((a,b)=>a.payout<b.payout?-1:1); await save('settings/mts',m); closeModal(); toast('已保存'); }
+async function dedSkip(k,p,n){ const m=JSON.parse(JSON.stringify(S.mts)); m.list=m.list||{}; const r=m.list[k]=m.list[k]||{deductions:[]}; r.deductions=(r.deductions||[]).filter(d=>d.payout!==p); r.deductions.push({payout:p,amt:0,skip:true,n}); r.deductions.sort((a,b)=>a.payout<b.payout?-1:1); await save('settings/mts',m); toast('已保存'); }
 async function dedDel(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); const r=m.list[k]; r.deductions=r.deductions.filter(d=>d.payout!==p); await save('settings/mts',m); }
 // ---- one allowance sheet (PDF) for each MT. The file name is DM-[BRANCH]-[MT NAME]-[YYYY]_[MM]-[AMOUNT].pdf (payout month, net amount) ----
 function allowSheet(k,p){
   const [b,mt]=k.split('|'); const all=allowanceLines(S,ledger());
   const ls=all.filter(x=>x.status==='payable'&&x.payout===p&&mtKey(x.branch,x.mt)===k).sort((a,c)=>a.month.localeCompare(c.month)||a.s.name.localeCompare(c.s.name));
-  const sub=r2(ls.reduce((a,x)=>a+x.amount,0)); const rec=(S.mts.list||{})[k]||{}; const ded=rec.deductions||[]; const here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p).length;
+  const sub=r2(ls.reduce((a,x)=>a+x.amount,0)); const rec=(S.mts.list||{})[k]||{}; const ded=rec.deductions||[]; let here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p&&!d.skip).length;
+  if(here&&here.skip) here=null; else if(!here){ const due=trainDue(k,p); if(due) here={amt:due.amt,billNo:due.bill,n:due.n}; }
   const pd=all.filter(x=>x.status==='pending'&&today()<=x.deadline&&mtKey(x.branch,x.mt)===k);
   return {b,mt,ls,sub,here,n,net:r2(sub-(here?+here.amt:0)),pd};
 }
@@ -918,7 +925,7 @@ function allowPdfBuild(k,p){
     columnStyles:{3:{halign:'right'},4:{halign:'right'},5:{halign:'right'}}});
   let y=doc.lastAutoTable.finalY+7; doc.setFontSize(10);
   doc.text('Subtotal',130,y); doc.text(rm(d.sub),196,y,{align:'right'}); y+=6;
-  if(d.here){ doc.text('Training fee ('+d.n+'/6, bill '+(d.here.billNo||'-')+')',130,y); doc.text('- '+rm(d.here.amt),196,y,{align:'right'}); y+=6; }
+  if(d.here){ doc.text('Training fee ('+(d.here.n||d.n)+'/6, bill '+(d.here.billNo||'-')+')',130,y); doc.text('- '+rm(d.here.amt),196,y,{align:'right'}); y+=6; }
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Net payable',130,y); doc.text(rm(d.net),196,y,{align:'right'}); y+=4;
   if(d.pd.length){ doc.autoTable({startY:y+6,theme:'plain',styles:{fontSize:8,cellPadding:1},head:[['On hold: fee not paid yet (paid within the deadline it will be released)','Month','Allowance (RM)','Deadline']],
     body:d.pd.map(x=>[x.s.no+' '+x.s.name,x.month,money(x.amount),x.deadline]),columnStyles:{2:{halign:'right'}}}); }
@@ -1074,8 +1081,8 @@ function claimCard(){
   const prods=((S.config||{}).claimProducts||[]).join(', ');
   return `<div class="card"><h2>MT Claim 表格</h2><div class="small mute">MT 的网址：<b>${esc(claimUrl())}</b>（MT 在「MT Claim」页由 manager 开账号）。</div>
    <label class="small mute" style="display:block;margin-top:8px">Fast-track 产品（MT 在每个学生后面打勾选；用逗号分开）</label>
-   <input value="${esc(prods)}" placeholder="Modul ABC, Modul ABS, Modul FT ABC &amp; ABS" style="width:100%;max-width:560px" onchange="claimProdsSave(this.value)">
-   <div class="small mute" style="margin-top:4px">不填的话用：Modul ABC、Modul ABS、Modul FT ABC &amp; ABS。每个 package 的堂数上限用上面「Package 价目表」里的「标准堂数」，MT 不能改。</div></div>`;
+   <input value="${esc(prods)}" placeholder="Fast Track ABC, Fast Track ABB, Fast Track ABD, Fast Track ABK, Fast Track ABS" style="width:100%;max-width:560px" onchange="claimProdsSave(this.value)">
+   <div class="small mute" style="margin-top:4px">不填的话用：Fast Track ABC、ABB、ABD、ABK、ABS。每个 package 的堂数上限用上面「Package 价目表」里的「标准堂数」，MT 不能改。</div></div>`;
 }
 async function claimProdsSave(v){ const c=JSON.parse(JSON.stringify(cfg())); c.claimProducts=v.split(',').map(x=>x.trim()).filter(Boolean); await save('settings/config',c); toast('已保存'); }
 
@@ -1086,11 +1093,13 @@ function mtpCard(){
   return `<div class="card"><h2>MT 资料</h2><div class="small mute">老师的银行账号和 IC 只有 manager 看得到，付 Allowance 时对照用。在职的 MT 会出现在学生 / 老师名单的 MT 选项里。</div>
    <div class="row" style="margin:8px 0"><select onchange="UI.mtpB=this.value;render()"><option value="ALL">全部 branch</option>${BRANCHES.map(x=>`<option ${x===f?'selected':''}>${x}</option>`).join('')}</select>
    <input placeholder="搜 MT / 姓名" value="${esc(UI.mtpQ||'')}" oninput="UI.mtpQ=this.value;render()" style="width:200px"><button class="b" onclick="mtpEdit(null)">＋ 新增 MT</button></div>
-   <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>姓名</th><th>银行账号</th><th>IC</th><th>IC copy</th><th>加入日期</th><th>状态</th><th></th></tr>
-   ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}${m.note?'<div class="small mute">'+esc(m.note)+'</div>':''}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
+   <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>姓名</th><th>银行账号</th><th>IC</th><th>IC copy</th><th>加入日期</th><th>Training fee</th><th>状态</th><th></th></tr>
+   ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}${m.note?'<div class="small mute">'+esc(m.note)+'</div>':''}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td class="small">${trainCell(m)}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
 }
+function trainCell(m){ const t=trainOf(mtKey(m.branch,m.mt)); if(!t) return '<span class="mute">—</span>'; if(t.exempt) return '<span class="tag grey">TRAINING 不扣</span>'; const sch=trainSched(mtKey(m.branch,m.mt)); return esc(t.bill||'')+'<div class="mute">RM '+money(t.amt)+' × 6 · '+esc(sch[0]||'?')+' → '+esc(sch[5]||'?')+'</div>'; }
 function mtpEdit(key){
   const m=key?Object.assign({},(S.mtp||{})[key]):{branch:UI.mtpB&&UI.mtpB!=='ALL'?UI.mtpB:BRANCHES[0],mt:'MT ',name:'',bank:'',ic:'',icCopy:false,joined:'',active:true};
+  const tr=key?trainOf(mtKey(m.branch,m.mt)):null;
   modal(`<h3>${key?'编辑 MT':'新增 MT'}</h3><div class="f">
    <label>Branch</label>${key?`<input value="${esc(m.branch)}" disabled>`:`<select id="mp_b">${BRANCHES.map(x=>`<option ${x===m.branch?'selected':''}>${x}</option>`).join('')}</select>`}
    <label>MT（名单里的名字）</label><input id="mp_mt" value="${esc(m.mt)}" ${key?'disabled':''}>
@@ -1100,8 +1109,15 @@ function mtpEdit(key){
    <label>IC copy</label><label><input id="mp_icc" type="checkbox" ${m.icCopy?'checked':''}> 已收到</label>
    <label>加入日期</label><input id="mp_j" type="date" value="${esc(m.joined||'')}">
    <label>状态</label><label><input id="mp_a" type="checkbox" ${m.active!==false?'checked':''}> 在职（不勾 = 已离职，MT 选项里不再出现）</label></div>
+   <h3 style="margin-top:14px">Training fee</h3>
+   <div class="small mute">只有新 MT 要扣。老 MT 选「不扣」。6 期各是哪个月：那个月 5号发放的 allowance 里扣；空着的期数会接在前一期的下个月。</div>
+   <div class="f" style="margin-top:6px"><label>类型</label><select id="mp_tt" onchange="mtpTrainToggle()"><option value="none" ${!tr?'selected':''}>没有记录</option><option value="exempt" ${tr&&tr.exempt?'selected':''}>不扣（TRAINING / 老 MT）</option><option value="plan" ${tr&&!tr.exempt?'selected':''}>要扣</option></select></div>
+   <div id="mp_tp" style="${tr&&!tr.exempt?'':'display:none'}"><div class="f"><label>总部单号</label><input id="mp_tb" value="${esc((tr&&tr.bill)||'')}" placeholder="例如 S7204315-0726">
+    <label>每期金额 RM</label><input id="mp_ta" type="number" step="0.01" value="${esc((tr&&tr.amt)||60)}">
+    ${[0,1,2,3,4,5].map(i=>`<label>${i+1}/6 月份</label><input id="mp_tm${i}" type="month" value="${esc(((tr&&tr.months)||[])[i]||'')}">`).join('')}</div></div>
    <div class="row" style="margin-top:14px"><button class="b" onclick="mtpSave('${esc(key||'')}')">保存</button><button class="g" onclick="closeModal()">取消</button>${key?`<span style="flex:1"></span><button class="g" onclick="mtpDel('${esc(key)}')">删除</button>`:''}</div>`);
 }
+function mtpTrainToggle(){ $('#mp_tp').style.display=$('#mp_tt').value==='plan'?'':'none'; }
 async function mtpSave(key){
   const b=key?(S.mtp[key].branch):$('#mp_b').value, mt=(key?S.mtp[key].mt:$('#mp_mt').value.trim().replace(/\s+/g,' ').toUpperCase());
   if(!mt||mt==='MT') return toast('请填 MT 的名字'); const k=key||(b+':'+mt); if(!key&&(S.mtp||{})[k]) return toast(b+' 已经有 '+mt);
@@ -1109,7 +1125,9 @@ async function mtpSave(key){
   doc.list[k]={branch:b,mt,name:$('#mp_n').value.trim().replace(/\s+/g,' ').toUpperCase(),bank:$('#mp_bank').value.trim(),ic:$('#mp_ic').value.trim(),icCopy:$('#mp_icc').checked,joined:$('#mp_j').value||'',active};
   const m=JSON.parse(JSON.stringify(S.mts)); m.names=m.names||{}; const names=(m.names[b]||[]).slice(); const has=names.includes(mt);
   if(active&&!has){ names.push(mt); m.names[b]=names; } else if(!active&&has){ m.names[b]=names.filter(x=>x!==mt); }
-  await save('settings/mtprofiles',doc); if(JSON.stringify(m.names)!==JSON.stringify(S.mts.names||{})) await save('settings/mts',m);
+  const tt=$('#mp_tt').value; m.list=m.list||{}; const mk=mtKey(b,mt); m.list[mk]=m.list[mk]||{deductions:[]};
+  if(tt==='none') delete m.list[mk].training; else if(tt==='exempt') m.list[mk].training={exempt:true}; else m.list[mk].training={bill:$('#mp_tb').value.trim(),amt:+$('#mp_ta').value||0,months:[0,1,2,3,4,5].map(i=>$('#mp_tm'+i).value||'')};
+  await save('settings/mtprofiles',doc); if(JSON.stringify(m)!==JSON.stringify(S.mts)) await save('settings/mts',m);
   closeModal(); const still=!active&&stuList(b).filter(s=>s.status==='Active'&&s.mt===mt).length;
   toast(still?'已保存。注意：还有 '+still+' 个 Active 学生的 MT 是 '+mt:'已保存',still?5000:2500);
 }

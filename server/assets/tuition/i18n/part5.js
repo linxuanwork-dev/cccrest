@@ -1,0 +1,17 @@
+module.exports = {
+  '这期不扣': ['Not deducted this time', 'Tidak ditolak kali ini'],
+  '恢复': ['Restore', 'Pulihkan'],
+  '，按 training 记录）': [', as per the training record)', ', mengikut rekod latihan)'],
+  'TRAINING 不扣': ['TRAINING, no deduction', 'LATIHAN, tiada potongan'],
+  '扣 Training fee': ['Deduct Training fee', 'Tolak Yuran latihan'],
+  '第几期': ['Instalment no.', 'Ansuran ke-'],
+  '只有新 MT 要扣。老 MT 选「不扣」。6 期各是哪个月：那个月 5号发放的 allowance 里扣；空着的期数会接在前一期的下个月。': ['Only new MTs are deducted; old MTs choose “No deduction”. Months of the 6 instalments: it is deducted from the allowance paid on the 5th of that month; an instalment left empty follows the month after the one before it.', 'Hanya MT baharu dipotong; MT lama pilih “Tidak dipotong”. Bulan bagi 6 ansuran: dipotong daripada elaun yang dibayar pada 5hb bulan itu; ansuran yang dikosongkan mengikut bulan selepas ansuran sebelumnya.'],
+  '类型': ['Type', 'Jenis'],
+  '没有记录': ['No record', 'Tiada rekod'],
+  '不扣（TRAINING / 老 MT）': ['No deduction (TRAINING / old MT)', 'Tiada potongan (LATIHAN / MT lama)'],
+  '要扣': ['Deduct', 'Potong'],
+  '例如 S7204315-0726': ['for example S7204315-0726', 'contoh S7204315-0726'],
+  '每期金额 RM': ['Amount per instalment RM', 'Jumlah setiap ansuran RM'],
+  '/6 月份': ['/6 month', '/6 bulan'],
+  '不填的话用：Fast Track ABC、ABB、ABD、ABK、ABS。每个 package 的堂数上限用上面「Package 价目表」里的「标准堂数」，MT 不能改。': ['If left empty: Fast Track ABC, ABB, ABD, ABK, ABS. The maximum classes of each package come from “Standard classes” in the “Package price list” above; the MT cannot change them.', 'Jika dikosongkan: Fast Track ABC, ABB, ABD, ABK, ABS. Had sesi setiap pakej diambil daripada “Sesi standard” dalam “Senarai harga pakej” di atas; MT tidak boleh mengubahnya.'],
+};

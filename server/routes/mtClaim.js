@@ -50,7 +50,7 @@ const langOf = (req) => { const l = String((req.headers && req.headers['x-lang']
 const tr = (lang, key, p) => String(MSG[key][lang]).replace(/\{(\w+)\}/g, (m, k) => (p && p[k] != null ? p[k] : m));
 const bad = (res, req, key, code = 400, p) => res.status(code).json({ error: tr(langOf(req), key, p) });
 const DEFAULT_CLASSES = { A: 4, B: 4, C: 8, 'A+': 4, 'B+': 8, 'C+': 2, 'S B+(2)': 18, '(S)A': 4, '(S)C+': 4, 'DA+': 8, '2A+': 8, 'TRAIL-A+': 1 };
-const DEFAULT_PRODUCTS = ['Modul ABC', 'Modul ABS', 'Modul FT ABC & ABS'];
+const DEFAULT_PRODUCTS = ['Fast Track ABC', 'Fast Track ABB', 'Fast Track ABD', 'Fast Track ABK', 'Fast Track ABS'];
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const stdClasses = (packages, pkg) => { const p = packages[pkg]; return (p && +p.classes) || DEFAULT_CLASSES[pkg] || 4; };

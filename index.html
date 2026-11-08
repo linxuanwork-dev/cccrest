@@ -3089,8 +3089,12 @@
     if(kf && kf.contentWindow) kf.contentWindow.postMessage({ type:'kwsp-lang', lang:lang }, location.origin);
     var stf = document.getElementById('stock-frame');
     if(stf && stf.contentWindow) stf.contentWindow.postMessage({ type:'stock-lang', lang:lang }, location.origin);
+    // the Tuition & Allowance pages are made by the server in one language: follow the portal language (reloads them)
+    try{ localStorage.setItem('tfa_lang', lang === 'zh' ? 'zh' : 'en'); }catch(e){}
+    ['tuition-frame', 'contact-frame', 'mtclaim-frame'].forEach(function(id){ var f = document.getElementById(id); if(f && f.dataset.loadedFor){ delete f.dataset.loadedFor; f.removeAttribute('src'); } });
     applyTranslations();
     refreshDynamicContent();
+    if(typeof renderTuition === 'function' && CURRENT_ROLE && CURRENT_ROLE !== 'client') renderTuition();
   }
 
   function refreshDynamicContent(){

@@ -520,7 +520,7 @@ function editStu(uid){
   <details style="margin-top:12px" ${(s.changes||[]).length?'open':''}><summary>预先登记：换 MT / 换 package</summary>
    <div class="small mute" style="margin:6px 0">知道下个月要换的话，先在这里登记。复制上个月名单时会自动用新的 MT / package。</div>
    <div id="chgList">${chgListHtml(s.changes||[])}</div>
-   <div class="row" style="margin-top:6px"><input id="c_from" type="month" value="${addMonths(today().slice(0,7),1)}"><input id="c_mt" placeholder="新 MT（不换就空着）" style="width:170px"><input id="c_pkg" list="pkl" placeholder="新 package" style="width:110px"><button class="g" onclick="chgAdd()">加</button></div>
+   <div class="row" style="margin-top:6px"><input id="c_from" type="month" value="${addMonths(today().slice(0,7),1)}"><input id="c_mt" list="mtn" placeholder="新 MT（不换就空着）" style="width:170px"><input id="c_pkg" list="pkl" placeholder="新 package" style="width:110px"><button class="g" onclick="chgAdd()">加</button></div>
   </details>
   ${uid&&s.status!=='Transferred'?`<details style="margin-top:12px"><summary>转 branch</summary><div class="f" style="margin-top:8px">
    <label>转去</label><select id="t_b" onchange="document.getElementById('t_no').value=nextNo(this.value);document.getElementById('t_code').value=nextCode(this.value)">${BRANCHES.filter(x=>x!==s.branch).map(x=>`<option>${x}</option>`).join('')}</select>

@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{var q=new URLSearchParams(location.search),s=localStorage.getItem("tfa_lang");if(s&&q.get("lang")!==s&&["zh","en","ms"].indexOf(s)>-1){q.set("lang",s);location.replace(location.pathname+"?"+q.toString());}}catch(e){}})();</script>
 <title>补习中心 学费对账 · MT Allowance</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--mute:#6b7280;--line:#e5e7eb;--pri:#2457c5;--ok:#15803d;--okbg:#e8f6ec;--warn:#b45309;--warnbg:#fdf3e3;--bad:#b91c1c;--badbg:#fdecec;--info:#1e40af;--infobg:#e8effd}
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
@@ -41,7 +44,7 @@ details summary{cursor:pointer;font-weight:600}
 </head>
 <body>
 <header>
-  <h1>补习中心 · 学费对账 &amp; MT Allowance <span id="conn" class="tag grey">连接中…</span></h1>
+  <h1>补习中心 · 学费对账 &amp; MT Allowance <span id="conn" class="tag grey">连接中…</span> <span id="langsw" style="float:right;font-size:12px;font-weight:400"></span></h1>
   <nav id="nav"></nav>
 </header>
 <main id="main"><div class="card">载入中…</div></main>
@@ -324,7 +327,7 @@ const BRANCHES=['BBU','TST','TDA'];
 const S={mtp:{},claims:{},students:{},packages:{},rosters:{},bank:{},rules:{amt:{},payer:{}},mts:{list:{}},config:{}};
 let db=null, downloads=null, canWrite=true, loaded={};
 const UI={tab:'home',branch:'BBU',stuStatus:'Active',stuQ:'',rBranch:'BBU',rMonth:'2026-10',draft:null,bBank:'AFFIN',bMonth:'2026-10',bFilter:'need',oBranch:'ALL',oMt:'ALL',oLate:true,payout:null,expBank:'AFFIN',expMonth:'2026-10'};
-const TABS=[['home','总览'],['stu','Contact 学生 / MT'],['claim','MT Claim'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
+let TABS=[['home','总览'],['stu','Contact 学生 / MT'],['claim','MT Claim'],['roster','老师名单'],['bank','银行对账'],['owe','欠款清单'],['allow','MT Allowance'],['set','设置 / Bukku']];
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -340,6 +343,12 @@ function save(path,data){ if(!db){toast('没有连接数据库，无法保存');
 /* ---------- storage: the CC CREST server. A local copy (memo) is changed first so the screen reacts at once; the server is the real store.
    `db` has the two calls this page uses: db.collection(name).onSnapshot(cb) and db.doc('coll/id').set(data). ---------- */
 const QS=new URLSearchParams(location.search), CID=QS.get('company')||'';
+const VIEW=QS.get('view')||'';   // the CC CREST menu opens this page on one view only: contact (students / MT) or claim (MT Claim)
+if(VIEW==='contact'){ TABS=TABS.filter(x=>x[0]==='stu'); UI.tab='stu'; } else if(VIEW==='claim'){ TABS=TABS.filter(x=>x[0]==='claim'); UI.tab='claim'; }
+function setPageLang(l){ try{ localStorage.setItem('tfa_lang',l); }catch(e){} const q=new URLSearchParams(location.search); q.set('lang',l); location.href=location.pathname+'?'+q.toString(); }
+document.getElementById('langsw').innerHTML=[['zh','中文'],['en','EN'],['ms','BM']].map(x=>`<a href="#" onclick="setPageLang('${x[0]}');return false" style="margin-left:6px;${x[0]===(document.documentElement.lang||'zh')?'font-weight:700;color:#1d2330':'color:#6b7280'}">${x[1]}</a>`).join('');
+const HOWM=/*HOWM*/{};
+function howTxt(h){ h=String(h||''); if(!HOWM.months) return h; return h.replace(/（(\d+)个月）/g,(m,n)=>HOWM.months.replace('{n}',n)).replace(/已记住的付款人|已记住的家庭|父母名字|备注里的学生名|找不到|手动确认|\+金额|（金额对不上）/g,m=>HOWM[m]||m); }
 const API='/api/companies/'+encodeURIComponent(CID)+'/tuition';
 const COLLS=['students','settings','rosters','bank','claims'];
 const memo={students:{},settings:{},rosters:{},bank:{},claims:{}}, subs={students:[],settings:[],rosters:[],bank:[],claims:[]};
@@ -418,7 +427,7 @@ async function init(){
 }
 let _rt=null; function render(){ clearTimeout(_rt); _rt=setTimeout(renderNow,30); }
 function renderNow(){
-  $('#nav').innerHTML=TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}</button>`).join('');
+  $('#nav').innerHTML=TABS.length>1?TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}</button>`).join(''):'';
   const f={home:vHome,stu:vContact,claim:vClaim,roster:vRoster,bank:vBank,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
   const keep=document.activeElement&&document.activeElement.id; const pos=keep?document.activeElement.selectionStart:null;
   $('#main').innerHTML=f();
@@ -728,7 +737,7 @@ function vBank(){
    <span style="flex:1"></span><span class="small">本月入账（学费）：<b>RM ${money(tot)}</b></span></div>
   <div class="tw"><table><tr><th>日期</th><th>付款人</th><th>备注</th><th class="n">金额</th><th>状态</th><th>学生</th><th></th></tr>
   ${show.map(t=>`<tr><td>${t.date}<div class="small mute">${esc(t.time)}</div></td><td>${esc(t.payer)}</td><td class="small">${esc(t.ref)}</td><td class="n">${money(t.amount)}</td>
-   <td>${txTag(t)}<div class="small mute">${esc(t.how||'')}</div></td><td class="small">${(t.alloc||[]).map(a=>`<a href="#" onclick="stmt('${a.uid}');return false">${esc(stuName(a.uid))}</a> <b>${money(a.amt)}</b>${appliedTxt(LG,t.id,a)}`).join('<br>')}</td>
+   <td>${txTag(t)}<div class="small mute">${esc(howTxt(t.how))}</div></td><td class="small">${(t.alloc||[]).map(a=>`<a href="#" onclick="stmt('${a.uid}');return false">${esc(stuName(a.uid))}</a> <b>${money(a.amt)}</b>${appliedTxt(LG,t.id,a)}`).join('<br>')}</td>
    <td><button class="${t.status==='review'||t.status==='unmatched'?'b':'g'}" onclick="openTx('${doc?bankDocId(bank,m):''}','${t.id}')">${t.status==='review'||t.status==='unmatched'?'处理':'改'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="mute">没有</td></tr>'}
   </table></div></div>`;
 }
@@ -785,7 +794,7 @@ function drawTx(){
   const {did,id,sel,extra}=UI._tx; const LG=ledger(); const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
   const shown=[...new Set([...Object.keys(sel),...extra])];
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0);
-  modal(`<h3>${t.date} · ${esc(t.payer)} · RM ${money(t.amount)}</h3><div class="small mute">备注：${esc(t.ref)||'—'}　${esc(t.how||'')}</div>
+  modal(`<h3>${t.date} · ${esc(t.payer)} · RM ${money(t.amount)}</h3><div class="small mute">备注：${esc(t.ref)||'—'}　${esc(howTxt(t.how))}</div>
    <h3>这笔钱是哪个学生的？</h3>
    <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}</div>
    <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th><th></th></tr>
@@ -869,7 +878,7 @@ function vAllow(){
   const secs=keys.map(k=>{ const [b,mt]=k.split('|'); const ls=(byMt[k]||[]).sort((a,c)=>a.month.localeCompare(c.month)||a.s.name.localeCompare(c.s.name)); const sub=ls.reduce((a,x)=>a+x.amount,0);
     const rec=(S.mts.list||{})[k]||{}; const ded=(rec.deductions||[]); const here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p).length;
     const net=sub-(here?+here.amt:0); grand+=net; const pd=pendMt[k]||[];
-    return `<div class="card"><h2>${esc(mt)} <span class="small mute">${b}</span></h2>
+    return `<div class="card"><h2>${esc(mt)} <span class="small mute">${b}</span> <button class="g" style="float:right" onclick="allowPdf('${k}','${p}')">PDF</button></h2>
      ${ls.length?`<table><tr><th>学生</th><th>月份</th><th>Pkg</th><th class="n">堂数</th><th class="n">Rate</th><th class="n">Allowance</th><th>付款日期</th></tr>
      ${ls.map(x=>`<tr><td>${esc(x.s.no+' '+x.s.name)}</td><td>${x.month}</td><td>${esc(x.pkg)}${x.noRate?' <span class="tag bad">没 rate</span>':''}</td><td class="n">${x.classes}</td><td class="n">${x.rate}</td><td class="n">${money(x.amount)}</td><td>${x.paidDate}${x.month<addMonths(p.slice(0,7),-1)?' <span class="tag info">迟付补发</span>':''}</td></tr>`).join('')}</table>`:'<div class="small mute">这期没有可以出的</div>'}
      <div class="row" style="margin-top:8px;justify-content:flex-end;gap:16px"><span>小计 <b>RM ${money(sub)}</b></span>
@@ -879,7 +888,7 @@ function vAllow(){
     </div>`; }).join('');
   return `<div class="card"><div class="row"><span>发放日期</span><select onchange="UI.payout=this.value;render()">${pl.map(x=>`<option ${x===p?'selected':''}>${x}</option>`).join('')}</select>
    <span class="tag info">${w.label}</span><span style="flex:1"></span><span>这期总共实发 <b>RM ${money(grand)}</b></span>
-   <button class="g" onclick="allowExcel()">下载 Excel</button></div>
+   <button class="g" onclick="allowExcel()">下载 Excel</button><button class="g" onclick="allowPdfAll()">下载全部 PDF</button></div>
    <div class="small mute" style="margin-top:6px">Allowance = 堂数 × rate。只出「学费已在期限内付清」的学生；按付款日期分到 15号 或 5号 那期。待处理的银行入账（${reviewCount()} 笔）还没算进去。</div></div>
    ${secs||'<div class="card mute">这期没有资料（需要已确认的老师名单 + 已配对的入账）</div>'}
    ${forf.length?`<div class="card"><details><summary>🚫 超过期限、不出 allowance：${forf.length} 笔（RM ${money(forf.reduce((a,x)=>a+x.amount,0))}）</summary><div class="small" style="margin-top:6px">${forf.map(x=>`${x.branch} ${esc(x.mt)} – ${esc(x.s.no+' '+x.s.name)} – ${x.month}（期限 ${x.deadline}${x.paidDate?'，'+x.paidDate+' 才付':'，还没付'}）`).join('<br>')}</div></details></div>`:''}`;
@@ -888,6 +897,47 @@ function dedAdd(k,p,n){ modal(`<h3>扣 Training fee（第 ${n+1}/6 期）</h3><d
   <div class="row" style="margin-top:12px"><button class="b" onclick="dedSave('${k}','${p}')">保存</button><button class="g" onclick="closeModal()">取消</button></div>`); }
 async function dedSave(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); m.list=m.list||{}; const r=m.list[k]=m.list[k]||{deductions:[]}; r.deductions=(r.deductions||[]).filter(d=>d.payout!==p); r.deductions.push({payout:p,amt:+$('#d_a').value||0,billNo:$('#d_b').value.trim()}); r.deductions.sort((a,b)=>a.payout<b.payout?-1:1); await save('settings/mts',m); closeModal(); toast('已保存'); }
 async function dedDel(k,p){ const m=JSON.parse(JSON.stringify(S.mts)); const r=m.list[k]; r.deductions=r.deductions.filter(d=>d.payout!==p); await save('settings/mts',m); }
+// ---- one allowance sheet (PDF) for each MT. The file name is DM-[BRANCH]-[MT NAME]-[YYYY]_[MM]-[AMOUNT].pdf (payout month, net amount) ----
+function allowSheet(k,p){
+  const [b,mt]=k.split('|'); const all=allowanceLines(S,ledger());
+  const ls=all.filter(x=>x.status==='payable'&&x.payout===p&&mtKey(x.branch,x.mt)===k).sort((a,c)=>a.month.localeCompare(c.month)||a.s.name.localeCompare(c.s.name));
+  const sub=r2(ls.reduce((a,x)=>a+x.amount,0)); const rec=(S.mts.list||{})[k]||{}; const ded=rec.deductions||[]; const here=ded.find(d=>d.payout===p); const n=ded.filter(d=>d.payout<=p).length;
+  const pd=all.filter(x=>x.status==='pending'&&today()<=x.deadline&&mtKey(x.branch,x.mt)===k);
+  return {b,mt,ls,sub,here,n,net:r2(sub-(here?+here.amt:0)),pd};
+}
+function allowPdfName(d,p){ return ('DM-'+d.b+'-'+d.mt.replace(/^MT\s+/i,'')+'-'+p.slice(0,4)+'_'+p.slice(5,7)+'-'+d.net.toFixed(2)+'.pdf').replace(/[\\/:*?"<>|]/g,''); }
+function allowPdfBuild(k,p){
+  const d=allowSheet(k,p), w=payoutWindow(p), doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'}), rm=n=>'RM '+money(n);
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text('DIDIK MULIA SDN. BHD.',14,16);
+  doc.setFontSize(12); doc.text('MT Allowance Statement',14,23);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  doc.text(['MT: '+d.mt,'Branch: '+d.b,'Payout date: '+p,'Fees received: '+w.from+' to '+w.to],14,31);
+  doc.autoTable({startY:50,theme:'grid',styles:{fontSize:8.5,cellPadding:1.6},headStyles:{fillColor:[36,87,197]},
+    head:[['Student','Month','Pkg','Classes','Rate (RM)','Allowance (RM)','Fee paid']],
+    body:d.ls.length?d.ls.map(x=>[x.s.no+' '+x.s.name,x.month,x.pkg,x.classes,money(x.rate),money(x.amount),x.paidDate||'']):[['No allowance in this payout','','','','','','']],
+    columnStyles:{3:{halign:'right'},4:{halign:'right'},5:{halign:'right'}}});
+  let y=doc.lastAutoTable.finalY+7; doc.setFontSize(10);
+  doc.text('Subtotal',130,y); doc.text(rm(d.sub),196,y,{align:'right'}); y+=6;
+  if(d.here){ doc.text('Training fee ('+d.n+'/6, bill '+(d.here.billNo||'-')+')',130,y); doc.text('- '+rm(d.here.amt),196,y,{align:'right'}); y+=6; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Net payable',130,y); doc.text(rm(d.net),196,y,{align:'right'}); y+=4;
+  if(d.pd.length){ doc.autoTable({startY:y+6,theme:'plain',styles:{fontSize:8,cellPadding:1},head:[['On hold: fee not paid yet (paid within the deadline it will be released)','Month','Allowance (RM)','Deadline']],
+    body:d.pd.map(x=>[x.s.no+' '+x.s.name,x.month,money(x.amount),x.deadline]),columnStyles:{2:{halign:'right'}}}); }
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(110);
+  doc.text('Allowance = classes x rate, paid only when the fee is paid within the deadline. Generated '+today()+'.',14,287);
+  return {doc,name:allowPdfName(d,p)};
+}
+function allowPdf(k,p){
+  if(!(window.jspdf&&window.jspdf.jsPDF)) return toast('PDF tool did not load, check the internet connection and reload');
+  const r=allowPdfBuild(k,p), url=URL.createObjectURL(r.doc.output('blob')), a=document.createElement('a');
+  a.href=url; a.download=r.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+async function allowPdfAll(){
+  const p=UI.payout, all=allowanceLines(S,ledger());
+  const keys=[...new Set(all.filter(x=>x.status==='payable'&&x.payout===p).map(x=>mtKey(x.branch,x.mt)))].sort();
+  if(!keys.length) return toast('No allowance in this payout');
+  if(!confirm(keys.length+' PDF files will be downloaded (one per MT). Continue?')) return;
+  for(const k of keys){ allowPdf(k,p); await new Promise(r=>setTimeout(r,700)); }
+}
 function allowExcel(){ const p=UI.payout; const L=ledger(); const pay=allowanceLines(S,L).filter(x=>x.status==='payable'&&x.payout===p); const rows=[['Allowance 发放 '+p+'（'+payoutWindow(p).label+'）'],[],['Branch','MT','编号','学生','月份','Pkg','堂数','Rate','Allowance','付款日期']];
   const by={}; pay.forEach(x=>{ const k=mtKey(x.branch,x.mt); (by[k]=by[k]||[]).push(x); });
   for(const k of Object.keys(by).sort()){ const [b,mt]=k.split('|'); let sub=0; by[k].forEach(x=>{ rows.push([b,mt,x.s.no,x.s.name,x.month,x.pkg,x.classes,x.rate,x.amount,x.paidDate]); sub+=x.amount; });

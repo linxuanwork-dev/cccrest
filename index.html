@@ -691,6 +691,14 @@
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/><path d="M22 10v6"/></svg>
           <span class="nav-label" data-i18n="nav_tuition">Tuition & Allowance</span>
         </button>
+        <button class="nav-item" data-panel="panel-contact" data-roles="admin staff manager" hidden>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="nav-label" data-i18n="nav_contact">Contact</span>
+        </button>
+        <button class="nav-item" data-panel="panel-mtclaim" data-roles="admin staff manager" hidden>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/><path d="m9 15 2 2 4-4"/></svg>
+          <span class="nav-label" data-i18n="nav_mtclaim">MT Claim</span>
+        </button>
         <button class="nav-item" data-panel="panel-bank">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M10 10v9M14 10v9M19 10v9"/><path d="M3 21h18"/></svg>
           <span class="nav-label" data-i18n="nav_bank_statement">Bank Statement</span>
@@ -1128,6 +1136,14 @@
       <section class="panel" id="panel-tuition" hidden>
         <div class="content-header"><h2 data-i18n="nav_tuition">Tuition & Allowance</h2><span class="sub" id="tuition-sub">Select a company</span></div>
         <iframe id="tuition-frame" title="Tuition & Allowance" style="width:100%;height:calc(100vh - 150px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
+      </section>
+      <section class="panel" id="panel-contact" hidden>
+        <div class="content-header"><h2 data-i18n="nav_contact">Contact</h2><span class="sub" id="contact-sub"></span></div>
+        <iframe id="contact-frame" title="Contact" style="width:100%;height:calc(100vh - 150px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
+      </section>
+      <section class="panel" id="panel-mtclaim" hidden>
+        <div class="content-header"><h2 data-i18n="nav_mtclaim">MT Claim</h2><span class="sub" id="mtclaim-sub"></span></div>
+        <iframe id="mtclaim-frame" title="MT Claim" style="width:100%;height:calc(100vh - 150px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
       </section>
 
       <!-- ---- CLAIM BILL ---- -->
@@ -2603,7 +2619,7 @@
       nav_activity_log:"Activity Log", nav_bank_statement:"Bank Statement", nav_choose_company:"Choose Company",
       nav_claim_bill:"Claim Bill", nav_company_home:"Dashboard", nav_customer_queue:"Customer Queue",
       nav_group_bookkeeping:"Services", nav_group_tools:"Tools", nav_merchant_report:"Merchant Report",
-      nav_petty_record:"Petty Record", nav_purchases_bill:"Purchases Bill", nav_stock_count:"Stock Count", stk_title:"Stock Count", stk_desc:"Switch the monthly stock count on for a company. The Owner or a CC CREST manager sets the stock listing and prices; the company's staff key in the counts.", stk_enabled:"Switched on for this company", stk_fifo:"FIFO from month (price from purchase bills; empty = off)", nav_tuition:"Tuition & Allowance", tfa_sub:"Tuition fees & MT Allowance", tfa_title:"Tuition & Allowance", tfa_desc:"Switch the tuition fee reconciliation and MT Allowance system on for a company. Only CC CREST people can use it; company users never can.", tfa_enabled:"Switched on for this company", tfa_docs:"Saved records", stk_stats_items:"Items", stk_stats_closed:"Closed months", stk_company:"Company", stk_sub:"stock count · month closing", nav_reconciliation:"Dwi Danga Sales Summary",
+      nav_petty_record:"Petty Record", nav_purchases_bill:"Purchases Bill", nav_stock_count:"Stock Count", stk_title:"Stock Count", stk_desc:"Switch the monthly stock count on for a company. The Owner or a CC CREST manager sets the stock listing and prices; the company's staff key in the counts.", stk_enabled:"Switched on for this company", stk_fifo:"FIFO from month (price from purchase bills; empty = off)", nav_tuition:"Tuition & Allowance", nav_contact:"Contact", nav_mtclaim:"MT Claim", tfa_sub:"Tuition fees & MT Allowance", tfa_title:"Tuition & Allowance", tfa_desc:"Switch the tuition fee reconciliation and MT Allowance system on for a company. Only CC CREST people can use it; company users never can.", tfa_enabled:"Switched on for this company", tfa_docs:"Saved records", stk_stats_items:"Items", stk_stats_closed:"Closed months", stk_company:"Company", stk_sub:"stock count · month closing", nav_reconciliation:"Dwi Danga Sales Summary",
       nav_sales_summary:"Sales Summary", nav_staff_approvals:"Staff Approvals",
       next:"Next →", not_provided:"Not provided", notifications:"Notifications", optional:"Optional",
       output_file_name:"Output file name", output_files:"Output files", past_batches:"Past batches",
@@ -2894,7 +2910,7 @@
       nav_activity_log:"活动日志", nav_bank_statement:"银行对账单", nav_choose_company:"选择公司",
       nav_claim_bill:"报销单", nav_company_home:"仪表板", nav_customer_queue:"客户队列",
       nav_group_bookkeeping:"服务", nav_group_tools:"工具", nav_merchant_report:"商户报告",
-      nav_petty_record:"零用现金记录", nav_purchases_bill:"采购账单", nav_stock_count:"库存盘点", stk_title:"库存盘点 Stock Count", stk_desc:"为公司开通每月库存盘点。货品清单和单价由 Owner 或 CC CREST manager 设定，公司员工输入盘点数量。", stk_enabled:"这家公司已开通", stk_fifo:"FIFO 起算月份（单价改用采购单的进货价；留空 = 不用）", nav_tuition:"学费对账 & Allowance", tfa_sub:"学费对账 · MT Allowance", tfa_title:"学费对账 & Allowance", tfa_desc:"为公司开通学费对账和 MT Allowance 系统。只有 CC CREST 的人可以使用，公司用户不能使用。", tfa_enabled:"这家公司已开通", tfa_docs:"已存的资料", stk_stats_items:"货品", stk_stats_closed:"已结账月份", stk_company:"公司", stk_sub:"库存盘点 · 月结", nav_reconciliation:"Dwi Danga 销售汇总",
+      nav_petty_record:"零用现金记录", nav_purchases_bill:"采购账单", nav_stock_count:"库存盘点", stk_title:"库存盘点 Stock Count", stk_desc:"为公司开通每月库存盘点。货品清单和单价由 Owner 或 CC CREST manager 设定，公司员工输入盘点数量。", stk_enabled:"这家公司已开通", stk_fifo:"FIFO 起算月份（单价改用采购单的进货价；留空 = 不用）", nav_tuition:"学费对账 & Allowance", nav_contact:"联系人 Contact", nav_mtclaim:"MT Claim", tfa_sub:"学费对账 · MT Allowance", tfa_title:"学费对账 & Allowance", tfa_desc:"为公司开通学费对账和 MT Allowance 系统。只有 CC CREST 的人可以使用，公司用户不能使用。", tfa_enabled:"这家公司已开通", tfa_docs:"已存的资料", stk_stats_items:"货品", stk_stats_closed:"已结账月份", stk_company:"公司", stk_sub:"库存盘点 · 月结", nav_reconciliation:"Dwi Danga 销售汇总",
       nav_sales_summary:"销售汇总", nav_staff_approvals:"员工审批",
       next:"下一页 →", not_provided:"未提供", notifications:"通知", optional:"可选",
       output_file_name:"输出文件名", output_files:"输出文件", past_batches:"历史批次",
@@ -3144,6 +3160,8 @@
       if(btn.dataset.panel === 'panel-profile' && typeof renderProfile === 'function') renderProfile(true);
       if(btn.dataset.panel === 'panel-docs' && typeof renderDocs === 'function') renderDocs();
       if(btn.dataset.panel === 'panel-control' && typeof renderControl === 'function') renderControl();
+      if(btn.dataset.panel === 'panel-contact') tfaOpen('contact-frame', 'contact');
+      if(btn.dataset.panel === 'panel-mtclaim') tfaOpen('mtclaim-frame', 'claim');
       // Keep the service group that contains the page you're on open.
       var owner = btn.closest('.nav-sub');
       if(owner) serviceMode = owner.id.replace('nav-sub-', '');
@@ -3410,8 +3428,10 @@
       if(pf2 && pf2.contentWindow) pf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
       var sf2 = document.getElementById('stock-frame');
       if(sf2 && sf2.contentWindow) sf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
-      var tf2 = document.getElementById('tuition-frame');
-      if(tf2 && tf2.contentWindow) tf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
+      ['tuition-frame', 'contact-frame', 'mtclaim-frame'].forEach(function(id){
+        var tf2 = document.getElementById(id);
+        if(tf2 && tf2.contentWindow) tf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
+      });
       if(typeof renderStaffRow === 'function') renderStaffRow();
       if(typeof renderCompanyGrid === 'function') renderCompanyGrid();
     });
@@ -4258,15 +4278,25 @@
 
   // ---- Tuition & Allowance (CC CREST people only; menu item and page appear where the Owner switched it on for the company) ----
   var tuitionReq = 0;
+  var TFA_PANELS = ['panel-tuition', 'panel-contact', 'panel-mtclaim'], tfaCompanyId = null;
+  // the Tuition & Allowance page in the language the person picked on it (zh / en / ms); first time: the portal language
+  function tfaSrc(companyId, view){
+    var lang = 'en'; try{ lang = localStorage.getItem('tfa_lang') || (LANG === 'zh' ? 'zh' : 'en'); }catch(e){}
+    return '/api/tuition/app?company=' + companyId + (view ? '&view=' + view : '') + '&lang=' + lang + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+  }
+  function tfaOpen(frameId, view){
+    var f = document.getElementById(frameId); if(!f || !tfaCompanyId) return;
+    if(f.dataset.loadedFor !== String(tfaCompanyId)){ f.dataset.loadedFor = String(tfaCompanyId); f.src = tfaSrc(tfaCompanyId, view); }
+  }
   function renderTuition(){
     var btn = document.querySelector('.nav-item[data-panel="panel-tuition"]');
     var frame = document.getElementById('tuition-frame'), sub = document.getElementById('tuition-sub');
     if(!btn || !frame) return;
     var show = function(on){
-      btn.hidden = !on;
+      TFA_PANELS.forEach(function(id){ var b = document.querySelector('.nav-item[data-panel="' + id + '"]'); if(b) b.hidden = !on; });
       refreshServiceGroups();
-      var panel = document.getElementById('panel-tuition');
-      if(!on && panel && !panel.hidden){
+      var panel = TFA_PANELS.map(function(id){ return document.getElementById(id); }).filter(function(p){ return p && !p.hidden; })[0];
+      if(!on && panel){
         var fb = serviceGroupItems(serviceMode)[0] || document.querySelector('.nav-item[data-panel="panel-company-home"]');
         if(fb) fb.click();
       }
@@ -4280,10 +4310,15 @@
       if(!cfg.enabled){ show(false); return; }
       sub.textContent = currentCompany + ' · ' + t('tfa_sub');
       show(true);
+      tfaCompanyId = companyId;
       if(frame.dataset.loadedFor !== String(companyId)){
         frame.dataset.loadedFor = String(companyId);
-        frame.src = '/api/tuition/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+        frame.src = tfaSrc(companyId, '');
       }
+      ['contact-frame', 'mtclaim-frame'].forEach(function(id){ var f = document.getElementById(id); if(f && f.dataset.loadedFor && f.dataset.loadedFor !== String(companyId)){ f.removeAttribute('src'); delete f.dataset.loadedFor; } });
+      var open = TFA_PANELS.map(function(id){ return document.getElementById(id); }).filter(function(p){ return p && !p.hidden; })[0];
+      if(open && open.id === 'panel-contact') tfaOpen('contact-frame', 'contact');
+      if(open && open.id === 'panel-mtclaim') tfaOpen('mtclaim-frame', 'claim');
     }).catch(function(){ if(mine === tuitionReq) show(false); });   // not available to this user: no menu item
   }
 
@@ -6512,7 +6547,7 @@
   }
 
   // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
-  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-tuition':'tuition', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-tuition':'tuition', 'panel-contact':'tuition', 'panel-mtclaim':'tuition', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
   function applyPageAccess(){
     if(CURRENT_ROLE !== 'staff') return;
     var rec = customerRecord(currentCompany);

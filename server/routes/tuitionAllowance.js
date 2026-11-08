@@ -6,6 +6,7 @@ const { pool } = require('../db');
 const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const tuitionLang = require('../lib/tuitionLang');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -72,7 +73,7 @@ router.put('/tuition/companies/:id', requireRole('admin'), async (req, res) => {
 
 // The page itself (shown in an iframe); the data endpoints below do the real checks.
 router.get('/tuition/app', requireAuth, (req, res) => {
-  res.sendFile(PAGE);
+  res.type('html').send(tuitionLang.pageFor(String(req.query.lang || 'zh')));   // zh / en / ms
 });
 
 const BASE = '/companies/:companyId/tuition';

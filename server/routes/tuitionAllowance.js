@@ -152,12 +152,12 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
 
 // ---- Bukku import files: the rows are written into Bukku's own template (server/assets/tuition/bukku), so the comment lines, the
 // column headings, the column order and the formats are exactly what Bukku gives. rows = arrays of cells starting at column B. ----
-const BUKKU_TEMPLATES = { invoice: 'sales-invoice-template.xlsx', payment: 'sales-payment-template.xlsx' };
+const BUKKU_TEMPLATES = { invoice: 'sales-invoice-template.xlsx', payment: 'sales-payment-template.xlsx', contact: 'contacts-template.xlsx' };
 router.post(BASE + '/bukku-file', ...guard(1), async (req, res) => {
   const type = req.body && req.body.type, rows = req.body && req.body.rows;
   if (!BUKKU_TEMPLATES[type] || !Array.isArray(rows) || rows.length > 3000) return bad(res, 'Invalid request');
   for (const r of rows) {
-    if (!Array.isArray(r) || r.length > 30 || r.some((v) => v !== null && !['string', 'number'].includes(typeof v))) return bad(res, 'Invalid request');
+    if (!Array.isArray(r) || r.length > 60 || r.some((v) => v !== null && !['string', 'number'].includes(typeof v))) return bad(res, 'Invalid request');
   }
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(path.join(__dirname, '..', 'assets', 'tuition', 'bukku', BUKKU_TEMPLATES[type]));

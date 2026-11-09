@@ -504,6 +504,8 @@ function vStu(){
    <button class="b" onclick="editStu(null)">＋ 新增学生</button>
    <span style="flex:1"></span>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">导入 master list Excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importMaster(this)"></label>
+   <button class="g" title="没有 Bukku code 的学生 → Bukku Contacts import 文件" onclick="exportContacts()">导出 Bukku Contacts（新联系人）</button>
+   <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="把 Bukku 的 Contacts 导出文件读回来，核对并填上 code">导入 Bukku Contacts（核对 / 填 code）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importContacts(this)"></label>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
@@ -534,7 +536,7 @@ function applyChanges(s, month, sinceMonth, mt, pkg){ const notes=[]; for(const 
 function histAdd(s,type,from,to,note){ if(String(from||'')===String(to||'')) return; (s.history=s.history||[]).push({d:today(),t:type,from:from||'',to:to||'',note:note||''}); if(s.history.length>300) s.history=s.history.slice(-300); }
 function histChanges(s,o0,note){ histAdd(s,'mt',o0.mt,s.mt,note); histAdd(s,'pkg',o0.pkg,s.pkg,note); histAdd(s,'status',o0.status,s.status,note); }
 function histHtml(s){ const h=(s.history||[]).slice().reverse(); if(!h.length) return '<div class="small mute">还没有记录</div>';
-  const L={mt:'MT',pkg:'Package',status:'状态',branch:'Branch',name:'名字'};
+  const L={mt:'MT',pkg:'Package',status:'状态',branch:'Branch',name:'名字',code:'Bukku code'};
   return '<table class="small"><tr><th>日期</th><th>项目</th><th>变更</th><th>原因</th></tr>'+h.map(x=>`<tr><td>${esc(x.d)}</td><td>${L[x.t]||esc(x.t)}</td><td>${esc(x.from||'—')} → <b>${esc(x.to||'—')}</b></td><td class="mute">${esc(x.note||'')}</td></tr>`).join('')+'</table>'; }
 function editStu(uid){
   const s=uid?findStu(S,uid):{branch:UI.branch,no:nextNo(UI.branch),code:nextCode(UI.branch),name:'',status:'Active',parents:[],mt:'',pkg:'',price:0,opening:0,gender:''};
@@ -1362,6 +1364,35 @@ async function bukkuFile(type,rows,filename){
     a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
   }catch(e){ toast('下载失败：'+(e&&e.message||e),6000); }
 }
+// ---- Bukku Contacts: new students become Bukku contacts (the code is made by Bukku: [AUTO]); the Bukku Contacts list read back fills the codes ----
+function contactRow(s){ const r=new Array(44).fill(null); r[0]='[AUTO]'; r[2]=s.no+'-'+String(s.name).toUpperCase().replace(/\s+/g,' ').trim(); r[3]='Malaysian Individual'; r[14]='Yes'; r[15]='No'; r[16]='No'; r[17]='1001'; r[41]='No'; r[42]='No'; return r; }
+function exportContacts(){
+  const b=UI.branch, list=stuList(b).filter(s=>!s.code&&['Active','Registered','Deactive'].includes(s.status)).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true}));
+  if(!list.length) return toast(b+' 的学生都已经有 Bukku code 了');
+  if(!confirm(list.length+' 位没有 Bukku code 的学生（'+b+'）会导出成新联系人。导入 Bukku 之后，再用「导入 Bukku Contacts」把 Bukku 编的 code 填回来。继续？')) return;
+  const d=today();
+  bukkuFile('contact',list.map(contactRow),`DM-Bukku-Contacts-${b}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`);
+}
+async function importContacts(input){
+  let wbk; try{ wbk=(await readFile(input)).wb; }catch(e){ return toast('读取失败：'+(e&&e.message||e)); } input.value='';
+  const rows=sheetRows(wbk.Sheets[wbk.SheetNames[0]]); const hi=rows.findIndex(r=>String((r&&r[1])||'').startsWith('Contact Code'));
+  if(hi<0) return toast('这不是 Bukku 的 Contacts 文件（找不到 Contact Code 栏）');
+  const bk={}; rows.slice(hi+1).forEach(r=>{ const m=String((r&&r[3])||'').match(/^([ABT]\d{3})\s*-\s*(.*)$/i); if(m&&r[1]) bk[m[1].toUpperCase()]={code:String(r[1]).trim(),name:String(m[2]).toUpperCase().replace(/\s+/g,' ').trim(),n:norm(m[2])}; });
+  const docs={}, fill=[], diffCode=[], diffName=[], missing=[]; BRANCHES.forEach(b=>{ docs[b]=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); });
+  const seen=new Set();
+  for(const b of BRANCHES) for(const [no,st] of Object.entries(docs[b].list||{})){ const k=no.toUpperCase(), x=bk[k]; seen.add(k);
+    if(!x){ if(['Active','Registered','Deactive'].includes(st.status)&&!st.code) missing.push(no+' '+st.name); continue; }
+    if(!st.code){ histAdd(st,'code','',x.code,'Bukku Contacts 导入'); st.code=x.code; fill.push(no+' '+st.name+' → '+x.code); }
+    else if(st.code!==x.code) diffCode.push(no+' '+st.name+'：系统 '+st.code+'，Bukku '+x.code);
+    if(norm(st.name)!==x.n&&!x.n.startsWith(norm(st.name)+'TRANSFER')) diffName.push(no+'：系统「'+st.name+'」，Bukku「'+x.name+'」'); }
+  const notInSys=Object.keys(bk).filter(k=>!seen.has(k));
+  const box=(t,a)=>a.length?`<details ${t.startsWith('不一样')?'open':''}><summary class="small"><b>${t}：${a.length}</b></summary><div class="small">${a.slice(0,60).map(esc).join('<br>')}${a.length>60?'<br>…':''}</div></details>`:'';
+  window._contactsFill=docs;
+  modal(`<h3>核对 Bukku Contacts</h3><div class="small mute">Bukku 里 ${Object.keys(bk).length} 位学生联系人。没有 code 的学生会填上 Bukku 的 code；已经有 code 但不一样的，不会自动改，列在下面请你确认。</div>
+   ${box('会填上 code',fill)}${box('不一样：code',diffCode)}${box('不一样：名字',diffName)}${box('系统里没有 code、Bukku 里也找不到',missing)}${box('Bukku 里有、系统里没有',notInSys)}
+   <div class="row" style="margin-top:12px">${fill.length?`<button class="b" onclick="contactsApply()">填上 ${fill.length} 个 code</button>`:''}<button class="g" onclick="closeModal()">关闭</button></div>`);
+}
+async function contactsApply(){ const docs=window._contactsFill; if(!docs) return; for(const b of BRANCHES){ if(JSON.stringify(docs[b])!==JSON.stringify(S.students[b]||{list:{}})) await save('students/'+b,docs[b]); } window._contactsFill=null; closeModal(); toast('已填上 Bukku code'); }
 // the list of what was not exported goes into a small file of its own (the import file only holds invoices / payments)
 // shown instead of exporting when some invoices / receipts would be left out: fix the data first, or export the rest on purpose
 function exportGate(msg,items,okN,go){

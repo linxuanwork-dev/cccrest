@@ -249,7 +249,7 @@ function buildLedger(state){
     for(const c of e.charges){ c.paid=0; c.paidDate=null; c.cov=[]; }
     for(const p of e.payments){ p.rem=p.amt; p.applied=[]; }
     const firstMonth=(e.charges.find(c=>!c.opening&&!c.extra)||{}).month;
-    const apply=(p,c)=>{ const need=r2(c.amount-c.paid); if(need<=0.001||p.rem<=0.001) return; const take=Math.min(need,p.rem); p.rem=r2(p.rem-take); c.paid=r2(c.paid+take); c.cov.push({txid:p.txid,date:p.date,amt:r2(take)}); p.applied.push({month:c.month,label:c.label||'',amt:r2(take)}); if(c.amount-c.paid<=0.001) c.paidDate=p.date; };
+    const apply=(p,c)=>{ const need=r2(c.amount-c.paid); if(need<=0.001||p.rem<=0.001) return; const take=Math.min(need,p.rem); p.rem=r2(p.rem-take); c.paid=r2(c.paid+take); c.cov.push({txid:p.txid,date:p.date,amt:r2(take)}); p.applied.push({month:c.month,label:c.label||'',key:c.key||'',opening:!!c.opening,amt:r2(take)}); if(c.amount-c.paid<=0.001) c.paidDate=p.date; };
     // phase 0: payments for an invoice made by the system (registration, module ...): that invoice, then the other such invoices; never the monthly fee
     for(const p of e.payments){ if(!p.inv) continue; const c=e.charges.find(x=>x.extra&&x.key===p.inv); if(c) apply(p,c); for(const c2 of e.charges){ if(p.rem<=0.001) break; if(c2.extra) apply(p,c2); } }
     // phase 1: payments that say which month they are for (monthly fee / opening balance only)
@@ -1244,7 +1244,7 @@ function drawHq(){
    <div class="small" style="margin-top:6px">开给 klien ${inv.length} 张，共 RM ${money(tot)}；不开 invoice（库存）${h.lines.filter(l=>!invoiced(l.kind)).length} 行。号码 IV-${h.branch}-R/M/O-${(h.date||'').slice(2,4)}${(h.date||'').slice(5,7)}-[3DIGIT]，日期 ${esc(h.date)}。</div>
    <div class="row" style="margin-top:10px"><button class="b" onclick="hqSave(false)">保存</button><button class="b" onclick="hqSave(true)">保存并导出 Bukku</button><button class="g" onclick="closeModal()">关闭</button></div>`);
 }
-async function hqSave(exp,force){
+async function hqSave(exp,force,starts){
   const h=UI._hq; if(!h.invoiceNo||!h.date) return toast('这张单没有读到单号或日期');
   const sd=JSON.parse(JSON.stringify(S.students[h.branch]||{list:{}})); sd.list=sd.list||{}; let added=0;
   for(const l of h.lines){ if(l.newStudent&&!l.uid&&!l.skip&&invoiced(l.kind)){
@@ -1255,19 +1255,23 @@ async function hqSave(exp,force){
   const doc=Object.assign({},h,{savedAt:new Date().toISOString()}); delete doc.id; const id=h.branch+'_'+h.invoiceNo;
   if(exp){ const r=hqExportRows(doc);
     if(r.bad.length&&!force){ await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); return exportGate(r.bad.length+' 行不会开单。',r.bad,r.rows.length,'hqSave(true,true)'); }
+    if(!r.rows.length){ await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); return hqDownload(doc,r); }
+    const pre=r.rows.map(x=>String(x[2]).replace('[3DIGIT]','')), ex=r.idx.map(i=>doc.lines[i].invNo||'');
+    if(!starts){ await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); return startsGate(needByPrefix(pre,ex),st=>hqSave(true,true,st)); }
+    const nums=assignNumbers(pre,ex,starts); r.rows.forEach((x,i)=>{ x[2]=nums[i]; doc.lines[r.idx[i]].invNo=nums[i]; });
     doc.exportedAt=today(); await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); hqDownload(doc,r); }
   else { await save('hqbills/'+id,doc); closeModal(); toast('已保存'+(added?'，新学生 '+added+' 个已加进学生名单，状态「已报名」（要补 Bukku code；package 和 MT 等上课前决定了再填）':''),5000); }
 }
 function hqExportRows(d){
-  const [Y,M]=[d.date.slice(0,4),d.date.slice(5,7)], yy=Y.slice(2), dt=d.date.slice(8,10)+'/'+M+'/'+Y, rows=[], bad=[];
-  for(const l of d.lines){ if(!invoiced(l.kind)||l.skip) continue; const s=l.uid?findStu(S,l.uid):null;
+  const [Y,M]=[d.date.slice(0,4),d.date.slice(5,7)], yy=Y.slice(2), dt=d.date.slice(8,10)+'/'+M+'/'+Y, rows=[], bad=[], idx=[];
+  for(let li=0;li<d.lines.length;li++){ const l=d.lines[li]; if(!invoiced(l.kind)||l.skip) continue; const s=l.uid?findStu(S,l.uid):null;
     if(!s){ bad.push(l.client+'：找不到学生'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; } if(!(l.price>0)){ bad.push(s.no+' '+s.name+'：售价是 0'); continue; }
     const T=HQ_SERIES[l.kind], g=l.gender||s.gender||'';
     const prod=l.kind==='registration'?(g==='男'||!g?'REGISTRATION-MALE':'REGISTRATION-FEMALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
     const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
     const det=[l.title,l.module,l.jersey,l.game].filter(Boolean).join(' / ');
-    rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null,null,null]); }
-  return {rows,bad};
+    rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null,null,null]); idx.push(li); }
+  return {rows,bad,idx};
 }
 function hqDownload(d,r){
   if(r.rows.length) bukkuFile('invoice',r.rows,`DM-Bukku-Sales Invoice-${d.branch}-${d.date.slice(0,4)}_${d.date.slice(5,7)}-HQ ${d.invoiceNo}.xlsx`);
@@ -1291,7 +1295,7 @@ function hqFastLines(b,m){
     out.push({s,name:l.name,mt:c.mt,prod:p,price,bad}); }
   return out;
 }
-function hqFastExport(force,again){
+function hqFastExport(force,again,starts){
   const b=UI.hqFB||'BBU', m=UI.hqFM||addMonths(today().slice(0,7),-1), Y=m.slice(0,4), M=m.slice(5,7), dt=lastDay(m).slice(8,10)+'/'+M+'/'+Y;
   const lines=hqFastLines(b,m), ok=lines.filter(x=>!x.bad), bad=lines.filter(x=>x.bad).map(x=>x.name+' / '+x.prod+'：'+x.bad);
   const rows=ok.map(x=>[x.s.code,x.s.no+'-'+x.s.name,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,null,HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null,null,null]);
@@ -1299,8 +1303,11 @@ function hqFastExport(force,again){
   if(frec&&!again&&rows.length) return modal(`<h3>这个月已经导出过了</h3><div class="msg warn">${b} ${m} 的 Fast Track invoice 在 ${esc(frec.exportedAt)} 导出过 ${(frec.items||[]).length} 张。再导出一次，Bukku 会重复开单。</div><div class="row" style="margin-top:12px"><button class="g" onclick="closeModal();hqFastExport(${force?'true':'false'},true)">仍然导出（会重复开单）</button><button class="b" onclick="closeModal()">取消</button></div>`);
   if(bad.length&&!force) return exportGate(bad.length+' 行不会开单。',bad,rows.length,'hqFastExport(true,'+(again?'true':'false')+')');
   if(!rows.length) return toast('没有可以导出的');
+  const pre=rows.map(r=>String(r[2]).replace('[3DIGIT]','')), ex=ok.map(x=>(((frec&&frec.items)||[]).find(i=>i.uid===x.s.uid&&i.prod===x.prod)||{}).invNo||'');
+  if(!starts) return startsGate(needByPrefix(pre,ex),st=>hqFastExport(true,true,st));
+  const nums=assignNumbers(pre,ex,starts); rows.forEach((r,i)=>{ r[2]=nums[i]; });
   bukkuFile('invoice',rows,`DM-Bukku-Sales Invoice-${b}-${Y}_${M}-Fast Track.xlsx`);
-  save('hqbills/FAST_'+b+'_'+m,{kind:'fast',branch:b,month:m,date:m+'-'+dt.slice(0,2),exportedAt:today(),items:ok.map(x=>({uid:x.s.uid,prod:x.prod,price:x.price}))});
+  save('hqbills/FAST_'+b+'_'+m,{kind:'fast',branch:b,month:m,date:m+'-'+dt.slice(0,2),exportedAt:today(),items:ok.map((x,i)=>({uid:x.s.uid,prod:x.prod,price:x.price,invNo:nums[i]}))});
   notExported(`DM-Bukku-Sales Invoice-${b}-${Y}_${M}-Fast Track-没有导出.xlsx`,'没有导出',bad);
   if(bad.length) toast(bad.length+' 行没有导出（清单在另一个小 Excel 里）',5000);
 }
@@ -1387,7 +1394,7 @@ async function cfgInv(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.inv[k]=
 function pkgOnMonth(s,m){ let p=s.pkg||''; (s.changes||[]).slice().sort((a,c)=>a.from<c.from?-1:1).forEach(c=>{ if(c.from<=m&&c.pkg) p=c.pkg; }); return p; }
 // Active students of a branch that owe the fee of month m (not yet started / stopped / transferred ones do not)
 function feeStudents(b,m){ return stuList(b).filter(s=>s.status==='Active'&&(!s.startMonth||s.startMonth<=m)&&(!s.enrolled||String(s.enrolled).slice(0,7)<=m)).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true})); }
-function exportInvoices(force,mode){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
+function exportInvoices(force,mode,starts){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
   const c=cfg().inv; const mm=m.slice(5,7), yy=m.slice(2,4); const fill=(s,pkg)=>String(s||'').replace(/\{B\}|\[B\]|\[BRANCH\]/g,b).replace(/\{MM\}|\[MM\]/g,mm).replace(/\{YY\}|\[YY\]/g,yy).replace(/\[YYYY\]/g,m.slice(0,4)).replace(/\[PACKAGE\]/g,pkg||'');
   const date='01/'+mm+'/'+m.slice(0,4); const rows=[], bad=[], uidOf=[]; const act=feeStudents(b,m);
   if(!act.length) return toast(b+' '+m+' 没有 Active 学生');
@@ -1405,8 +1412,11 @@ function exportInvoices(force,mode){ const b=UI.invBranch||'BBU', m=UI.invMonth|
   if(mode==='new'){ const keep=uidOf.map(u=>!(rec&&(rec.uids||[]).includes(u))); for(let i=rows.length-1;i>=0;i--) if(!keep[i]){ rows.splice(i,1); uidOf.splice(i,1); } if(!rows.length) return toast('没有还没开单的学生'); }
   if((bad.length||diff.length)&&!force) return exportGate((bad.length?bad.length+' 个学生不会开单（没有 Bukku code，或学费是 0）。':'')+(diff.length?diff.length+' 个学生跟这个月的老师名单不一样。':''),bad.concat(diff),rows.length,'exportInvoices(true,\''+(mode||'')+'\')');
   if(!rows.length) return toast('没有可以导出的学生');
+  const pre=rows.map(r=>String(r[2]).replace('[3DIGIT]','')), ex=uidOf.map(u=>((rec&&rec.nums)||{})[u]||'');
+  if(!starts) return startsGate(needByPrefix(pre,ex),st=>exportInvoices(true,mode,st));
+  const nums=assignNumbers(pre,ex,starts); rows.forEach((r,i)=>{ r[2]=nums[i]; });
   bukkuFile('invoice',rows,`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}.xlsx`);
-  save('hqbills/FEE_'+b+'_'+m,{kind:'fee',branch:b,month:m,exportedAt:today(),uids:(mode==='new'&&rec?(rec.uids||[]):[]).concat(uidOf),total:r2(rows.reduce((a,x)=>a+x[18],0))});
+  save('hqbills/FEE_'+b+'_'+m,{kind:'fee',branch:b,month:m,exportedAt:today(),uids:(mode==='new'&&rec?(rec.uids||[]):[]).concat(uidOf),nums:Object.assign({},(rec&&rec.nums)||{},Object.fromEntries(uidOf.map((u,i)=>[u,nums[i]]))),total:r2(rows.reduce((a,x)=>a+x[18],0))});
   notExported(`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}-没有导出.xlsx`,'没有导出的学生',bad.concat(diff.map(x=>'（跟老师名单不一样）'+x)));
   if(bad.length) modal(`<h3>${bad.length} 个学生没有导出</h3><div class="small">${bad.map(esc).join('<br>')}</div><p class="small mute">补好资料后再导出一次（这份清单也存成另一个小 Excel 了）。</p>${diff.length?`<div class="small" style="margin-top:8px"><b>跟老师名单不一样：</b><br>${diff.map(esc).join('<br>')}</div>`:''}<button class="g" onclick="closeModal()">关闭</button>`); else if(diff.length) toast(diff.length+' 个学生跟老师名单不一样（清单在另一个小 Excel 里）',5000); }
 async function cfgSet(g,b,v){ const c=JSON.parse(JSON.stringify(cfg())); c[g][b]=v; await save('settings/config',c); toast('已保存'); }
@@ -1470,6 +1480,27 @@ async function importContacts(input){
    <div class="row" style="margin-top:12px">${fill.length?`<button class="b" onclick="contactsApply()">填上 ${fill.length} 个 code</button>`:''}<button class="g" onclick="closeModal()">关闭</button></div>`);
 }
 async function contactsApply(){ const docs=window._contactsFill; if(!docs) return; for(const b of BRANCHES){ if(JSON.stringify(docs[b])!==JSON.stringify(S.students[b]||{list:{}})) await save('students/'+b,docs[b]); } window._contactsFill=null; closeModal(); toast('已填上 Bukku code'); }
+// ---- invoice numbers: the system writes the real number (Bukku is not asked to number them), so a payment can name the invoice it pays ----
+function usedNumbers(){ const a=[]; for(const d of Object.values(S.hqbills||{})){ if(d.kind==='fee') Object.values(d.nums||{}).forEach(n=>a.push(n)); else if(d.kind==='fast') (d.items||[]).forEach(i=>{ if(i.invNo) a.push(i.invNo); }); else (d.lines||[]).forEach(l=>{ if(l.invNo) a.push(l.invNo); }); } return a; }
+function nextStart(prefix){ let mx=0; usedNumbers().forEach(n=>{ n=String(n); if(n.startsWith(prefix)){ const t=parseInt(n.slice(prefix.length),10); if(t>mx) mx=t; } }); return mx+1; }
+const padNo=n=>String(n).padStart(3,'0');
+function needByPrefix(prefixes,existing){ const need={}; prefixes.forEach((p,i)=>{ if(!existing[i]) need[p]=(need[p]||0)+1; }); return need; }
+function assignNumbers(prefixes,existing,starts){ const next=Object.assign({},starts); return prefixes.map((pre,i)=>{ if(existing[i]) return existing[i]; const n=next[pre]||nextStart(pre); next[pre]=n+1; return pre+padNo(n); }); }
+// asks where each series starts (Bukku may already hold numbers of that series that the system never made), then goes on
+function startsGate(need,go){
+  const items=Object.entries(need); if(!items.length) return go({});
+  window._startsGo=go; window._startsPre=items.map(x=>x[0]);
+  modal(`<h3>Invoice 号码</h3><div class="small mute">系统自己编号码（写实际号码，不用 [3DIGIT]），这样导出付款时才能填上 Invoice No.。每一组从下面的号码开始往后排；如果 Bukku 里这个月已经有同一系列的号码，请改起始号码。</div>
+   ${items.map(([pre,n],i)=>`<div class="row" style="margin-top:8px"><b>${esc(pre)}</b><input id="st_${i}" type="number" min="1" value="${nextStart(pre)}" style="width:90px"><span class="small mute">${n} invoices</span></div>`).join('')}
+   <div class="row" style="margin-top:12px"><button class="b" onclick="startsConfirm()">确认并导出</button><button class="g" onclick="closeModal()">取消</button></div>`);
+}
+function startsConfirm(){ const st={}; window._startsPre.forEach((pre,i)=>{ st[pre]=Math.max(1,parseInt(document.getElementById('st_'+i).value,10)||1); }); const go=window._startsGo; closeModal(); go(st); }
+// the number of the invoice that a charge of a student stands for (monthly fee: the fee invoice of that month; or an invoice made from an HQ bill / Fast Track)
+function invNoOf(s,x){
+  if(x.key){ const [did,ix]=x.key.split('#'), d=S.hqbills[did]; if(!d) return ''; const it=(d.kind==='fast'?(d.items||[]):(d.lines||[]))[ix]; return (it&&it.invNo)||''; }
+  if(x.opening||!/^\d{4}-\d{2}$/.test(x.month||'')) return '';
+  return (((S.hqbills['FEE_'+s.branch+'_'+x.month]||{}).nums)||{})[s.uid]||'';
+}
 // the list of what was not exported goes into a small file of its own (the import file only holds invoices / payments)
 // shown instead of exporting when some invoices / receipts would be left out: fix the data first, or export the rest on purpose
 function exportGate(msg,items,okN,go){
@@ -1483,11 +1514,15 @@ function exportPayments(force){
   const bank=UI.expBank, m=UI.expMonth, kind=UI.expKind||'all', LG=ledger(); const doc=S.bank[bankDocId(bank,m)]; if(!doc) return toast('这个月没有 '+bank+' 资料');
   const c=cfg(); const tx=Object.values(doc.tx||{}).filter(t=>t.status==='auto'||t.status==='manual').sort((a,b)=>(a.date+a.time)<(b.date+b.time)?-1:1);
   const need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').length;
-  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; if(kind==='fee'&&a.invoice) continue; if(kind==='other'&&!a.invoice) continue;
+  const rows=[]; let noNo=0; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; if(kind==='fee'&&a.invoice) continue; if(kind==='other'&&!a.invoice) continue;
     const ch=a.invoice?((LG[a.uid]||{charges:[]}).charges.find(x=>x.key===a.invoice)||{}):null, what=a.invoice?'['+((ch&&ch.label)||'invoice')+'] ':'[Tuition fee] ';
-    rows.push([s.code,s.no+'-'+s.name,'OR-'+s.branch+t.date.slice(2,4)+t.date.slice(5,7)+'-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(what+t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
+    const parts=((LG._tx[t.id+'|'+a.uid])||[]).map(x=>({no:invNoOf(s,x),amt:x.amt})).filter(x=>x.no&&x.amt>0); noNo+=(parts.length?0:1);
+    const row=[s.code,s.no+'-'+s.name,'OR-'+s.branch+t.date.slice(2,4)+t.date.slice(5,7)+'-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(what+t.payer+' '+(t.ref||'')).slice(0,200),null,null];
+    if(parts.length){ row[14]=parts[0].no; row[15]=parts[0].amt; }
+    rows.push(row); parts.slice(1).forEach(x=>{ const r2x=new Array(16).fill(null); r2x[14]=x.no; r2x[15]=x.amt; rows.push(r2x); }); }
   if(need&&!force) return exportGate(need+' 笔待处理的银行入账还没有配对，不会导出，会少开 receipt。',Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').map(t=>t.date+' '+t.payer+' RM '+money(t.amount)),rows.length,'exportPayments(true)');
   if(!rows.length) return toast('没有可以导出的入账');
+  if(noNo) toast(noNo+' 笔入账没有找到对应的 Invoice No.（旧的期初欠款，或那张 invoice 不是系统开的），这几笔的 Invoice No. 留空',7000);
   bukkuFile('payment',rows,`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}${kind==='fee'?'-Tuition':kind==='other'?'-Other':''}.xlsx`);
 }
 function exportOnly(){

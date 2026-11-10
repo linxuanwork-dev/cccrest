@@ -16,4 +16,8 @@ module.exports = {
   '全部入账': ['All receipts', 'Semua terimaan'],
   '只学费': ['Tuition only', 'Yuran sahaja'],
   '只注册 / 模块 / 其他': ['Registration / module / other only', 'Pendaftaran / modul / lain-lain sahaja'],
+  'Invoice 号码': ['Invoice numbers', 'Nombor invois'],
+  '系统自己编号码（写实际号码，不用 [3DIGIT]），这样导出付款时才能填上 Invoice No.。每一组从下面的号码开始往后排；如果 Bukku 里这个月已经有同一系列的号码，请改起始号码。': ['The system makes the numbers itself (real numbers, not [3DIGIT]), so that the payment export can fill in the Invoice No. Each series is numbered from the number below; if Bukku already holds numbers of the same series for this month, change the starting number.', 'Sistem membuat nombor sendiri (nombor sebenar, bukan [3DIGIT]) supaya eksport bayaran dapat mengisi No. Invois. Setiap siri dinomborkan dari nombor di bawah; jika Bukku sudah ada nombor siri yang sama bulan ini, tukar nombor permulaan.'],
+  '确认并导出': ['Confirm and export', 'Sahkan dan eksport'],
+  '笔入账没有找到对应的 Invoice No.（旧的期初欠款，或那张 invoice 不是系统开的），这几笔的 Invoice No. 留空': [' receipts have no matching Invoice No. (old opening balances, or the invoice was not made by the system); their Invoice No. is left empty', ' terimaan tiada No. Invois yang sepadan (baki awal lama, atau invois bukan dibuat oleh sistem); No. Invois dibiarkan kosong'],
 };

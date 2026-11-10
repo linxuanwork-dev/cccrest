@@ -176,6 +176,8 @@ function matchTx(state, tx, pool, paidSet){
   if(rule && rule.length && rule.every(u=>byUid[u])){
     return {status:'auto', how:'已记住的付款人', alloc:splitAlloc(rule.map(u=>byUid[u]),amt,feeOf), sugg:rule};
   }
+  // the invoices made by the system (HQ bill lines with a client, Fast Track) whose price is exactly this payment
+  const extraHits=uids=>{ const out=[]; for(const [did,d] of Object.entries(state.hqbills||{})){ if(!d.exportedAt) continue; if(d.kind==='fast'){ (d.items||[]).forEach((it,ix)=>{ if(it.uid&&uids.includes(it.uid)&&Math.abs(+it.price-amt)<0.01) out.push({uid:it.uid,key:did+'#'+ix}); }); } else if(d.kind!=='fee'){ (d.lines||[]).forEach((l,ix)=>{ if(l.uid&&!l.skip&&uids.includes(l.uid)&&Math.abs((+l.price||0)*(l.qty||1)-amt)<0.01) out.push({uid:l.uid,key:did+'#'+ix}); }); } } return out; };
   const refT=toks(tx.ref);
   let fam=[], how='';
   const ruleFam = state.rules && state.rules.payer && state.rules.payer[p];
@@ -191,6 +193,7 @@ function matchTx(state, tx, pool, paidSet){
   }
   if(!fam.length) return {status:'unmatched', how:'找不到', alloc:[], sugg:[]};
   const active=fam.filter(s=>s.status==='Active'); if(active.length) fam=active;
+  if(fam.length===1 && Math.abs(feeOf(fam[0])-amt)>=0.01){ const eh=extraHits([fam[0].uid]); if(eh.length===1) return {status:'auto', how: how+'+单', alloc:[{uid:fam[0].uid,amt,invoice:eh[0].key}], sugg:[fam[0].uid]}; }
   if(fam.length===1 && how!=='备注里的学生名') return {status:'auto', how, alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]};
   if(fam.length===1) return {status: how==='备注里的学生名'?(Math.abs(feeOf(fam[0])-amt)<0.01?'auto':'review'):'auto', how, alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]};
   // several kids: choose by amount
@@ -203,9 +206,7 @@ function matchTx(state, tx, pool, paidSet){
     const pick=cs[0];
     return {status: unique?'auto':'review', how: how+'+金额'+(mult>1?'（'+mult+'个月）':''), alloc:pick.map(s=>({uid:s.uid,amt:r2(feeOf(s)*mult)})), sugg:fam.map(s=>s.uid)};
   }
-  // the amount of one invoice made by the system (registration, module, jersey ...) of one of the children
-  const inv=[]; for(const d of Object.values(state.hqbills||{})){ if(!d.exportedAt) continue; if(d.kind==='fast'){ (d.items||[]).forEach(it=>{ if(it.uid&&Math.abs(+it.price-amt)<0.01&&fam.some(s=>s.uid===it.uid)) inv.push(it.uid); }); } else if(d.kind!=='fee'){ (d.lines||[]).forEach(l=>{ if(l.uid&&!l.skip&&Math.abs((+l.price||0)*(l.qty||1)-amt)<0.01&&fam.some(s=>s.uid===l.uid)) inv.push(l.uid); }); } }
-  const invU=[...new Set(inv)]; if(invU.length===1) return {status:'auto', how: how+'+单', alloc:[{uid:invU[0],amt}], sugg:fam.map(s=>s.uid)};
+  const invHits=extraHits(fam.map(x=>x.uid)); const invU=[...new Set(invHits.map(h=>h.uid))]; if(invU.length===1) return {status:'auto', how: how+'+单', alloc:[{uid:invU[0],amt,invoice:invHits[0].key}], sugg:fam.map(s=>s.uid)};
   // amount doesn't fit any combination: suggest by name in ref
   const named=fam.filter(s=>nameScore(refT,s.name)>=1);
   const pick=named.length?named:fam;
@@ -231,15 +232,15 @@ function buildLedger(state){
   for(const r of months){ for(const ln of r.lines||[]){ if(!ln.uid) continue; const s=findStu(state,ln.uid);
       get(ln.uid).charges.push({month:r.month, branch:r.branch, amount:feeFor(state,ln,s), deadline:r.month>=((state.config&&state.config.ruleStart)||'2026-10')?deadlineOf(r.month):null, line:ln}); } }
   // invoices made by the system (HQ bill lines with a client, Fast Track from MT Claims) are charges of the student once exported
-  for(const d of Object.values(state.hqbills||{})){ if(!d.exportedAt) continue; const mo=String(d.date||'').slice(0,7);
-    if(d.kind==='fast'){ for(const it of d.items||[]) if(it.uid&&+it.price>0) get(it.uid).charges.push({month:mo,branch:d.branch,amount:+it.price,deadline:null,line:null,extra:true,label:it.prod,date:d.date}); }
-    else if(d.kind!=='fee'){ for(const l of d.lines||[]){ if(!l.uid||l.skip||!['registration','seasonal','module','jersey','reactive','other'].includes(l.kind)) continue; const amt=r2((+l.price||0)*(l.qty||1));
-      if(amt>0) get(l.uid).charges.push({month:mo,branch:d.branch,amount:amt,deadline:null,line:null,extra:true,label:l.kind+(l.module?' '+l.module:l.jersey?' '+l.jersey:''),date:d.date}); } } }
+  for(const [did,d] of Object.entries(state.hqbills||{})){ if(!d.exportedAt) continue; const mo=String(d.date||'').slice(0,7);
+    if(d.kind==='fast'){ (d.items||[]).forEach((it,ix)=>{ if(it.uid&&+it.price>0) get(it.uid).charges.push({month:mo,branch:d.branch,amount:+it.price,deadline:null,line:null,extra:true,key:did+'#'+ix,label:it.prod,date:d.date}); }); }
+    else if(d.kind!=='fee'){ (d.lines||[]).forEach((l,ix)=>{ if(!l.uid||l.skip||!['registration','seasonal','module','jersey','reactive','other'].includes(l.kind)) return; const amt=r2((+l.price||0)*(l.qty||1));
+      if(amt>0) get(l.uid).charges.push({month:mo,branch:d.branch,amount:amt,deadline:null,line:null,extra:true,key:did+'#'+ix,label:l.kind+(l.module?' '+l.module:l.jersey?' '+l.jersey:''),date:d.date}); }); } }
   for(const uid in L) L[uid].charges.sort((a,b)=>(a.opening?0:1)-(b.opening?0:1)||(a.month<b.month?-1:a.month>b.month?1:0)||(a.extra?1:0)-(b.extra?1:0));
   for(const bm of Object.values(state.bank||{})) for(const t of Object.values(bm.tx||{})){
     if(t.status==='ignore'||t.status==='unmatched') continue;
     if(t.status==='review') continue; // not confirmed yet
-    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:monthHint(t.ref,t.date),explicit:Array.isArray(a.months)});
+    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:monthHint(t.ref,t.date),explicit:Array.isArray(a.months),inv:a.invoice||null});
   }
   const tuitionFirst = state.config && state.config.payOrder==='tuitionFirst';
   for(const uid in L){ const e=L[uid];
@@ -247,14 +248,16 @@ function buildLedger(state){
     e.payments.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
     for(const c of e.charges){ c.paid=0; c.paidDate=null; c.cov=[]; }
     for(const p of e.payments){ p.rem=p.amt; p.applied=[]; }
-    const firstMonth=(e.charges.find(c=>!c.opening)||{}).month;
-    const apply=(p,c)=>{ const need=r2(c.amount-c.paid); if(need<=0.001||p.rem<=0.001) return; const take=Math.min(need,p.rem); p.rem=r2(p.rem-take); c.paid=r2(c.paid+take); c.cov.push({txid:p.txid,date:p.date,amt:r2(take)}); p.applied.push({month:c.month,amt:r2(take)}); if(c.amount-c.paid<=0.001) c.paidDate=p.date; };
-    // phase 1: payments that say which month they are for
-    for(const p of e.payments){ for(const m of (p.months||[])){ let c=e.charges.find(x=>x.month===m);
+    const firstMonth=(e.charges.find(c=>!c.opening&&!c.extra)||{}).month;
+    const apply=(p,c)=>{ const need=r2(c.amount-c.paid); if(need<=0.001||p.rem<=0.001) return; const take=Math.min(need,p.rem); p.rem=r2(p.rem-take); c.paid=r2(c.paid+take); c.cov.push({txid:p.txid,date:p.date,amt:r2(take)}); p.applied.push({month:c.month,label:c.label||'',amt:r2(take)}); if(c.amount-c.paid<=0.001) c.paidDate=p.date; };
+    // phase 0: payments for an invoice made by the system (registration, module ...): that invoice, then the other such invoices; never the monthly fee
+    for(const p of e.payments){ if(!p.inv) continue; const c=e.charges.find(x=>x.extra&&x.key===p.inv); if(c) apply(p,c); for(const c2 of e.charges){ if(p.rem<=0.001) break; if(c2.extra) apply(p,c2); } }
+    // phase 1: payments that say which month they are for (monthly fee / opening balance only)
+    for(const p of e.payments){ if(p.inv) continue; for(const m of (p.months||[])){ let c=e.charges.find(x=>!x.extra&&x.month===m);
         if(!c && (!firstMonth || m<firstMonth)) c=e.charges.find(x=>x.opening);
         if(c) apply(p,c); } }
-    // phase 2: the rest, oldest charge first
-    for(const p of e.payments){ for(const c of e.charges){ if(p.rem<=0.001) break; apply(p,c); } }
+    // phase 2: the rest, oldest charge first (monthly fee / opening balance only)
+    for(const p of e.payments){ if(p.inv) continue; for(const c of e.charges){ if(p.rem<=0.001) break; if(!c.extra) apply(p,c); } }
     for(const c of e.charges){ if(c.amount<=0){ c.paidDate=c.opening?null:'n/a'; } else if(c.paidDate){ c.paidDate=c.cov.reduce((a,x)=>x.date>a?x.date:a,''); } }
     e.credit=r2(e.payments.reduce((a,p)=>a+p.rem,0));
     for(const p of e.payments){ if(p.txid!=='opening') L._tx[p.txid+'|'+uid]=p.applied; }
@@ -774,13 +777,13 @@ function vBank(){
    <td><button class="${t.status==='review'||t.status==='unmatched'?'b':'g'}" onclick="openTx('${doc?bankDocId(bank,m):''}','${t.id}')">${t.status==='review'||t.status==='unmatched'?'处理':'改'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="mute">没有</td></tr>'}
   </table></div></div>`;
 }
-function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return ''; const parts=ap.map(x=>(x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
+function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return ''; const parts=ap.map(x=>(x.label?x.label:x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
 function monthOpts(uid,cur,LG){ LG=LG||ledger(); const ch=(LG[uid]||{charges:[]}).charges;
   const opts=[['hint','自动（看备注写的月份，没写就先还最旧的）'],['auto','自动（先还最旧的）']];
-  for(const c of ch) opts.push([c.opening?'期初':c.month, (c.opening?'期初 / 以前的欠款':c.month)+'（应付 '+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'）']);
+  for(const c of ch){ if(c.extra) opts.push(['inv|'+c.key,'单：'+c.month+' '+c.label+'（'+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'；不算 allowance）']); else opts.push([c.opening?'期初':c.month, (c.opening?'期初 / 以前的欠款':c.month)+'（应付 '+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'）']); }
   if(cur&&!opts.some(o=>o[0]===cur)) opts.push([cur,cur+'（这个月没有应付）']);
   return opts.map(([v,l])=>`<option value="${v}" ${v===cur?'selected':''}>${l}</option>`).join(''); }
-function monKey(a){ return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]):'auto'; }
+function monKey(a){ if(a.invoice) return 'inv|'+a.invoice; return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]):'auto'; }
 function monVal(k){ return k==='hint'?undefined:k==='auto'?[]:[k==='期初'?'0000-00':k]; }
 function txTag(t){ return {auto:'<span class="tag ok">自动</span>',manual:'<span class="tag info">已确认</span>',review:'<span class="tag warn">待确认</span>',unmatched:'<span class="tag bad">找不到</span>',ignore:'<span class="tag grey">非学费</span>'}[t.status]||t.status; }
 function paidSetFor(month){ const s=new Set(); for(const d of Object.values(S.bank)) if(d.month===month) for(const t of Object.values(d.tx||{})) if(t.status==='auto'||t.status==='manual') (t.alloc||[]).forEach(a=>s.add(a.uid)); return s; }
@@ -810,7 +813,7 @@ async function ingestBank(bank,rows,fname){
   for(const m of Object.keys(byMonth).sort()){
     const did=bankDocId(bank,m); const doc=JSON.parse(JSON.stringify(S.bank[did]||{bank,month:m,tx:{}})); doc.tx=doc.tx||{};
     const paid=paidSetFor(m);
-    for(const t of byMonth[m]){ const r=matchTx(S,t,pool,paid); t.status=r.status; t.how=r.how; t.alloc=r.alloc.map(a=>({uid:a.uid,amt:a.amt})); t.sugg=r.sugg; if(r.status==='auto') r.alloc.forEach(a=>paid.add(a.uid)); stat[r.status]++; doc.tx[t.id]=t; add++; }
+    for(const t of byMonth[m]){ const r=matchTx(S,t,pool,paid); t.status=r.status; t.how=r.how; t.alloc=r.alloc.map(a=>Object.assign({uid:a.uid,amt:a.amt},a.invoice?{invoice:a.invoice}:{})); t.sugg=r.sugg; if(r.status==='auto') r.alloc.forEach(a=>paid.add(a.uid)); stat[r.status]++; doc.tx[t.id]=t; add++; }
     doc.updatedAt=new Date().toISOString(); await save('bank/'+did,doc);
   }
   UI.bBank=bank; const ms=[...new Set(rows.map(r=>r.date.slice(0,7)))].sort(); if(ms.length) UI.bMonth=ms[ms.length-1]; UI.bFilter='need';
@@ -846,7 +849,7 @@ function txSearch(q){ const n=normA(q); const box=$('#txres'); if(n.length<2){ b
 async function txConfirm(){
   const {did,id,sel}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id];
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0); if(Math.abs(sum-t.amount)>=0.01 && !confirmInline()) return;
-  t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mv=monVal((UI._tx.mon||{})[uid]||'hint'); if(mv) o.months=mv; return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
+  t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mk=(UI._tx.mon||{})[uid]||'hint'; if(String(mk).startsWith('inv|')) o.invoice=String(mk).slice(4); else { const mv=monVal(mk); if(mv) o.months=mv; } return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
   await save('bank/'+did,doc);
   if($('#tx_rem')&&$('#tx_rem').checked){ const p=norm(t.payer); if(p.length>=4){ const rules=JSON.parse(JSON.stringify(S.rules)); rules.amt[p+'|'+(+t.amount).toFixed(2)]=t.alloc.map(a=>a.uid);
       const fam=new Set(rules.payer[p]||[]); t.alloc.forEach(a=>fam.add(a.uid)); rules.payer[p]=[...fam]; await save('settings/rules',rules); } }
@@ -1009,6 +1012,7 @@ function vSet(){
    <div class="small mute">{B} = branch，{MM}{YY} = 月份；[YY][MM]-[3DIGIT] 让 Bukku 自动跑号。<b>请确认 Account 和 Item Description 跟你 Bukku 里的一样。</b></div></div>
   <div class="card"><h2>导出 Bukku Sales Payment</h2><div class="row">
    <select onchange="UI.expBank=this.value">${['AFFIN','PBB'].map(x=>`<option ${x===UI.expBank?'selected':''}>${x}</option>`).join('')}</select>
+   <select onchange="UI.expKind=this.value"><option value="all" ${(UI.expKind||'all')==='all'?'selected':''}>全部入账</option><option value="fee" ${UI.expKind==='fee'?'selected':''}>只学费</option><option value="other" ${UI.expKind==='other'?'selected':''}>只注册 / 模块 / 其他</option></select>
    <input type="month" value="${UI.expMonth}" onchange="UI.expMonth=this.value"><button class="b" onclick="exportPayments()">下载 Bukku import 文件</button></div>
    <div class="small mute" style="margin-top:6px">只导出已配对（自动 / 已确认）的入账，一个学生一行。号码用 OR-[branch][YY][MM]-[3DIGIT]，让 Bukku 自动跑号。</div></div>`;
 }
@@ -1476,13 +1480,15 @@ function exportGate(msg,items,okN,go){
 function notExported(filename,title,lines){ if(lines.length) saveXlsx(filename,[[title,[[title],...lines.map(x=>[x])]]]); }
 function dmy(d){ return d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4); }
 function exportPayments(force){
-  const bank=UI.expBank, m=UI.expMonth; const doc=S.bank[bankDocId(bank,m)]; if(!doc) return toast('这个月没有 '+bank+' 资料');
+  const bank=UI.expBank, m=UI.expMonth, kind=UI.expKind||'all', LG=ledger(); const doc=S.bank[bankDocId(bank,m)]; if(!doc) return toast('这个月没有 '+bank+' 资料');
   const c=cfg(); const tx=Object.values(doc.tx||{}).filter(t=>t.status==='auto'||t.status==='manual').sort((a,b)=>(a.date+a.time)<(b.date+b.time)?-1:1);
   const need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').length;
-  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; rows.push([s.code,s.no+'-'+s.name,'OR-'+s.branch+t.date.slice(2,4)+t.date.slice(5,7)+'-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
+  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; if(kind==='fee'&&a.invoice) continue; if(kind==='other'&&!a.invoice) continue;
+    const ch=a.invoice?((LG[a.uid]||{charges:[]}).charges.find(x=>x.key===a.invoice)||{}):null, what=a.invoice?'['+((ch&&ch.label)||'invoice')+'] ':'[Tuition fee] ';
+    rows.push([s.code,s.no+'-'+s.name,'OR-'+s.branch+t.date.slice(2,4)+t.date.slice(5,7)+'-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(what+t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
   if(need&&!force) return exportGate(need+' 笔待处理的银行入账还没有配对，不会导出，会少开 receipt。',Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').map(t=>t.date+' '+t.payer+' RM '+money(t.amount)),rows.length,'exportPayments(true)');
   if(!rows.length) return toast('没有可以导出的入账');
-  bukkuFile('payment',rows,`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}.xlsx`);
+  bukkuFile('payment',rows,`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}${kind==='fee'?'-Tuition':kind==='other'?'-Other':''}.xlsx`);
 }
 function exportOnly(){
   return `<div class="card"><div class="msg warn">价目表、Allowance 设定和银行 / 发票设置只有 CC admin 可以改。导出在下面。</div></div>
@@ -1493,6 +1499,7 @@ function exportOnly(){
    <div class="small mute" style="margin-top:6px">选 branch 和月份，系统自动取这个 branch 所有 Active 学生：一个学生一张 invoice，金额 = Master 里的 package 学费。</div></div>
   <div class="card"><h2>导出 Bukku Sales Payment</h2><div class="row">
    <select onchange="UI.expBank=this.value">${['AFFIN','PBB'].map(x=>`<option ${x===UI.expBank?'selected':''}>${x}</option>`).join('')}</select>
+   <select onchange="UI.expKind=this.value"><option value="all" ${(UI.expKind||'all')==='all'?'selected':''}>全部入账</option><option value="fee" ${UI.expKind==='fee'?'selected':''}>只学费</option><option value="other" ${UI.expKind==='other'?'selected':''}>只注册 / 模块 / 其他</option></select>
    <input type="month" value="${UI.expMonth}" onchange="UI.expMonth=this.value"><button class="b" onclick="exportPayments()">下载 Bukku import 文件</button></div></div>`;
 }
 const _vSet=vSet;

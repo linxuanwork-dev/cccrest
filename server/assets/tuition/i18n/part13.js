@@ -11,4 +11,9 @@ module.exports = {
   '还没导出过': ['has not been exported yet', 'belum dieksport'],
   '位 Active 学生没开单': [' Active students not invoiced', ' murid aktif belum diinvois'],
   'Active 学生都开单了': ['All Active students are invoiced', 'Semua murid aktif telah diinvois'],
+  '单：': ['Invoice: ', 'Invois: '],
+  '；不算 allowance）': ['; not for the allowance)', '; tidak dikira untuk elaun)'],
+  '全部入账': ['All receipts', 'Semua terimaan'],
+  '只学费': ['Tuition only', 'Yuran sahaja'],
+  '只注册 / 模块 / 其他': ['Registration / module / other only', 'Pendaftaran / modul / lain-lain sahaja'],
 };

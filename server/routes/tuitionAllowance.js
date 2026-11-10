@@ -188,7 +188,7 @@ router.post(BASE + '/hq-purchase', ...guard(2), async (req, res) => {
   )).rows[0];
   if (!sup) return bad(res, '找不到供应商 QC GROUP。 Supplier QC GROUP not found.');
   const account = String(b.account || sup.account || st.account || '').trim().slice(0, 20);
-  const lines = b.lines.map((l) => ({ desc: String((l && l.desc) || '').trim().toUpperCase().slice(0, 200), account, qty: Number(l && l.qty) > 0 ? Number(l.qty) : 1, price: Number(l && l.price) || 0, tax: '' }));
+  const lines = b.lines.map((l) => ({ desc: String((l && l.desc) || '').trim().toUpperCase().slice(0, 200), account: String((l && l.account) || account).trim().slice(0, 20), qty: Number(l && l.qty) > 0 ? Number(l.qty) : 1, price: Number(l && l.price) || 0, tax: '' }));
   if (lines.some((l) => !l.desc || l.price < 0)) return bad(res, 'Invalid request');
   const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
   const supplier = String(sup.name).toUpperCase().replace(/\s+/g, ' ').trim(), tags = String(b.branch || '').slice(0, 20);

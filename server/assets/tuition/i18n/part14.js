@@ -13,4 +13,8 @@ module.exports = {
   'HQ 采购单': ['HQ purchase bills', 'Bil belian HQ'],
   '采购的 Account 代码': ['Purchases Account code', 'Kod Akaun belian'],
   'HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Account 空着 = 用 Purchases Bill 设置里的默认。': ['After an HQ bill is uploaded, a purchase bill draft is created on the “Purchases Bill” page automatically, supplier QC GROUP SDN BHD (C-Q0001). Empty Account = the default of the Purchases Bill settings.', 'Selepas bil HQ dimuat naik, draf bil belian dijana secara automatik di halaman “Purchases Bill”, pembekal QC GROUP SDN BHD (C-Q0001). Akaun kosong = lalai tetapan Purchases Bill.'],
+  '注册（PENDAFTARAN）Account': ['Registration (PENDAFTARAN) Account', 'Akaun Pendaftaran (PENDAFTARAN)'],
+  '模块 Account': ['Module Account', 'Akaun Modul'],
+  'Jersi / Fast Track / 其他 Account': ['Jersey / Fast Track / other Account', 'Akaun Jersi / Fast Track / lain-lain'],
+  'HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Bukku：6000 Purchases-Registration、6001 Purchases-Module、6002 Purchases-Other。': ['After an HQ bill is uploaded, a purchase bill draft is created on the “Purchases Bill” page automatically, supplier QC GROUP SDN BHD (C-Q0001). Bukku: 6000 Purchases-Registration, 6001 Purchases-Module, 6002 Purchases-Other.', 'Selepas bil HQ dimuat naik, draf bil belian dijana secara automatik di halaman “Purchases Bill”, pembekal QC GROUP SDN BHD (C-Q0001). Bukku: 6000 Purchases-Registration, 6001 Purchases-Module, 6002 Purchases-Other.'],
 };

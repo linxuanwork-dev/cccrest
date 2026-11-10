@@ -203,6 +203,9 @@ function matchTx(state, tx, pool, paidSet){
     const pick=cs[0];
     return {status: unique?'auto':'review', how: how+'+金额'+(mult>1?'（'+mult+'个月）':''), alloc:pick.map(s=>({uid:s.uid,amt:r2(feeOf(s)*mult)})), sugg:fam.map(s=>s.uid)};
   }
+  // the amount of one invoice made by the system (registration, module, jersey ...) of one of the children
+  const inv=[]; for(const d of Object.values(state.hqbills||{})){ if(!d.exportedAt) continue; if(d.kind==='fast'){ (d.items||[]).forEach(it=>{ if(it.uid&&Math.abs(+it.price-amt)<0.01&&fam.some(s=>s.uid===it.uid)) inv.push(it.uid); }); } else if(d.kind!=='fee'){ (d.lines||[]).forEach(l=>{ if(l.uid&&!l.skip&&Math.abs((+l.price||0)*(l.qty||1)-amt)<0.01&&fam.some(s=>s.uid===l.uid)) inv.push(l.uid); }); } }
+  const invU=[...new Set(inv)]; if(invU.length===1) return {status:'auto', how: how+'+单', alloc:[{uid:invU[0],amt}], sugg:fam.map(s=>s.uid)};
   // amount doesn't fit any combination: suggest by name in ref
   const named=fam.filter(s=>nameScore(refT,s.name)>=1);
   const pick=named.length?named:fam;
@@ -227,6 +230,12 @@ function buildLedger(state){
   const months=Object.values(state.rosters||{}).filter(r=>r.confirmed).sort((a,b)=>a.month<b.month?-1:1);
   for(const r of months){ for(const ln of r.lines||[]){ if(!ln.uid) continue; const s=findStu(state,ln.uid);
       get(ln.uid).charges.push({month:r.month, branch:r.branch, amount:feeFor(state,ln,s), deadline:r.month>=((state.config&&state.config.ruleStart)||'2026-10')?deadlineOf(r.month):null, line:ln}); } }
+  // invoices made by the system (HQ bill lines with a client, Fast Track from MT Claims) are charges of the student once exported
+  for(const d of Object.values(state.hqbills||{})){ if(!d.exportedAt) continue; const mo=String(d.date||'').slice(0,7);
+    if(d.kind==='fast'){ for(const it of d.items||[]) if(it.uid&&+it.price>0) get(it.uid).charges.push({month:mo,branch:d.branch,amount:+it.price,deadline:null,line:null,extra:true,label:it.prod,date:d.date}); }
+    else if(d.kind!=='fee'){ for(const l of d.lines||[]){ if(!l.uid||l.skip||!['registration','seasonal','module','jersey','reactive','other'].includes(l.kind)) continue; const amt=r2((+l.price||0)*(l.qty||1));
+      if(amt>0) get(l.uid).charges.push({month:mo,branch:d.branch,amount:amt,deadline:null,line:null,extra:true,label:l.kind+(l.module?' '+l.module:l.jersey?' '+l.jersey:''),date:d.date}); } } }
+  for(const uid in L) L[uid].charges.sort((a,b)=>(a.opening?0:1)-(b.opening?0:1)||(a.month<b.month?-1:a.month>b.month?1:0)||(a.extra?1:0)-(b.extra?1:0));
   for(const bm of Object.values(state.bank||{})) for(const t of Object.values(bm.tx||{})){
     if(t.status==='ignore'||t.status==='unmatched') continue;
     if(t.status==='review') continue; // not confirmed yet
@@ -262,7 +271,7 @@ function outstanding(state, L, today){
     for(const c of L[uid].charges){ const owe=r2(c.amount-c.paid); if(owe<=0.001) continue;
       const late = c.deadline && today>c.deadline;
       const daysLeft = c.deadline? Math.round((new Date(c.deadline)-new Date(today))/86400000):null;
-      rows.push({uid, s, month:c.month, amount:c.amount, paid:c.paid, owe, deadline:c.deadline, late, daysLeft, mt:(c.line&&c.line.mt)||s.mt||'', branch:c.branch||s.branch}); } }
+      rows.push({uid, s, month:c.month+(c.label?' · '+c.label:''), amount:c.amount, paid:c.paid, owe, deadline:c.deadline, late, daysLeft, mt:(c.line&&c.line.mt)||s.mt||'', branch:c.branch||s.branch}); } }
   rows.sort((a,b)=>(a.branch+a.mt).localeCompare(b.branch+b.mt)||((a.daysLeft??-1e9)-(b.daysLeft??-1e9)));
   return rows;
 }
@@ -348,7 +357,7 @@ if(VIEW==='contact'){ TABS=TABS.filter(x=>x[0]==='stu'); UI.tab='stu'; } else if
 function setPageLang(l){ try{ localStorage.setItem('tfa_lang',l); }catch(e){} const q=new URLSearchParams(location.search); q.set('lang',l); location.href=location.pathname+'?'+q.toString(); }
 document.getElementById('langsw').innerHTML=[['zh','中文'],['en','EN'],['ms','BM']].map(x=>`<a href="#" onclick="setPageLang('${x[0]}');return false" style="margin-left:6px;${x[0]===(document.documentElement.lang||'zh')?'font-weight:700;color:#1d2330':'color:#6b7280'}">${x[1]}</a>`).join('');
 const HOWM=/*HOWM*/{};
-function howTxt(h){ h=String(h||''); if(!HOWM.months) return h; return h.replace(/（(\d+)个月）/g,(m,n)=>HOWM.months.replace('{n}',n)).replace(/已记住的付款人|已记住的家庭|父母名字|备注里的学生名|找不到|手动确认|\+金额|（金额对不上）/g,m=>HOWM[m]||m); }
+function howTxt(h){ h=String(h||''); if(!HOWM.months) return h; return h.replace(/（(\d+)个月）/g,(m,n)=>HOWM.months.replace('{n}',n)).replace(/已记住的付款人|已记住的家庭|父母名字|备注里的学生名|找不到|手动确认|\+金额|\+单|（金额对不上）/g,m=>HOWM[m]||m); }
 const API='/api/companies/'+encodeURIComponent(CID)+'/tuition';
 const COLLS=['students','settings','rosters','bank','claims','hqbills'];
 const memo={students:{},settings:{},rosters:{},bank:{},claims:{},hqbills:{}}, subs={students:[],settings:[],rosters:[],bank:[],claims:[],hqbills:[]};
@@ -853,7 +862,7 @@ function stmt(uid){ const s=findStu(S,uid); if(!s) return; const LG=ledger(); co
    <div class="small mute">父母：${(s.parents||[]).map(esc).join(' / ')||'—'}</div>
    ${e.charges.some(c=>!c.opening)?'':'<div class="msg warn">这个学生还没有在任何已确认的老师名单里，所以只有期初欠款。</div>'}
    <h3>应付</h3><table><tr><th>月份</th><th class="n">应付</th><th class="n">已付</th><th class="n">欠</th><th>付清日期</th><th>期限</th></tr>
-   ${e.charges.map(c=>`<tr><td>${c.month}</td><td class="n">${money(c.amount)}</td><td class="n">${money(c.paid)}</td><td class="n">${c.amount-c.paid>0.001?'<b>'+money(c.amount-c.paid)+'</b>':''}</td><td>${c.paidDate&&c.paidDate!=='n/a'?c.paidDate:''}${c.paidDate&&c.deadline&&c.paidDate>c.deadline?' <span class="tag bad">过期才付</span>':''}</td><td>${c.deadline||''}</td></tr>`).join('')||'<tr><td colspan="6" class="mute">没有</td></tr>'}</table>
+   ${e.charges.map(c=>`<tr><td>${c.month}${c.label?' · '+esc(c.label):''}</td><td class="n">${money(c.amount)}</td><td class="n">${money(c.paid)}</td><td class="n">${c.amount-c.paid>0.001?'<b>'+money(c.amount-c.paid)+'</b>':''}</td><td>${c.paidDate&&c.paidDate!=='n/a'?c.paidDate:''}${c.paidDate&&c.deadline&&c.paidDate>c.deadline?' <span class="tag bad">过期才付</span>':''}</td><td>${c.deadline||''}</td></tr>`).join('')||'<tr><td colspan="6" class="mute">没有</td></tr>'}</table>
    <h3>付款 <span class="small mute">（可以改「付哪个月」，改了马上重算）</span></h3><table><tr><th>日期</th><th>付款人 / 备注</th><th class="n">金额</th><th>算在</th><th>付哪个月</th></tr>
    ${e.payments.map(p=>{ if(p.txid==='opening') return `<tr><td>—</td><td>期初预付</td><td class="n">${money(p.amt)}</td><td>${(p.applied||[]).map(x=>x.month).join(', ')}</td><td></td></tr>`; const [did,t]=txOf[p.txid]||[]; const al=t&&t.alloc.find(x=>x.uid===uid);
      return `<tr><td>${p.date}</td><td class="small">${esc(t?t.payer:'')}<br>${esc(t?t.ref:'')}</td><td class="n">${money(p.amt)}</td><td>${(p.applied||[]).map(x=>x.month+(p.applied.length>1?' '+money(x.amt):'')).join('<br>')||'—'}</td>
@@ -991,8 +1000,9 @@ function vSet(){
   <div class="card"><h2>银行设置</h2><table style="max-width:720px"><tr><th>银行</th><th>哪些 branch</th><th>Bukku Payment Method</th><th>Bukku Deposit Account</th></tr>
    ${['AFFIN','PBB'].map(b=>`<tr><td>${b}</td><td><input value="${esc(c.bankBranches[b].join(','))}" onchange="cfgSet('bankBranches','${b}',this.value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))"></td><td><input value="${esc(c.payMethod[b])}" onchange="cfgSet('payMethod','${b}',this.value)"></td><td><input value="${esc(c.deposit[b])}" onchange="cfgSet('deposit','${b}',this.value)"></td></tr>`).join('')}</table></div>
   <div class="card"><h2>导出 Bukku Sales Invoice（每月学费）</h2><div class="row">
-   <select onchange="UI.invBranch=this.value">${brOpts(UI.invBranch||'BBU')}</select>
-   <input type="month" value="${UI.invMonth||UI.expMonth}" onchange="UI.invMonth=this.value"><button class="b" onclick="exportInvoices()">下载 Bukku import 文件</button></div>
+   <select onchange="UI.invBranch=this.value;render()">${brOpts(UI.invBranch||'BBU')}</select>
+   <input type="month" value="${UI.invMonth||UI.expMonth}" onchange="UI.invMonth=this.value;render()"><button class="b" onclick="exportInvoices()">下载 Bukku import 文件</button></div>
+   ${feeStatusLine(UI.invBranch||'BBU',UI.invMonth||UI.expMonth)}
    <div class="small mute" style="margin:6px 0">选 branch 和月份，系统自动取这个 branch 所有 Active 学生：一个学生一张 invoice，金额 = Master 里的 package 学费，日期 = 那个月 1 号。学费是 0 或没有 Bukku code 的学生会列出来，不会导出；跟老师名单不一样的也会列出来。</div>
    <table style="max-width:820px"><tr><th>号码格式</th><th>Account</th><th>Item Description</th><th>Product</th><th>Tax</th></tr>
    <tr><td><input value="${esc(c.inv.number)}" onchange="cfgInv('number',this.value)" style="width:220px"></td><td><input value="${esc(c.inv.account)}" onchange="cfgInv('account',this.value)" style="width:90px"></td><td><input value="${esc(c.inv.desc)}" onchange="cfgInv('desc',this.value)" style="width:220px"></td><td><input value="${esc(c.inv.product)}" onchange="cfgInv('product',this.value)" style="width:110px"></td><td><input value="${esc(c.inv.tax)}" onchange="cfgInv('tax',this.value)" style="width:60px"></td></tr></table>
@@ -1168,7 +1178,7 @@ function hqLineFrom(it,b){
   const stu=l.uid?findStu(S,l.uid):null; l.price=hqPrice(l,stu,hqCfg()).p; return l;
 }
 function vHq(){
-  const bills=Object.entries(S.hqbills||{}).map(([id,d])=>Object.assign({id},d)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const bills=Object.entries(S.hqbills||{}).filter(([id,d])=>!d.kind).map(([id,d])=>Object.assign({id},d)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const stock=hqStock();
   return `<div class="card"><h2>HQ 进货单</h2><div class="small mute">上传 QC GROUP 开给 branch 的单（PDF）。有 klien 名字的行（注册、模块、Jersi、Reactive、Seasonal）自动开 invoice 给 klien，金额用「设置」里的售价表，日期用 HQ 单的日期；Fast Track 没有 klien，只记库存。</div>
    <div class="row" style="margin:8px 0"><label class="g" style="padding:6px 12px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">上传 HQ 单 PDF<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="hqUpload(this)"></label>
@@ -1277,13 +1287,16 @@ function hqFastLines(b,m){
     out.push({s,name:l.name,mt:c.mt,prod:p,price,bad}); }
   return out;
 }
-function hqFastExport(force){
+function hqFastExport(force,again){
   const b=UI.hqFB||'BBU', m=UI.hqFM||addMonths(today().slice(0,7),-1), Y=m.slice(0,4), M=m.slice(5,7), dt=lastDay(m).slice(8,10)+'/'+M+'/'+Y;
   const lines=hqFastLines(b,m), ok=lines.filter(x=>!x.bad), bad=lines.filter(x=>x.bad).map(x=>x.name+' / '+x.prod+'：'+x.bad);
   const rows=ok.map(x=>[x.s.code,x.s.no+'-'+x.s.name,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,null,HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null,null,null]);
-  if(bad.length&&!force) return exportGate(bad.length+' 行不会开单。',bad,rows.length,'hqFastExport(true)');
+  const frec=S.hqbills['FAST_'+b+'_'+m];
+  if(frec&&!again&&rows.length) return modal(`<h3>这个月已经导出过了</h3><div class="msg warn">${b} ${m} 的 Fast Track invoice 在 ${esc(frec.exportedAt)} 导出过 ${(frec.items||[]).length} 张。再导出一次，Bukku 会重复开单。</div><div class="row" style="margin-top:12px"><button class="g" onclick="closeModal();hqFastExport(${force?'true':'false'},true)">仍然导出（会重复开单）</button><button class="b" onclick="closeModal()">取消</button></div>`);
+  if(bad.length&&!force) return exportGate(bad.length+' 行不会开单。',bad,rows.length,'hqFastExport(true,'+(again?'true':'false')+')');
   if(!rows.length) return toast('没有可以导出的');
   bukkuFile('invoice',rows,`DM-Bukku-Sales Invoice-${b}-${Y}_${M}-Fast Track.xlsx`);
+  save('hqbills/FAST_'+b+'_'+m,{kind:'fast',branch:b,month:m,date:m+'-'+dt.slice(0,2),exportedAt:today(),items:ok.map(x=>({uid:x.s.uid,prod:x.prod,price:x.price}))});
   notExported(`DM-Bukku-Sales Invoice-${b}-${Y}_${M}-Fast Track-没有导出.xlsx`,'没有导出',bad);
   if(bad.length) toast(bad.length+' 行没有导出（清单在另一个小 Excel 里）',5000);
 }
@@ -1370,21 +1383,26 @@ async function cfgInv(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.inv[k]=
 function pkgOnMonth(s,m){ let p=s.pkg||''; (s.changes||[]).slice().sort((a,c)=>a.from<c.from?-1:1).forEach(c=>{ if(c.from<=m&&c.pkg) p=c.pkg; }); return p; }
 // Active students of a branch that owe the fee of month m (not yet started / stopped / transferred ones do not)
 function feeStudents(b,m){ return stuList(b).filter(s=>s.status==='Active'&&(!s.startMonth||s.startMonth<=m)&&(!s.enrolled||String(s.enrolled).slice(0,7)<=m)).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true})); }
-function exportInvoices(force){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
+function exportInvoices(force,mode){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
   const c=cfg().inv; const mm=m.slice(5,7), yy=m.slice(2,4); const fill=(s,pkg)=>String(s||'').replace(/\{B\}|\[B\]|\[BRANCH\]/g,b).replace(/\{MM\}|\[MM\]/g,mm).replace(/\{YY\}|\[YY\]/g,yy).replace(/\[YYYY\]/g,m.slice(0,4)).replace(/\[PACKAGE\]/g,pkg||'');
-  const date='01/'+mm+'/'+m.slice(0,4); const rows=[], bad=[]; const act=feeStudents(b,m);
+  const date='01/'+mm+'/'+m.slice(0,4); const rows=[], bad=[], uidOf=[]; const act=feeStudents(b,m);
   if(!act.length) return toast(b+' '+m+' 没有 Active 学生');
   for(const s of act){ const pkg=pkgOnMonth(s,m), fee=feeFor(S,{pkg},s);
     if(!(fee>0)){ bad.push(s.no+' '+s.name+'：package '+(pkg||'（没有）')+' 没有学费'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; }
-    rows.push([s.code,s.no+'-'+s.name,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc,pkg)+(/\[PACKAGE\]/.test(c.desc||'')?'':' - '+s.no+' '+s.name+' ('+pkg+')'),1,null,null,fee,null,c.tax||null,null,null]); }
+    rows.push([s.code,s.no+'-'+s.name,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc,pkg)+(/\[PACKAGE\]/.test(c.desc||'')?'':' - '+s.no+' '+s.name+' ('+pkg+')'),1,null,null,fee,null,c.tax||null,null,null]); uidOf.push(s.uid); }
   // compared with the confirmed teacher roster of that month (information only)
   const ro=S.rosters[rosterId(b,m)], diff=[];
   if(ro&&ro.confirmed){ const onRo=new Set((ro.lines||[]).map(l=>l.uid)), actSet=new Set(act.map(s=>s.uid));
     act.filter(s=>!onRo.has(s.uid)).forEach(s=>diff.push(s.no+' '+s.name+'：Active，但不在这个月的老师名单里'));
     [...onRo].filter(u=>!actSet.has(u)).forEach(u=>{ const s=findStu(S,u); diff.push((s?s.no+' '+s.name:u)+'：在老师名单里，但不是 Active（或还没开始上课）'); }); }
-  if((bad.length||diff.length)&&!force) return exportGate((bad.length?bad.length+' 个学生不会开单（没有 Bukku code，或学费是 0）。':'')+(diff.length?diff.length+' 个学生跟这个月的老师名单不一样。':''),bad.concat(diff),rows.length,'exportInvoices(true)');
+  const rec=S.hqbills['FEE_'+b+'_'+m];
+  if(rec&&!mode&&rows.length){ const fresh=uidOf.filter(u=>!(rec.uids||[]).includes(u)).length;
+    return modal(`<h3>这个月已经导出过了</h3><div class="msg warn">${b} ${m} 的学费 invoice 在 ${esc(rec.exportedAt)} 导出过 ${(rec.uids||[]).length} 张。再导出一次，Bukku 会重复开单。</div><div class="row" style="margin-top:12px"><button class="b" onclick="closeModal();exportInvoices(false,'new')" ${fresh?'':'disabled'}>只导出还没开单的（${fresh}）</button><button class="g" onclick="closeModal();exportInvoices(false,'all')">全部重新导出（会重复开单）</button><button class="g" onclick="closeModal()">取消</button></div>`); }
+  if(mode==='new'){ const keep=uidOf.map(u=>!(rec&&(rec.uids||[]).includes(u))); for(let i=rows.length-1;i>=0;i--) if(!keep[i]){ rows.splice(i,1); uidOf.splice(i,1); } if(!rows.length) return toast('没有还没开单的学生'); }
+  if((bad.length||diff.length)&&!force) return exportGate((bad.length?bad.length+' 个学生不会开单（没有 Bukku code，或学费是 0）。':'')+(diff.length?diff.length+' 个学生跟这个月的老师名单不一样。':''),bad.concat(diff),rows.length,'exportInvoices(true,\''+(mode||'')+'\')');
   if(!rows.length) return toast('没有可以导出的学生');
   bukkuFile('invoice',rows,`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}.xlsx`);
+  save('hqbills/FEE_'+b+'_'+m,{kind:'fee',branch:b,month:m,exportedAt:today(),uids:(mode==='new'&&rec?(rec.uids||[]):[]).concat(uidOf),total:r2(rows.reduce((a,x)=>a+x[18],0))});
   notExported(`DM-Bukku-Sales Invoice-${b}-${m.slice(0,4)}_${mm}-没有导出.xlsx`,'没有导出的学生',bad.concat(diff.map(x=>'（跟老师名单不一样）'+x)));
   if(bad.length) modal(`<h3>${bad.length} 个学生没有导出</h3><div class="small">${bad.map(esc).join('<br>')}</div><p class="small mute">补好资料后再导出一次（这份清单也存成另一个小 Excel 了）。</p>${diff.length?`<div class="small" style="margin-top:8px"><b>跟老师名单不一样：</b><br>${diff.map(esc).join('<br>')}</div>`:''}<button class="g" onclick="closeModal()">关闭</button>`); else if(diff.length) toast(diff.length+' 个学生跟老师名单不一样（清单在另一个小 Excel 里）',5000); }
 async function cfgSet(g,b,v){ const c=JSON.parse(JSON.stringify(cfg())); c[g][b]=v; await save('settings/config',c); toast('已保存'); }
@@ -1399,6 +1417,12 @@ async function bukkuFile(type,rows,filename){
 }
 // ---- Bukku Contacts: new students become Bukku contacts (the code is made by Bukku: [AUTO]); the Bukku Contacts list read back fills the codes ----
 function contactRow(s){ const r=new Array(44).fill(null); r[0]='[AUTO]'; r[2]=s.no+'-'+String(s.name).toUpperCase().replace(/\s+/g,' ').trim(); r[3]='Malaysian Individual'; r[14]='Yes'; r[15]='No'; r[16]='No'; r[17]='1001'; r[41]='No'; r[42]='No'; return r; }
+// what has been invoiced for a branch and month (the fee invoices made from the Active students)
+function feeStatusLine(b,m){
+  const rec=S.hqbills['FEE_'+b+'_'+m], act=feeStudents(b,m), done=new Set((rec&&rec.uids)||[]), todo=act.filter(s=>!done.has(s.uid));
+  if(!rec) return `<div class="small" style="margin-top:6px"><span class="tag warn">${b} ${m} 还没导出过</span> Active students: ${act.length}</div>`;
+  return `<div class="small" style="margin-top:6px"><span class="tag ok">已导出 ${esc(rec.exportedAt)}（${(rec.uids||[]).length} invoices）</span> ${todo.length?`<span class="tag bad">${todo.length} 位 Active 学生没开单</span> ${todo.slice(0,12).map(x=>esc(x.no)).join('、')}${todo.length>12?'…':''}`:'<span class="tag ok">Active 学生都开单了</span>'}</div>`;
+}
 function exportContacts(){
   const b=UI.branch, list=stuList(b).filter(s=>!s.code&&['Active','Registered','Deactive'].includes(s.status)).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true}));
   if(!list.length) return toast(b+' 的学生都已经有 Bukku code 了');
@@ -1463,8 +1487,9 @@ function exportPayments(force){
 function exportOnly(){
   return `<div class="card"><div class="msg warn">价目表、Allowance 设定和银行 / 发票设置只有 CC admin 可以改。导出在下面。</div></div>
   <div class="card"><h2>导出 Bukku Sales Invoice（每月学费）</h2><div class="row">
-   <select onchange="UI.invBranch=this.value">${brOpts(UI.invBranch||'BBU')}</select>
-   <input type="month" value="${UI.invMonth||UI.expMonth}" onchange="UI.invMonth=this.value"><button class="b" onclick="exportInvoices()">下载 Bukku import 文件</button></div>
+   <select onchange="UI.invBranch=this.value;render()">${brOpts(UI.invBranch||'BBU')}</select>
+   <input type="month" value="${UI.invMonth||UI.expMonth}" onchange="UI.invMonth=this.value;render()"><button class="b" onclick="exportInvoices()">下载 Bukku import 文件</button></div>
+   ${feeStatusLine(UI.invBranch||'BBU',UI.invMonth||UI.expMonth)}
    <div class="small mute" style="margin-top:6px">选 branch 和月份，系统自动取这个 branch 所有 Active 学生：一个学生一张 invoice，金额 = Master 里的 package 学费。</div></div>
   <div class="card"><h2>导出 Bukku Sales Payment</h2><div class="row">
    <select onchange="UI.expBank=this.value">${['AFFIN','PBB'].map(x=>`<option ${x===UI.expBank?'selected':''}>${x}</option>`).join('')}</select>

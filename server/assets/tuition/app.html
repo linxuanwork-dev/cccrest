@@ -240,7 +240,7 @@ function buildLedger(state){
   for(const bm of Object.values(state.bank||{})) for(const t of Object.values(bm.tx||{})){
     if(t.status==='ignore'||t.status==='unmatched') continue;
     if(t.status==='review') continue; // not confirmed yet
-    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:monthHint(t.ref,t.date),explicit:Array.isArray(a.months),inv:a.invoice||null});
+    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:((state.config&&state.config.remarkMonths==='use')?monthHint(t.ref,t.date):[]),explicit:Array.isArray(a.months),inv:a.invoice||null});
   }
   const tuitionFirst = state.config && state.config.payOrder==='tuitionFirst';
   for(const uid in L){ const e=L[uid];
@@ -779,7 +779,7 @@ function vBank(){
 }
 function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return ''; const parts=ap.map(x=>(x.label?x.label:x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
 function monthOpts(uid,cur,LG){ LG=LG||ledger(); const ch=(LG[uid]||{charges:[]}).charges;
-  const opts=[['hint','自动（看备注写的月份，没写就先还最旧的）'],['auto','自动（先还最旧的）']];
+  const opts=[['hint',(cfg().remarkMonths==='use'?'自动（看备注写的月份，没写就先还最旧的）':'自动（先还最旧的，不看备注）')],['auto','自动（先还最旧的）']];
   for(const c of ch){ if(c.extra) opts.push(['inv|'+c.key,'单：'+c.month+' '+c.label+'（'+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'；不算 allowance）']); else opts.push([c.opening?'期初':c.month, (c.opening?'期初 / 以前的欠款':c.month)+'（应付 '+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'）']); }
   if(cur&&!opts.some(o=>o[0]===cur)) opts.push([cur,cur+'（这个月没有应付）']);
   return opts.map(([v,l])=>`<option value="${v}" ${v===cur?'selected':''}>${l}</option>`).join(''); }
@@ -999,7 +999,10 @@ function vSet(){
   <div class="card"><h2>付款先还哪一笔</h2><div class="row">
    <label><input type="radio" name="po" ${c.payOrder!=='tuitionFirst'?'checked':''} onchange="cfgTop('payOrder','fifo')"> 先还旧欠款（期初 / 模块），再还每月学费 — 跟 Bukku 一样按先后</label>
    <label><input type="radio" name="po" ${c.payOrder==='tuitionFirst'?'checked':''} onchange="cfgTop('payOrder','tuitionFirst')"> 先还每月学费（allowance 先出），旧欠款最后还</label></div>
-   <div class="small mute" style="margin-top:6px">影响：哪个月份算"已付"，所以会影响 allowance 和欠款清单的月份，总欠款不变。</div></div>
+   <div class="small mute" style="margin-top:6px">影响：哪个月份算"已付"，所以会影响 allowance 和欠款清单的月份，总欠款不变。</div>
+   <h3 style="margin-top:12px">银行备注里写的月份</h3><div class="row">
+   <label><input type="radio" name="rm" ${c.remarkMonths!=='use'?'checked':''} onchange="cfgTop('remarkMonths','ignore')"> 不看备注：一律先还最旧的（家长写的备注常常不对）；要指定月份，在银行入账的处理窗口选「付哪个月」</label>
+   <label><input type="radio" name="rm" ${c.remarkMonths==='use'?'checked':''} onchange="cfgTop('remarkMonths','use')"> 备注里有月份就照备注</label></div></div>
   <div class="card"><h2>银行设置</h2><table style="max-width:720px"><tr><th>银行</th><th>哪些 branch</th><th>Bukku Payment Method</th><th>Bukku Deposit Account</th></tr>
    ${['AFFIN','PBB'].map(b=>`<tr><td>${b}</td><td><input value="${esc(c.bankBranches[b].join(','))}" onchange="cfgSet('bankBranches','${b}',this.value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))"></td><td><input value="${esc(c.payMethod[b])}" onchange="cfgSet('payMethod','${b}',this.value)"></td><td><input value="${esc(c.deposit[b])}" onchange="cfgSet('deposit','${b}',this.value)"></td></tr>`).join('')}</table></div>
   <div class="card"><h2>导出 Bukku Sales Invoice（每月学费）</h2><div class="row">

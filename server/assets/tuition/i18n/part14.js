@@ -17,4 +17,8 @@ module.exports = {
   '模块 Account': ['Module Account', 'Akaun Modul'],
   'Jersi / Fast Track / 其他 Account': ['Jersey / Fast Track / other Account', 'Akaun Jersi / Fast Track / lain-lain'],
   'HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Bukku：6000 Purchases-Registration、6001 Purchases-Module、6002 Purchases-Other。': ['After an HQ bill is uploaded, a purchase bill draft is created on the “Purchases Bill” page automatically, supplier QC GROUP SDN BHD (C-Q0001). Bukku: 6000 Purchases-Registration, 6001 Purchases-Module, 6002 Purchases-Other.', 'Selepas bil HQ dimuat naik, draf bil belian dijana secara automatik di halaman “Purchases Bill”, pembekal QC GROUP SDN BHD (C-Q0001). Bukku: 6000 Purchases-Registration, 6001 Purchases-Module, 6002 Purchases-Other.'],
+  '自动（先还最旧的，不看备注）': ['Automatic (oldest first, the remark is not read)', 'Automatik (paling lama dahulu, catatan tidak dibaca)'],
+  '银行备注里写的月份': ['Months written in the bank remark', 'Bulan yang ditulis dalam catatan bank'],
+  '不看备注：一律先还最旧的（家长写的备注常常不对）；要指定月份，在银行入账的处理窗口选「付哪个月」': ['Do not read the remark: always the oldest first (the remarks parents write are often wrong); to choose a month, use “Pays which month” in the bank handling window', 'Jangan baca catatan: sentiasa yang paling lama dahulu (catatan ibu bapa selalunya salah); untuk memilih bulan, guna “Bayar bulan mana” dalam tetingkap pengendalian bank'],
+  '备注里有月份就照备注': ['If the remark has a month, follow it', 'Jika catatan ada bulan, ikut catatan'],
 };

@@ -26,4 +26,9 @@ module.exports = {
   '已转 branch：': ['Branch changed: ', 'Cawangan ditukar: '],
   '。注意：': ['. Note: ', '. Perhatian: '],
   '还有 Active 学生的 MT 是': ['still has active students whose MT is', 'masih ada murid aktif yang MT nya ialah'],
+  '下载 Excel（学生名单）': ['Download Excel (student list)', 'Muat turun Excel (senarai murid)'],
+  '这个 branch、这个状态筛选下的学生名单': ['The student list of this branch and status filter', 'Senarai murid cawangan dan penapis status ini'],
+  '没有学生可以下载': ['No students to download', 'Tiada murid untuk dimuat turun'],
+  '下载 Excel（MT 资料）': ['Download Excel (MT details)', 'Muat turun Excel (maklumat MT)'],
+  '没有 MT 资料': ['No MT details', 'Tiada maklumat MT'],
 };

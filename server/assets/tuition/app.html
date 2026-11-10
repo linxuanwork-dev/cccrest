@@ -506,6 +506,7 @@ function vStu(){
    <span style="flex:1"></span>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">导入 master list Excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importMaster(this)"></label>
    <button class="g" title="没有 Bukku code 的学生 → Bukku Contacts import 文件" onclick="exportContacts()">导出 Bukku Contacts（新联系人）</button>
+   <button class="g" title="这个 branch、这个状态筛选下的学生名单" onclick="exportStudentsExcel()">下载 Excel（学生名单）</button>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="把 Bukku 的 Contacts 导出文件读回来，核对并填上 code">导入 Bukku Contacts（核对 / 填 code）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importContacts(this)"></label>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
@@ -1302,7 +1303,7 @@ function mtpCard(){
   const list=Object.entries(S.mtp||{}).map(([k,v])=>Object.assign({key:k},v)).filter(m=>(f==='ALL'||m.branch===f)&&(!q||norm(m.mt+m.name).includes(q))).sort((a,b)=>BRANCHES.indexOf(a.branch)-BRANCHES.indexOf(b.branch)||a.mt.localeCompare(b.mt));
   return `<div class="card"><h2>MT 资料</h2><div class="small mute">老师的银行账号和 IC 只有 manager 看得到，付 Allowance 时对照用。在职的 MT 会出现在学生 / 老师名单的 MT 选项里。</div>
    <div class="row" style="margin:8px 0"><select onchange="UI.mtpB=this.value;render()"><option value="ALL">全部 branch</option>${BRANCHES.map(x=>`<option ${x===f?'selected':''}>${x}</option>`).join('')}</select>
-   <input placeholder="搜 MT / 姓名" value="${esc(UI.mtpQ||'')}" oninput="UI.mtpQ=this.value;render()" style="width:200px"><button class="b" onclick="mtpEdit(null)">＋ 新增 MT</button></div>
+   <input placeholder="搜 MT / 姓名" value="${esc(UI.mtpQ||'')}" oninput="UI.mtpQ=this.value;render()" style="width:200px"><button class="b" onclick="mtpEdit(null)">＋ 新增 MT</button><button class="g" onclick="exportMtExcel()">下载 Excel（MT 资料）</button></div>
    <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>姓名</th><th>银行账号</th><th>IC</th><th>IC copy</th><th>加入日期</th><th>Training fee</th><th>状态</th><th></th></tr>
    ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}${m.note?'<div class="small mute">'+esc(m.note)+'</div>':''}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td class="small">${trainCell(m)}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
 }
@@ -1370,12 +1371,12 @@ function pkgOnMonth(s,m){ let p=s.pkg||''; (s.changes||[]).slice().sort((a,c)=>a
 // Active students of a branch that owe the fee of month m (not yet started / stopped / transferred ones do not)
 function feeStudents(b,m){ return stuList(b).filter(s=>s.status==='Active'&&(!s.startMonth||s.startMonth<=m)&&(!s.enrolled||String(s.enrolled).slice(0,7)<=m)).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true})); }
 function exportInvoices(force){ const b=UI.invBranch||'BBU', m=UI.invMonth||UI.expMonth;
-  const c=cfg().inv; const mm=m.slice(5,7), yy=m.slice(2,4); const fill=s=>String(s||'').replace(/\{B\}/g,b).replace(/\{MM\}/g,mm).replace(/\{YY\}/g,yy);
+  const c=cfg().inv; const mm=m.slice(5,7), yy=m.slice(2,4); const fill=(s,pkg)=>String(s||'').replace(/\{B\}|\[B\]|\[BRANCH\]/g,b).replace(/\{MM\}|\[MM\]/g,mm).replace(/\{YY\}|\[YY\]/g,yy).replace(/\[YYYY\]/g,m.slice(0,4)).replace(/\[PACKAGE\]/g,pkg||'');
   const date='01/'+mm+'/'+m.slice(0,4); const rows=[], bad=[]; const act=feeStudents(b,m);
   if(!act.length) return toast(b+' '+m+' 没有 Active 学生');
   for(const s of act){ const pkg=pkgOnMonth(s,m), fee=feeFor(S,{pkg},s);
     if(!(fee>0)){ bad.push(s.no+' '+s.name+'：package '+(pkg||'（没有）')+' 没有学费'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; }
-    rows.push([s.code,s.no+'-'+s.name,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc)+' - '+s.no+' '+s.name+' ('+pkg+')',1,null,null,fee,null,c.tax||null,null,null]); }
+    rows.push([s.code,s.no+'-'+s.name,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc,pkg)+(/\[PACKAGE\]/.test(c.desc||'')?'':' - '+s.no+' '+s.name+' ('+pkg+')'),1,null,null,fee,null,c.tax||null,null,null]); }
   // compared with the confirmed teacher roster of that month (information only)
   const ro=S.rosters[rosterId(b,m)], diff=[];
   if(ro&&ro.confirmed){ const onRo=new Set((ro.lines||[]).map(l=>l.uid)), actSet=new Set(act.map(s=>s.uid));
@@ -1404,6 +1405,22 @@ function exportContacts(){
   if(!confirm(list.length+' 位没有 Bukku code 的学生（'+b+'）会导出成新联系人。导入 Bukku 之后，再用「导入 Bukku Contacts」把 Bukku 编的 code 填回来。继续？')) return;
   const d=today();
   bukkuFile('contact',list.map(contactRow),`DM-Bukku-Contacts-${b}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`);
+}
+// the contact records of the system as a plain Excel list: the students (the branch and the status filter shown on the screen) and the MTs
+function exportStudentsExcel(){
+  const b=UI.branch, st=UI.stuStatus, d=today();
+  const list=stuList(b).filter(s=>st==='ALL'||s.status===st).sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true}));
+  if(!list.length) return toast('没有学生可以下载');
+  const rows=[['Branch','No.','Bukku code','Legal Name (Bukku)','Student name','Status','Gender / uniform','MT','Package','Fee RM','Parents / payer names','Opening balance RM','Enrolled','Start month','Transfer']]
+    .concat(list.map(s=>[b,s.no,s.code||'',s.no+'-'+s.name,s.name,s.status,s.gender||'',s.mt||'',s.pkg||'',studentFee(S,s)||'',(s.parents||[]).join(' / '),s.opening||0,s.enrolled||'',s.startMonth||'',s.transferTo?'to '+s.transferTo:s.transferFrom?'from '+s.transferFrom:'']));
+  saveXlsx(`DM-Contact-Students-${b}-${st==='ALL'?'ALL':st}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`,[['Students '+b,rows]]);
+}
+function exportMtExcel(){
+  const d=today(), list=Object.values(S.mtp||{}).sort((x,y)=>BRANCHES.indexOf(x.branch)-BRANCHES.indexOf(y.branch)||x.mt.localeCompare(y.mt));
+  if(!list.length) return toast('没有 MT 资料');
+  const rows=[['Branch','MT','Name','Bank account','IC','IC copy','Join date','Status','Training bill','Training amount RM','Instalment months','Branch history']]
+    .concat(list.map(m=>{ const t=trainOf(mtKey(m.branch,m.mt)); return [m.branch,m.mt,m.name||'',m.bank||'',m.ic||'',m.icCopy?'Yes':'No',m.joined||'',m.active===false?'Left':'In service',t?(t.exempt?'TRAINING (no deduction)':t.bill||''):'',t&&!t.exempt?t.amt:'',t&&!t.exempt?(trainSched(mtKey(m.branch,m.mt))||[]).filter(Boolean).join(', '):'',(m.history||[]).map(h=>h.d+' '+h.from+' → '+h.to).join('; ')]; }));
+  saveXlsx(`DM-Contact-MT-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`,[['MT',rows]]);
 }
 async function importContacts(input){
   let wbk; try{ wbk=(await readFile(input)).wb; }catch(e){ return toast('读取失败：'+(e&&e.message||e)); } input.value='';
@@ -1438,7 +1455,7 @@ function exportPayments(force){
   const bank=UI.expBank, m=UI.expMonth; const doc=S.bank[bankDocId(bank,m)]; if(!doc) return toast('这个月没有 '+bank+' 资料');
   const c=cfg(); const tx=Object.values(doc.tx||{}).filter(t=>t.status==='auto'||t.status==='manual').sort((a,b)=>(a.date+a.time)<(b.date+b.time)?-1:1);
   const need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').length;
-  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; rows.push([s.code,s.no+'-'+s.name,'OR-'+s.branch+'[YY][MM]-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
+  const rows=[]; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; rows.push([s.code,s.no+'-'+s.name,'OR-'+s.branch+t.date.slice(2,4)+t.date.slice(5,7)+'-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(t.payer+' '+(t.ref||'')).slice(0,200),null,null]); }
   if(need&&!force) return exportGate(need+' 笔待处理的银行入账还没有配对，不会导出，会少开 receipt。',Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').map(t=>t.date+' '+t.payer+' RM '+money(t.amount)),rows.length,'exportPayments(true)');
   if(!rows.length) return toast('没有可以导出的入账');
   bukkuFile('payment',rows,`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}.xlsx`);

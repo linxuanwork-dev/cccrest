@@ -1183,18 +1183,77 @@ function hqLineFrom(it,b){
 }
 function vHq(){
   const bills=Object.entries(S.hqbills||{}).filter(([id,d])=>!d.kind).map(([id,d])=>Object.assign({id},d)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const stock=hqStock();
   return `<div class="card"><h2>HQ 进货单</h2><div class="small mute">上传 QC GROUP 开给 branch 的单（PDF）。有 klien 名字的行（注册、模块、Jersi、Reactive、Seasonal）自动开 invoice 给 klien，金额用「设置」里的售价表，日期用 HQ 单的日期；Fast Track 没有 klien，只记库存。</div>
    <div class="row" style="margin:8px 0"><label class="g" style="padding:6px 12px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">上传 HQ 单 PDF<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="hqUpload(this)"></label>
     <span style="flex:1"></span><button class="g" onclick="hqFastOpen()">Fast Track 开单（从 MT Claim）</button></div>
    <div class="tw"><table><tr><th>日期</th><th>HQ 单号</th><th>Branch</th><th class="n">行数</th><th class="n">HQ 金额</th><th class="n">开给 klien</th><th>状态</th><th></th></tr>
    ${bills.map(b=>{ const inv=(b.lines||[]).filter(l=>invoiced(l.kind)&&!l.skip); const tot=inv.reduce((a,l)=>a+l.price*(l.qty||1),0);
     return `<tr><td>${esc(b.date)}</td><td>${esc(b.invoiceNo)}</td><td>${esc(b.branch)}</td><td class="n">${(b.lines||[]).length}</td><td class="n">${money(b.total)}</td><td class="n">${money(tot)}</td><td>${b.exportedAt?'<span class="tag ok">已导出 '+esc(b.exportedAt)+'</span>':'<span class="tag warn">还没导出</span>'}</td><td><button class="g" onclick="hqOpen('${esc(b.id)}')">打开</button></td></tr>`; }).join('')||'<tr><td colspan="8" class="mute">还没有 HQ 单</td></tr>'}</table></div></div>
-  <div class="card"><h2>库存（Fast Track / 没有 klien 的货）</h2><div class="small mute">进货 = HQ 单上的数量；已售 = MT Claim 批准后 MT 给学生打勾的产品。</div>
-   <div class="tw"><table style="max-width:760px"><tr><th>Branch</th><th>货品</th><th class="n">进货</th><th class="n">已售</th><th class="n">库存</th></tr>
-   ${stock.map(x=>`<tr><td>${esc(x.branch)}</td><td>${esc(x.name)}</td><td class="n">${x.bought}</td><td class="n">${x.sold}</td><td class="n"><b ${x.bought-x.sold<0?'style="color:#b91c1c"':''}>${x.bought-x.sold}</b></td></tr>`).join('')||'<tr><td colspan="5" class="mute">还没有库存记录</td></tr>'}</table></div></div>`;
+  ${vStockCard()}`;
 }
 const nk=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+// ---------- Stock card: every item (module, jersey, game, Fast Track ...) with every movement ----------
+// IN = what the HQ bills bring (a full registration brings its module + jersey + game). OUT = sold to a client when the invoice is exported (the bill date),
+// and the Fast Track products ticked on approved MT Claims. Adjustments (opening stock, a count, a loss) are added by hand.
+function jerseyKey(txt){ const t=String(txt||''); const sl=/PENDEK|SHORT/i.test(t)?'PENDEK':/PANJANG|LONG/i.test(t)?'PANJANG':''; const kids=/KIDS?/i.test(t)?' (KIDS)':''; const sz=(t.match(/(\d{2}|XXL|XL|L|M|S)\s*$/i)||[])[1]||''; return ('JERSI '+sl+kids+(sz?' '+sz.toUpperCase():'')).replace(/\s+/g,' ').trim(); }
+function stockParts(l){ const q=+l.qty||1, o=[];
+  if(l.kind==='module') o.push(['Module',l.module||l.title,q]);
+  else if(l.kind==='jersey') o.push(['Jersi',jerseyKey(l.title),q]);
+  else if(l.kind==='registration'||l.kind==='seasonal'){ if(l.module) o.push(['Module',l.module,q]); if(l.jersey) o.push(['Jersi',jerseyKey(l.jersey),q]); if(l.game) o.push(['Game',l.game,q]); }
+  else if(l.kind==='fasttrack'||l.kind==='stock') o.push(['Fast Track / other',l.title,q]);
+  return o; }
+function stockMoves(){
+  const mv=[], add=(b,cat,item,date,doc,who,inn,out)=>mv.push({branch:b,cat,item:String(item).replace(/\s+/g,' ').trim(),date,doc,who,in:inn,out});
+  for(const [id,d] of Object.entries(S.hqbills||{})){
+    if(d.kind==='adj'){ (d.entries||[]).forEach(e=>add(d.branch,e.cat||'Other',e.item,e.d,'Adjustment',e.note||'',e.qty>0?e.qty:0,e.qty<0?-e.qty:0)); continue; }
+    if(d.kind) continue;
+    for(const l of d.lines||[]) for(const [cat,item,q] of stockParts(l)){
+      add(d.branch,cat,item,d.date,'HQ '+d.invoiceNo,'QC GROUP',q,0);
+      if(invoiced(l.kind)&&!l.skip&&d.exportedAt) add(d.branch,cat,item,d.date,l.invNo||'invoice',l.client,0,q); } }
+  const items=mv.filter(x=>x.cat==='Fast Track / other');
+  for(const c of Object.values(S.claims||{})) if(c.status==='approved') for(const l of c.lines||[]) if(!l.dropped) for(const p of l.products||[]){
+    const hit=items.find(x=>x.branch===c.branch&&(nk(x.item).includes(nk(p))||nk(p).includes(nk(x.item))));
+    add(c.branch,'Fast Track / other',hit?hit.item:p,String(c.approvedAt||c.month+'-28').slice(0,10),'MT Claim '+c.month,l.name+' ('+c.mt+')',0,1); }
+  return mv;
+}
+function stockItems(mv){ const m={}; for(const x of mv){ const k=x.branch+'|'+x.cat+'|'+nk(x.item); const e=m[k]||(m[k]={branch:x.branch,cat:x.cat,item:x.item,in:0,out:0}); e.in+=x.in; e.out+=x.out; } return Object.values(m).sort((a,b)=>a.branch.localeCompare(b.branch)||a.cat.localeCompare(b.cat)||a.item.localeCompare(b.item)); }
+function vStockCard(){
+  const mv=stockMoves(), all=stockItems(mv), b=UI.skB||'ALL', c=UI.skC||'ALL', q=nk(UI.skQ||'');
+  const list=all.filter(x=>(b==='ALL'||x.branch===b)&&(c==='ALL'||x.cat===c)&&(!q||nk(x.item).includes(q)));
+  const cats=[...new Set(all.map(x=>x.cat))];
+  return `<div class="card"><h2>Stock card</h2><div class="small mute">每个货品一张卡：HQ 单进货，开单给 klien 出货，Fast Track 按 MT Claim 打勾出货；期初库存、盘点调整用「＋ 调整」加。</div>
+   <div class="row" style="margin:8px 0"><select onchange="UI.skB=this.value;render()">${brOpts(b,true)}</select><select onchange="UI.skC=this.value;render()"><option value="ALL">All categories</option>${cats.map(x=>`<option ${x===c?'selected':''}>${esc(x)}</option>`).join('')}</select>
+    <input placeholder="Search item" value="${esc(UI.skQ||'')}" oninput="UI.skQ=this.value;render()" style="width:180px"><span style="flex:1"></span><button class="g" onclick="stockAdj()">＋ 调整</button><button class="g" onclick="stockExcel()">下载 Excel（stock card）</button></div>
+   <div class="tw"><table><tr><th>Branch</th><th>Category</th><th>Item</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th></th></tr>
+   ${list.map(x=>{ const bal=x.in-x.out; return `<tr><td>${esc(x.branch)}</td><td>${esc(x.cat)}</td><td>${esc(x.item)}</td><td class="n">${x.in}</td><td class="n">${x.out}</td><td class="n"><b ${bal<0?'style="color:#b91c1c"':''}>${bal}</b></td><td><button class="g" onclick="stockOpen('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">卡</button></td></tr>`; }).join('')||'<tr><td colspan="7" class="mute">还没有库存记录</td></tr>'}</table></div></div>`;
+}
+function stockCardRows(b,cat,k){ let bal=0; return stockMoves().filter(x=>x.branch===b&&x.cat===cat&&nk(x.item)===k).sort((x,y)=>String(x.date).localeCompare(String(y.date))||(y.in>0?1:0)-(x.in>0?1:0)).map(x=>{ bal+=x.in-x.out; return Object.assign({bal},x); }); }
+function stockOpen(b,cat,k){ const rows=stockCardRows(b,cat,k); if(!rows.length) return;
+  modal(`<h3>${esc(rows[0].item)} <span class="small mute">${esc(b)} · ${esc(cat)}</span></h3><div class="tw" style="max-height:60vh;overflow:auto"><table><tr><th>Date</th><th>Document</th><th>Client / note</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th></tr>
+   ${rows.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.doc)}</td><td>${esc(x.who)}</td><td class="n">${x.in||''}</td><td class="n">${x.out||''}</td><td class="n"><b ${x.bal<0?'style="color:#b91c1c"':''}>${x.bal}</b></td></tr>`).join('')}</table></div><div class="row" style="margin-top:10px"><button class="g" onclick="closeModal()">关闭</button></div>`); }
+function stockExcel(){
+  const mv=stockMoves(), b=UI.skB||'ALL', items=stockItems(mv).filter(x=>b==='ALL'||x.branch===b);
+  if(!items.length) return toast('还没有库存记录');
+  const sum=[['Branch','Category','Item','In','Out','Balance']].concat(items.map(x=>[x.branch,x.cat,x.item,x.in,x.out,x.in-x.out]));
+  const cards=[['Branch','Category','Item','Date','Document','Client / note','In','Out','Balance']]; items.forEach(x=>stockCardRows(x.branch,x.cat,nk(x.item)).forEach(r=>cards.push([r.branch,r.cat,r.item,r.date,r.doc,r.who,r.in||'',r.out||'',r.bal])));
+  const d=today(); saveXlsx(`DM-Stock-Card-${b}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`,[['Summary',sum],['Stock card',cards]]);
+}
+function stockAdj(){
+  const items=[...new Set(stockItems(stockMoves()).map(x=>x.item))];
+  modal(`<h3>＋ 调整</h3><div class="small mute">期初库存、盘点多 / 少、损耗：数量正数 = 入，负数 = 出。</div><div class="f" style="margin-top:8px">
+   <label>Branch</label><select id="sa_b">${BRANCHES.map(x=>`<option>${x}</option>`).join('')}</select>
+   <label>Category</label><select id="sa_c">${['Module','Jersi','Game','Fast Track / other','Other'].map(x=>`<option>${x}</option>`).join('')}</select>
+   <label>Item</label><input id="sa_i" list="sa_l" placeholder="例如 JERSI PENDEK (KIDS) 32"><datalist id="sa_l">${items.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+   <label>Date</label><input id="sa_d" type="date" value="${today()}">
+   <label>Quantity (+/−)</label><input id="sa_q" type="number" step="1">
+   <label>Note</label><input id="sa_n" placeholder="期初库存 / 盘点 / 损耗"></div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="stockAdjSave()">保存</button><button class="g" onclick="closeModal()">取消</button></div>`); }
+async function stockAdjSave(){
+  const b=$('#sa_b').value, item=$('#sa_i').value.trim(), qty=+$('#sa_q').value; if(!item||!qty) return toast('请填货品和数量');
+  const id='ADJ_'+b, cur=S.hqbills[id]||{kind:'adj',branch:b,entries:[]}; const doc=JSON.parse(JSON.stringify(cur)); doc.kind='adj'; doc.branch=b;
+  doc.entries=(doc.entries||[]).concat([{d:$('#sa_d').value||today(),cat:$('#sa_c').value,item,qty,note:$('#sa_n').value.trim()}]);
+  await save('hqbills/'+id,doc); closeModal(); toast('已保存');
+}
 function hqStock(){
   const items={};   // branch|key -> {branch,name,bought,sold}
   const get=(b,name)=>{ const k=b+'|'+nk(name); return items[k]||(items[k]={branch:b,name,bought:0,sold:0}); };

@@ -459,7 +459,8 @@ function todoUnfinished(){
   const all=BRANCHES.flatMap(b=>stuList(b)), reg=all.filter(s=>s.status==='Registered'), pause=all.filter(s=>s.status==='Deactive'), noPk=all.filter(s=>s.status==='Active'&&(!s.mt||!s.pkg)), noCode=all.filter(s=>(s.status==='Active'||s.status==='Registered')&&!s.code), wait=Object.values(S.claims||{}).filter(c=>c.status==='submitted').length;
   const by=(a)=>BRANCHES.map(b=>[b,a.filter(s=>s.branch===b).length]).filter(x=>x[1]).map(x=>x[0]+' '+x[1]).join('，');
   const li=(n,t,d)=>n?`<li>${t}：<b>${n}</b> <span class="small mute">${d||''}</span></li>`:'';
-  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
+  const bad=Object.values(S.claims||{}).filter(c=>c.status==='submitted').flatMap(c=>(c.lines||[]).filter(l=>l.uid&&!l.dropped&&(()=>{ const x=findStu(S,l.uid); return x&&x.status!=='Active'; })())).length;
+  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(bad,'MT Claim 里有 Master 不是 Active 的学生（要先处理，不然影响开单）','')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
 }
 function vHome(){
   const L=ledger(); const o=outstanding(S,L,today()); const al=allowanceLines(S,L);
@@ -1051,7 +1052,7 @@ function claimAnalysis(c){
   const st2=Object.assign({},S,{rosters:Object.assign({},S.rosters,{[rid]:{lines:merged,month:m,branch:b,confirmed:true}})});
   const al=allowanceLines(st2,buildLedger(st2)).filter(x=>x.month===m&&x.mt===c.mt), by={}; al.forEach(x=>{ by[x.uid]=x; });
   const rows=c.lines.map((l,i)=>{
-    const s=l.uid?findStu(S,l.uid):null, sys=l.uid?by[l.uid]:null, p=S.packages[l.pkg]||{}, classes=(l.dates||[]).length, rate=+p.rate||0, flags=[];
+    const s=l.uid?findStu(S,l.uid):null, sys=l.uid?by[l.uid]:null, p=S.packages[l.pkg]||{}, classes=(l.dates||[]).length, rate=+p.rate||0, flags=[]; let need=null;
     if(!s) flags.push({t:'bad',x:'新学生，不在名单里'});
     else { if((s.pkg||'')!==l.pkg) flags.push({t:'warn',x:'Master 的 package 是 '+(s.pkg||'（没有）')}); if((s.mt||'')!==c.mt) flags.push({t:'warn',x:'Master 的 MT 是 '+(s.mt||'（没有）')}); }
     const other=ro&&(ro.lines||[]).find(x=>x.uid===l.uid&&x.mt!==c.mt); if(other) flags.push({t:'warn',x:'老师名单里这个学生在 '+other.mt+' 名下'});
@@ -1060,29 +1061,36 @@ function claimAnalysis(c){
       if(l.fee==='DONE'&&sys.status==='pending') flags.push({t:'warn',x:'MT 写 DONE，系统还没找到付款'});
       if(l.fee==='BELUM'&&sys.status==='payable') flags.push({t:'warn',x:'MT 写 BELUM，系统已有付款（'+(sys.paidDate||'')+'）'}); }
     if(l.pkg&&!(+p.rate>0)) flags.push({t:'warn',x:'这个 package 还没设 allowance rate'});
-    if(l.uid){ const o=Object.entries(S.claims||{}).find(([k,x])=>x.branch===b&&x.month===m&&x.mt!==c.mt&&(x.status==='submitted'||x.status==='approved')&&(x.lines||[]).some(y=>y.uid===l.uid)); if(o) flags.push({t:'bad',x:'这个学生也在 '+o[1].mt+' 的 claim 里'}); }
-    if(s&&s.status!=='Active') flags.push({t:'bad',x:'Master 里这个学生不是 Active（'+s.status+'）'});
-    return {l,i,s,sys,classes,rate,amount:r2(rate*classes),flags}; });
+    if(l.uid){ const o=Object.entries(S.claims||{}).find(([k,x])=>x.branch===b&&x.month===m&&x.mt!==c.mt&&(x.status==='submitted'||x.status==='approved')&&(x.lines||[]).some(y=>y.uid===l.uid)); if(o){ flags.push({t:'bad',x:'这个学生也在 '+o[1].mt+' 的 claim 里'}); need='dup'; } }
+    if(s&&s.status!=='Active'){ flags.push({t:'bad',x:'Master 里这个学生不是 Active（'+s.status+'）'}); need='inactive'; }
+    return {l,i,s,sys,classes,rate,amount:r2(rate*classes),flags,need}; });
   const used=new Set(c.lines.map(l=>l.uid).filter(Boolean));
   const missing=Object.entries(stuL).filter(([no,s])=>s.status==='Active'&&s.mt===c.mt&&!used.has(b+':'+no)).map(([no,s])=>no+' '+s.name);
   return {rows,missing,rosterConfirmed:!!(ro&&ro.confirmed)};
 }
 // Active students of a branch (that month) against the students on the submitted / approved claims of that month
 function claimTally(b,m){
-  const act=feeStudents(b,m), actSet=new Set(act.map(s=>s.uid)), by={}, news=[];
-  Object.values(S.claims||{}).filter(c=>c.branch===b&&c.month===m&&(c.status==='submitted'||c.status==='approved')).forEach(c=>(c.lines||[]).forEach(l=>{ if(!l.uid){ news.push(l.name+'（'+c.mt+'）'); return; } (by[l.uid]=by[l.uid]||new Set()).add(c.mt); }));
+  const act=feeStudents(b,m), actSet=new Set(act.map(s=>s.uid)), by={}, ids={}, news=[];
+  Object.entries(S.claims||{}).filter(([k,c])=>c.branch===b&&c.month===m&&(c.status==='submitted'||c.status==='approved')).forEach(([k,c])=>(c.lines||[]).forEach(l=>{ if(l.dropped) return; if(!l.uid){ news.push(l.name+'（'+c.mt+'）'); return; } (by[l.uid]=by[l.uid]||new Set()).add(c.mt); ids[l.uid]=ids[l.uid]||k; }));
   const name=u=>{ const s=findStu(S,u); return s?s.no+' '+s.name:u; };
-  return {act:act.length,claimed:Object.keys(by).length,missing:act.filter(s=>!by[s.uid]).map(s=>s.no+' '+s.name+(s.mt?'（'+s.mt+'）':'')),extra:Object.keys(by).filter(u=>!actSet.has(u)).map(u=>name(u)+'（'+[...by[u]].join('、')+'）'),dups:Object.keys(by).filter(u=>by[u].size>1).map(u=>name(u)+'：'+[...by[u]].join('、')),news};
+  return {act:act.length,claimed:Object.keys(by).length,
+    missing:act.filter(s=>!by[s.uid]).map(s=>s.no+' '+s.name+(s.mt?'（'+s.mt+'）':'')),
+    noMt:act.filter(s=>!s.mt).map(s=>({uid:s.uid,label:s.no+' '+s.name})),
+    extra:Object.keys(by).filter(u=>!actSet.has(u)).map(u=>({uid:u,claim:ids[u],label:name(u)+'（'+[...by[u]].join('、')+'）',status:(findStu(S,u)||{}).status||''})),
+    dups:Object.keys(by).filter(u=>by[u].size>1).map(u=>({claim:ids[u],label:name(u)+'：'+[...by[u]].join('、')})),news};
 }
 function tallyCard(b,m){
   const rows=(b==='ALL'?BRANCHES:[b]).map(x=>[x,claimTally(x,m)]).filter(([x,t])=>t.act||t.claimed||t.news.length);
   if(!rows.length) return '';
-  return `<div class="card"><h2>对照 Active 学生</h2><div class="small mute">MT Claim 里的学生要跟 Master 里的 Active 学生对得上：每个 Active 学生都在某一位 MT 的 claim 里，而且只在一位 MT 那里。</div>
-   ${rows.map(([x,t])=>{ const ok=!t.missing.length&&!t.extra.length&&!t.dups.length&&!t.news.length;
+  const must=rows.reduce((a,[x,t])=>a+t.noMt.length+t.extra.length+t.dups.length,0);
+  return `<div class="card"><h2>对照 Active 学生</h2><div class="small mute">MT Claim 里的学生要跟 Master 里的 Active 学生对得上：每个 Active 学生都有 MT、都在某一位 MT 的 claim 里，而且只在一位 MT 那里；暂停 / 停课 / 已报名的学生不能在 claim 里。</div>
+   ${must?`<div class="msg bad" style="margin-top:8px"><b>有 ${must} 项要 CC 处理</b>：不处理的话会影响开单（学费 invoice 只开 Active 学生）。</div>`:''}
+   ${rows.map(([x,t])=>{ const ok=!t.missing.length&&!t.extra.length&&!t.dups.length&&!t.news.length&&!t.noMt.length;
     return `<div style="margin-top:8px"><b>${x}</b>：Active ${t.act} 位，已在 claim 里 ${t.claimed} 位 ${ok?'<span class="tag ok">对得上 ✔</span>':'<span class="tag warn">还没对上</span>'}
+    ${t.noMt.length?`<details open><summary class="small"><b style="color:#b91c1c">Active 学生没有 MT：${t.noMt.length}</b>（先决定哪位 MT 教，才会出现在 claim 里）</summary><div class="small">${t.noMt.map(a=>`${esc(a.label)} <button class="g" onclick="editStu('${esc(a.uid)}')">编辑</button>`).join('<br>')}</div></details>`:''}
+    ${t.extra.length?`<details open><summary class="small"><b style="color:#b91c1c">在 claim 里，但 Master 里不是 Active：${t.extra.length}</b>（暂停 / 停课 / 已报名；要决定改回 Active，还是从 claim 拿掉）</summary><div class="small">${t.extra.map(a=>`${esc(a.label)} <span class="tag warn">${esc(a.status)}</span> <button class="g" onclick="claimReview('${esc(a.claim)}')">处理</button>`).join('<br>')}</div></details>`:''}
+    ${t.dups.length?`<details open><summary class="small"><b style="color:#b91c1c">同时在两位 MT 的 claim 里：${t.dups.length}</b></summary><div class="small">${t.dups.map(a=>`${esc(a.label)} <button class="g" onclick="claimReview('${esc(a.claim)}')">处理</button>`).join('<br>')}</div></details>`:''}
     ${t.missing.length?`<details><summary class="small">还没出现在任何 claim 里的 Active 学生：${t.missing.length}</summary><div class="small">${t.missing.map(esc).join('<br>')}</div></details>`:''}
-    ${t.extra.length?`<details><summary class="small">在 claim 里，但不是 Active 的学生：${t.extra.length}</summary><div class="small">${t.extra.map(esc).join('<br>')}</div></details>`:''}
-    ${t.dups.length?`<details open><summary class="small">同时在两位 MT 的 claim 里：${t.dups.length}</summary><div class="small">${t.dups.map(esc).join('<br>')}</div></details>`:''}
     ${t.news.length?`<details><summary class="small">新学生（等批准后加进名单）：${t.news.length}</summary><div class="small">${t.news.map(esc).join('<br>')}</div></details>`:''}</div>`; }).join('')}</div>`;
 }
 function claimReview(id){
@@ -1093,10 +1101,12 @@ function claimReview(id){
    <div class="small mute">MT 申报 allowance RM ${money(tot)}：系统已见付款 RM ${money(pay)} · 还没找到付款 RM ${money(pend)} · 付款迟过 deadline（不出） RM ${money(forf)}</div>
    ${A.rosterConfirmed&&sub?'<div class="msg warn">这个月的老师名单已经确认过了，批准后会改动它，请到「老师名单」再确认一次。</div>':''}
    ${c.note?`<div class="msg info">退回原因：${esc(c.note)}</div>`:''}
+   ${sub&&A.rows.some(r=>r.need)?`<div class="msg bad"><b>${A.rows.filter(r=>r.need).length} 位学生要先处理才能批准</b>：他们在 Master 里不是 Active，或同时在两位 MT 的 claim 里，会影响开单。在下面每一行选怎么处理。</div>`:''}
    <div class="tw"><table><tr><th>#</th><th>学生</th><th>Package</th><th class="n">堂数</th><th>MT 写</th><th>系统</th><th class="n">Allowance</th><th>产品 / 备注</th><th>对照</th></tr>
-   ${A.rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.l.name)}${r.s?' <span class="mute small">'+esc(r.s.no)+'</span>':''}<div class="small mute">${(r.l.dates||[]).map(d=>esc(d.slice(8))).join(', ')}</div></td><td>${esc(r.l.pkg)}</td><td class="n">${r.classes}</td><td>${esc(r.l.fee)}</td><td>${sysTag(r)}</td><td class="n">${money(r.amount)}</td>
-    <td class="small">${(r.l.products||[]).map(esc).join(', ')}${r.l.remark?'<div class="mute">'+esc(r.l.remark)+'</div>':''}</td>
+   ${A.rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.l.name)}${r.s?' <span class="mute small">'+esc(r.s.no)+'</span>':''}<div class="small mute">${(r.l.dates||[]).map(d=>esc(d.slice(8))).join(', ')}</div></td><td>${esc(r.l.pkg)}</td><td class="n">${r.classes}</td><td>${esc(r.l.fee)}</td><td>${sysTag(r)}</td><td class="n">${r.l.dropped?'—':money(r.amount)}</td>
+    <td class="small">${r.l.dropped?'<span class="tag grey">这份 claim 不算</span> ':''}${(r.l.products||[]).map(esc).join(', ')}${r.l.remark?'<div class="mute">'+esc(r.l.remark)+'</div>':''}</td>
     <td class="small">${r.flags.map(f=>`<div><span class="tag ${f.t==='info'?'':f.t}">${esc(f.x)}</span></div>`).join('')}
+     ${sub&&MGR&&r.need?`<div style="margin-top:4px"><select id="ap_dec_${r.i}"><option value="">— 必须选一个 —</option>${r.need==='inactive'?'<option value="activate">改成 Active（学生有上课，要开单）</option><option value="drop">这份 claim 不算这位学生（不开单）</option>':'<option value="keep">两位 MT 都教，都算</option><option value="drop">这份 claim 不算这位学生</option>'}</select></div>`:''}
      ${sub&&MGR?(!r.s?`<label><input type="checkbox" id="ap_new_${r.i}" checked> 加进学生名单</label>`:'')+(r.s&&((r.s.pkg||'')!==r.l.pkg||(r.s.mt||'')!==c.mt)?'<div class="small" style="color:#b45309">批准后会更新 Master，并记入学生历史</div>':''):''}</td></tr>`).join('')}</table></div>
    ${A.missing.length?`<div class="msg warn" style="margin-top:8px">Master 里属于这位 MT、但没出现在表格里的 Active 学生：${A.missing.map(esc).join('；')}</div>`:''}
    ${sub&&MGR?`<div class="row" style="margin-top:12px"><button class="b" onclick="claimApprove('${esc(id)}')">批准，更新老师名单</button><input id="cl_note" placeholder="退回原因（会给 MT 看到）" style="flex:1;min-width:200px"><button class="g" onclick="claimReturn('${esc(id)}')">退回给 MT</button><button class="g" onclick="closeModal()">关闭</button></div>`
@@ -1106,14 +1116,17 @@ async function claimReturn(id){ const c=S.claims[id]; const note=($('#cl_note').
   await save('claims/'+id,Object.assign({},c,{status:'returned',note,returnedAt:new Date().toISOString()})); closeModal(); toast('已退回给 '+c.mt); }
 async function claimApprove(id){
   const c=S.claims[id]; if(!c||c.status!=='submitted') return; const A=claimAnalysis(c), b=c.branch, rid=rosterId(b,c.month);
+  const noDec=A.rows.filter(r=>r.need&&!(document.getElementById('ap_dec_'+r.i)||{}).value);
+  if(noDec.length) return toast('还有 '+noDec.length+' 位学生要先选怎么处理：'+noDec.map(r=>r.l.name).join('、'),7000);
   if(A.rosterConfirmed&&!confirm('这个月的老师名单已经确认过了，批准会改动它。继续？')) return;
   const sd=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); sd.list=sd.list||{}; let changed=false; const lines2=[], skipped=[];
-  for(const r of A.rows){ let uid=r.l.uid; const on=k=>{ const e=document.getElementById(k+'_'+r.i); return !!(e&&e.checked); };
+  for(const r of A.rows){ let uid=r.l.uid; const on=k=>{ const e=document.getElementById(k+'_'+r.i); return !!(e&&e.checked); }; const dec=r.need?(document.getElementById('ap_dec_'+r.i)||{}).value:'';
+    if(dec==='drop'){ lines2.push(Object.assign({},r.l,{dropped:true})); continue; }
     if(!r.s){ if(on('ap_new')){ const no=nextNoIn(sd.list,b); sd.list[no]={code:'',name:r.l.name,status:'Active',enrolled:(r.l.dates||[])[0]||(c.month+'-01'),mt:c.mt,pkg:r.l.pkg,price:0,parents:[],opening:0,created:today()}; histAdd(sd.list[no],'mt','',c.mt,'新学生，MT claim '+c.month); histAdd(sd.list[no],'pkg','',r.l.pkg,'新学生，MT claim '+c.month); uid=b+':'+no; changed=true; } else { uid=null; skipped.push(r.l.name); } }
-    else { const sx=sd.list[uid.split(':')[1]], why='MT claim '+c.month+'（'+c.mt+'）'; if((sx.pkg||'')!==r.l.pkg){ histAdd(sx,'pkg',sx.pkg,r.l.pkg,why); sx.pkg=r.l.pkg; changed=true; } if((sx.mt||'')!==c.mt){ histAdd(sx,'mt',sx.mt,c.mt,why); sx.mt=c.mt; changed=true; } }
+    else { const sx=sd.list[uid.split(':')[1]], why='MT claim '+c.month+'（'+c.mt+'）'; if(r.need==='inactive'&&dec==='activate'){ histAdd(sx,'status',sx.status,'Active',why+' 有上课'); sx.status='Active'; changed=true; } if((sx.pkg||'')!==r.l.pkg){ histAdd(sx,'pkg',sx.pkg,r.l.pkg,why); sx.pkg=r.l.pkg; changed=true; } if((sx.mt||'')!==c.mt){ histAdd(sx,'mt',sx.mt,c.mt,why); sx.mt=c.mt; changed=true; } }
     lines2.push(Object.assign({},r.l,{uid})); }
   const ro=S.rosters[rid]||null;
-  const lines=((ro&&ro.lines)||[]).filter(l=>l.mt!==c.mt).concat(lines2.filter(l=>l.uid).map(l=>({mt:c.mt,pkg:l.pkg,uid:l.uid,classes:(l.dates||[]).length})));
+  const lines=((ro&&ro.lines)||[]).filter(l=>l.mt!==c.mt).concat(lines2.filter(l=>l.uid&&!l.dropped).map(l=>({mt:c.mt,pkg:l.pkg,uid:l.uid,classes:(l.dates||[]).length})));
   try{
     if(changed) await save('students/'+b,sd);
     await save('rosters/'+rid,Object.assign({},ro||{},{lines,month:c.month,branch:b,savedAt:new Date().toISOString(),confirmed:ro?!!ro.confirmed:false}));
@@ -1294,6 +1307,23 @@ function mtpCard(){
    ${list.map(m=>`<tr><td>${esc(m.branch)}</td><td>${esc(m.mt)}${m.note?'<div class="small mute">'+esc(m.note)+'</div>':''}</td><td>${esc(m.name)}</td><td>${esc(m.bank)}</td><td>${esc(m.ic)}</td><td>${m.icCopy?'✓':'<span class="tag warn">没有</span>'}</td><td>${m.joined?esc(dmy(m.joined)):''}</td><td class="small">${trainCell(m)}</td><td>${m.active===false?'<span class="tag grey">已离职</span>':'<span class="tag ok">在职</span>'}</td><td><button class="g" onclick="mtpEdit('${esc(m.key)}')">编辑</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">没有</td></tr>'}</table></div></div>`;
 }
 function trainCell(m){ const t=trainOf(mtKey(m.branch,m.mt)); if(!t) return '<span class="mute">—</span>'; if(t.exempt) return '<span class="tag grey">TRAINING 不扣</span>'; const sch=trainSched(mtKey(m.branch,m.mt)); return esc(t.bill||'')+'<div class="mute">RM '+money(t.amt)+' × 6 · '+esc(sch[0]||'?')+' → '+esc(sch[5]||'?')+'</div>'; }
+// An MT moves to another branch: the profile (with its history), the MT choices, the training plan and the claim login all follow, and the move is written into the MT history
+function mtpHistHtml(m){ const h=(m.history||[]).slice().reverse(); if(!h.length) return '<div class="small mute">还没有记录</div>';
+  return '<table class="small"><tr><th>日期</th><th>从几月</th><th>转 branch</th><th>备注</th></tr>'+h.map(x=>`<tr><td>${esc(x.d)}</td><td>${esc(x.month||'')}</td><td>${esc(x.from)} → <b>${esc(x.to)}</b></td><td class="mute">${esc(x.note||'')}</td></tr>`).join('')+'</table>'; }
+async function mtpTransfer(key){
+  const m=(S.mtp||{})[key]; if(!m) return; const nb=$('#mt_tb').value, mo=$('#mt_tm').value, note=($('#mt_tn').value||'').trim(); if(!nb||nb===m.branch) return toast('请选新的 branch'); if(!mo) return toast('请选从几月开始');
+  const nk=nb+':'+m.mt; if((S.mtp||{})[nk]) return toast(nb+' 已经有 '+m.mt);
+  const doc={list:JSON.parse(JSON.stringify(S.mtp||{}))}; const old=doc.list[key]; delete doc.list[key];
+  doc.list[nk]=Object.assign({},old,{branch:nb,history:(old.history||[]).concat([{d:today(),month:mo,t:'branch',from:old.branch,to:nb,note}])});
+  const mt=JSON.parse(JSON.stringify(S.mts)); mt.names=mt.names||{}; mt.list=mt.list||{};
+  const stay=stuList(old.branch).some(s=>s.status==='Active'&&s.mt===m.mt);
+  if(!stay) mt.names[old.branch]=(mt.names[old.branch]||[]).filter(x=>x!==m.mt);
+  if(old.active!==false&&!(mt.names[nb]||[]).includes(m.mt)) mt.names[nb]=(mt.names[nb]||[]).concat([m.mt]);
+  const ok=mtKey(old.branch,m.mt), nk2=mtKey(nb,m.mt); if(mt.list[ok]&&!mt.list[nk2]){ mt.list[nk2]=mt.list[ok]; delete mt.list[ok]; }
+  await save('settings/mtprofiles',doc); await save('settings/mts',mt);
+  try{ await http('POST','/mt-users/move',{mt:m.mt,from:old.branch,to:nb}); UI.mtUsers=null; }catch(e){}
+  closeModal(); toast('已转 branch：'+m.mt+' '+old.branch+' → '+nb+(stay?'。注意：'+old.branch+' 还有 Active 学生的 MT 是 '+m.mt:''),stay?7000:3500);
+}
 function mtpEdit(key){
   const m=key?Object.assign({},(S.mtp||{})[key]):{branch:UI.mtpB&&UI.mtpB!=='ALL'?UI.mtpB:BRANCHES[0],mt:'MT ',name:'',bank:'',ic:'',icCopy:false,joined:'',active:true};
   const tr=key?trainOf(mtKey(m.branch,m.mt)):null;
@@ -1306,6 +1336,8 @@ function mtpEdit(key){
    <label>IC copy</label><label><input id="mp_icc" type="checkbox" ${m.icCopy?'checked':''}> 已收到</label>
    <label>加入日期</label><input id="mp_j" type="date" value="${esc(m.joined||'')}">
    <label>状态</label><label><input id="mp_a" type="checkbox" ${m.active!==false?'checked':''}> 在职（不勾 = 已离职，MT 选项里不再出现）</label></div>
+   ${key?`<details style="margin-top:12px"><summary><b>转 branch</b>（记录从哪个 branch 转去哪个 branch）</summary><div class="f" style="margin-top:8px"><label>转去</label><select id="mt_tb">${BRANCHES.filter(x=>x!==m.branch).map(x=>`<option>${x}</option>`).join('')}</select><label>从几月开始</label><input id="mt_tm" type="month" value="${today().slice(0,7)}"><label>备注</label><input id="mt_tn" placeholder="（可以不填）"><span></span><div><button class="b" onclick="mtpTransfer('${esc(key)}')">确认转 branch</button></div></div></details>
+   <details style="margin-top:8px" ${(m.history||[]).length?'open':''}><summary><b>转 branch 记录</b></summary><div style="margin-top:6px">${mtpHistHtml(m)}</div></details>`:''}
    <h3 style="margin-top:14px">Training fee</h3>
    <div class="small mute">只有新 MT 要扣。老 MT 选「不扣」。6 期各是哪个月：那个月 5号发放的 allowance 里扣；空着的期数会接在前一期的下个月。</div>
    <div class="f" style="margin-top:6px"><label>类型</label><select id="mp_tt" onchange="mtpTrainToggle()"><option value="none" ${!tr?'selected':''}>没有记录</option><option value="exempt" ${tr&&tr.exempt?'selected':''}>不扣（TRAINING / 老 MT）</option><option value="plan" ${tr&&!tr.exempt?'selected':''}>要扣</option></select></div>
@@ -1319,7 +1351,7 @@ async function mtpSave(key){
   const b=key?(S.mtp[key].branch):$('#mp_b').value, mt=(key?S.mtp[key].mt:$('#mp_mt').value.trim().replace(/\s+/g,' ').toUpperCase());
   if(!mt||mt==='MT') return toast('请填 MT 的名字'); const k=key||(b+':'+mt); if(!key&&(S.mtp||{})[k]) return toast(b+' 已经有 '+mt);
   const doc={list:JSON.parse(JSON.stringify(S.mtp||{}))}; const active=$('#mp_a').checked;
-  doc.list[k]={branch:b,mt,name:$('#mp_n').value.trim().replace(/\s+/g,' ').toUpperCase(),bank:$('#mp_bank').value.trim(),ic:$('#mp_ic').value.trim(),icCopy:$('#mp_icc').checked,joined:$('#mp_j').value||'',active};
+  doc.list[k]={history:(key&&S.mtp[key].history)||[],note:(key&&S.mtp[key].note)||'',branch:b,mt,name:$('#mp_n').value.trim().replace(/\s+/g,' ').toUpperCase(),bank:$('#mp_bank').value.trim(),ic:$('#mp_ic').value.trim(),icCopy:$('#mp_icc').checked,joined:$('#mp_j').value||'',active};
   const m=JSON.parse(JSON.stringify(S.mts)); m.names=m.names||{}; const names=(m.names[b]||[]).slice(); const has=names.includes(mt);
   if(active&&!has){ names.push(mt); m.names[b]=names; } else if(!active&&has){ m.names[b]=names.filter(x=>x!==mt); }
   const tt=$('#mp_tt').value; m.list=m.list||{}; const mk=mtKey(b,mt); m.list[mk]=m.list[mk]||{deductions:[]};

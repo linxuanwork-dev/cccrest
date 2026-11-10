@@ -229,6 +229,18 @@ router.post(BASE + '/mt-users/:id/reset', ...guard(3), async (req, res) => {
   res.json({ user: mtOut(rows[0]), password: pw });
 });
 
+router.post(BASE + '/mt-users/move', ...guard(3), async (req, res) => {
+  const b = req.body || {}, mt = String(b.mt || ''), from = String(b.from || ''), to = String(b.to || '');
+  if (!mt || !['BBU', 'TST', 'TDA'].includes(from) || !['BBU', 'TST', 'TDA'].includes(to)) return bad(res, 'Invalid request');
+  try {
+    const r = await pool.query('UPDATE tuition_mt_users SET branch = $4 WHERE company_id = $1 AND branch = $2 AND mt = $3', [req.params.companyId, from, mt, to]);
+    res.json({ moved: r.rowCount });
+  } catch (e) {
+    if (e.code === '23505') return res.json({ moved: 0, note: 'The MT already has a login in the new branch.' });
+    throw e;
+  }
+});
+
 router.put(BASE + '/mt-users/:id', ...guard(3), async (req, res) => {
   const { rows } = await pool.query(
     'UPDATE tuition_mt_users SET active = $3 WHERE id = $1 AND company_id = $2 RETURNING *',

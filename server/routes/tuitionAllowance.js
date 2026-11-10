@@ -257,6 +257,8 @@ router.post(BASE + '/stamp', ...guard(1), express.raw({ type: '*/*', limit: '10m
   if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Invalid request');
   const wb = new ExcelJS.Workbook();
   try { await wb.xlsx.load(req.body); } catch (e) { return bad(res, 'Cannot read this Excel file.'); }
+  // a file made by the browser has no default row height: without one the sheet XML is not valid and Excel offers to repair the file
+  wb.eachSheet((ws) => { ws.properties = Object.assign({}, ws.properties, { defaultRowHeight: (ws.properties && ws.properties.defaultRowHeight) || 15 }); });
   docs.stampWorkbook(wb, docs.stampText(await docs.userNameFor(req)));
   const buf = await wb.xlsx.writeBuffer();
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

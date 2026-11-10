@@ -166,6 +166,8 @@ function stampText(name) {
 function stampWorkbook(wb, text) {
   const esc = String(text).replace(/&/g, '&&');
   wb.eachSheet((ws) => {
+    // a sheet written by the browser has no default row height; without one the sheet XML is invalid and Excel offers to repair the file
+    if (!ws.properties || !ws.properties.defaultRowHeight) ws.properties = Object.assign({}, ws.properties, { defaultRowHeight: 15 });
     const hf = ws.headerFooter || {};
     const existing = hf.oddFooter || '';
     if (/&R/.test(existing)) return;

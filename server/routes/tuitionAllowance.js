@@ -175,6 +175,38 @@ router.post(BASE + '/bukku-file', ...guard(1), async (req, res) => {
   res.send(Buffer.from(buf));
 });
 
+// ---- an HQ bill is a purchase bill of the company (supplier QC GROUP): it is put in the Purchases Bill page as a draft and exported to Bukku from there ----
+router.post(BASE + '/hq-purchase', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, cid = req.params.companyId;
+  const no = String(b.no || '').trim().toUpperCase().slice(0, 60), date = String(b.date || '');
+  if (!no || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Array.isArray(b.lines) || !b.lines.length || b.lines.length > 100) return bad(res, 'Invalid request');
+  const st = (await pool.query('SELECT enabled, account FROM purchase_bukku_settings WHERE company_id = $1', [cid])).rows[0];
+  if (!st || !st.enabled) return bad(res, 'Purchases Bill 还没有开通。 The Purchases Bill page is not switched on for this company.');
+  const sup = (await pool.query(
+    "SELECT name, code, account FROM purchase_bukku_contacts WHERE company_id = $1 AND (code = 'C-Q0001' OR name ILIKE 'QC GROUP%') ORDER BY (code = 'C-Q0001') DESC LIMIT 1", [cid]
+  )).rows[0];
+  if (!sup) return bad(res, '找不到供应商 QC GROUP。 Supplier QC GROUP not found.');
+  const account = String(b.account || sup.account || st.account || '').trim().slice(0, 20);
+  const lines = b.lines.map((l) => ({ desc: String((l && l.desc) || '').trim().toUpperCase().slice(0, 200), account, qty: Number(l && l.qty) > 0 ? Number(l.qty) : 1, price: Number(l && l.price) || 0, tax: '' }));
+  if (lines.some((l) => !l.desc || l.price < 0)) return bad(res, 'Invalid request');
+  const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
+  const supplier = String(sup.name).toUpperCase().replace(/\s+/g, ' ').trim(), tags = String(b.branch || '').slice(0, 20);
+  const old = (await pool.query("SELECT id, status FROM purchase_bukku_bills WHERE company_id = $1 AND upper(supplier) = $2 AND upper(no) = $3", [cid, supplier, no])).rows[0];
+  if (old && old.status === 'exported') return res.status(409).json({ error: '这张采购单已经导出到 Bukku 了，不能再改。 This purchase bill was already exported to Bukku.' });
+  if (old) {
+    await pool.query('UPDATE purchase_bukku_bills SET bill_date = $3, tags = $4, lines = $5::jsonb, total = $6, updated_by = $7, updated_at = now() WHERE id = $1 AND company_id = $2',
+      [old.id, cid, date, tags, JSON.stringify(lines), total, req.user.sub]);
+    return res.json({ id: old.id, created: false, account, supplier });
+  }
+  const r = await pool.query(
+    `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by)
+     VALUES ($1,$2,$3,$4,'',$5,$6,'HQ bill',$7::jsonb,$8,false,$9,$9) RETURNING id`,
+    [cid, supplier, sup.code, no, date, tags, JSON.stringify(lines), total, req.user.sub]
+  );
+  res.status(201).json({ id: r.rows[0].id, created: true, account, supplier });
+});
+
 // ---- HQ bills (QC GROUP -> a branch): read the PDF into its lines; the page does the matching, pricing and the Bukku file ----
 router.post(BASE + '/hq-parse', ...guard(2), express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
   if (!await enabledSettings(req, res)) return;

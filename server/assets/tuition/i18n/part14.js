@@ -7,4 +7,10 @@ module.exports = {
   '例如 JERSI PENDEK (KIDS) 32': ['for example JERSI PENDEK (KIDS) 32', 'contoh JERSI PENDEK (KIDS) 32'],
   '期初库存 / 盘点 / 损耗': ['Opening stock / count / loss', 'Stok awal / kiraan / kehilangan'],
   '请填货品和数量': ['Fill in the item and quantity', 'Isi barang dan kuantiti'],
+  '采购单没生成：': ['The purchase bill was not created: ', 'Bil belian tidak dijana: '],
+  '采购单草稿已放进 Purchases Bill（供应商 ': ['A purchase bill draft was put in Purchases Bill (supplier ', 'Draf bil belian diletakkan dalam Purchases Bill (pembekal '],
+  '，采购单草稿已放进 Purchases Bill': [', a purchase bill draft was put in Purchases Bill', ', draf bil belian diletakkan dalam Purchases Bill'],
+  'HQ 采购单': ['HQ purchase bills', 'Bil belian HQ'],
+  '采购的 Account 代码': ['Purchases Account code', 'Kod Akaun belian'],
+  'HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Account 空着 = 用 Purchases Bill 设置里的默认。': ['After an HQ bill is uploaded, a purchase bill draft is created on the “Purchases Bill” page automatically, supplier QC GROUP SDN BHD (C-Q0001). Empty Account = the default of the Purchases Bill settings.', 'Selepas bil HQ dimuat naik, draf bil belian dijana secara automatik di halaman “Purchases Bill”, pembekal QC GROUP SDN BHD (C-Q0001). Akaun kosong = lalai tetapan Purchases Bill.'],
 };

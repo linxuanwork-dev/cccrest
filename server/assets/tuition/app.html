@@ -1318,8 +1318,14 @@ async function hqSave(exp,force,starts){
     const pre=r.rows.map(x=>String(x[2]).replace('[3DIGIT]','')), ex=r.idx.map(i=>doc.lines[i].invNo||'');
     if(!starts){ await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); return startsGate(needByPrefix(pre,ex),st=>hqSave(true,true,st)); }
     const nums=assignNumbers(pre,ex,starts); r.rows.forEach((x,i)=>{ x[2]=nums[i]; doc.lines[r.idx[i]].invNo=nums[i]; });
-    doc.exportedAt=today(); await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); hqDownload(doc,r); }
-  else { await save('hqbills/'+id,doc); closeModal(); toast('已保存'+(added?'，新学生 '+added+' 个已加进学生名单，状态「已报名」（要补 Bukku code；package 和 MT 等上课前决定了再填）':''),5000); }
+    doc.exportedAt=today(); await save('hqbills/'+id,doc); UI._hq=Object.assign(doc,{id}); hqDownload(doc,r); const pr=await hqPurchase(doc); if(pr) toast('采购单草稿已放进 Purchases Bill（供应商 '+pr.supplier+'）',6000); }
+  else { await save('hqbills/'+id,doc); closeModal(); const pr=await hqPurchase(doc); toast('已保存'+(pr?'，采购单草稿已放进 Purchases Bill':'')+(added?'，新学生 '+added+' 个已加进学生名单，状态「已报名」（要补 Bukku code；package 和 MT 等上课前决定了再填）':''),5000); }
+}
+// the HQ bill is also a purchase bill: QC GROUP is the supplier (a draft in the Purchases Bill page, exported to Bukku from there)
+async function hqPurchase(d){
+  const lines=(d.lines||[]).map(l=>({desc:[l.title,l.module,l.jersey,l.game,l.client].filter(Boolean).join(' - '),qty:l.qty||1,price:l.hqPrice}));
+  try{ return await http('POST','/hq-purchase',{branch:d.branch,no:d.invoiceNo,date:d.date,account:hqCfg().purchaseAccount||'',lines}); }
+  catch(e){ toast('采购单没生成：'+(e&&e.message||e),8000); return null; }
 }
 function hqExportRows(d){
   const [Y,M]=[d.date.slice(0,4),d.date.slice(5,7)], yy=Y.slice(2), dt=d.date.slice(8,10)+'/'+M+'/'+Y, rows=[], bad=[], idx=[];
@@ -1375,9 +1381,11 @@ function hqCard(){
   const inp=(k,l)=>`<label>${l}</label><input type="number" step="0.01" value="${c[k]||''}" style="width:110px" onchange="hqCfgSet('${k}',+this.value)">`;
   return `<div class="card"><h2>HQ 单 / 售价</h2><div class="small mute">HQ 单上的金额是进货价；开给 klien 的 invoice 用这里的售价。Jersi 和其他行用 HQ 单上的价钱。</div>
    <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regMale','注册（男）RM')}${inp('regFemale','注册（女长袖）RM')}${inp('regFemaleShort','注册（女短袖）RM')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}${inp('reactive','Reactive / activation RM')}</div>
+   <h3 style="margin-top:12px">HQ 采购单</h3><div class="f" style="max-width:480px"><label>采购的 Account 代码</label><input value="${esc(c.purchaseAccount||'')}" placeholder="6000" style="width:110px" onchange="hqCfgText('purchaseAccount',this.value.trim())"></div><div class="small mute">HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Account 空着 = 用 Purchases Bill 设置里的默认。</div>
    <h3 style="margin-top:12px">Fast Track 售价</h3><div class="f" style="max-width:480px">${prods.map(p=>`<label>${esc(p)} RM</label><input type="number" step="0.01" value="${(c.fast||{})[p]||''}" style="width:110px" onchange="hqFastSet('${esc(p)}',+this.value)">`).join('')}</div></div>`;
 }
 async function hqCfgSet(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }
+async function hqCfgText(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }
 async function hqFastSet(p,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq.fast=Object.assign({},c.hq.fast||{}); c.hq.fast[p]=v; await save('settings/config',c); toast('已保存'); }
 
 // ---------- MT 资料（老师：银行账号、IC、加入日期；只有 manager 看得到） ----------

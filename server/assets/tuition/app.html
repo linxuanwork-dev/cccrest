@@ -1220,8 +1220,11 @@ function stockParts(l){ const q=+l.qty||1, o=[];
   else if(l.kind==='registration'||l.kind==='seasonal'){ if(l.module) o.push(['Module',l.module,q]); if(l.jersey) o.push(['Jersi',jerseyKey(l.jersey),q]); if(l.game) o.push(['Game',l.game,q]); }
   else if(l.kind==='fasttrack'||l.kind==='stock') o.push(['Fast Track / other',l.title,q]);
   return o; }
+// merges: the same item written in different ways (a person merges them): ALIAS_<branch> doc {kind:'alias',map:{ 'cat|KEY': {cat,item,from,fromCat} }}
+function stockAliases(){ const AL={}; for(const d of Object.values(S.hqbills||{})) if(d.kind==='alias') for(const [k,v] of Object.entries(d.map||{})) AL[d.branch+'|'+k]=v; return AL; }
 function stockMoves(){
-  const mv=[], add=(b,cat,item,date,doc,who,inn,out)=>mv.push({branch:b,cat,item:String(item).replace(/\s+/g,' ').trim(),date,doc,who,in:inn,out});
+  const AL=stockAliases(), canon=(b,cat,item)=>{ let c=cat,i=item,n=0; while(n++<5){ const v=AL[b+'|'+c+'|'+nk(i)]; if(!v) break; c=v.cat; i=v.item; } return [c,i]; };
+  const mv=[], add=(b,cat0,item0,date,doc,who,inn,out)=>{ const [cat,item]=canon(b,cat0,String(item0).replace(/\s+/g,' ').trim()); mv.push({branch:b,cat,item,date,doc,who,in:inn,out}); };
   for(const [id,d] of Object.entries(S.hqbills||{})){
     if(d.kind==='adj'){ (d.entries||[]).forEach(e=>add(d.branch,e.cat||'Other',e.item,e.d,'Adjustment',e.note||'',e.qty>0?e.qty:0,e.qty<0?-e.qty:0)); continue; }
     if(d.kind) continue;
@@ -1241,9 +1244,10 @@ function vStockCard(){
   const cats=[...new Set(all.map(x=>x.cat))];
   return `<div class="card"><h2>Stock card</h2><div class="small mute">每个货品一张卡：HQ 单进货，开单给 klien 出货，Fast Track 按 MT Claim 打勾出货；期初库存、盘点调整用「＋ 调整」加。</div>
    <div class="row" style="margin:8px 0"><select onchange="UI.skB=this.value;render()">${brOpts(b,true)}</select><select onchange="UI.skC=this.value;render()"><option value="ALL">All categories</option>${cats.map(x=>`<option ${x===c?'selected':''}>${esc(x)}</option>`).join('')}</select>
-    <input placeholder="Search item" value="${esc(UI.skQ||'')}" oninput="UI.skQ=this.value;render()" style="width:180px"><span style="flex:1"></span><button class="g" onclick="stockAdj()">＋ 调整</button><button class="g" onclick="stockExcel()">下载 Excel（stock card）</button></div>
+    <input placeholder="Search item" value="${esc(UI.skQ||'')}" oninput="UI.skQ=this.value;render()" style="width:180px"><span style="flex:1"></span><button class="g" onclick="stockAdj()">＋ 调整</button><button class="g" onclick="stockMerge()">合并写法不同的货品</button><button class="g" onclick="stockExcel()">下载 Excel（stock card）</button></div>
    <div class="tw"><table><tr><th>Branch</th><th>Category</th><th>Item</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th></th></tr>
-   ${list.map(x=>{ const bal=x.in-x.out; return `<tr><td>${esc(x.branch)}</td><td>${esc(x.cat)}</td><td>${esc(x.item)}</td><td class="n">${x.in}</td><td class="n">${x.out}</td><td class="n"><b ${bal<0?'style="color:#b91c1c"':''}>${bal}</b></td><td><button class="g" onclick="stockOpen('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">卡</button></td></tr>`; }).join('')||'<tr><td colspan="7" class="mute">还没有库存记录</td></tr>'}</table></div></div>`;
+   ${list.map(x=>{ const bal=x.in-x.out; return `<tr><td>${esc(x.branch)}</td><td>${esc(x.cat)}</td><td>${esc(x.item)}</td><td class="n">${x.in}</td><td class="n">${x.out}</td><td class="n"><b ${bal<0?'style="color:#b91c1c"':''}>${bal}</b></td><td><button class="g" onclick="stockOpen('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">卡</button> <button class="g" onclick="stockMerge('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">合并</button></td></tr>`; }).join('')||'<tr><td colspan="7" class="mute">还没有库存记录</td></tr>'}</table></div>
+   ${stockMergedList()}</div>`;
 }
 function stockCardRows(b,cat,k){ let bal=0; return stockMoves().filter(x=>x.branch===b&&x.cat===cat&&nk(x.item)===k).sort((x,y)=>String(x.date).localeCompare(String(y.date))||(y.in>0?1:0)-(x.in>0?1:0)).map(x=>{ bal+=x.in-x.out; return Object.assign({bal},x); }); }
 function stockOpen(b,cat,k){ const rows=stockCardRows(b,cat,k); if(!rows.length) return;
@@ -1255,6 +1259,32 @@ function stockExcel(){
   const sum=[['Branch','Category','Item','In','Out','Balance']].concat(items.map(x=>[x.branch,x.cat,x.item,x.in,x.out,x.in-x.out]));
   const cards=[['Branch','Category','Item','Date','Document','Client / note','In','Out','Balance']]; items.forEach(x=>stockCardRows(x.branch,x.cat,nk(x.item)).forEach(r=>cards.push([r.branch,r.cat,r.item,r.date,r.doc,r.who,r.in||'',r.out||'',r.bal])));
   const d=today(); saveXlsx(`DM-Stock-Card-${b}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`,[['Summary',sum],['Stock card',cards]]);
+}
+function stockMergedList(){
+  const rows=[]; for(const [id,d] of Object.entries(S.hqbills||{})) if(d.kind==='alias') for(const [k,v] of Object.entries(d.map||{})) rows.push({id,k,b:d.branch,v});
+  if(!rows.length) return '';
+  return `<h3 style="margin-top:14px">已合并的货品</h3><div class="tw"><table><tr><th>Branch</th><th>写法（并入前）</th><th>现在算作</th><th></th></tr>${rows.map(r=>`<tr><td>${esc(r.b)}</td><td>${esc(r.v.from)}</td><td>${esc(r.v.item)}</td><td><button class="g" onclick="stockUnmerge('${esc(r.id)}','${esc(r.k)}')">拆开</button></td></tr>`).join('')}</table></div>`;
+}
+function stockMerge(b,cat,k){
+  const bb=b||(UI.skB&&UI.skB!=='ALL'?UI.skB:BRANCHES[0]); const items=stockItems(stockMoves()).filter(x=>x.branch===bb);
+  const opt=(sel)=>items.map(x=>{ const v=x.cat+'|'+nk(x.item); return `<option value="${esc(v)}" ${v===sel?'selected':''}>[${esc(x.cat)}] ${esc(x.item)}  (${x.in-x.out})</option>`; }).join('');
+  UI._mg={b:bb,items};
+  modal(`<h3>合并写法不同的货品</h3><div class="small mute">同一个货品，单上写法不一样（例如大小写、空格、少个字），在 stock card 变成两张卡。选好之后，两边的进出货会加在一起；以后新单里这个写法也会自动算进去。随时可以拆开。</div><div class="f" style="margin-top:8px">
+   <label>Branch</label><select id="mg_b" onchange="stockMerge(this.value)">${BRANCHES.map(x=>`<option ${x===bb?'selected':''}>${x}</option>`).join('')}</select>
+   <label>要并入的货品（旧写法）</label><select id="mg_f"><option value="">—</option>${opt(cat?cat+'|'+k:'')}</select>
+   <label>合并成（保留这个名字）</label><select id="mg_t"><option value="">—</option>${opt('')}</select></div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="stockMergeSave()">合并</button><button class="g" onclick="closeModal()">取消</button></div>`);
+}
+async function stockMergeSave(){
+  const b=$('#mg_b').value, f=$('#mg_f').value, t=$('#mg_t').value; if(!f||!t||f===t) return toast('请选两个不同的货品');
+  const items=UI._mg.items, fi=items.find(x=>x.cat+'|'+nk(x.item)===f), ti=items.find(x=>x.cat+'|'+nk(x.item)===t); if(!fi||!ti) return toast('请选两个不同的货品');
+  const id='ALIAS_'+b, doc=JSON.parse(JSON.stringify(S.hqbills[id]||{kind:'alias',branch:b,map:{}})); doc.kind='alias'; doc.branch=b; doc.map=doc.map||{};
+  doc.map[fi.cat+'|'+nk(fi.item)]={cat:ti.cat,item:ti.item,from:fi.item,fromCat:fi.cat};
+  await save('hqbills/'+id,doc); closeModal(); toast('已合并');
+}
+async function stockUnmerge(id,k){
+  const cur=S.hqbills[id]; if(!cur) return; const doc=JSON.parse(JSON.stringify(cur)); delete (doc.map||{})[k];
+  await save('hqbills/'+id,doc); toast('已拆开');
 }
 function stockAdj(){
   const items=[...new Set(stockItems(stockMoves()).map(x=>x.item))];

@@ -167,7 +167,7 @@ body.is-mgr .noman-only{display:none!important}
 <header>
   <div class="wrap">
     <div class="top">
-      <div class="brand">MINIFISH 库存盘点 <small id="coName">Stock Count &amp; Closing Stock</small></div>
+      <div class="brand"><span id="brandCo"></span> 库存盘点 <small id="coName">Stock Count &amp; Closing Stock</small></div>
       <div class="hright">
         <label for="mSel">月份</label>
         <input type="month" id="mSel">
@@ -399,7 +399,7 @@ body.is-mgr .noman-only{display:none!important}
 
   // whole-text matches (the text of one text node, trimmed)
   const EXACT = new Map(Object.entries({
-    'MINIFISH 库存盘点': 'MINIFISH Stock Count', '月份': 'Month', '员工': 'Staff', '只能看': 'View only',
+    'MINIFISH 库存盘点': 'MINIFISH Stock Count', '库存盘点': 'Stock Count', '月份': 'Month', '员工': 'Staff', '只能看': 'View only',
     '盘点 Stock Count': 'Stock Count', '月结报告 Closing Stock': 'Closing Stock', '货品 Items': 'Items', '分组 Groups': 'Groups', '变更记录 Log': 'Change Log',
     '正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。': 'Connecting to the database… If this message stays, your data may not be saved yet.',
     '盘点': 'Stock count', '盘点月份': 'Count month', '上个月': 'Previous month', '下个月': 'Next month', '盘点日期 Stock count date': 'Stock count date',
@@ -592,7 +592,7 @@ body.is-mgr .noman-only{display:none!important}
   }
 
   let obs = null;
-  function titleFix() { document.title = LANG === 'en' ? 'MINIFISH Stock Count' : 'MINIFISH 库存盘点'; document.documentElement.lang = LANG === 'en' ? 'en' : 'zh'; }
+  function titleFix() { document.title = ((window.__brand || '') + ' ' + (LANG === 'en' ? 'Stock Count' : '库存盘点')).trim(); document.documentElement.lang = LANG === 'en' ? 'en' : 'zh'; }
   function apply() {
     titleFix();
     if (LANG === 'en') {
@@ -1203,7 +1203,7 @@ $('exportBtn').addEventListener('click',async()=>{
     ws['!cols']=ws1['!cols'];
     XLSX.utils.book_append_sheet(wb,ws,g.replace(/[\\\/?*\[\]:]/g,' ').slice(0,31));
   });
-  const fname=`MF-CLOSING STOCK-${S.month.replace('-','_')}${c?'':'-DRAFT'}.xlsx`;
+  const fname=`${filePrefix()}-CLOSING STOCK-${S.month.replace('-','_')}${c?'':'-DRAFT'}.xlsx`;
   try{
     await downloads.save({filename:fname,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])});
     msg.className='check ok'; msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong>`;
@@ -1426,7 +1426,7 @@ $('plDown').addEventListener('click',async()=>{
   const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:70},{wch:12},{wch:10},{wch:34},{wch:8},{wch:10},{wch:9},{wch:13}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'PRICE LIST');
   const d=new Date(), tag=d.getFullYear()+'_'+String(d.getMonth()+1).padStart(2,'0')+'_'+String(d.getDate()).padStart(2,'0');
-  try{ await downloads.save({filename:`MF-STOCK PRICE LIST-${tag}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
+  try{ await downloads.save({filename:`${filePrefix()}-STOCK PRICE LIST-${tag}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
 });
 $('impFile').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f) return;
@@ -1530,7 +1530,7 @@ $('lExport').addEventListener('click',async()=>{
   rows.forEach(e=>(e.c&&e.c.length?e.c:[['','','']]).forEach(([f,a,b])=>aoa.push([tstr(e.at),who(e.by),(ACT[e.a]||[e.a])[0],e.m?mLabel(e.m):'',e.t,f,a,b,e.s||''])));
   const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:17},{wch:18},{wch:10},{wch:10},{wch:50},{wch:12},{wch:22},{wch:22},{wch:24}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'LOG');
-  try{ await downloads.save({filename:`MF-STOCK CHANGE LOG-${($('lMonth').value||curMonth()).replace('-','_')}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
+  try{ await downloads.save({filename:`${filePrefix()}-STOCK CHANGE LOG-${($('lMonth').value||curMonth()).replace('-','_')}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
 });
 
 /* ---------- tabs / boot ---------- */
@@ -1562,10 +1562,11 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   let me;
   try{ me=await http('GET',''); }catch(e){ off.hidden=false; off.textContent='连接不上服务器：'+(e&&e.message||e); return; }
   if(!me.enabled){ off.hidden=false; off.textContent='这家公司还没有开通库存盘点。请 Owner 在 Control Panel 里开通。'; return; }
+  S.short=String(me.short||''); setBrand(me.name);
   S.mgr=!!me.mgr; S.add=!!me.canAdd; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name; S.fifoFrom=String(me.fifoFrom||'');
   document.body.classList.toggle('is-mgr',S.mgr); document.body.classList.toggle('can-add',S.add); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
   if(S.cfgName) $('coName').textContent=S.cfgName;
-  listen('settings', rows=>{ const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName) $('coName').textContent=S.cfgName; renderReport(); });
+  listen('settings', rows=>{ const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName){ $('coName').textContent=S.cfgName; setBrand(S.cfgName); } renderReport(); });
   listen('groups', rows=>{ S.groups=rows; renderAll(); });
   listen('items', rows=>{ S.items=rows; renderAll(); });
   listen('counts', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.cmeta=m; patchCount(true); renderReport(); loadFifo(); });
@@ -1575,6 +1576,9 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   setInterval(()=>{ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved
   setInterval(()=>{ if(!document.hidden && fifoActive()) loadFifo(true); }, 30000);   // and new purchase bills
 })();
+function brandOf(name){ return String(name||'').replace(/\s*\b(SDN\.?\s*BHD\.?|BERHAD)\b.*$/i,'').trim(); }
+function setBrand(name){ const b=brandOf(name); if(!b) return; window.__brand=b; const el=$('brandCo'); if(el) el.textContent=b; document.title=(b+' '+(document.documentElement.lang==='en'?'Stock Count':'库存盘点')).trim(); }
+function filePrefix(){ if(S.short) return S.short; const b=brandOf(S.cfgName); if(/^MINIFISH/i.test(b)) return 'MF'; return b.replace(/\([^)]*\)/g,'').split(/\s+/).filter(Boolean).map(w=>w[0]).join('').toUpperCase()||'STK'; }
 const applyTheme = t => document.documentElement.setAttribute('data-theme', t==='dark' ? 'dark' : 'light');
 if(QS.get('theme')) applyTheme(QS.get('theme'));
 window.addEventListener('message', e=>{ if(e.origin===location.origin && e.data && e.data.type==='pbill-theme') applyTheme(e.data.theme); });

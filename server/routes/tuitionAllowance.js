@@ -218,6 +218,18 @@ router.post(BASE + '/hq-parse', ...guard(2), express.raw({ type: '*/*', limit: '
   res.json(bill);
 });
 
+// ---- bank statement PDF (Public Bank): read the credit rows; the page puts them in the bank list like the Excel ----
+router.post(BASE + '/bank-parse', ...guard(2), express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Invalid request');
+  let r;
+  try { r = await require('../lib/bankPdf').parseStatement(req.body); } catch (e) { return bad(res, '读不到这个 PDF。 Cannot read this PDF.'); }
+  if (r.unreadable) return bad(res, '这个 PDF 是图片（扫描件），读不出文字。请从银行网站下载 Excel 或 CSV 版本再上传。 This PDF is a picture (scanned), no text can be read. Please download the Excel or CSV version from the bank website and upload that.');
+  if (r.unknown) return bad(res, '不认识这个 PDF 的格式（现在只能读 Public Bank 的 statement PDF）。 This PDF format is not recognised (only Public Bank statement PDFs can be read).');
+  if (!r.rows.length) return bad(res, '这个 PDF 里没有入账。 No credits found in this PDF.');
+  res.json(r);
+});
+
 // ---- MT Claim form logins (DIDIK MULIA): a manager opens a login for each MT; the MT fills the claim form on /mt-claim ----
 const PW_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newPassword = () => Array.from(crypto.randomBytes(10)).map((b) => PW_CHARS[b % PW_CHARS.length]).join('');

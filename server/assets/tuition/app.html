@@ -767,7 +767,7 @@ function vBank(){
   return `<div class="card"><div class="row">
    <select onchange="UI.bBank=this.value;render()">${['AFFIN','PBB'].map(x=>`<option ${x===bank?'selected':''} value="${x}">${x==='AFFIN'?'Affin（BBU）':'Public Bank（TST / TDA）'}</option>`).join('')}</select>
    <input type="month" value="${m}" onchange="UI.bMonth=this.value;render()">
-   <label class="b" style="padding:6px 12px;border-radius:7px;background:var(--pri);color:#fff;cursor:pointer">上传银行 statement<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importBank(this)"></label>
+   <label class="b" style="padding:6px 12px;border-radius:7px;background:var(--pri);color:#fff;cursor:pointer">上传银行 statement<input type="file" accept=".xlsx,.xls,.csv,.pdf" style="display:none" onchange="importBank(this)"></label>
    <span class="small mute">有资料的月份：${months.map(x=>`<a href="#" onclick="UI.bMonth='${x}';render();return false">${x}</a>`).join(' ')||'—'}</span></div>
    <div class="small mute" style="margin-top:6px">可以每星期或月中上传，已经上传过的交易会自动跳过。只读入账（Credit）。Affin / Public Bank 格式自动认；其他格式会让你选栏位。</div></div>
   <div class="card"><div class="row" style="margin-bottom:8px">
@@ -789,7 +789,19 @@ function monKey(a){ if(a.invoice) return 'inv|'+a.invoice; return !Array.isArray
 function monVal(k){ return k==='hint'?undefined:k==='auto'?[]:[k==='期初'?'0000-00':k]; }
 function txTag(t){ return {auto:'<span class="tag ok">自动</span>',manual:'<span class="tag info">已确认</span>',review:'<span class="tag warn">待确认</span>',unmatched:'<span class="tag bad">找不到</span>',ignore:'<span class="tag grey">非学费</span>'}[t.status]||t.status; }
 function paidSetFor(month){ const s=new Set(); for(const d of Object.values(S.bank)) if(d.month===month) for(const t of Object.values(d.tx||{})) if(t.status==='auto'||t.status==='manual') (t.alloc||[]).forEach(a=>s.add(a.uid)); return s; }
+async function importBankPdf(input){
+  const f=input.files[0]; input.value=''; if(!f) return;
+  toast('读取中…',8000);
+  try{
+    const r=await fetch(API+'/bank-parse?name='+encodeURIComponent(f.name),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:await f.arrayBuffer()});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||('请求失败 ('+r.status+')'));
+    const ck=j.check||{};
+    if(!ck.matches && !confirm('读到的入账（'+ck.creditCount+' 笔，RM '+money(ck.creditTotal)+'）和银行 statement 上的总数对不上。要继续吗？')) return;
+    await ingestBank(j.bank,j.rows.map(x=>({date:x.date,time:x.time,payer:x.payer,ref:x.ref,amount:x.amount})),f.name,ck.matches?'PDF 已和 statement 的总数核对：'+ck.creditCount+' 笔，RM '+money(ck.creditTotal)+'，一致':'');
+  }catch(e){ console.error(e); toast('读取失败：'+(e.message||e),6000); }
+}
 async function importBank(input){
+  if(input.files[0]&&/\.pdf$/i.test(input.files[0].name)) return importBankPdf(input);
   try{ const {wb,name}=await readFile(input); input.value=''; let res=null, rowsAll=null;
     for(const n of wb.SheetNames){ const r=sheetRows(wb.Sheets[n]); const p=parseBank(r); if(p&&p.rows.length){ res=p; break; } if(!rowsAll) rowsAll=r; }
     if(!res){ return mapBank(rowsAll||[]); }
@@ -808,10 +820,10 @@ function mapBank(rows){
    <div class="row" style="margin-top:12px"><button class="b" onclick="(async function(){const map={header:+$('#m_h').value-1,date:+$('#m_d').value,payer:+$('#m_p').value,ref:+$('#m_r').value,credit:+$('#m_c').value};const rows=parseBankMapped(UI._map,map);closeModal();if(!rows.length)return toast('读不到任何入账，请检查栏位');await ingestBank($('#m_bank')?$('#m_bank').value:'AFFIN',rows,'');})()">读入</button><button class="g" onclick="closeModal()">取消</button></div>`);
   setTimeout(()=>{ const b=$('#m_bank'); if(b) b.value=UI.bBank; },0);
 }
-async function ingestBank(bank,rows,fname){
+async function ingestBank(bank,rows,fname,note){
   const ids=txIds(bank,rows); const pool=poolFor(bank); const byMonth={}; let dup=0, add=0; const stat={auto:0,review:0,unmatched:0};
-  const existing=new Set(); for(const d of Object.values(S.bank)) if(d.bank===bank) Object.keys(d.tx||{}).forEach(k=>existing.add(k));
-  rows.forEach((r,i)=>{ const id=ids[i]; if(existing.has(id)){ dup++; return; } const m=r.date.slice(0,7); (byMonth[m]=byMonth[m]||[]).push(Object.assign({id,bank},r)); });
+  const existing=new Set(), soft=new Set(); for(const d of Object.values(S.bank)) if(d.bank===bank) for(const [k,t] of Object.entries(d.tx||{})){ existing.add(k); if(bank==='PBB'&&/^\d{4,}$/.test(String(t.time||''))) soft.add(t.date+'|'+t.time+'|'+(+t.amount).toFixed(2)); } // the same Public Bank transfer (date + ref no + amount) from the Excel and from the PDF is one transaction
+  rows.forEach((r,i)=>{ const id=ids[i]; if(existing.has(id)||(bank==='PBB'&&/^\d{4,}$/.test(String(r.time||''))&&soft.has(r.date+'|'+r.time+'|'+r.amount.toFixed(2)))){ dup++; return; } const m=r.date.slice(0,7); (byMonth[m]=byMonth[m]||[]).push(Object.assign({id,bank},r)); });
   for(const m of Object.keys(byMonth).sort()){
     const did=bankDocId(bank,m); const doc=JSON.parse(JSON.stringify(S.bank[did]||{bank,month:m,tx:{}})); doc.tx=doc.tx||{};
     const paid=paidSetFor(m);
@@ -819,7 +831,7 @@ async function ingestBank(bank,rows,fname){
     doc.updatedAt=new Date().toISOString(); await save('bank/'+did,doc);
   }
   UI.bBank=bank; const ms=[...new Set(rows.map(r=>r.date.slice(0,7)))].sort(); if(ms.length) UI.bMonth=ms[ms.length-1]; UI.bFilter='need';
-  modal(`<h3>银行资料已读入</h3><ul><li>新交易：<b>${add}</b> 笔</li><li>已经上传过（跳过）：${dup} 笔</li><li>✅ 自动配对：${stat.auto}</li><li>🟡 待你确认：${stat.review}</li><li>❓ 找不到学生：${stat.unmatched}</li></ul><button class="b" onclick="closeModal();render()">去处理</button>`);
+  modal(`<h3>银行资料已读入</h3><ul><li>新交易：<b>${add}</b> 笔</li><li>已经上传过（跳过）：${dup} 笔</li><li>✅ 自动配对：${stat.auto}</li><li>🟡 待你确认：${stat.review}</li><li>❓ 找不到学生：${stat.unmatched}</li></ul>${note?`<div class="msg info">${esc(note)}</div>`:''}<button class="b" onclick="closeModal();render()">去处理</button>`);
   render();
 }
 function openTx(did,id){

@@ -288,7 +288,9 @@ function allowanceLines(state, L){
       if(c.paidDate && c.paidDate!=='n/a'){ if(!c.deadline || c.paidDate<=c.deadline){ status='payable'; payout=payoutFor(c.paidDate,c.month);} else status='forfeit'; }
       else if(c.paidDate==='n/a'){ status='payable'; payout=addMonths(c.month,1)+'-05'; }
       else status='pending';
-      out.push({uid,s,month:c.month,branch:c.branch,mt:c.line.mt,pkg:c.line.pkg,classes,rate,amount,paidDate:c.paidDate,deadline:c.deadline,status,payout,noRate:!p}); } }
+      const ov=Object.values(state.hqbills||{}).find(d=>d.kind==='payout'&&d.mode==='all'&&d.branch===c.branch&&(d.months||[]).includes(c.month));
+      if(ov){ status='payable'; payout=ov.payout; }
+      out.push({uid,s,month:c.month,branch:c.branch,mt:c.line.mt,pkg:c.line.pkg,classes,rate,amount,paidDate:c.paidDate,deadline:c.deadline,status,payout,noRate:!p,oneOff:!!ov}); } }
   return out;
 }
 
@@ -932,6 +934,7 @@ function vAllow(){
   return `<div class="card"><div class="row"><span>发放日期</span><select onchange="UI.payout=this.value;render()">${pl.map(x=>`<option ${x===p?'selected':''}>${x}</option>`).join('')}</select>
    <span class="tag info">${w.label}</span><span style="flex:1"></span><span>这期总共实发 <b>RM ${money(grand)}</b></span>
    <button class="g" onclick="allowExcel()">下载 Excel</button><button class="g" onclick="allowPdfAll()">下载全部 PDF</button></div>
+   ${Object.values(S.hqbills||{}).filter(d=>d.kind==='payout'&&d.payout===p).map(d=>`<div class="msg info" style="margin-top:6px">${esc(d.branch)} ${esc((d.months||[]).join(', '))} 这一次是特别安排：所有 Active 学生的 allowance 都发了，不看学费有没有付（测试期，只此一次）。以后照规则。</div>`).join('')}
    <div class="small mute" style="margin-top:6px">Allowance = 堂数 × rate。只出「学费已在期限内付清」的学生；按付款日期分到 15号 或 5号 那期。待处理的银行入账（${reviewCount()} 笔）还没算进去。</div></div>
    ${secs||'<div class="card mute">这期没有资料（需要已确认的老师名单 + 已配对的入账）</div>'}
    ${forf.length?`<div class="card"><details><summary>🚫 超过期限、不出 allowance：${forf.length} 笔（RM ${money(forf.reduce((a,x)=>a+x.amount,0))}）</summary><div class="small" style="margin-top:6px">${forf.map(x=>`${x.branch} ${esc(x.mt)} – ${esc(x.s.no+' '+x.s.name)} – ${x.month}（期限 ${x.deadline}${x.paidDate?'，'+x.paidDate+' 才付':'，还没付'}）`).join('<br>')}</div></details></div>`:''}`;

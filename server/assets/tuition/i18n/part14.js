@@ -21,4 +21,5 @@ module.exports = {
   '银行备注里写的月份': ['Months written in the bank remark', 'Bulan yang ditulis dalam catatan bank'],
   '不看备注：一律先还最旧的（家长写的备注常常不对）；要指定月份，在银行入账的处理窗口选「付哪个月」': ['Do not read the remark: always the oldest first (the remarks parents write are often wrong); to choose a month, use “Pays which month” in the bank handling window', 'Jangan baca catatan: sentiasa yang paling lama dahulu (catatan ibu bapa selalunya salah); untuk memilih bulan, guna “Bayar bulan mana” dalam tetingkap pengendalian bank'],
   '备注里有月份就照备注': ['If the remark has a month, follow it', 'Jika catatan ada bulan, ikut catatan'],
+  '这一次是特别安排：所有 Active 学生的 allowance 都发了，不看学费有没有付（测试期，只此一次）。以后照规则。': ['This one was a special arrangement: the allowance was paid for all Active students whether or not the fee was paid (test period, this once only). From now on the rules apply.', 'Ini adalah pengaturan khas: elaun dibayar untuk semua murid aktif sama ada yuran dibayar atau tidak (tempoh ujian, sekali ini sahaja). Selepas ini peraturan digunakan.'],
 };

@@ -560,6 +560,20 @@ router.post(BASE + '/export', ...guard(2), async (req, res) => {
   if (!ids.length) return bad(res, '请先勾选要导出的单据。 Tick the bills to export first.');
   const { rows } = await pool.query(`SELECT ${BILL_COLS} FROM purchase_bukku_bills WHERE company_id = $1 AND id = ANY($2::int[]) ORDER BY bill_date, id`, [req.params.companyId, ids]);
   if (!rows.length) return bad(res, '没有找到这些单据。 Those bills were not found.');
+  const already = rows.filter((b) => b.status === 'exported');
+  if (already.length) return bad(res, '这些单据已经导出过了，不能再导出：' + already.slice(0, 5).map((b) => b.no).join('、') + (already.length > 5 ? '……' : '') + '。要重新导出，请 manager 先选中它们，按「改回未导出」。 Already exported: ' + already.slice(0, 5).map((b) => b.no).join(', ') + (already.length > 5 ? '...' : '') + '. To export them again, a manager must first select them and press "Back to not exported".');
+  // claim them first (one statement, so two people exporting the same bill at the same time cannot both get it)
+  const claimed = await pool.query(
+    `UPDATE purchase_bukku_bills SET status = 'exported', exported_at = now(), updated_by = $3, updated_at = now()
+      WHERE company_id = $1 AND id = ANY($2::int[]) AND status <> 'exported' RETURNING id`,
+    [req.params.companyId, rows.map((b) => b.id), req.user.sub]
+  );
+  const release = (ids) => pool.query(`UPDATE purchase_bukku_bills SET status = 'draft', exported_at = NULL WHERE company_id = $1 AND id = ANY($2::int[])`, [req.params.companyId, ids]);
+  if (claimed.rows.length !== rows.length) {
+    await release(claimed.rows.map((r) => r.id));
+    return bad(res, '有单据刚刚被别人导出了，请刷新后再试。 Some bills were just exported by someone else: refresh and try again.');
+  }
+  try {
   const { rows: sups } = await pool.query('SELECT name, code, account, tags FROM purchase_bukku_contacts WHERE company_id = $1 ORDER BY name', [req.params.companyId]);
   const supByName = new Map(sups.map((x) => [normName(x.name), x]));
 
@@ -598,6 +612,10 @@ router.post(BASE + '/export', ...guard(2), async (req, res) => {
   res.setHeader('X-File-Name', encodeURIComponent(filename));
   await wb.xlsx.write(res);
   res.end();
+  } catch (err) {   // the file could not be made: the bills go back to "not exported"
+    await release(claimed.rows.map((r) => r.id)).catch(() => {});
+    throw err;
+  }
 });
 
 router.use((err, req, res, next) => {

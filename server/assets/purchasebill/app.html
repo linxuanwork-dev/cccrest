@@ -816,11 +816,13 @@ function renderBills(){
 }
 function updateSel(){
   const sel=S.bills.filter(b=>S.selected.has(b.id));
-  $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>` : '未选择（勾选要导出的单据）';
-  ['markDone','markDraft','delSel','exportBtn'].forEach(id=>$(id).disabled=!sel.length);
+  const done=sel.filter(b=>b.status==='exported').length;
+  $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>${done?` · <span style="color:#b45309">其中 ${done} 张已经导出过，不能再导出</span>`:''}` : '未选择（勾选要导出的单据）';
+  ['markDone','markDraft','delSel'].forEach(id=>$(id).disabled=!sel.length);
+  $('exportBtn').disabled=!sel.length||done>0;
 }
 ['flMonth','flStatus','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
-$('selAll').addEventListener('change',e=>{ filteredBills().forEach(b=>e.target.checked?S.selected.add(b.id):S.selected.delete(b.id)); renderBills(); });
+$('selAll').addEventListener('change',e=>{ const onlyDone=$('flStatus').value==='exported'; filteredBills().forEach(b=>{ if(e.target.checked){ if(onlyDone||b.status!=='exported') S.selected.add(b.id); } else S.selected.delete(b.id); }); renderBills(); });
 $('billBody').addEventListener('change',e=>{ const c=e.target.closest('[data-sel]'); if(c){ c.checked?S.selected.add(c.dataset.sel):S.selected.delete(c.dataset.sel); updateSel(); }});
 $('billBody').addEventListener('click',e=>{ const b=e.target.closest('[data-edit]'); if(b) editBill(b.dataset.edit); });
 
@@ -844,6 +846,7 @@ $('exportBtn').addEventListener('click', async ()=>{
   const sel=S.bills.filter(b=>S.selected.has(b.id)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if(!sel.length) return;
   const msg=$('exportMsg'); msg.hidden=false;
+  if(sel.some(b=>b.status==='exported')){ msg.className='check bad'; msg.textContent='选中的单据里有已经导出过的，不能再导出。要重新导出，请 manager 先按「改回未导出」。'; return; }
   // duplicate check inside export & against history
   const problems=[]; const seen=new Map();
   sel.forEach(b=>{ const k=normNo(b.no); if(!k) problems.push(`<li>${esc(b.supplier)} ${dmy(b.date)} 没有单号</li>`);
@@ -868,8 +871,8 @@ $('exportBtn').addEventListener('click', async ()=>{
     S.lastExport=sel.map(b=>b.id);
     msg.className='check ok';
     msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong><span>${sel.length} 张单，共 RM ${money(sel.reduce((a,b)=>a+b.total,0))}。到 Bukku → Purchases → Bills → Import 上传。</span>
-      <div class="row"><button class="btn sm pri" id="markExp">导入成功后，标记这 ${sel.length} 张为已导出</button></div>`;
-    $('markExp').onclick=async()=>{ await setStatus(S.lastExport,'exported'); S.selected.clear(); msg.hidden=true; renderBills(); };
+      <span>这 ${sel.length} 张已经自动标记为「已导出」，不能再导出，避免重复导入。如果 Bukku 导入失败，请 manager 勾选它们，按「改回未导出」再导出一次。</span>`;
+    S.selected.clear(); try{ await refresh(); }catch(e){}
   }catch(err){
     msg.className='check bad'; msg.textContent='导出失败：'+(err&&err.message||err);
   }

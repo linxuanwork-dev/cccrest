@@ -195,7 +195,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <form class="panel" id="billForm" autocomplete="off">
           <div class="ph">
             <h2 id="formTitle">新采购单</h2>
-            <div class="row"><button type="button" class="btn sm" id="copyLast" title="把这个供应商最近一张单的项目、单位、单价带进来，只要改数量">复制该供应商上一张</button>
+            <div class="row"><label class="btn sm" id="pdfLbl" hidden style="cursor:pointer" title="QC GROUP 的 HQ 单 PDF：自动填好单号、日期和所有项目">上传 HQ 单 PDF 自动填写<input type="file" id="pdfFile" accept=".pdf,application/pdf" style="display:none"></label><button type="button" class="btn sm" id="copyLast" title="把这个供应商最近一张单的项目、单位、单价带进来，只要改数量">复制该供应商上一张</button>
             <span class="small muted"><span class="key"></span> 黄色 = 必填</span></div>
           </div>
           <div class="fields">
@@ -447,7 +447,7 @@ function switchCompany(id){
   resetForm();
   Q.rows=[]; qLoad(); qRender();
   if(!id){ renderAll(); return; }
-  S.unsubs.push(listen('org/'+id+'/suppliers', rows=>{ S.suppliers=rows.sort((a,b)=>a.name.localeCompare(b.name)); renderSuppliers(); onSupplierInput(false); qStatusAll(); }));
+  S.unsubs.push(listen('org/'+id+'/suppliers', rows=>{ S.suppliers=rows.sort((a,b)=>a.name.localeCompare(b.name)); $('pdfLbl').hidden=!S.suppliers.some(x=>/^QC GROUP/i.test(x.name||'')); renderSuppliers(); onSupplierInput(false); qStatusAll(); }));
   S.unsubs.push(listen('companies/'+id+'/bills', rows=>{ S.bills=rows; renderBills(); renderSide(); checkDup(); qStatusAll(); }));
   S.unsubs.push(listen('companies/'+id+'/items', rows=>{ S.items=rows; renderItems(); refreshItemLists(); updateUsual(); }));
 }
@@ -1091,7 +1091,21 @@ function setTab(t){
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
 
-function renderAll(){ renderSuppliers(); renderBills(); renderSide(); checkDup(); renderItems(); }
+function renderAll(){ renderSuppliers(); renderBills(); renderSide(); checkDup(); renderItems(); $('pdfLbl').hidden=!(S.suppliers||[]).some(x=>/^QC GROUP/i.test(x.name||'')); }
+/* an HQ bill (QC GROUP) PDF fills the single-bill form; the person checks it and saves */
+$('pdfFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  toast('正在读 PDF…');
+  try{
+    const r=await fetch(API+'/pdf-parse?name='+encodeURIComponent(f.name),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:await f.arrayBuffer()});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||('请求失败 ('+r.status+')'));
+    resetForm(); setTab('entry');
+    $('fSup').value=j.supplier; $('fNo').value=j.no||''; $('fDate').value=j.date||todayISO(); $('fTags').value=j.branch||''; $('fDesc').value='HQ bill';
+    $('lineBody').innerHTML=''; j.lines.forEach(l=>{ const tr=lineRow(l); tr.querySelector('.l-acc').dataset.auto=''; });
+    onSupplierInput(false); calcTotal(); checkDup();
+    toast(j.totalMatches===false?'已填好，但项目合计 RM '+money(j.itemsTotal)+' 跟 PDF 的 Total RM '+money(j.total)+' 不一样，请检查':'已按 PDF 填好 '+j.lines.length+' 个项目，请检查后保存',5000);
+  }catch(err){ toast('读不了这个 PDF：'+(err&&err.message||err),6000); }
+});
 
 /* ---------- boot ---------- */
 const applyTheme = t => document.documentElement.setAttribute('data-theme', t==='dark' ? 'dark' : 'light');

@@ -280,6 +280,33 @@ async function learn(db, companyId, supplier, date, lines, bump) {
   }
 }
 
+// ---- read a QC GROUP (HQ) bill PDF into a purchase bill: the page fills the entry form with it (nothing is saved here) ----
+router.post(BASE + '/pdf-parse', ...guard(2), express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  const cid = req.params.companyId;
+  const s = await loadSettings(cid);
+  if (!s || !s.enabled) return bad(res, 'Purchases Bill 还没有开通。 The Purchases Bill page is not switched on for this company.');
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Invalid request');
+  const sup = (await pool.query(
+    "SELECT name, code, account FROM purchase_bukku_contacts WHERE company_id = $1 AND (code = 'C-Q0001' OR name ILIKE 'QC GROUP%') ORDER BY (code = 'C-Q0001') DESC LIMIT 1", [cid]
+  )).rows[0];
+  if (!sup) return bad(res, '找不到供应商 QC GROUP，这个功能只能读 QC GROUP 的 HQ 单。 Supplier QC GROUP not found: only QC GROUP HQ bills can be read.');
+  let text;
+  try { text = (await require('pdf-parse/lib/pdf-parse.js')(req.body)).text; } catch (e) { return bad(res, '读不到这个 PDF。 Cannot read this PDF.'); }
+  const bill = require('../lib/hqBill').parseBill(text, String(req.query.name || ''));
+  if (!bill.items.length) return bad(res, '这个 PDF 里找不到账单的行（要 QC GROUP 的 HQ 单）。 No bill lines found: it must be a QC GROUP HQ bill.');
+  // the Account of each line: the same settings as the Tuition & Allowance HQ bills (registration / module / other)
+  let pa = { registration: '6000', module: '6001', other: '6002' };
+  try {
+    const c = (await pool.query("SELECT data FROM tuition_docs WHERE company_id = $1 AND path = 'settings/config'", [cid])).rows[0];
+    if (c && c.data && c.data.hq && c.data.hq.purchaseAccounts) pa = Object.assign(pa, c.data.hq.purchaseAccounts);
+  } catch (e) { /* the company has no Tuition & Allowance: the defaults are used */ }
+  const accOf = (k) => (k === 'registration' || k === 'seasonal' ? pa.registration : k === 'module' ? pa.module : pa.other);
+  res.json({
+    supplier: String(sup.name).toUpperCase().replace(/\s+/g, ' ').trim(), no: bill.invoiceNo, date: bill.date, branch: bill.branch, total: bill.total, itemsTotal: bill.itemsTotal, totalMatches: bill.totalMatches,
+    lines: bill.items.map((l) => ({ desc: [l.title, l.fields.module, l.fields.jersey, l.fields.game, l.fields.client].filter(Boolean).join(' - ').toUpperCase().slice(0, 200), qty: l.qty || 1, price: l.price, account: accOf(l.kind) }))
+  });
+});
+
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await enabledSettings(req, res); if (!s) return;
   const [sup, bills, items, stock] = await Promise.all([

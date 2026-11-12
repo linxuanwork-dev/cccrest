@@ -229,11 +229,11 @@ const needMgr = (req, res) => { if (isMgr(req)) return true; res.status(403).jso
 
 const billOut = (r) => ({
   id: String(r.id), supplier: r.supplier, code: r.code, no: r.no, ref: r.ref, date: r.bill_date || '', tags: r.tags, desc: r.description,
-  lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported,
+  lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised,
   createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime()
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
-const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, created_at, updated_at`;
+const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, created_at, updated_at`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
 async function stockOf(companyId) {
@@ -517,14 +517,20 @@ router.put(BASE + '/bills/:id', ...guard(2), async (req, res) => {
   if (b.error) return bad(res, b.error);
   const problem = await staffSupplierProblem(req, b.supplier) || await stockIdsProblem(req.params.companyId, b.lines.map((l) => l.item));
   if (problem) return bad(res, problem);
+  const shape = (x) => ({ supplier: x.supplier, no: x.no, date: x.date || x.bill_date, tags: x.tags, ref: x.ref, desc: x.description !== undefined ? x.description : x.desc, lines: x.lines.map((l) => l.desc + ' | ' + l.account + ' | ' + l.qty + ' x ' + l.price) });
+  const changes = docs.diffObjects(shape(old[0]), shape(b));
+  const reopen = old[0].status === 'exported' && changes.length > 0;   // the Bukku copy is out of date: export it again, marked as revised
   const { rows } = await pool.query(
     `UPDATE purchase_bukku_bills SET supplier = $3, code = $4, no = $5, ref = $6, bill_date = $7, tags = $8, description = $9, lines = $10::jsonb, total = $11,
-       dup_ack = $12, updated_by = $13, updated_at = now() WHERE id = $1 AND company_id = $2 RETURNING ${BILL_COLS}`,
-    [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub]
+       dup_ack = $12, updated_by = $13, updated_at = now(),
+       status = CASE WHEN $14::boolean THEN 'draft' ELSE status END, exported_at = CASE WHEN $14::boolean THEN NULL ELSE exported_at END,
+       revised = revised OR $14::boolean, revised_at = CASE WHEN $14::boolean THEN now() ELSE revised_at END
+     WHERE id = $1 AND company_id = $2 RETURNING ${BILL_COLS}`,
+    [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, reopen]
   );
   try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, false); } catch (err) { console.error('purchase items learn failed:', err); }
-  const shape = (x) => ({ supplier: x.supplier, no: x.no, date: x.date || x.bill_date, tags: x.tags, lines: x.lines.map((l) => l.desc + ' | ' + l.account + ' | ' + l.qty + ' x ' + l.price) });
-  await docs.logUpdate(req, req.params.companyId, 'purchase_bukku_bill', old[0].no, docs.diffObjects(shape(old[0]), shape(b)));
+  if (reopen) changes.push({ field: 'status', from: 'exported', to: 'not exported (revised: export to Bukku again)' });
+  await docs.logUpdate(req, req.params.companyId, 'purchase_bukku_bill', old[0].no, changes);
   res.json(billOut(rows[0]));
 });
 
@@ -614,7 +620,7 @@ router.post(BASE + '/export', ...guard(2), async (req, res) => {
     const code = (sup && sup.code) || b.code || '';
     b.lines.forEach((l, i) => {
       const r = ws.addRow(['',
-        ...(i === 0 ? [code, b.supplier, b.no, b.ref || '', dmy(b.bill_date), '', '', '', '', b.tags || '', b.description || '', ''] : Array(12).fill('')),
+        ...(i === 0 ? [code, b.supplier, b.no, b.ref || '', dmy(b.bill_date), '', '', '', '', b.tags || '', ((b.description || '') + (b.revised ? (b.description ? ' ' : '') + '[REVISED ' + dmy(new Date().toISOString().slice(0, 10)) + ']' : '')), ''] : Array(12).fill('')),
         numOrText(l.account || (sup && sup.account) || s.account), l.desc, l.qty == null ? 1 : l.qty, '', '', Number(l.price), '', l.tax || '']);
       // No. / Contact Code / Reference / Date stay text so Excel does not reformat things like "0626/0321"
       [2, 4, 5, 6].forEach((c) => { const cell = r.getCell(c); if (cell.value !== '') cell.numFmt = '@'; });
@@ -640,6 +646,7 @@ router.post(BASE + '/export', ...guard(2), async (req, res) => {
   res.setHeader('X-File-Name', encodeURIComponent(filename));
   await wb.xlsx.write(res);
   res.end();
+  try { await pool.query('UPDATE purchase_bukku_bills SET revised = false WHERE company_id = $1 AND id = ANY($2::int[])', [req.params.companyId, rows.map((b) => b.id)]); } catch (err) { console.error('purchase revised clear failed:', err); }
   try { await docs.logEvent(req, req.params.companyId, 'purchase_bukku', 'Bukku export', 'updated', [{ field: 'exported bills', from: '', to: rows.map((b) => b.no).join(', ').slice(0, 400) }]); } catch (err) { console.error('purchase export history failed:', err); }
   } catch (err) {   // the file could not be made: the bills go back to "not exported"
     await release(claimed.rows.map((r) => r.id)).catch(() => {});

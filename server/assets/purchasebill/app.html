@@ -768,7 +768,8 @@ function editBill(id){
   setTab('entry'); S.editingId=id;
   $('fSup').value=b.supplier; $('fNo').value=b.no||''; $('fDate').value=b.date||''; $('fRef').value=b.ref||''; $('fTags').value=b.tags||''; $('fDesc').value=b.desc||'';
   $('lineBody').innerHTML=''; (b.lines||[]).forEach(l=>{ const tr=lineRow(l); if(!l.item && S.hasStock) resolveLine(tr); });
-  $('formTitle').textContent='修改单据 '+(b.no||''); $('saveBtn').textContent='保存修改';
+  $('formTitle').textContent=(b.status==='exported'?'修改已导出的单据 ':'修改单据 ')+(b.no||''); $('saveBtn').textContent='保存修改';
+  if(b.status==='exported') toast('这张单已经导出过。改了之后它会变回「未导出 · 已修改」，要重新导出到 Bukku，文件里会标明 REVISED。',7000);
   onSupplierInput(false); calcTotal(); checkDup(); $('fSup').focus();
 }
 
@@ -808,7 +809,7 @@ function renderBills(){
       <td class="mono">${dmy(b.date)}</td><td>${esc(b.supplier)}</td><td class="mono">${esc(b.no)} ${d?'<span class="pill dup">重复</span>':''}</td>
       <td class="small" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((b.lines||[]).map(l=>l.desc).join(' / '))}</td>
       <td class="r mono">${money(b.total)}</td>
-      <td>${b.status==='exported'?'<span class="pill done">已导出</span>':'<span class="pill draft">未导出</span>'}</td>
+      <td>${b.status==='exported'?'<span class="pill done">已导出</span>':b.revised?'<span class="pill draft">未导出 · 已修改，要重新导出</span>':'<span class="pill draft">未导出</span>'}</td>
       <td class="r">${(S.mgr||b.status!=='exported')?`<button class="btn sm" data-edit="${esc(b.id)}">改</button>`:''}</td></tr>`;}).join('')
     : `<tr><td colspan="8" class="empty">${S.bills.length?('这个筛选没有单据。'+($('flStatus').value!=='all'?'可以把状态改成「全部状态」看看。':'')):'还没有单据。到「快速录入」开始输入，记得按「保存全部」。'}</td></tr>`;
   $('selAll').checked = rows.length>0 && rows.every(b=>S.selected.has(b.id));

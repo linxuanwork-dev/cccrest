@@ -5034,6 +5034,35 @@
   dsiById('dsi-entry-wrap').addEventListener('input', dsiOnCellInput);
   dsiById('dsi-specials-wrap').addEventListener('input', dsiOnCellInput);
 
+  // Move between the cells with the arrow keys (and Enter = down), like a spreadsheet. The cells are number inputs, so without this
+  // Up / Down would change the number instead of moving.
+  function dsiOnCellKey(e){
+    var inp = e.target;
+    if(!inp.dataset || !inp.dataset.dsiKey) return;
+    var dr = 0, dc = 0;
+    if(e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) dr = 1;
+    else if(e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) dr = -1;
+    else if(e.key === 'ArrowRight') dc = 1;
+    else if(e.key === 'ArrowLeft') dc = -1;
+    else return;
+    if(e.ctrlKey || e.altKey || e.metaKey) return;
+    var td = inp.closest('td'), tr = td && td.parentElement, body = tr && tr.parentElement;
+    if(!body || body.tagName !== 'TBODY') return;
+    e.preventDefault();
+    var ci = Array.prototype.indexOf.call(tr.children, td);
+    var rows = body.children, ri = Array.prototype.indexOf.call(rows, tr);
+    var r = ri + dr, c = ci + dc;
+    // skip over cells that cannot be edited, stop at the edge
+    while(r >= 0 && r < rows.length && c > 0 && c < tr.children.length){
+      var nx = rows[r].children[c] && rows[r].children[c].querySelector('input:not([disabled])');
+      if(nx){ nx.focus(); nx.select(); return; }
+      if(!dr && !dc) return;
+      r += dr; c += dc;
+    }
+  }
+  dsiById('dsi-entry-wrap').addEventListener('keydown', dsiOnCellKey);
+  dsiById('dsi-specials-wrap').addEventListener('keydown', dsiOnCellKey);
+
   function dsiCells(map, field){
     return Object.keys(map).map(function(k){
       var p = k.split(':');

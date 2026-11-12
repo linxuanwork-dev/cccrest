@@ -28,6 +28,7 @@ function guessBranch(text, fileName) {
 function classify(title, fields) {
   const t = String(title).toUpperCase();
   if (/FAST\s*TRACK|^FT\b/.test(t)) return 'fasttrack';
+  if (/TARGET\s*SPM/.test(t)) return 'targetspm';
   if (/^SAIZ JERSI|^JERSI|^JERSEY/.test(t)) return 'jersey';
   if (/PEMBELIAN MODUL/.test(t)) return 'module';
   if (/SEASONAL/.test(t)) return 'seasonal';

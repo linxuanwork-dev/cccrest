@@ -1,4 +1,6 @@
 module.exports = {
+  'Seasonal 注册 Account': ['Seasonal registration Account', 'Akaun pendaftaran Seasonal'],
+  'Target SPM RM': ['Target SPM RM', 'Target SPM RM'],
   '注册（长袖 PANJANG）RM': ['Registration (long sleeve, PANJANG) RM', 'Pendaftaran (lengan panjang) RM'],
   '注册（短袖 PENDEK）RM': ['Registration (short sleeve, PENDEK) RM', 'Pendaftaran (lengan pendek) RM'],
   '3XL 加价 RM（长袖短袖一样）': ['Size 3XL extra charge RM (same for long and short sleeve)', 'Caj tambahan saiz 3XL RM (sama untuk lengan panjang dan pendek)'],

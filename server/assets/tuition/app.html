@@ -1202,11 +1202,12 @@ async function claimProdsSave(v){ const c=JSON.parse(JSON.stringify(cfg())); c.c
 // ---------- HQ 进货单（QC GROUP 开给各 branch 的单）：上传后自动开单给 klien ----------
 // Lines with a client name (registration, seasonal, module, jersey, reactive) become a sales invoice to that client, priced from the sales price list
 // (not the HQ price), numbered IV-[BRANCH]-R / M / O-[YY][MM]-[3DIGIT] and dated with the HQ invoice date. Fast Track (no client) is stock only.
-const HQ_DEF={module:80,regLong:210,regShort:200,xl3:15,regProduct:'REGISTRATION-MALE',seasonal:60,reactive:20};   // registration: long sleeve (PANJANG) RM210, short sleeve (PENDEK) RM200, size 3XL +RM15 for both; no male / female split; seasonal RM60
+const HQ_DEF={targetSpm:30,module:80,regLong:210,regShort:200,xl3:15,regProduct:'REGISTRATION-MALE',seasonal:60,reactive:20};   // registration: long sleeve (PANJANG) RM210, short sleeve (PENDEK) RM200, size 3XL +RM15 for both; no male / female split; seasonal RM60
 function hqCfg(){ const h=(S.config&&S.config.hq)||{}; return Object.assign({},HQ_DEF,h,{fast:Object.assign({},h.fast||{})}); }
-const HQ_KINDS=[['registration','Registration'],['seasonal','Seasonal'],['module','Module'],['jersey','Jersey'],['reactive','Reactive'],['other','Other'],['fasttrack','Fast Track (stock)'],['stock','Stock (no client)']];
-const HQ_SERIES={registration:'R',seasonal:'R',module:'M',jersey:'O',reactive:'O',other:'O'};
-const HQ_ACCOUNT={R:'5000-01',M:'5000-03',O:'5000-04'};
+const HQ_KINDS=[['registration','Registration'],['seasonal','Seasonal'],['module','Module'],['jersey','Jersey'],['reactive','Reactive'],['targetspm','Target SPM'],['other','Other'],['fasttrack','Fast Track (stock)'],['stock','Stock (no client)']];
+const HQ_SERIES={registration:'R',seasonal:'R',module:'M',jersey:'O',reactive:'O',targetspm:'O',other:'O'};
+const HQ_ACCOUNT={R:'5000-01',M:'5000-03',O:'5000-04'};   // Bukku: 5000-01 Registration Fees, 5000-01A Registration Fees-Seasonal, 5000-03 Module Fees, 5000-04 Other Fees
+const hqSalesAcc=k=>k==='seasonal'?'5000-01A':HQ_ACCOUNT[HQ_SERIES[k]];
 const invoiced=k=>!!HQ_SERIES[k];
 // the selling price of a registration follows the jersey wording on the HQ bill: PANJANG = long sleeve, PENDEK = short sleeve; size 3XL has an extra charge (same for both)
 function hqRegPrice(l,cfg){
@@ -1221,6 +1222,7 @@ function hqPrice(l,stu,cfg){
   if(k==='registration') return hqRegPrice(l,cfg);
   if(k==='seasonal') return cfg.seasonal>0?{p:cfg.seasonal}:{p:l.hqPrice,note:'seasonal price?'};
   if(k==='reactive') return {p:cfg.reactive};
+  if(k==='targetspm') return {p:cfg.targetSpm};
   if(k==='jersey'||k==='other') return {p:l.hqPrice};
   return {p:0};
 }
@@ -1401,8 +1403,8 @@ async function hqSave(exp,force,starts){
 }
 // the HQ bill is also a purchase bill: QC GROUP is the supplier (a draft in the Purchases Bill page, exported to Bukku from there)
 async function hqPurchase(d){
-  const pa=Object.assign({registration:'6000',module:'6001',other:'6002'},hqCfg().purchaseAccounts||{});   // Bukku: 6000 Purchases-Registration, 6001 Purchases-Module, 6002 Purchases-Other
-  const acc=k=>k==='registration'||k==='seasonal'?pa.registration:k==='module'?pa.module:pa.other;
+  const pa=Object.assign({registration:'6000',seasonal:'6000-01',module:'6001',other:'6002'},hqCfg().purchaseAccounts||{});   // Bukku: 6000 Purchases-Registration, 6000-01 Purchases-Registration Seasonal, 6001 Purchases-Module, 6002 Purchases-Other
+  const acc=k=>k==='registration'?pa.registration:k==='seasonal'?pa.seasonal:k==='module'?pa.module:pa.other;
   const lines=(d.lines||[]).map(l=>({desc:[l.title,l.module,l.jersey,l.game,l.client].filter(Boolean).join(' - '),qty:l.qty||1,price:l.hqPrice,account:acc(l.kind)}));
   try{ return await http('POST','/hq-purchase',{branch:d.branch,no:d.invoiceNo,date:d.date,account:pa.other,lines}); }
   catch(e){ toast('采购单没生成：'+(e&&e.message||e),8000); return null; }
@@ -1413,9 +1415,9 @@ function hqExportRows(d){
     if(!s){ bad.push(l.client+'：找不到学生'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; } if(!(l.price>0)){ bad.push(s.no+' '+s.name+'：售价是 0'); continue; }
     const T=HQ_SERIES[l.kind];
     const prod=l.kind==='registration'?(hqCfg().regProduct||'REGISTRATION-MALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
-    const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
+    const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:l.kind==='targetspm'?d.branch+'-TARGET SPM '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
     const det=[l.title,l.module,l.jersey,l.game].filter(Boolean).join(' / ');
-    rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null,null,null]); idx.push(li); }
+    rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,hqSalesAcc(l.kind),desc,l.qty||1,null,null,l.price,null,null,null,null]); idx.push(li); }
   return {rows,bad,idx};
 }
 function hqDownload(d,r){
@@ -1460,13 +1462,13 @@ function hqCard(){
   const c=hqCfg(), prods=((S.config||{}).claimProducts&&S.config.claimProducts.length)?S.config.claimProducts:['Fast Track ABC','Fast Track ABB','Fast Track ABD','Fast Track ABK','Fast Track ABS'];
   const inp=(k,l)=>`<label>${l}</label><input type="number" step="0.01" value="${c[k]||''}" style="width:110px" onchange="hqCfgSet('${k}',+this.value)">`;
   return `<div class="card"><h2>HQ 单 / 售价</h2><div class="small mute">HQ 单上的金额是进货价；开给 klien 的 invoice 用这里的售价。Jersi 和其他行用 HQ 单上的价钱。</div>
-   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regLong','注册（长袖 PANJANG）RM')}${inp('regShort','注册（短袖 PENDEK）RM')}${inp('xl3','3XL 加价 RM（长袖短袖一样）')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}<label>Bukku 注册产品名</label><input value="${esc(c.regProduct||'REGISTRATION-MALE')}" style="width:200px" onchange="hqCfgSet('regProduct',this.value.trim())">${inp('reactive','Reactive / activation RM')}</div>
-   <h3 style="margin-top:12px">HQ 采购单</h3><div class="f" style="max-width:480px">${[['registration','注册（PENDAFTARAN）Account'],['module','模块 Account'],['other','Jersi / Fast Track / 其他 Account']].map(([k,l])=>`<label>${l}</label><input value="${esc(((c.purchaseAccounts||{})[k])||({registration:'6000',module:'6001',other:'6002'})[k])}" style="width:110px" onchange="hqPurchAcc('${k}',this.value.trim())">`).join('')}</div><div class="small mute">HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Bukku：6000 Purchases-Registration、6001 Purchases-Module、6002 Purchases-Other。</div>
+   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regLong','注册（长袖 PANJANG）RM')}${inp('regShort','注册（短袖 PENDEK）RM')}${inp('xl3','3XL 加价 RM（长袖短袖一样）')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}<label>Bukku 注册产品名</label><input value="${esc(c.regProduct||'REGISTRATION-MALE')}" style="width:200px" onchange="hqCfgSet('regProduct',this.value.trim())">${inp('reactive','Reactive / activation RM')}${inp('targetSpm','Target SPM RM')}</div>
+   <h3 style="margin-top:12px">HQ 采购单</h3><div class="f" style="max-width:480px">${[['registration','注册（PENDAFTARAN）Account'],['seasonal','Seasonal 注册 Account'],['module','模块 Account'],['other','Jersi / Fast Track / 其他 Account']].map(([k,l])=>`<label>${l}</label><input value="${esc(((c.purchaseAccounts||{})[k])||({registration:'6000',seasonal:'6000-01',module:'6001',other:'6002'})[k])}" style="width:110px" onchange="hqPurchAcc('${k}',this.value.trim())">`).join('')}</div><div class="small mute">HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Bukku：6000 Purchases-Registration、6001 Purchases-Module、6002 Purchases-Other。</div>
    <h3 style="margin-top:12px">Fast Track 售价</h3><div class="f" style="max-width:480px">${prods.map(p=>`<label>${esc(p)} RM</label><input type="number" step="0.01" value="${(c.fast||{})[p]||''}" style="width:110px" onchange="hqFastSet('${esc(p)}',+this.value)">`).join('')}</div></div>`;
 }
 async function hqCfgSet(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }
 async function hqCfgText(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }
-async function hqPurchAcc(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq.purchaseAccounts=Object.assign({registration:'6000',module:'6001',other:'6002'},c.hq.purchaseAccounts||{}); c.hq.purchaseAccounts[k]=v; await save('settings/config',c); toast('已保存'); }
+async function hqPurchAcc(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq.purchaseAccounts=Object.assign({registration:'6000',seasonal:'6000-01',module:'6001',other:'6002'},c.hq.purchaseAccounts||{}); c.hq.purchaseAccounts[k]=v; await save('settings/config',c); toast('已保存'); }
 async function hqFastSet(p,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq.fast=Object.assign({},c.hq.fast||{}); c.hq.fast[p]=v; await save('settings/config',c); toast('已保存'); }
 
 // ---------- MT 资料（老师：银行账号、IC、加入日期；只有 manager 看得到） ----------

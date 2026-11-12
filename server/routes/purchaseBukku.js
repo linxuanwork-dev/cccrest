@@ -295,12 +295,12 @@ router.post(BASE + '/pdf-parse', ...guard(2), express.raw({ type: '*/*', limit: 
   const bill = require('../lib/hqBill').parseBill(text, String(req.query.name || ''));
   if (!bill.items.length) return bad(res, '这个 PDF 里找不到账单的行（要 QC GROUP 的 HQ 单）。 No bill lines found: it must be a QC GROUP HQ bill.');
   // the Account of each line: the same settings as the Tuition & Allowance HQ bills (registration / module / other)
-  let pa = { registration: '6000', module: '6001', other: '6002' };
+  let pa = { registration: '6000', seasonal: '6000-01', module: '6001', other: '6002' };
   try {
     const c = (await pool.query("SELECT data FROM tuition_docs WHERE company_id = $1 AND path = 'settings/config'", [cid])).rows[0];
     if (c && c.data && c.data.hq && c.data.hq.purchaseAccounts) pa = Object.assign(pa, c.data.hq.purchaseAccounts);
   } catch (e) { /* the company has no Tuition & Allowance: the defaults are used */ }
-  const accOf = (k) => (k === 'registration' || k === 'seasonal' ? pa.registration : k === 'module' ? pa.module : pa.other);
+  const accOf = (k) => (k === 'registration' ? pa.registration : k === 'seasonal' ? pa.seasonal : k === 'module' ? pa.module : pa.other);
   res.json({
     supplier: String(sup.name).toUpperCase().replace(/\s+/g, ' ').trim(), no: bill.invoiceNo, date: bill.date, branch: bill.branch, total: bill.total, itemsTotal: bill.itemsTotal, totalMatches: bill.totalMatches,
     lines: bill.items.map((l) => ({ desc: [l.title, l.fields.module, l.fields.jersey, l.fields.game, l.fields.client].filter(Boolean).join(' - ').toUpperCase().slice(0, 200), qty: l.qty || 1, price: l.price, account: accOf(l.kind) }))

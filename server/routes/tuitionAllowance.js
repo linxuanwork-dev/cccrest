@@ -170,6 +170,11 @@ router.post(BASE + '/bukku-file', ...guard(1), async (req, res) => {
     const row = ws.getRow(hdr + 1 + k);
     cells.forEach((v, j) => { if (v !== null && v !== '') row.getCell(2 + j).value = v; });
   });
+  // the sample lines of the Bukku template are struck through (and so is the whole Date column): the lines we write must not be
+  for (let i = hdr + 1; i <= hdr + rows.length + 100; i++) {
+    const row = ws.getRow(i);
+    for (let j = 1; j <= 48; j++) { const c = row.getCell(j); if (c.font && c.font.strike) c.font = Object.assign({}, c.font, { strike: false }); }
+  }
   const buf = await wb.xlsx.writeBuffer();
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.send(Buffer.from(buf));

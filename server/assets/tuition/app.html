@@ -1550,7 +1550,7 @@ function exportInvoices(force,mode,starts){ const b=UI.invBranch||'BBU', m=UI.in
   if(!act.length) return toast(b+' '+m+' 没有 Active 学生');
   for(const s of act){ const pkg=pkgOnMonth(s,m), fee=feeFor(S,{pkg},s);
     if(!(fee>0)){ bad.push(s.no+' '+s.name+'：package '+(pkg||'（没有）')+' 没有学费'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; }
-    rows.push([s.code,s.no+'-'+s.name,fill(c.number),s.no,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc,pkg)+(/\[PACKAGE\]/.test(c.desc||'')?'':' - '+s.no+' '+s.name+' ('+pkg+')'),1,null,null,fee,null,c.tax||null,null,null]); uidOf.push(s.uid); }
+    rows.push([s.code,s.no+'-'+s.name,fill(c.number),null,date,null,null,null,null,b,null,null,c.product||null,fill(c.account),fill(c.desc,pkg)+(/\[PACKAGE\]/.test(c.desc||'')?'':' - '+s.no+' '+s.name+' ('+pkg+')'),1,null,null,fee,null,c.tax||null,null,null]); uidOf.push(s.uid); }
   // compared with the confirmed teacher roster of that month (information only)
   const ro=S.rosters[rosterId(b,m)], diff=[];
   if(ro&&ro.confirmed){ const onRo=new Set((ro.lines||[]).map(l=>l.uid)), actSet=new Set(act.map(s=>s.uid));

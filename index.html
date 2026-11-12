@@ -943,7 +943,7 @@
             <div id="dsi-menu-note" style="font-size:12px;color:var(--danger);margin-bottom:8px;" hidden></div>
             <div class="table-card" style="overflow-x:auto;">
               <table>
-                <thead><tr><th>#</th><th data-i18n="dsi_th_product">Product</th><th data-i18n="dsi_th_price">Unit price RM</th><th></th></tr></thead>
+                <thead><tr><th>#</th><th data-i18n="dsi_th_product">Product</th><th data-i18n="dsi_th_price">Unit price RM</th><th data-i18n="dsi_th_account">Account</th><th></th></tr></thead>
                 <tbody id="dsi-menu-tbody"></tbody>
               </table>
             </div>
@@ -2514,7 +2514,7 @@
       dsi_tab_entry:"Daily entry", dsi_tab_specials:"Special prices", dsi_tab_menu:"Menu", dsi_tab_settings:"Settings",
       dsi_entry_hint:"Enter the quantity sold per item per day. Blank = 0. A day with nothing entered gets no invoice. Orange cells use a special price.",
       dsi_specials_title:"Special prices — only fill a cell when that day's price differs; blank = menu price.",
-      dsi_th_product:"Product", dsi_th_price:"Unit price RM", dsi_total_rm:"Total RM",
+      dsi_th_product:"Product", dsi_th_price:"Unit price RM", dsi_th_account:"Account (blank = the branch Account Code)", dsi_hf_item_account:"Account", dsi_total_rm:"Total RM",
       dsi_add_item:"+ Add item", dsi_save_menu:"Save menu", dsi_menu_saved:"Menu saved.",
       dsi_delete_item_confirm:"Remove this item? Its saved quantities and special prices will be deleted too.",
       dsi_save_settings:"Save settings", dsi_settings_saved:"Settings saved.",
@@ -2805,7 +2805,7 @@
       dsi_tab_entry:"每日进单", dsi_tab_specials:"特价", dsi_tab_menu:"菜单", dsi_tab_settings:"设定",
       dsi_entry_hint:"输入每天每个项目卖出的数量。空白 = 0；整天都没填就不开单。橙色格子表示该日用了特价。",
       dsi_specials_title:"特价 — 某一天价钱不同才填；留空 = 用菜单价",
-      dsi_th_product:"项目", dsi_th_price:"单价 RM", dsi_total_rm:"合计 RM",
+      dsi_th_product:"项目", dsi_th_price:"单价 RM", dsi_th_account:"Account（空白 = 用分店的 Account Code）", dsi_hf_item_account:"Account", dsi_total_rm:"合计 RM",
       dsi_add_item:"+ 新增项目", dsi_save_menu:"保存菜单", dsi_menu_saved:"菜单已保存。",
       dsi_delete_item_confirm:"确定删除此项目？它已保存的数量和特价也会一并删除。",
       dsi_save_settings:"保存设定", dsi_settings_saved:"设定已保存。",
@@ -5314,7 +5314,7 @@
 
   // ---- Menu tab (Manager level) ----
   function renderDsiMenu(){
-    dsi.menuDraft = dsi.branch.menu.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; });
+    dsi.menuDraft = dsi.branch.menu.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice, accountCode:m.accountCode || '' }; });
     var edit = dsi.access.canConfigure;
     dsiById('dsi-menu-actions').hidden = !edit;
     var note = dsiById('dsi-menu-note');
@@ -5333,6 +5333,7 @@
       return '<tr><td>' + (i + 1) + '</td>' +
         '<td>' + (edit ? '<input type="text" data-dsi-mp="' + i + '" value="' + dsiEsc(m.product) + '" style="' + inputStyle + 'width:100%;min-width:260px;" />' : dsiEsc(m.product)) + '</td>' +
         '<td class="num">' + (edit ? '<input type="number" step="0.01" min="0" data-dsi-mu="' + i + '" value="' + price + '" style="' + inputStyle + 'width:100px;" />' : price) + '</td>' +
+        '<td>' + (edit ? '<input type="text" data-dsi-ma="' + i + '" value="' + dsiEsc(m.accountCode || '') + '" placeholder="' + dsiEsc(dsi.branch.accountCode) + '" style="' + inputStyle + 'width:90px;" />' : dsiEsc(m.accountCode || '')) + '</td>' +
         '<td>' + (edit ? '<div style="display:flex;gap:4px;"><button type="button" class="btn-row" data-dsi-up="' + i + '">↑</button><button type="button" class="btn-row" data-dsi-down="' + i + '">↓</button><button type="button" class="btn-row" data-dsi-del="' + i + '">✕</button></div>' : '') + '</td></tr>';
     }).join('');
     tbody.querySelectorAll('[data-dsi-mp]').forEach(function(inp){
@@ -5340,6 +5341,9 @@
     });
     tbody.querySelectorAll('[data-dsi-mu]').forEach(function(inp){
       inp.addEventListener('input', function(){ dsi.menuDraft[Number(inp.dataset.dsiMu)].unitPrice = inp.value; });
+    });
+    tbody.querySelectorAll('[data-dsi-ma]').forEach(function(inp){
+      inp.addEventListener('input', function(){ dsi.menuDraft[Number(inp.dataset.dsiMa)].accountCode = inp.value; });
     });
     tbody.querySelectorAll('[data-dsi-up]').forEach(function(btn){
       btn.addEventListener('click', function(){ var i = Number(btn.dataset.dsiUp); if(i > 0){ var x = dsi.menuDraft.splice(i, 1)[0]; dsi.menuDraft.splice(i - 1, 0, x); dsiDrawMenuRows(); } });
@@ -5358,7 +5362,7 @@
   }
 
   dsiById('dsi-menu-add').addEventListener('click', function(){
-    dsi.menuDraft.push({ id:null, product:'', unitPrice:'' });
+    dsi.menuDraft.push({ id:null, product:'', unitPrice:'', accountCode:'' });
     dsiDrawMenuRows();
   });
 
@@ -5369,7 +5373,7 @@
     var btn = this;
     btn.disabled = true;
     errEl.hidden = true;
-    var body = { menu: dsi.menuDraft.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice }; }) };
+    var body = { menu: dsi.menuDraft.map(function(m){ return { id:m.id, product:m.product, unitPrice:m.unitPrice, accountCode:m.accountCode || '' }; }) };
     api(dsiBase() + '/branches/' + b.id + '/menu', { method:'PUT', body: JSON.stringify(body) }).then(function(updated){
       var idx = dsi.branches.findIndex(function(x){ return x.id === updated.id; });
       if(idx !== -1) dsi.branches[idx] = updated;
@@ -6595,6 +6599,8 @@
   // Madam Lua + UK Lua: monthly daily-sales entry -> Bukku sales invoice (branches are loaded from the server).
   SALES_SUMMARY_OVERRIDES[normCompany('MADAM LUA WANTONMEE')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
   SALES_SUMMARY_OVERRIDES[normCompany('UK LUA WANTONMEE ENTERPRISE')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
+  // Uncle Koh: the monthly invoices to its three stores (Madam Lua, UK Lua Heng Park, UK Lua Tong Nam) are made the same way
+  SALES_SUMMARY_OVERRIDES[normCompany('UNCLE KOH NOODLE RESTAURANT')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
 
   var MERCHANT_REPORT_OVERRIDES = {};
   MERCHANT_REPORT_OVERRIDES[RECON_ONLY_COMPANY] = { cardId: 'ol-tng-card' };

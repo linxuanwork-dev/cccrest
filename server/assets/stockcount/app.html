@@ -242,7 +242,7 @@ body.is-mgr .noman-only{display:none!important}
         </div>
         <div class="row">
           <span id="rStatus"></span>
-          <button class="btn pri" id="exportBtn">下载 Excel</button>
+          <button class="btn pri" id="exportBtn">下载 Excel</button><button class="btn" id="pdfSumBtn" title="总表：合计、各分组、各 Account、跟上个月比较的图表、最近几个月的走势">下载 PDF（Summary 总表）</button><button class="btn" id="pdfAllBtn" title="全部货品，按分组排列，有小计和合计">下载 PDF（All items 全部货品）</button>
         </div>
       </div>
       <div class="stats">
@@ -419,6 +419,9 @@ body.is-mgr .noman-only{display:none!important}
     '有设定「1 箱 = 几包」的货品，分开打箱数和散装包数': 'Items with "1 carton = N packs" set: enter cartons and loose packs separately',
     '打完按 Enter 跳下一项；橙色 = 未保存，记得按': 'Press Enter to jump to the next item; orange = not saved, remember to press',
     '打好数量后按保存': 'Enter the quantities, then press Save', '下载 Excel': 'Download Excel',
+    '下载 PDF（Summary 总表）': 'Download PDF (Summary)', '下载 PDF（All items 全部货品）': 'Download PDF (All items)',
+    '总表：合计、各分组、各 Account、跟上个月比较的图表、最近几个月的走势': 'Summary: total, by group, by account, comparison charts with the previous month, trend of the last months',
+    '全部货品，按分组排列，有小计和合计': 'All items, by group, with subtotals and a total',
     '期末存货 Closing RM': 'Closing stock RM', '上月期末 Opening RM': 'Last month closing (opening) RM', '变动 RM': 'Change RM', '有存货的项目': 'Items in stock',
     '明细 Detail': 'Detail', '显示数量 0 的项目': 'Show items with quantity 0',
     '货品 Products': 'Products', '数量 Qty': 'Qty', '单位': 'Unit', '单价 Price': 'Price', '金额 Amount': 'Amount',
@@ -1414,6 +1417,36 @@ $('exportBtn').addEventListener('click',async()=>{
     msg.className='check ok'; msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong>`;
   }catch(err){ msg.className='check '+(err&&err.code==='declined'?'idle':'bad'); msg.textContent = err&&err.code==='declined'?'已取消下载。':'下载失败：'+(err&&err.message||err); }
 });
+
+/* ---------- PDF: formal Summary (with the comparison charts) and All items ---------- */
+async function downloadPdf(type){
+  const msg=$('exportMsg'); msg.hidden=false;
+  if(!downloads){ msg.className='check bad'; msg.textContent='不能下载文件，请重新打开页面。'; return; }
+  const rows=monthRows(), t=totals(rows), c=closing(), pm=prevMonth(S.month), p=S.closings[pm];
+  const asAt=lastDay(S.month)+'/'+S.month.slice(5)+'/'+S.month.slice(0,4);
+  const gnames=[...t.byGroup.keys()]; if(p&&p.byGroup) Object.keys(p.byGroup).forEach(k=>{ if(!gnames.includes(k)) gnames.push(k); });
+  // the months that were closed, up to this one (this month is added even when it is not closed yet), the last 12
+  const ms=Object.keys(S.closings).filter(m=>m<S.month).sort(); const trend=ms.slice(-11).map(m=>({label:mLabel(m),total:S.closings[m].total||0}));
+  trend.push({label:mLabel(S.month),total:t.total,current:true});
+  const payload={type,company:S.cfgName||'',asAt,monthLabel:mLabel(S.month),countDate:dmy(countDate()),status:c?'CLOSED':'DRAFT',imported:!!(c&&c.imported),
+    total:t.total,counted:t.counted,itemCount:rows.filter(r=>(r.qty||0)!==0).length,
+    prev:p?{label:mLabel(pm),total:p.total||0}:null,
+    groups:gnames.map(g=>({name:g,total:r2(t.byGroup.get(g)||0),prev:p&&p.byGroup?(p.byGroup[g]||0):null})),
+    accounts:[...t.byAcc.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([a,v])=>({name:a,total:r2(v)})),
+    trend,
+    items:type==='items'?rows.filter(r=>(r.qty||0)!==0||$('rZero').checked).map(r=>({group:r.group,name:r.name,qty:r.qty||0,unit:r.unit,price:r.price||0,amount:r2((r.qty||0)*(r.price||0)),detail:r.pack&&r.qty?fmtCount(r):''})):[]};
+  const btns=[$('pdfSumBtn'),$('pdfAllBtn')]; btns.forEach(b=>b.disabled=true);
+  try{
+    const r=await fetch(API+'/closing-pdf',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||('请求失败 ('+r.status+')')); }
+    const fname=`${filePrefix()}-CLOSING STOCK-${type==='items'?'ALL ITEMS':'SUMMARY'}-${S.month.replace('-','_')}${c?'':'-DRAFT'}.pdf`;
+    await downloads.save({filename:fname,data:await r.blob()});
+    msg.className='check ok'; msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong>`;
+  }catch(err){ msg.className='check bad'; msg.textContent='下载失败：'+(err&&err.message||err); }
+  btns.forEach(b=>b.disabled=false);
+}
+$('pdfSumBtn').addEventListener('click',()=>downloadPdf('summary'));
+$('pdfAllBtn').addEventListener('click',()=>downloadPdf('items'));
 
 /* ---------- ITEMS ---------- */
 function renderItemOptions(){

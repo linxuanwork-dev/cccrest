@@ -83,7 +83,7 @@ function buildMonth(branch, menu, qtyMap, specialMap, year, month) {
           });
         }
       }
-      lines.push({ itemId: item.id, product: item.product, qty, unitCents, amountCents, isSpecial: hasSpecial });
+      lines.push({ itemId: item.id, product: item.product, account: item.account_code || '', qty, unitCents, amountCents, isSpecial: hasSpecial });
     });
 
     if (dayTotalCents > 0) {
@@ -117,7 +117,7 @@ function buildExcelRows(branch, built) {
         paymentTerm: i === 0 ? branch.payment_term : '',
         tags: i === 0 ? branch.tags : '',
         product: line.product,
-        account: branch.account_code,
+        account: line.account || branch.account_code,   // an item can have its own Income account
         description: line.product,
         qty: line.qty,
         unitPrice: centsToNumber(line.unitCents),

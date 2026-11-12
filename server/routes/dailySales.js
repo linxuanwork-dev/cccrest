@@ -52,7 +52,7 @@ async function getBranch(companyId, branchId) {
 
 async function getMenu(branchId) {
   const { rows } = await pool.query(
-    'SELECT id, product, unit_price::float AS unit_price, sort_order FROM dsi_menu_items WHERE branch_id = $1 ORDER BY sort_order, id',
+    'SELECT id, product, unit_price::float AS unit_price, account_code, sort_order FROM dsi_menu_items WHERE branch_id = $1 ORDER BY sort_order, id',
     [branchId]
   );
   return rows;
@@ -92,7 +92,7 @@ function publicBranch(b, menu) {
     regNo: b.reg_no, address: b.address, contactCode: b.contact_code, legalName: b.legal_name,
     invoicePrefix: b.invoice_prefix, invoiceSuffix: b.invoice_suffix, paymentTerm: b.payment_term,
     tags: b.tags, accountCode: b.account_code, includeZero: b.include_zero,
-    menu: menu.map((m) => ({ id: m.id, product: m.product, unitPrice: m.unit_price }))
+    menu: menu.map((m) => ({ id: m.id, product: m.product, unitPrice: m.unit_price, accountCode: m.account_code || '' }))
   };
 }
 
@@ -118,7 +118,7 @@ function parseMenuInput(menu) {
     if (seen.has(product.toLowerCase())) return { error: `菜单名字重复：${product}` };
     seen.add(product.toLowerCase());
     if (menu[i].unitPrice === '' || menu[i].unitPrice == null || isNaN(price) || price < 0) return { error: `「${product}」的单价无效。` };
-    items.push({ id: menu[i].id ? Number(menu[i].id) : null, product, unitPrice: Math.round(price * 100) / 100 });
+    items.push({ id: menu[i].id ? Number(menu[i].id) : null, product, unitPrice: Math.round(price * 100) / 100, accountCode: cleanText(menu[i].accountCode, 30) });
   }
   return { items };
 }
@@ -175,6 +175,7 @@ function diffMenu(existing, items) {
     const old = existing.find((m) => m.id === it.id);
     if (old.product !== it.product) details.push({ field: 'item_renamed', label: it.product, from: old.product, to: it.product });
     if (Math.round(old.unit_price * 100) !== Math.round(it.unitPrice * 100)) details.push({ field: 'item_price', label: it.product, from: old.unit_price, to: it.unitPrice });
+    if ((old.account_code || '') !== (it.accountCode || '')) details.push({ field: 'item_account', label: it.product, from: old.account_code || '', to: it.accountCode || '' });
   });
   const oldOrder = existing.filter((m) => keptIds.has(m.id)).map((m) => m.id).join(',');
   const newOrder = items.filter((i) => i.id).map((i) => i.id).join(',');
@@ -231,8 +232,8 @@ router.post(`${BASE}/branches`, requireAuth, scopeToCompany, needAccess, require
         !!body.includeZero, orderRows[0].n]
     );
     for (let i = 0; i < parsed.items.length; i++) {
-      await client.query('INSERT INTO dsi_menu_items (branch_id, sort_order, product, unit_price) VALUES ($1,$2,$3,$4)',
-        [rows[0].id, i + 1, parsed.items[i].product, parsed.items[i].unitPrice]);
+      await client.query('INSERT INTO dsi_menu_items (branch_id, sort_order, product, unit_price, account_code) VALUES ($1,$2,$3,$4,$5)',
+        [rows[0].id, i + 1, parsed.items[i].product, parsed.items[i].unitPrice, parsed.items[i].accountCode]);
     }
     await client.query('COMMIT');
     const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
@@ -309,9 +310,9 @@ router.put(`${BASE}/branches/:branchId/menu`, requireAuth, scopeToCompany, needA
     for (let i = 0; i < parsed.items.length; i++) {
       const it = parsed.items[i];
       if (it.id) {
-        await client.query('UPDATE dsi_menu_items SET sort_order=$1, product=$2, unit_price=$3 WHERE id=$4', [i + 1, it.product, it.unitPrice, it.id]);
+        await client.query('UPDATE dsi_menu_items SET sort_order=$1, product=$2, unit_price=$3, account_code=$5 WHERE id=$4', [i + 1, it.product, it.unitPrice, it.id, it.accountCode]);
       } else {
-        await client.query('INSERT INTO dsi_menu_items (branch_id, sort_order, product, unit_price) VALUES ($1,$2,$3,$4)', [b.id, i + 1, it.product, it.unitPrice]);
+        await client.query('INSERT INTO dsi_menu_items (branch_id, sort_order, product, unit_price, account_code) VALUES ($1,$2,$3,$4,$5)', [b.id, i + 1, it.product, it.unitPrice, it.accountCode]);
       }
     }
     await client.query('COMMIT');

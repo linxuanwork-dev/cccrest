@@ -286,6 +286,19 @@ router.post(BASE + '/stamp', ...guard(1), express.raw({ type: '*/*', limit: '10m
   res.send(Buffer.from(buf));
 });
 
+// The Closing Stock report as a formal PDF (summary with the comparison charts, or the list of all items). The page sends the numbers it shows.
+router.post(BASE + '/closing-pdf', ...guard(1), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body;
+  if (!b || typeof b !== 'object' || !Array.isArray(b.groups) || (b.type === 'items' && (!Array.isArray(b.items) || b.items.length > 4000))) return bad(res, 'Invalid request');
+  const { doc, data } = require('../lib/stockClosingPdf').buildClosingPdf(b);
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
+  try { await docs.logEvent(req, req.params.companyId, 'stock_count_pdf', (data.type === 'items' ? 'All items ' : 'Summary ') + data.monthLabel, 'downloaded', []); } catch (e) { console.error('stock pdf log failed:', e); }
+  res.setHeader('Content-Type', 'application/pdf');
+  doc.pipe(res);
+  doc.end();
+});
+
 // Change log: one document per person per day, entries are added at the end (a new document is started when one gets big)
 router.post(BASE + '/log', ...guard(2), async (req, res) => {
   if (!await enabledSettings(req, res)) return;

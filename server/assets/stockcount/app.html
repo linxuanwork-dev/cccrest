@@ -225,6 +225,8 @@ body.is-mgr .noman-only{display:none!important}
       </div>
       <div class="row" style="justify-content:space-between;margin:-4px 0 6px"><div class="row"><button class="btn sm" id="gOpenAll">全部展开</button><button class="btn sm" id="gCloseAll">全部收起</button><span class="small muted">点类别名称，展开或收起这一类的清单</span></div><button class="btn sm pri" id="saveBtnTop">保存</button></div>
       <div class="legend"><span><span class="key"></span>黄色 = 还没点（没货可以不填，结账时当 0）</span><span>数量可打 <span class="mono">2+0.5</span>，会自动加起来</span><span>有设定「1 箱 = 几包」的货品，分开打箱数和散装包数</span><span>打完按 Enter 跳下一项；橙色 = 未保存，记得按<b>保存</b></span></div>
+      <div class="row" id="cxRow" style="margin:8px 0 0"><button type="button" class="btn sm" id="cxDown">下载盘点表 Excel</button><button type="button" class="btn sm" id="cxUp">导入盘点表</button><input type="file" id="cxFile" accept=".xlsx,.xls,.csv" hidden><span class="small muted">下载 → 在 Excel 填数量 → 再导入</span></div>
+      <div id="cxMsg" class="check" style="margin-top:8px" hidden></div>
       <div class="clist" id="cList"></div>
       <div class="savebar" id="saveBar"><span class="small" id="saveInfo">打好数量后按保存</span><button class="btn pri" id="saveBtn" disabled>保存</button></div>
     </div>
@@ -468,7 +470,12 @@ body.is-mgr .noman-only{display:none!important}
     '全部展开': 'Expand all', '全部收起': 'Collapse all', '点类别名称，展开或收起这一类的清单': 'Click a category name to open or close its list',
     '本月单价按「采购单」的进货价用 FIFO 计算：期末的货当作最近买进的几批，各批用自己的进价；没有进货记录的货品用货品资料的单价。': 'This month\'s prices are worked out by FIFO from the purchase bills: the stock at month end is treated as the most recently bought batches, each at its own purchase price. Items with no purchase records use the price in the item list.',
     '（正在读取采购记录…）': '(loading the purchase records…)', '还在读取采购记录，等几秒再按结账': 'Still loading the purchase records — wait a few seconds, then press Close',
-    '货品资料单价（没有更早的进货记录）': 'Item list price (no earlier purchase records)', '最早一批的进价（没有更早的进货记录）': 'Cost of the oldest batch known (no earlier purchase records)'
+    '货品资料单价（没有更早的进货记录）': 'Item list price (no earlier purchase records)', '最早一批的进价（没有更早的进货记录）': 'Cost of the oldest batch known (no earlier purchase records)',
+    '下载盘点表 Excel': 'Download count sheet (Excel)', '导入盘点表': 'Import count sheet', '下载 → 在 Excel 填数量 → 再导入': 'Download → fill in the quantities in Excel → import it back',
+    '这个月已结账，不能下载盘点表': 'This month is closed — the count sheet cannot be downloaded', '这个月已结账，不能导入。': 'This month is closed — nothing can be imported.', '你只能看，不能导入。': 'You have view-only access — you cannot import.',
+    '在 Excel 填好 QTY 栏，再按「导入盘点表」。': 'Fill in the QTY column in Excel, then press "Import count sheet".',
+    '找不到表头。请用这里下载的盘点表。': 'The header row was not found. Please use the count sheet downloaded here.', '文件里没有填任何数量。': 'No quantity is filled in this file.',
+    '空白的格子不会清掉已经点的数量。': 'Blank cells never clear a quantity that was already counted.', '确认导入并保存': 'Confirm import & save'
   }));
 
   // whole-text patterns (first match wins); $1.. = captured parts
@@ -524,6 +531,14 @@ body.is-mgr .noman-only{display:none!important}
     [/^变更记录没存到：(.*)$/, 'The change log was not saved: $1'],
     [/^请求失败 \((\d+)\)$/, 'Request failed ($1)'],
     [/^你的权限不足（这个操作需要 (L\d) 或以上）$/, 'Not enough permission (this needs $1 or above)'],
+    [/^这个盘点表是 (\S+) 的，现在选的月份是 (\S+)。请先切换到 (\S+)。$/, 'This sheet is for $1 but the selected month is $2. Switch to $1 first.'],
+    [/^盘点表预览：(.*)$/, 'Count sheet preview: $1'],
+    [/^共 (\d+) 行有数量：(\d+) 项会更新，(\d+) 项没变$/, '$1 row(s) with a quantity: $2 will be updated, $3 unchanged'],
+    [/^数量写法不对，没导入：(.*)$/, (m, x) => 'Invalid quantity — not imported: ' + x.replace(/、/g, ', ')],
+    [/^找不到这些货品，没导入：(.*)$/, (m, x) => 'Items not found — not imported: ' + x.replace(/、/g, ', ')],
+    [/^重复的货品只取第一行：(.*)$/, (m, x) => 'Duplicate items — only the first row is used: ' + x.replace(/、/g, ', ')],
+    [/^(\d+) 项没保存成功，请检查后按保存。$/, '$1 item(s) were not saved — check and press Save.'],
+    [/^✓ 已导入并保存 (\d+) 项$/, '✓ Imported and saved $1 item(s)'],
     // messages from the server are "中文。 English." — show the English part
     [/^[^A-Za-z]*[　-鿿][\s\S]*?[。！？]\s+([A-Z][^　-鿿]*)$/, '$1']
   ];
@@ -925,6 +940,7 @@ function patchCount(skipRows){
   $('cSub').textContent = c ? `已结账，期末存货锁定在 ${new Date(c.closedAt).toLocaleDateString('en-GB')} 的数字。` : `截止日期 ${lastDay(S.month)}/${S.month.slice(5)}/${S.month.slice(0,4)} · 点完全部再按结账。`;
   $('cStatus').innerHTML = c ? '<span class="pill closed">已结账</span>' : '<span class="pill open">盘点中</span>';
   $('closeBtn').hidden=!!c; $('reopenBtn').hidden=!c;
+  $('cxRow').hidden=!!c || !S.canWrite; if($('cxRow').hidden) $('cxMsg').hidden=true;
   $('sCounted').textContent = c ? `${Object.keys(c.lines||{}).length} 项有货` : `${done} / ${all}`;
   $('sValue').textContent=money(t.total);
   const p=S.closings[prevMonth(S.month)]; $('sPrev').textContent = p ? money(p.total) : '—';
@@ -1029,6 +1045,102 @@ window.addEventListener('beforeunload',e=>{ if(Object.keys(S.pend||{}).length){ 
 $('cList').addEventListener('change',e=>{ if(e.target.closest('.pedit')) return; const el=e.target.closest('.ci'); if(el) stageRow(el); });
 $('saveBtn').addEventListener('click',saveAll);
 $('saveBtnTop').addEventListener('click',saveAll);
+/* ---------- count sheet in Excel: download it, fill in the quantities in Excel, import it back ----------
+   The sheet has no prices (staff can use it). Blank cells = not counted and never clear a saved count. Importing puts the numbers
+   through the same checks as typing them (a "1 carton = N packs" item takes cartons + loose packs) and saves them. */
+const cxShow = (cls, html) => { const b=$('cxMsg'); b.hidden=false; b.className='check '+cls; b.innerHTML=html; };
+const bigN = r => r.big!=null ? r.big : Math.floor(r.qty+1e-9);
+const looseN = r => r.loose!=null ? r.loose : Math.round((r.qty-Math.floor(r.qty+1e-9))*r.pack*1000)/1000;
+$('cxDown').addEventListener('click',async()=>{
+  if(typeof XLSX==='undefined'||!downloads) return toast('这个画面不能下载文件');
+  if(isClosed()) return toast('这个月已结账，不能下载盘点表');
+  const aoa=[[S.cfgName||''],['STOCK COUNT SHEET'],['MONTH',S.month],['STOCK COUNT DATE',dmy(countDate())||'-'],
+    ['Fill in the QTY column only. Blank = not counted. You can type 2+0.5. Items with a SUB UNIT: QTY = cartons, LOOSE QTY = loose packs. Do not change the item names.'],[],
+    ['ITEM ID','GROUP','PRODUCTS','UNIT','QTY','SUB UNIT','LOOSE QTY']];
+  monthRows().forEach(r=>{
+    const has=r.qty!==null;
+    aoa.push([r.id,r.group,r.name,r.unit,has?(r.pack?bigN(r):r.qty):'',r.pack?r.sub:'',r.pack&&has&&looseN(r)?looseN(r):'']);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:8,hidden:true},{wch:26},{wch:70},{wch:8},{wch:10},{wch:10},{wch:12}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'COUNT SHEET');
+  const fname=`${filePrefix()}-STOCK COUNT SHEET-${S.month.replace('-','_')}.xlsx`;
+  try{ await downloads.save({filename:fname,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); cxShow('ok',`<strong>✓ 已下载 ${esc(fname)}</strong><span>在 Excel 填好 QTY 栏，再按「导入盘点表」。</span>`); }
+  catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
+});
+$('cxUp').addEventListener('click',()=>{
+  if(isClosed()) return toast('这个月已结账，不能导入。');
+  if(!S.canWrite) return toast('你只能看，不能导入。');
+  $('cxFile').click();
+});
+const cxCell = v => v==null ? '' : (typeof v==='number' ? String(v) : String(v).trim());
+function cxParse(arr){
+  const mc=arr.slice(0,12).find(r=>r&&norm(r[0])==='MONTH');
+  const sm=mc?cxCell(mc[1]):'';
+  if(/^\d{4}-\d{2}$/.test(sm) && sm!==S.month) return {err:`这个盘点表是 ${sm} 的，现在选的月份是 ${S.month}。请先切换到 ${sm}。`};
+  const h=arr.findIndex(r=>r&&r.some(c=>norm(c)==='ITEM ID'||norm(c)==='PRODUCTS')&&r.some(c=>/^(QTY|QUANTITY|数量)/.test(norm(c))));
+  if(h<0) return {err:'找不到表头。请用这里下载的盘点表。'};
+  const col={id:-1,name:-1,qty:-1,loose:-1};
+  arr[h].forEach((c,i)=>{ const k=norm(c);
+    if(k==='ITEM ID'||k==='ID') col.id=i; else if(k==='PRODUCTS'||k==='ITEM') col.name=i;
+    else if(/LOOSE|散装/.test(k)) col.loose=i; else if(/^(QTY|QUANTITY|数量)/.test(k)) col.qty=i; });
+  const rows=monthRows(), byId=new Map(rows.map(r=>[r.id,r])), byName=new Map(rows.map(r=>[norm(r.name),r]));
+  const out={changes:[],same:0,blank:0,notFound:[],invalid:[],dup:[],filled:0}, seen=new Set();
+  arr.slice(h+1).forEach(r=>{
+    if(!r) return;
+    const qs=col.qty>=0?cxCell(r[col.qty]):'', ls=col.loose>=0?cxCell(r[col.loose]):'';
+    const idv=col.id>=0?cxCell(r[col.id]):'', nm=col.name>=0?cxCell(r[col.name]):'';
+    if(!idv&&!nm) return;
+    if(qs===''&&ls===''){ if(byId.get(idv)||byName.get(norm(nm))) out.blank++; return; }
+    out.filled++;
+    const row=byId.get(idv)||byName.get(norm(nm));
+    if(!row){ out.notFound.push(nm||idv); return; }
+    if(seen.has(row.id)){ out.dup.push(row.name); return; } seen.add(row.id);
+    const it=S.items.find(i=>i.id===row.id)||{}, pack=effPack(it).pack;
+    if(!pack && ls!==''){ out.invalid.push(row.name+'（LOOSE QTY：'+ls+'）'); return; }
+    const vals=pack?{big:qs,loose:ls}:{qty:qs};
+    const ev=evalRow(row.id,vals);
+    if(ev.err){ out.invalid.push(row.name+'（'+qs+(ls?' + '+ls:'')+'）'); return; }
+    if(ev.same){ out.same++; return; }
+    out.changes.push({id:row.id,name:row.name,from:descLine(ev.old,ev.it),to:descLine(ev.doc,ev.it),vals});
+  });
+  return out;
+}
+$('cxFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  if(typeof XLSX==='undefined') return cxShow('bad','Excel 工具载入失败，请重新打开页面。');
+  if(isClosed()) return cxShow('bad','这个月已结账，不能导入。');
+  let res;
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const arrOf=n=>XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});
+    const name=wb.SheetNames.find(n=>norm(n)==='COUNT SHEET')||wb.SheetNames.find(n=>arrOf(n).some(r=>r.some(c=>norm(c)==='ITEM ID')))||wb.SheetNames[0];
+    res=cxParse(arrOf(name));
+  }catch(err){ return cxShow('bad','读不到这个文件：'+(err&&err.message||err)); }
+  if(res.err) return cxShow('bad',esc(res.err));
+  if(!res.filled) return cxShow('bad','文件里没有填任何数量。');
+  const n=res.changes.length;
+  const list=res.changes.slice(0,300).map(c=>`<div><b>${esc(c.name)}</b> <span>${esc(c.from)} → ${esc(c.to)}</span></div>`).join('')+(n>300?`<div>… ${n-300}</div>`:'');
+  cxShow((res.notFound.length||res.invalid.length)?'warn':(n?'warn':'idle'),
+    `<strong>盘点表预览：${esc(f.name)}</strong>
+     <span>共 ${res.filled} 行有数量：${n} 项会更新，${res.same} 项没变</span>
+     <span>空白的格子不会清掉已经点的数量。</span>
+     ${res.invalid.length?`<span>数量写法不对，没导入：${esc(res.invalid.slice(0,8).join('、'))}${res.invalid.length>8?'…':''}</span>`:''}
+     ${res.notFound.length?`<span>找不到这些货品，没导入：${esc(res.notFound.slice(0,8).join('、'))}${res.notFound.length>8?'…':''}</span>`:''}
+     ${res.dup.length?`<span>重复的货品只取第一行：${esc(res.dup.slice(0,5).join('、'))}</span>`:''}
+     ${n?`<div class="prev">${list}</div>`:''}
+     <div class="row"><button class="btn pri sm" id="cxGo" ${n?'':'disabled'}>确认导入并保存</button><button class="btn sm" id="cxNo">取消</button></div>`);
+  $('cxNo').onclick=()=>{ $('cxMsg').hidden=true; };
+  $('cxGo').onclick=async()=>{
+    if(isClosed()) return;
+    $('cxGo').disabled=true;
+    res.changes.forEach(c=>{ S.pend[c.id]=c.vals; });
+    storePend(); renderCount(); updateSaveBar();
+    await saveAll();
+    const left=Object.keys(S.pend).length;
+    cxShow(left?'warn':'ok',left?`${left} 项没保存成功，请检查后按保存。`:`✓ 已导入并保存 ${n} 项`);
+  };
+});
+
 /* carton size correction on the count sheet */
 function descLine(l,it){
   if(!l) return '（空）';

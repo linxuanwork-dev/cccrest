@@ -351,7 +351,13 @@ function cfg(){ const c=Object.assign({bankBranches:{AFFIN:['BBU'],PBB:['TST','T
 
 // ---------- db ----------
 const queues={};
+// a student who is Deactive keeps the date it started (deactSince); the date goes away when the status is something else. Every save of a students document passes here.
+function stampDeact(path,data){ if(!/^students\//.test(path)||!data||!data.list) return; Object.values(data.list).forEach(x=>{ if(!x) return; if(x.status==='Deactive'){ if(!x.deactSince) x.deactSince=today(); } else if(x.deactSince) delete x.deactSince; }); }
+// Deactive for more than 3 months: the page reminds that the status should become Withdrawn (nothing changes by itself)
+const DEACT_MONTHS=3;
+const deactDue=x=>x.status==='Deactive'&&!!x.deactSince&&today()>addMonths(x.deactSince.slice(0,7),DEACT_MONTHS)+x.deactSince.slice(7);
 function save(path,data){ if(!db){toast('没有连接数据库，无法保存');return Promise.reject();}
+  stampDeact(path,data);
   const q=(queues[path]||Promise.resolve()).then(()=>db.doc(path).set(JSON.parse(JSON.stringify(data)))).catch(e=>{ console.error(e); toast('保存失败：'+(e&&e.message||e&&e.code||e)); if(e&&e.code==='invalid_argument'){canWrite=false;} throw e; });
   queues[path]=q.catch(()=>{}); return q; }
 /* ---------- storage: the CC CREST server. A local copy (memo) is changed first so the screen reacts at once; the server is the real store.
@@ -430,7 +436,8 @@ async function init(){
   if(!me.enabled){ $('#conn').className='tag bad'; $('#conn').textContent='这家公司还没有开通'; render(); return; }
   MGR=!!me.mgr; ADMINP=!!me.admin; canWrite=!!me.canWrite;
   const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
-  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims','hqbills'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看'; } render(); };
+  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims','hqbills'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看';
+    if(!window._deactStamped && MGR && canWrite){ window._deactStamped=true; BRANCHES.forEach(b=>{ const d=S.students[b]; if(d&&d.list&&Object.values(d.list).some(x=>x&&x.status==='Deactive'&&!x.deactSince)) save('students/'+b,JSON.parse(JSON.stringify(d))).catch(()=>{}); }); } } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
   db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
   db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
@@ -474,7 +481,7 @@ function todoUnfinished(){
   const by=(a)=>BRANCHES.map(b=>[b,a.filter(s=>s.branch===b).length]).filter(x=>x[1]).map(x=>x[0]+' '+x[1]).join('，');
   const li=(n,t,d)=>n?`<li>${t}：<b>${n}</b> <span class="small mute">${d||''}</span></li>`:'';
   const bad=Object.values(S.claims||{}).filter(c=>c.status==='submitted').flatMap(c=>(c.lines||[]).filter(l=>l.uid&&!l.dropped&&(()=>{ const x=findStu(S,l.uid); return x&&x.status!=='Active'; })())).length;
-  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(bad,'MT Claim 里有 Master 不是 Active 的学生（要先处理，不然影响开单）','')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
+  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(bad,'MT Claim 里有 Master 不是 Active 的学生（要先处理，不然影响开单）','')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(all.filter(deactDue).length,'暂停超过 3 个月的学生（建议改成 Withdrawn）',by(all.filter(deactDue)))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
 }
 function vHome(){
   const L=ledger(); const o=outstanding(S,L,today()); const al=allowanceLines(S,L);
@@ -525,6 +532,7 @@ function vStu(){
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
+  ${stuList(b).filter(deactDue).length?`<div class="msg warn">${stuList(b).filter(deactDue).length} 个学生暂停超过 3 个月，建议改成 Withdrawn（停课）。括号里是暂停开始日期：${stuList(b).filter(deactDue).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true})).map(x=>`<div>${esc(x.no)} ${esc(x.name)} (${esc(x.deactSince)}) ${canWrite?`<button class="g" onclick="withdrawLong('${x.uid}')">改成 Withdrawn</button>`:''}</div>`).join('')}</div>`:''}
   ${stuList(b).filter(s=>s.status==='Deactive').length?`<div class="msg info">${stuList(b).filter(s=>s.status==='Deactive').length} 个学生暂停中（不开学费、不在 MT Claim 里）；恢复上课时把状态改回 Active</div>`:''}
   ${stuList(b).filter(s=>s.status==='Registered').length?`<div class="msg info">${stuList(b).filter(s=>s.status==='Registered').length} 个已报名的学生还没上课，package 和 MT 还没决定（决定后填好，把状态改成 Active）</div>`:''}
   ${badMt.length?`<div class="msg warn">有 Active 学生的 MT 不在 ${b} 的 MT 名单里：${badMt.map(esc).join('、')}</div>`:''}
@@ -654,6 +662,8 @@ function rosterDiff(r,prev,isDraft){
   const lines=r.lines||[]; const pm={}; (prev?prev.lines:[]).forEach(l=>{ if(l.uid) pm[l.uid]=l; });
   const cm={}; lines.forEach(l=>{ if(l.uid){ (cm[l.uid]=cm[l.uid]||[]).push(l); } });
   const nw=[],gone=[],pkg=[],mt=[],dup=[],nomaster=[],hq=[],norate=[],zero=[];
+  // Active in the student Master but not in this roster (only checked for the newest month of the branch: older months are history)
+  const latest=!Object.values(S.rosters).some(x=>x.branch===r.branch&&x.month>r.month);
   for(const l of lines){ const s=l.uid&&findStu(S,l.uid);
     if(!l.uid){ nomaster.push(l); continue; }
     if(prev && !pm[l.uid]) nw.push(l);
@@ -663,6 +673,7 @@ function rosterDiff(r,prev,isDraft){
     if(!S.packages[l.pkg]) norate.push(l);
     if(!l.classes) zero.push(l); }
   for(const u in cm) if(cm[u].length>1) dup.push(cm[u]);
+  const missing=latest?stuList(r.branch).filter(x=>x.status==='Active'&&!cm[x.uid]).sort((a,c)=>a.no.localeCompare(c.no,undefined,{numeric:true})):[];
   if(prev) for(const u in pm) if(!cm[u]){ const s=findStu(S,u); gone.push([pm[u],s]); }
   const box=(title,cls,items,fn,extra='')=>`<div class="card"><h3><span class="tag ${cls}">${items.length}</span> ${title}</h3>${items.length?`<div class="small" style="max-height:180px;overflow:auto">${items.map(fn).join('<br>')}</div>`:'<span class="small mute">没有</span>'}${extra}</div>`;
   const sn=l=>esc((l.uid?findStu(S,l.uid).no+' ':'')+l.name);
@@ -670,6 +681,7 @@ function rosterDiff(r,prev,isDraft){
    ${box('不在学生 Master（新学生？）','bad',nomaster,l=>`${esc(l.name)} · ${esc(l.mt)} · ${esc(l.pkg)} ${isDraft?`<button class="g" onclick="linkLine(${lines.indexOf(l)})">选学生 / 新增</button>`:''}`)}
    ${prev?box('🆕 新出现（上个月没有）','info',nw,l=>`${sn(l)} · ${esc(l.mt)} · ${esc(l.pkg)}`):''}
    ${prev?box('❌ 上个月有、这个月没报','warn',gone,([l,s])=>`${sn(l)} · ${esc(l.mt)} ${s&&s.status==='Active'?`<button class="g" onclick="setStatus('${l.uid}','Withdrawn')">设为停课</button>`:stTag(s&&s.status)}`,'<div class="small mute" style="margin-top:6px">可能是停课、漏报或转 branch，请确认。</div>'):''}
+   ${latest?box('📋 Master 里是 Active，但这个名单里没有','warn',missing,x=>`${esc(x.no)} ${esc(x.name)} · ${esc(x.mt)} · ${esc(x.pkg)} <button class="g" onclick="addMissing('${x.uid}')">加进名单</button>`,'<div class="small mute" style="margin-top:6px">可能是老师漏报、这个月没上课（要改成暂停），或还没处理。加进名单后要按「确认保存」。</div>'):''}
    ${prev?box('🔄 换 package','warn',pkg,([l,p])=>`${sn(l)}：${esc(p.pkg)} → <b>${esc(l.pkg)}</b>`):''}
    ${prev?box('👥 换 MT','warn',mt,([l,p])=>`${sn(l)}：${esc(p.mt)} → <b>${esc(l.mt)}</b>`):''}
    ${box('⚠️ 同一个学生出现两次','bad',dup,ls=>`${sn(ls[0])}：${ls.map(l=>esc(l.mt)).join('、')}`)}
@@ -718,6 +730,8 @@ function tplDownload(){ const b=UI.rBranch,m=UI.rMonth; const cur=UI.draft&&UI.d
   saveXlsx(`老师名单模板_${b}_${m}.xlsx`,sheets); }
 function curRosterForEdit(){ const b=UI.rBranch,m=UI.rMonth; if(!UI.draft||UI.draft.branch!==b||UI.draft.month!==m){ const c=S.rosters[rosterId(b,m)]; UI.draft=c?JSON.parse(JSON.stringify(c)):{branch:b,month:m,lines:[],confirmed:false}; } return UI.draft; }
 function editRoster(){ curRosterForEdit(); render(); }
+function addMissing(uid){ const x=findStu(S,uid); if(!x) return; const d=curRosterForEdit(); UI.rosterEdit=true; const mate=d.lines.find(l=>{ const y=l.uid&&findStu(S,l.uid); return y&&y.mt===x.mt; });
+  d.lines.push({mt:mate?mate.mt:(x.mt||'MT ?').toUpperCase(),uid:x.uid,name:x.name,pkg:x.pkg,classes:stdClasses(S,x.pkg)}); render(); toast(x.no+' '+x.name+' → '+d.lines[d.lines.length-1].mt); }
 function lineSet(i,k,v){ const d=curRosterForEdit(); d.lines[i][k]=v; render(); }
 function delLine(i){ const d=curRosterForEdit(); d.lines.splice(i,1); render(); }
 function addRosterLine(){ const d=curRosterForEdit(); const mts=[...new Set(d.lines.map(l=>l.mt).concat((S.mts.names||{})[d.branch]||[]))];
@@ -734,7 +748,8 @@ function linkLine(i){ const d=curRosterForEdit(); const l=d.lines[i]; const st=s
 async function newStuFromLine(i){ const d=curRosterForEdit(); const l=d.lines[i]; const b=UI.rBranch; const no=nextNo(b);
   const doc=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); doc.list=doc.list||{}; doc.list[no]={code:nextCode(b),name:l.name,status:'Active',parents:[],mt:l.mt,pkg:l.pkg,price:0,opening:0,gender:'',created:today()};
   await save('students/'+b,doc); l.uid=b+':'+no; closeModal(); render(); toast('已新增 '+no+'，记得到学生 Master 补父母名字和性别'); }
-async function setStatus(uid,st){ const s=findStu(S,uid); const doc=JSON.parse(JSON.stringify(S.students[s.branch])); doc.list[s.no].status=st; await save('students/'+s.branch,doc); toast(s.no+' → '+st); }
+async function setStatus(uid,st){ const s=findStu(S,uid); const doc=JSON.parse(JSON.stringify(S.students[s.branch])); histAdd(doc.list[s.no],'status',doc.list[s.no].status,st,''); doc.list[s.no].status=st; await save('students/'+s.branch,doc); toast(s.no+' → '+st); }
+async function withdrawLong(uid){ const s=findStu(S,uid); if(!s||!confirm('确定改成 Withdrawn（停课）？ '+s.no+' '+s.name)) return; await setStatus(uid,'Withdrawn'); }
 async function importRoster(input){
   try{ const {wb}=await readFile(input); input.value=''; let lines=[];
     for(const n of wb.SheetNames){ lines=lines.concat(parseRoster(sheetRows(wb.Sheets[n]))); }

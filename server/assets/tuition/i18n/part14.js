@@ -1,4 +1,11 @@
 module.exports = {
+  '📋 Master 里是 Active，但这个名单里没有': ['📋 Active in the Master, but not in this roster', '📋 Active dalam Master, tetapi tiada dalam senarai ini'],
+  '加进名单': ['Add to roster', 'Tambah ke senarai'],
+  '可能是老师漏报、这个月没上课（要改成暂停），或还没处理。加进名单后要按「确认保存」。': ['Maybe the teacher missed them, they did not attend this month (then set them to Deactive), or it is not handled yet. After adding them, press “Confirm save”.', 'Mungkin guru tertinggal, mereka tidak hadir bulan ini (maka tukar kepada Deactive), atau belum diuruskan. Selepas menambah, tekan “Sahkan simpan”.'],
+  '个学生暂停超过 3 个月，建议改成 Withdrawn（停课）。括号里是暂停开始日期：': [' student(s) have been paused for more than 3 months; consider changing them to Withdrawn (stopped). The paused-since date is in brackets: ', ' murid telah dijeda lebih daripada 3 bulan; pertimbangkan untuk menukar kepada Withdrawn (berhenti). Tarikh mula dijeda dalam kurungan: '],
+  '改成 Withdrawn': ['Change to Withdrawn', 'Tukar kepada Withdrawn'],
+  '确定改成 Withdrawn（停课）？': ['Change to Withdrawn (stopped)?', 'Tukar kepada Withdrawn (berhenti)?'],
+  '暂停超过 3 个月的学生（建议改成 Withdrawn）': ['Students paused for more than 3 months (consider changing to Withdrawn)', 'Murid dijeda lebih daripada 3 bulan (pertimbang tukar kepada Withdrawn)'],
   '每个货品一张卡：HQ 单进货，开单给 klien 出货，Fast Track 按 MT Claim 打勾出货；期初库存、盘点调整用「＋ 调整」加。': ['One card per item: HQ bills bring stock in, invoicing a client takes it out, Fast Track goes out by the MT Claim ticks; add opening stock and count adjustments with “+ Adjustment”.', 'Satu kad bagi setiap barang: bil HQ memasukkan stok, invois kepada klien mengeluarkannya, Fast Track keluar mengikut tanda MT Claim; tambah stok awal dan pelarasan kiraan dengan “+ Pelarasan”.'],
   '＋ 调整': ['+ Adjustment', '+ Pelarasan'],
   '下载 Excel（stock card）': ['Download Excel (stock card)', 'Muat turun Excel (kad stok)'],

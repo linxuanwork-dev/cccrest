@@ -1202,16 +1202,23 @@ async function claimProdsSave(v){ const c=JSON.parse(JSON.stringify(cfg())); c.c
 // ---------- HQ 进货单（QC GROUP 开给各 branch 的单）：上传后自动开单给 klien ----------
 // Lines with a client name (registration, seasonal, module, jersey, reactive) become a sales invoice to that client, priced from the sales price list
 // (not the HQ price), numbered IV-[BRANCH]-R / M / O-[YY][MM]-[3DIGIT] and dated with the HQ invoice date. Fast Track (no client) is stock only.
-const HQ_DEF={module:80,regMale:200,regFemale:210,regFemaleShort:200,seasonal:0,reactive:20};
+const HQ_DEF={module:80,regLong:210,regShort:200,xl3:15,regProduct:'REGISTRATION-MALE',seasonal:60,reactive:20};   // registration: long sleeve (PANJANG) RM210, short sleeve (PENDEK) RM200, size 3XL +RM15 for both; no male / female split; seasonal RM60
 function hqCfg(){ const h=(S.config&&S.config.hq)||{}; return Object.assign({},HQ_DEF,h,{fast:Object.assign({},h.fast||{})}); }
 const HQ_KINDS=[['registration','Registration'],['seasonal','Seasonal'],['module','Module'],['jersey','Jersey'],['reactive','Reactive'],['other','Other'],['fasttrack','Fast Track (stock)'],['stock','Stock (no client)']];
 const HQ_SERIES={registration:'R',seasonal:'R',module:'M',jersey:'O',reactive:'O',other:'O'};
 const HQ_ACCOUNT={R:'5000-01',M:'5000-03',O:'5000-04'};
 const invoiced=k=>!!HQ_SERIES[k];
+// the selling price of a registration follows the jersey wording on the HQ bill: PANJANG = long sleeve, PENDEK = short sleeve; size 3XL has an extra charge (same for both)
+function hqRegPrice(l,cfg){
+  const t=String(l.jersey||'').trim()?String(l.jersey):String(l.title||'');
+  const lg=/PANJANG|LONG/i.test(t), sh=/PENDEK|SHORT/i.test(t);
+  let p=lg&&!sh?cfg.regLong:cfg.regShort; if(/(^|[^0-9A-Z])(3XL|XXXL)([^A-Z]|$)/i.test(t)) p+=(+cfg.xl3||0);
+  return {p,note:(lg||sh)?'':'jersey?'};
+}
 function hqPrice(l,stu,cfg){
-  const k=l.kind, g=l.gender||(stu&&stu.gender)||'', short=/PENDEK|SHORT/i.test(l.jersey||'');
+  const k=l.kind;
   if(k==='module') return {p:cfg.module};
-  if(k==='registration'){ if(g==='女长袖') return {p:cfg.regFemale}; if(g==='女短袖'||short) return {p:cfg.regFemaleShort}; if(g==='男') return {p:cfg.regMale}; return {p:cfg.regMale,note:'gender?'}; }
+  if(k==='registration') return hqRegPrice(l,cfg);
   if(k==='seasonal') return cfg.seasonal>0?{p:cfg.seasonal}:{p:l.hqPrice,note:'seasonal price?'};
   if(k==='reactive') return {p:cfg.reactive};
   if(k==='jersey'||k==='other') return {p:l.hqPrice};
@@ -1359,10 +1366,10 @@ function hqSkip(i,on){ UI._hq.lines[i].skip=on; drawHq(); }
 function drawHq(){
   const h=UI._hq, cfg=hqCfg(), list=stuList(h.branch), dup=new Set();
   const rows=h.lines.map((l,i)=>{ const stu=l.uid?findStu(S,l.uid):null, g=hqPrice(l,stu,cfg), flags=[];
-    if(invoiced(l.kind)&&!l.skip){ if(!l.uid&&!l.newStudent) flags.push(['bad','找不到这个学生：选学生，或选「＋ 新学生」']); else if(stu&&!stu.code) flags.push(['bad','这个学生没有 Bukku code']); if(l.newStudent) flags.push(['warn','新学生：保存后加进学生名单（状态「已报名」，package 和 MT 之后再填）；要在 Bukku 开联系人，再回来填 Bukku code']); if(l.guess){ const gs=findStu(S,l.guess); flags.push(['warn','像是 '+(gs?gs.no+' '+gs.name:'')+'（请确认）']); } if(g.note==='gender?'&&!l.gender&&!(stu&&stu.gender)) flags.push(['warn','没有性别：先当男生 RM'+cfg.regMale+'，女生长袖请选性别']); if(g.note==='seasonal price?') flags.push(['warn','还没设 Seasonal 售价，暂用 HQ 价']); }
+    if(invoiced(l.kind)&&!l.skip){ if(!l.uid&&!l.newStudent) flags.push(['bad','找不到这个学生：选学生，或选「＋ 新学生」']); else if(stu&&!stu.code) flags.push(['bad','这个学生没有 Bukku code']); if(l.newStudent) flags.push(['warn','新学生：保存后加进学生名单（状态「已报名」，package 和 MT 之后再填）；要在 Bukku 开联系人，再回来填 Bukku code']); if(l.guess){ const gs=findStu(S,l.guess); flags.push(['warn','像是 '+(gs?gs.no+' '+gs.name:'')+'（请确认）']); } if(g.note==='jersey?') flags.push(['warn','没写长袖 / 短袖：先当短袖 RM'+cfg.regShort+'，长袖请手动改价']); if(g.note==='seasonal price?') flags.push(['warn','还没设 Seasonal 售价，暂用 HQ 价']); }
     return `<tr style="${l.skip?'opacity:.45':''}"><td>${i+1}</td><td>${esc(l.client||'—')}<div class="small mute">${esc(l.title)}${l.module?' · '+esc(l.module):''}${l.jersey?' · '+esc(l.jersey):''}${l.game?' · '+esc(l.game):''}</div></td>
      <td><select onchange="hqKind(${i},this.value)">${HQ_KINDS.map(k=>`<option value="${k[0]}" ${k[0]===l.kind?'selected':''}>${k[1]}</option>`).join('')}</select></td>
-     <td>${invoiced(l.kind)?`<input list="hqstu" value="${esc(stu?stu.no+' '+stu.name:(l.newStudent?'＋ 新学生':''))}" placeholder="选学生" style="width:210px" onchange="hqStu(${i},this.value)">${l.kind==='registration'?`<select onchange="hqGender(${i},this.value)">${['','男','女长袖','女短袖'].map(x=>`<option ${x===(l.gender||(stu&&stu.gender)||'')?'selected':''}>${x}</option>`).join('')}</select>`:''}`:'<span class="mute small">没有 invoice</span>'}</td>
+     <td>${invoiced(l.kind)?`<input list="hqstu" value="${esc(stu?stu.no+' '+stu.name:(l.newStudent?'＋ 新学生':''))}" placeholder="选学生" style="width:210px" onchange="hqStu(${i},this.value)">`:'<span class="mute small">没有 invoice</span>'}</td>
      <td class="n">${money(l.hqPrice)}</td><td class="n">${invoiced(l.kind)?`<input type="number" step="0.01" value="${l.price}" style="width:80px" onchange="hqPriceSet(${i},this.value)">`:''}</td>
      <td class="small">${flags.map(f=>`<div><span class="tag ${f[0]}">${esc(f[1])}</span></div>`).join('')}</td><td><label class="small"><input type="checkbox" ${l.skip?'checked':''} onchange="hqSkip(${i},this.checked)"> 不开</label></td></tr>`; }).join('');
   const inv=h.lines.filter(l=>invoiced(l.kind)&&!l.skip), tot=r2(inv.reduce((a,l)=>a+l.price*(l.qty||1),0));
@@ -1404,8 +1411,8 @@ function hqExportRows(d){
   const [Y,M]=[d.date.slice(0,4),d.date.slice(5,7)], yy=Y.slice(2), dt=d.date.slice(8,10)+'/'+M+'/'+Y, rows=[], bad=[], idx=[];
   for(let li=0;li<d.lines.length;li++){ const l=d.lines[li]; if(!invoiced(l.kind)||l.skip) continue; const s=l.uid?findStu(S,l.uid):null;
     if(!s){ bad.push(l.client+'：找不到学生'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; } if(!(l.price>0)){ bad.push(s.no+' '+s.name+'：售价是 0'); continue; }
-    const T=HQ_SERIES[l.kind], g=l.gender||s.gender||'';
-    const prod=l.kind==='registration'?(g==='男'||!g?'REGISTRATION-MALE':'REGISTRATION-FEMALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
+    const T=HQ_SERIES[l.kind];
+    const prod=l.kind==='registration'?(hqCfg().regProduct||'REGISTRATION-MALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
     const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
     const det=[l.title,l.module,l.jersey,l.game].filter(Boolean).join(' / ');
     rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,HQ_ACCOUNT[T],desc,l.qty||1,null,null,l.price,null,null,null,null]); idx.push(li); }
@@ -1453,7 +1460,7 @@ function hqCard(){
   const c=hqCfg(), prods=((S.config||{}).claimProducts&&S.config.claimProducts.length)?S.config.claimProducts:['Fast Track ABC','Fast Track ABB','Fast Track ABD','Fast Track ABK','Fast Track ABS'];
   const inp=(k,l)=>`<label>${l}</label><input type="number" step="0.01" value="${c[k]||''}" style="width:110px" onchange="hqCfgSet('${k}',+this.value)">`;
   return `<div class="card"><h2>HQ 单 / 售价</h2><div class="small mute">HQ 单上的金额是进货价；开给 klien 的 invoice 用这里的售价。Jersi 和其他行用 HQ 单上的价钱。</div>
-   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regMale','注册（男）RM')}${inp('regFemale','注册（女长袖）RM')}${inp('regFemaleShort','注册（女短袖）RM')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}${inp('reactive','Reactive / activation RM')}</div>
+   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regLong','注册（长袖 PANJANG）RM')}${inp('regShort','注册（短袖 PENDEK）RM')}${inp('xl3','3XL 加价 RM（长袖短袖一样）')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}<label>Bukku 注册产品名</label><input value="${esc(c.regProduct||'REGISTRATION-MALE')}" style="width:200px" onchange="hqCfgSet('regProduct',this.value.trim())">${inp('reactive','Reactive / activation RM')}</div>
    <h3 style="margin-top:12px">HQ 采购单</h3><div class="f" style="max-width:480px">${[['registration','注册（PENDAFTARAN）Account'],['module','模块 Account'],['other','Jersi / Fast Track / 其他 Account']].map(([k,l])=>`<label>${l}</label><input value="${esc(((c.purchaseAccounts||{})[k])||({registration:'6000',module:'6001',other:'6002'})[k])}" style="width:110px" onchange="hqPurchAcc('${k}',this.value.trim())">`).join('')}</div><div class="small mute">HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Bukku：6000 Purchases-Registration、6001 Purchases-Module、6002 Purchases-Other。</div>
    <h3 style="margin-top:12px">Fast Track 售价</h3><div class="f" style="max-width:480px">${prods.map(p=>`<label>${esc(p)} RM</label><input type="number" step="0.01" value="${(c.fast||{})[p]||''}" style="width:110px" onchange="hqFastSet('${esc(p)}',+this.value)">`).join('')}</div></div>`;
 }

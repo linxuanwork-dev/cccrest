@@ -1,4 +1,10 @@
 module.exports = {
+  '注册（长袖 PANJANG）RM': ['Registration (long sleeve, PANJANG) RM', 'Pendaftaran (lengan panjang) RM'],
+  '注册（短袖 PENDEK）RM': ['Registration (short sleeve, PENDEK) RM', 'Pendaftaran (lengan pendek) RM'],
+  '3XL 加价 RM（长袖短袖一样）': ['Size 3XL extra charge RM (same for long and short sleeve)', 'Caj tambahan saiz 3XL RM (sama untuk lengan panjang dan pendek)'],
+  'Bukku 注册产品名': ['Bukku registration product name', 'Nama produk pendaftaran Bukku'],
+  '没写长袖 / 短袖：先当短袖 RM': ['No long / short sleeve written: taken as short sleeve RM', 'Tiada lengan panjang / pendek ditulis: dianggap lengan pendek RM'],
+  '，长袖请手动改价': [', change the price by hand for long sleeve', ', tukar harga secara manual untuk lengan panjang'],
   '这不是 MT（只是名字相似的家长）': ['This is not an MT (just a parent with a similar name)', 'Ini bukan MT (hanya ibu bapa dengan nama yang serupa)'],
   '已记住：这个付款人不是 MT': ['Remembered: this payer is not an MT', 'Diingati: pembayar ini bukan MT'],
   '笔转账的付款人是 MT 的名字，却被自动记成学生的还款。MT 代收现金再转账时，必须人工确认是哪个学生：': [' transfer(s) were paid in the name of an MT but were recorded automatically as a student repayment. When an MT collects cash and transfers it, a person must confirm which student it is for: ', ' pemindahan dibayar atas nama MT tetapi direkodkan secara automatik sebagai bayaran murid. Apabila MT mengutip tunai dan memindahkannya, seseorang mesti mengesahkan murid yang berkenaan: '],

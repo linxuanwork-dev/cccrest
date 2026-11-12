@@ -441,7 +441,7 @@ async function init(){
   if(!me.enabled){ $('#conn').className='tag bad'; $('#conn').textContent='这家公司还没有开通'; render(); return; }
   MGR=!!me.mgr; ADMINP=!!me.admin; canWrite=!!me.canWrite;
   const timer=setTimeout(()=>{ $('#conn').className='tag warn'; $('#conn').textContent='资料还没载入，可能网络慢'; },10000);
-  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims','hqbills'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看';
+  const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims','hqbills'].every(x=>loaded[x])){ clearTimeout(timer); if(window.parent&&window.parent.__pendingHq) setTimeout(hqIncoming,0); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看';
     if(!window._deactStamped && MGR && canWrite){ window._deactStamped=true; BRANCHES.forEach(b=>{ const d=S.students[b]; if(d&&d.list&&Object.values(d.list).some(x=>x&&x.status==='Deactive'&&!x.deactSince)) save('students/'+b,JSON.parse(JSON.stringify(d))).catch(()=>{}); }); } } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
   db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{},notMt:v.notMt||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
@@ -1355,6 +1355,20 @@ async function hqUpload(input){
     drawHq();
   }catch(e){ toast('读不到这张单：'+(e&&e.message||e),6000); }
 }
+// HQ bills sent from the Purchases Bill page (after their purchase bill was exported to Bukku): each one opens here for the Sales Invoice
+let _hqQ=[];
+function hqIncoming(){
+  const p=window.parent&&window.parent.__pendingHq; if(!p||!p.length) return; window.parent.__pendingHq=null;
+  _hqQ=_hqQ.concat(p); hqNext();
+}
+function hqNext(){
+  const j=_hqQ.shift(); if(!j) return; const b=j.branch||'BBU', id=b+'_'+j.invoiceNo, old=S.hqbills[id];
+  if(old&&old.exportedAt){ toast('HQ '+j.invoiceNo+' 的 Sales Invoice 已经导出过了',6000); return hqNext(); }
+  UI.tab='hq'; render();
+  if(old) UI._hq=Object.assign(JSON.parse(JSON.stringify(old)),{id});
+  else UI._hq={id:null,branch:b,invoiceNo:j.invoiceNo,date:j.date,total:j.total||j.due,itemsTotal:j.itemsTotal,totalMatches:j.totalMatches,file:'Purchases Bill',lines:(j.items||[]).map(it=>hqLineFrom(it,b))};
+  drawHq();
+}
 function hqOpen(id){ const d=S.hqbills[id]; if(!d) return; UI._hq=Object.assign(JSON.parse(JSON.stringify(d)),{id}); drawHq(); }
 function hqSetBranch(b){ const h=UI._hq; h.branch=b; h.lines.forEach(l=>{ if(!l.newStudent){ const m=l.client?matchName(l.client,stuList(b)):null; l.uid=m&&m.exact?m.s.uid:null; l.guess=m&&!m.exact?m.s.uid:null; } }); hqReprice(); drawHq(); }
 function hqReprice(){ const cfg=hqCfg(); UI._hq.lines.forEach(l=>{ if(!l.manual){ const stu=l.uid?findStu(S,l.uid):null; l.price=hqPrice(l,stu,cfg).p; } }); }
@@ -1406,7 +1420,7 @@ async function hqPurchase(d){
   const pa=Object.assign({registration:'6000',seasonal:'6000-01',module:'6001',other:'6002'},hqCfg().purchaseAccounts||{});   // Bukku: 6000 Purchases-Registration, 6000-01 Purchases-Registration Seasonal, 6001 Purchases-Module, 6002 Purchases-Other
   const acc=k=>k==='registration'?pa.registration:k==='seasonal'?pa.seasonal:k==='module'?pa.module:pa.other;
   const lines=(d.lines||[]).map(l=>({desc:[l.title,l.module,l.jersey,l.game,l.client].filter(Boolean).join(' - '),qty:l.qty||1,price:l.hqPrice,account:acc(l.kind)}));
-  try{ return await http('POST','/hq-purchase',{branch:d.branch,no:d.invoiceNo,date:d.date,account:pa.other,lines}); }
+  try{ const r=await http('POST','/hq-purchase',{branch:d.branch,no:d.invoiceNo,date:d.date,account:pa.other,lines}); return r&&r.exported?null:r; }   // already exported from the Purchases Bill page: nothing to do
   catch(e){ toast('采购单没生成：'+(e&&e.message||e),8000); return null; }
 }
 function hqExportRows(d){
@@ -1424,7 +1438,7 @@ function hqDownload(d,r){
   if(r.rows.length) bukkuFile('invoice',r.rows,`DM-Bukku-Sales Invoice-${d.branch}-${d.date.slice(0,4)}_${d.date.slice(5,7)}-HQ ${d.invoiceNo}.xlsx`);
   notExported(`DM-Bukku-Sales Invoice-${d.branch}-${d.date.slice(0,4)}_${d.date.slice(5,7)}-HQ ${d.invoiceNo}-没有导出.xlsx`,'没有导出',r.bad);
   if(r.bad.length) modal(`<h3>${r.bad.length} 行没有导出</h3><div class="small">${r.bad.map(esc).join('<br>')}</div><p class="small mute">补好之后再按一次「保存并导出 Bukku」。</p><button class="g" onclick="closeModal()">关闭</button>`);
-  else closeModal();
+  else { closeModal(); if(_hqQ.length) setTimeout(hqNext,600); }
 }
 // Fast Track: the products an MT ticks on an approved claim are sold to that student (no HQ client name), invoiced here
 function hqFastOpen(){

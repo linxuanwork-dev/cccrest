@@ -198,7 +198,7 @@ router.post(BASE + '/hq-purchase', ...guard(2), async (req, res) => {
   const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
   const supplier = String(sup.name).toUpperCase().replace(/\s+/g, ' ').trim(), tags = String(b.branch || '').slice(0, 20);
   const old = (await pool.query("SELECT id, status FROM purchase_bukku_bills WHERE company_id = $1 AND upper(supplier) = $2 AND upper(no) = $3", [cid, supplier, no])).rows[0];
-  if (old && old.status === 'exported') return res.status(409).json({ error: '这张采购单已经导出到 Bukku 了，不能再改。 This purchase bill was already exported to Bukku.' });
+  if (old && old.status === 'exported') return res.json({ id: old.id, created: false, exported: true, account, supplier });   // already exported (e.g. made on the Purchases Bill page): left as it is
   if (old) {
     await pool.query('UPDATE purchase_bukku_bills SET bill_date = $3, tags = $4, lines = $5::jsonb, total = $6, updated_by = $7, updated_at = now() WHERE id = $1 AND company_id = $2',
       [old.id, cid, date, tags, JSON.stringify(lines), total, req.user.sub]);

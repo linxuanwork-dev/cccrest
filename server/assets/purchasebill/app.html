@@ -685,7 +685,7 @@ $('addLine').addEventListener('click',()=>{ const tr=lineRow({account:defaultAcc
 $('lineBody').addEventListener('input',e=>{ if(e.target.classList.contains('l-acc')) e.target.dataset.auto=''; });
 
 function resetForm(){
-  S.editingId=null; $('billForm').reset(); $('fDate').value=todayISO();
+  S.editingId=null; S.pendingHq=null; $('billForm').reset(); $('fDate').value=todayISO();
   $('lineBody').innerHTML=''; const tr=lineRow({account:co()?co().account:''}); tr.querySelector('.l-acc').dataset.auto='1';
   $('formTitle').textContent='新采购单'; $('saveBtn').textContent='保存单据'; $('fCode').textContent='—'; $('fCode').classList.remove('has');
   calcTotal(); checkDup();
@@ -748,6 +748,7 @@ $('billForm').addEventListener('submit', async e=>{
     tags:$('fTags').value.trim(), desc:$('fDesc').value.trim(), lines, total:Math.round(total*100)/100,
     status: prev ? prev.status : 'draft', createdAt: prev ? prev.createdAt : Date.now(), updatedAt:Date.now(),
     dupAck: dupState.level==='dup' };
+  if(S.pendingHq && normNo(S.pendingHqNo)===normNo(no)) doc.hq=S.pendingHq;   // read from an HQ bill PDF: kept, for its Sales Invoice
   const id=S.editingId||uid();
   $('saveBtn').disabled=true;
   try{
@@ -873,7 +874,13 @@ $('exportBtn').addEventListener('click', async ()=>{
     msg.className='check ok';
     msg.innerHTML=`<strong>✓ 已下载 ${esc(fname)}</strong><span>${sel.length} 张单，共 RM ${money(sel.reduce((a,b)=>a+b.total,0))}。到 Bukku → Purchases → Bills → Import 上传。</span>
       <span>这 ${sel.length} 张已经自动标记为「已导出」，不能再导出，避免重复导入。如果 Bukku 导入失败，请 manager 勾选它们，按「改回未导出」再导出一次。</span>`;
+    const hqs=sel.filter(b=>b.hq&&b.hq.items&&b.hq.items.length).map(b=>b.hq);
     S.selected.clear(); try{ await refresh(); }catch(e){}
+    if(hqs.length){   // QC GROUP (HQ) bills: go on to their Sales Invoice (the Tuition & Allowance page opens each bill, with the students and prices filled in)
+      msg.innerHTML+=`<span><strong>HQ 单 ${hqs.length} 张：</strong>接着到 Tuition &amp; Allowance 核对学生和售价，按「保存并导出 Bukku」就会下载 Sales Invoice。</span><div class="row"><button class="btn pri sm" id="toSales">打开 Sales Invoice</button></div>`;
+      const go=()=>{ try{ if(!window.parent||typeof window.parent.pbillToHqSales!=='function') throw 0; window.parent.pbillToHqSales(hqs); }catch(e){ toast('打不开 Tuition & Allowance 页面：这个账号可能没有开通',6000); } };
+      $('toSales').onclick=go; setTimeout(go,900);
+    }
   }catch(err){
     msg.className='check bad'; msg.textContent='导出失败：'+(err&&err.message||err);
   }
@@ -1100,7 +1107,7 @@ $('pdfFile').addEventListener('change',async e=>{
   try{
     const r=await fetch(API+'/pdf-parse?name='+encodeURIComponent(f.name),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/octet-stream'},body:await f.arrayBuffer()});
     const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||('请求失败 ('+r.status+')'));
-    resetForm(); setTab('entry');
+    resetForm(); setTab('entry'); S.pendingHq=j.hq||null; S.pendingHqNo=j.no||'';
     $('fSup').value=j.supplier; $('fNo').value=j.no||''; $('fDate').value=j.date||todayISO(); $('fTags').value=j.branch||''; $('fDesc').value='HQ bill';
     $('lineBody').innerHTML=''; j.lines.forEach(l=>{ const tr=lineRow(l); tr.querySelector('.l-acc').dataset.auto=''; });
     onSupplierInput(false); calcTotal(); checkDup();

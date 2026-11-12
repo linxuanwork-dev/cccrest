@@ -188,13 +188,18 @@
   .dsi-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin:16px 0 14px; }
   .dsi-tab{ border:1px solid var(--border); background:var(--surface-card); color:inherit; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
   .dsi-tab.active{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent); }
-  .dsi-grid-wrap{ overflow:auto; max-height:68vh; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-card); }
+  .dsi-grid-wrap{ overflow:auto; max-height:68vh; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-card); scroll-padding:56px 12px 40px 250px; }   /* a cell reached by keyboard is never hidden behind the frozen product column / day row */
   .dsi-grid{ border-collapse:separate; border-spacing:0; font-size:12px; }
   .dsi-grid th, .dsi-grid td{ border-bottom:1px solid var(--border); border-right:1px solid var(--border); text-align:center; white-space:nowrap; padding:0; }
   .dsi-grid th{ position:sticky; top:0; z-index:2; background:var(--surface-alt); padding:5px 2px; font-size:11px; min-width:48px; }
   .dsi-grid .dsi-name{ position:sticky; left:0; z-index:1; background:var(--surface-card); text-align:left; padding:6px 10px; min-width:230px; max-width:260px; white-space:normal; }
   .dsi-grid th.dsi-name{ z-index:3; background:var(--surface-alt); }
   .dsi-grid .dsi-weekend{ background:rgba(128,128,128,0.08); }
+  /* the row and the day of the cell being typed in are highlighted, so the product name and the date can be followed across a long row */
+  .dsi-grid td.dsi-hl{ background:color-mix(in srgb, var(--accent) 13%, transparent); }
+  .dsi-grid td.dsi-name.dsi-hl{ background:color-mix(in srgb, var(--accent) 24%, var(--surface-card)); font-weight:700; }
+  .dsi-grid th.dsi-hl{ background:color-mix(in srgb, var(--accent) 30%, var(--surface-alt)); }
+  .dsi-grid tfoot td.dsi-hl{ background:color-mix(in srgb, var(--accent) 30%, var(--surface-alt)); }
   .dsi-grid td.dsi-special{ background:rgba(232,140,30,0.30); }
   .dsi-grid input{ width:48px; border:0; background:transparent; text-align:center; padding:7px 0; font:inherit; color:inherit; }
   .dsi-grid input:focus{ outline:2px solid var(--accent); background:var(--surface-card); }
@@ -4284,6 +4289,15 @@
 
   // ---- Tuition & Allowance (CC CREST people only; menu item and page appear where the Owner switched it on for the company) ----
   var tuitionReq = 0;
+  // Purchases Bill -> Sales Invoice: after QC GROUP (HQ) bills were exported as purchase bills, open them on the Tuition & Allowance page
+  window.pbillToHqSales = function(items){
+    var btn = document.querySelector('.nav-item[data-panel="panel-tuition"]');
+    if(!btn || btn.hidden) throw new Error('Tuition & Allowance is not available');
+    window.__pendingHq = (window.__pendingHq || []).concat(items || []);
+    btn.click();
+    var f = document.getElementById('tuition-frame');
+    try{ if(f && f.contentWindow && typeof f.contentWindow.hqIncoming === 'function') f.contentWindow.hqIncoming(); }catch(e){}   // already loaded; otherwise the page takes it when it has loaded
+  };
   var TFA_PANELS = ['panel-tuition', 'panel-contact', 'panel-mtclaim'], tfaCompanyId = null;
   // the Tuition & Allowance page in the language the person picked on it (zh / en / ms); first time: the portal language
   function tfaSrc(companyId, view){
@@ -5060,6 +5074,21 @@
       r += dr; c += dc;
     }
   }
+  // highlight the row (product) and the column (day) of the cell being typed in
+  var dsiHl = [];
+  function dsiOnCellFocus(e){
+    var inp = e.target;
+    dsiHl.forEach(function(el){ el.classList.remove('dsi-hl'); }); dsiHl = [];
+    if(!inp.dataset || !inp.dataset.dsiKey) return;
+    var td = inp.closest('td'), tr = td && td.parentElement, table = tr && tr.closest('table');
+    if(!table) return;
+    var ci = Array.prototype.indexOf.call(tr.children, td);
+    Array.prototype.forEach.call(tr.children, function(c){ dsiHl.push(c); });
+    Array.prototype.forEach.call(table.rows, function(r){ var c = r.children[ci]; if(c && dsiHl.indexOf(c) < 0) dsiHl.push(c); });
+    dsiHl.forEach(function(el){ el.classList.add('dsi-hl'); });
+  }
+  function dsiOnCellBlur(e){ dsiHl.forEach(function(el){ el.classList.remove('dsi-hl'); }); dsiHl = []; }
+  ['dsi-entry-wrap', 'dsi-specials-wrap'].forEach(function(id){ var w = dsiById(id); w.addEventListener('focusin', dsiOnCellFocus); w.addEventListener('focusout', dsiOnCellBlur); });
   dsiById('dsi-entry-wrap').addEventListener('keydown', dsiOnCellKey);
   dsiById('dsi-specials-wrap').addEventListener('keydown', dsiOnCellKey);
 

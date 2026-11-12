@@ -229,11 +229,11 @@ const needMgr = (req, res) => { if (isMgr(req)) return true; res.status(403).jso
 
 const billOut = (r) => ({
   id: String(r.id), supplier: r.supplier, code: r.code, no: r.no, ref: r.ref, date: r.bill_date || '', tags: r.tags, desc: r.description,
-  lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised,
+  lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised, hq: r.hq || null,
   createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime()
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
-const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, created_at, updated_at`;
+const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
 async function stockOf(companyId) {
@@ -302,6 +302,7 @@ router.post(BASE + '/pdf-parse', ...guard(2), express.raw({ type: '*/*', limit: 
   } catch (e) { /* the company has no Tuition & Allowance: the defaults are used */ }
   const accOf = (k) => (k === 'registration' ? pa.registration : k === 'seasonal' ? pa.seasonal : k === 'module' ? pa.module : pa.other);
   res.json({
+    hq: bill,
     supplier: String(sup.name).toUpperCase().replace(/\s+/g, ' ').trim(), no: bill.invoiceNo, date: bill.date, branch: bill.branch, total: bill.total, itemsTotal: bill.itemsTotal, totalMatches: bill.totalMatches,
     lines: bill.items.map((l) => ({ desc: [l.title, l.fields.module, l.fields.jersey, l.fields.game, l.fields.client].filter(Boolean).join(' - ').toUpperCase().slice(0, 200), qty: l.qty || 1, price: l.price, account: accOf(l.kind) }))
   });
@@ -457,6 +458,12 @@ router.delete(BASE + '/suppliers/:id', ...guard(2), async (req, res) => {
 });
 
 // ---- bills ----
+// what was read from a QC GROUP bill PDF (kept with the bill, for its Sales Invoice): only a plain object with a list of items, not too big
+function cleanHq(h) {
+  if (!h || typeof h !== 'object' || !Array.isArray(h.items) || !h.items.length || h.items.length > 300) return null;
+  const s = JSON.stringify(h);
+  return s.length > 200000 ? null : JSON.parse(s);
+}
 function cleanBill(b) {
   b = b || {};
   const supplier = normName(b.supplier);
@@ -483,7 +490,7 @@ function cleanBill(b) {
     lines.push(line);
   }
   const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
-  return { supplier, no, date: b.date, lines, total, code: String(b.code || '').trim().toUpperCase().slice(0, 30), ref: String(b.ref || '').trim().slice(0, 60), tags: String(b.tags || '').trim().slice(0, 100), desc: String(b.desc || '').trim().slice(0, 200), dupAck: b.dupAck === true };
+  return { supplier, no, date: b.date, lines, total, code: String(b.code || '').trim().toUpperCase().slice(0, 30), ref: String(b.ref || '').trim().slice(0, 60), tags: String(b.tags || '').trim().slice(0, 100), desc: String(b.desc || '').trim().slice(0, 200), dupAck: b.dupAck === true, hq: cleanHq(b.hq) };
 }
 async function staffSupplierProblem(req, supplier) {
   if (isMgr(req)) return null;
@@ -498,9 +505,9 @@ router.post(BASE + '/bills', ...guard(2), async (req, res) => {
   const problem = await staffSupplierProblem(req, b.supplier) || await stockIdsProblem(req.params.companyId, b.lines.map((l) => l.item));
   if (problem) return bad(res, problem);
   const { rows } = await pool.query(
-    `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$12) RETURNING ${BILL_COLS}`,
-    [req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub]
+    `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by, hq)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$12,$13::jsonb) RETURNING ${BILL_COLS}`,
+    [req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, b.hq ? JSON.stringify(b.hq) : null]
   );
   try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, true); } catch (err) { console.error('purchase items learn failed:', err); }
   try { await docs.logEvent(req, req.params.companyId, 'purchase_bukku_bill', b.no, 'created', [{ field: 'supplier', from: '', to: b.supplier }, { field: 'total', from: '', to: String(b.total) }]); } catch (err) { console.error('purchase bill history failed:', err); }
@@ -524,9 +531,9 @@ router.put(BASE + '/bills/:id', ...guard(2), async (req, res) => {
     `UPDATE purchase_bukku_bills SET supplier = $3, code = $4, no = $5, ref = $6, bill_date = $7, tags = $8, description = $9, lines = $10::jsonb, total = $11,
        dup_ack = $12, updated_by = $13, updated_at = now(),
        status = CASE WHEN $14::boolean THEN 'draft' ELSE status END, exported_at = CASE WHEN $14::boolean THEN NULL ELSE exported_at END,
-       revised = revised OR $14::boolean, revised_at = CASE WHEN $14::boolean THEN now() ELSE revised_at END
+       revised = revised OR $14::boolean, revised_at = CASE WHEN $14::boolean THEN now() ELSE revised_at END, hq = COALESCE($15::jsonb, hq)
      WHERE id = $1 AND company_id = $2 RETURNING ${BILL_COLS}`,
-    [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, reopen]
+    [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, reopen, b.hq ? JSON.stringify(b.hq) : null]
   );
   try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, false); } catch (err) { console.error('purchase items learn failed:', err); }
   if (reopen) changes.push({ field: 'status', from: 'exported', to: 'not exported (revised: export to Bukku again)' });

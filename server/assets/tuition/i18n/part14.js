@@ -1,4 +1,5 @@
 module.exports = {
+  '的 Sales Invoice 已经导出过了': [' : the Sales Invoice was already exported', ' : Sales Invoice sudah dieksport'],
   'Seasonal 注册 Account': ['Seasonal registration Account', 'Akaun pendaftaran Seasonal'],
   'Target SPM RM': ['Target SPM RM', 'Target SPM RM'],
   '注册（长袖 PANJANG）RM': ['Registration (long sleeve, PANJANG) RM', 'Pendaftaran (lengan panjang) RM'],

@@ -1341,7 +1341,7 @@ async function hiApply(){
   const go=$('hiGo'); go.disabled=true; const logs=[]; let n=0;
   try{
     for(const f of hi.files){ if(f.err||f.skip||!f.built||S.closings[f.month]) continue; const b=f.built; go.textContent='保存中 '+(n+1)+'…';
-      await put('closing/'+f.month,{month:f.month,total:b.total,byGroup:b.byGroup,byAccount:b.byAccount,lines:b.lines,itemCount:b.itemCount,uncounted:0,closedAt:Date.now(),closedBy:S.uid||'',countDate:f.countDate||'',imported:true,importedFrom:f.name});
+      await put('closing/'+f.month,{month:f.month,total:b.total,byGroup:b.byGroup,byAccount:b.byAccount,lines:b.lines,itemCount:b.itemCount,uncounted:0,closedAt:Date.now(),closedBy:S.uid||'',countDate:(f.countDate&&f.countDate.slice(0,7)===f.month)?f.countDate:(f.month+'-'+lastDay(f.month)),imported:true,importedFrom:f.name});
       logs.push({a:'close',t:mLabel(f.month),m:f.month,c:[['导入的月结报告 RM','',money(b.total)]],s:f.name}); n++; }
     logIt(logs);
     const box=$('hiPrev'); box.className='check ok'; box.innerHTML=`<strong>✓ 已导入 ${n} 个月</strong><span>这些月份现在是「已结账」，用的是报告里的旧单价。货品的最新单价没有改。</span>`;

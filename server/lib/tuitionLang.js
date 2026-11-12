@@ -22,8 +22,8 @@ function dictionary() {
 
 // what the page shows for the stored matching notes (see howTxt in the page)
 const HOW = {
-  en: { '已记住的付款人': 'Remembered payer', '已记住的家庭': 'Remembered family', '父母名字': 'Parents name', '备注里的学生名': 'Student name in the remark', '找不到': 'Not found', '手动确认': 'Manually confirmed', '+金额': '+ amount', '+单': '+ invoice', '（金额对不上）': ' (amount does not match)', months: '({n} months)' },
-  ms: { '已记住的付款人': 'Pembayar diingat', '已记住的家庭': 'Keluarga diingat', '父母名字': 'Nama ibu bapa', '备注里的学生名': 'Nama murid dalam catatan', '找不到': 'Tidak dijumpai', '手动确认': 'Disahkan manual', '+金额': '+ jumlah', '+单': '+ invois', '（金额对不上）': ' (jumlah tidak sepadan)', months: '({n} bulan)' }
+  en: { 'MT 代收': 'MT collected cash', '已记住的付款人': 'Remembered payer', '已记住的家庭': 'Remembered family', '父母名字': 'Parents name', '备注里的学生名': 'Student name in the remark', '找不到': 'Not found', '手动确认': 'Manually confirmed', '+金额': '+ amount', '+单': '+ invoice', '（金额对不上）': ' (amount does not match)', months: '({n} months)' },
+  ms: { 'MT 代收': 'Tunai dikutip MT', '已记住的付款人': 'Pembayar diingat', '已记住的家庭': 'Keluarga diingat', '父母名字': 'Nama ibu bapa', '备注里的学生名': 'Nama murid dalam catatan', '找不到': 'Tidak dijumpai', '手动确认': 'Disahkan manual', '+金额': '+ jumlah', '+单': '+ invois', '（金额对不上）': ' (jumlah tidak sepadan)', months: '({n} bulan)' }
 };
 
 const cache = {};

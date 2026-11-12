@@ -167,7 +167,11 @@ function combos(arr, target, feeOf){
   return res;
 }
 // returns {status:'auto'|'review'|'unmatched', how, alloc:[{uid,amt}], sugg:[uid]}
+// An MT collects cash from the parents and transfers it to the company: the bank shows the MT's own name. That payment is never matched by itself
+// (not even by a remembered payer): a person decides which student it is for. The MT names come from the MT profiles (legal name; the bank may cut it short).
+function isMtPayer(state,payer){ const p=norm(payer); if(p.length<10) return false; return Object.values((state&&state.mtp)||{}).some(m=>{ const n=m&&m.name?norm(m.name):''; return n.length>=8&&(n===p||(p.length>=14&&(n.startsWith(p)||p.startsWith(n)))); }); }
 function matchTx(state, tx, pool, paidSet){
+  if(isMtPayer(state,tx.payer)) return {status:'review', how:'MT 代收', alloc:[], sugg:[]};
   const p=norm(tx.payer); const amt=+tx.amount;
   const feeOf=s=>studentFee(state,s);
   const byUid=Object.fromEntries(pool.map(s=>[s.uid,s]));
@@ -368,7 +372,7 @@ if(VIEW==='contact'){ TABS=TABS.filter(x=>x[0]==='stu'); UI.tab='stu'; } else if
 function setPageLang(l){ try{ localStorage.setItem('tfa_lang',l); }catch(e){} const q=new URLSearchParams(location.search); q.set('lang',l); location.href=location.pathname+'?'+q.toString(); }
 document.getElementById('langsw').innerHTML=[['zh','中文'],['en','EN'],['ms','BM']].map(x=>`<a href="#" onclick="setPageLang('${x[0]}');return false" style="margin-left:6px;${x[0]===(document.documentElement.lang||'zh')?'font-weight:700;color:#1d2330':'color:#6b7280'}">${x[1]}</a>`).join('');
 const HOWM=/*HOWM*/{};
-function howTxt(h){ h=String(h||''); if(!HOWM.months) return h; return h.replace(/（(\d+)个月）/g,(m,n)=>HOWM.months.replace('{n}',n)).replace(/已记住的付款人|已记住的家庭|父母名字|备注里的学生名|找不到|手动确认|\+金额|\+单|（金额对不上）/g,m=>HOWM[m]||m); }
+function howTxt(h){ h=String(h||''); if(!HOWM.months) return h; return h.replace(/（(\d+)个月）/g,(m,n)=>HOWM.months.replace('{n}',n)).replace(/MT 代收|已记住的付款人|已记住的家庭|父母名字|备注里的学生名|找不到|手动确认|\+金额|\+单|（金额对不上）/g,m=>HOWM[m]||m); }
 const API='/api/companies/'+encodeURIComponent(CID)+'/tuition';
 const COLLS=['students','settings','rosters','bank','claims','hqbills'];
 const memo={students:{},settings:{},rosters:{},bank:{},claims:{},hqbills:{}}, subs={students:[],settings:[],rosters:[],bank:[],claims:[],hqbills:[]};
@@ -481,7 +485,7 @@ function todoUnfinished(){
   const by=(a)=>BRANCHES.map(b=>[b,a.filter(s=>s.branch===b).length]).filter(x=>x[1]).map(x=>x[0]+' '+x[1]).join('，');
   const li=(n,t,d)=>n?`<li>${t}：<b>${n}</b> <span class="small mute">${d||''}</span></li>`:'';
   const bad=Object.values(S.claims||{}).filter(c=>c.status==='submitted').flatMap(c=>(c.lines||[]).filter(l=>l.uid&&!l.dropped&&(()=>{ const x=findStu(S,l.uid); return x&&x.status!=='Active'; })())).length;
-  return li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(bad,'MT Claim 里有 Master 不是 Active 的学生（要先处理，不然影响开单）','')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(all.filter(deactDue).length,'暂停超过 3 个月的学生（建议改成 Withdrawn）',by(all.filter(deactDue)))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
+  return li(Object.values(S.bank||{}).reduce((n,d)=>n+Object.values(d.tx||{}).filter(t=>t.status==='review'&&t.how==='MT 代收').length,0),'MT 代收的转账（要人工分配给学生）','（到银行对账处理）')+li(wait,'MT Claim 待批准','（到 MT Claim 检查 / 批准）')+li(bad,'MT Claim 里有 Master 不是 Active 的学生（要先处理，不然影响开单）','')+li(reg.length,'已报名、还没上课的学生（package 和 MT 还没决定）',by(reg))+li(all.filter(deactDue).length,'暂停超过 3 个月的学生（建议改成 Withdrawn）',by(all.filter(deactDue)))+li(pause.length,'暂停的学生（要恢复上课时改回 Active）',by(pause))+li(noPk.length,'Active 学生还没有 MT 或 package',by(noPk))+li(noCode.length,'还没有 Bukku code 的学生（会漏开单）',by(noCode));
 }
 function vHome(){
   const L=ledger(); const o=outstanding(S,L,today()); const al=allowanceLines(S,L);
@@ -778,13 +782,14 @@ function vBank(){
   const f=UI.bFilter; const show=tx.filter(t=>f==='all'||(f==='need'?(t.status==='review'||t.status==='unmatched'):t.status===f));
   const months=[...new Set(Object.values(S.bank).filter(d=>d.bank===bank).map(d=>d.month))].sort().reverse();
   const tot=tx.filter(t=>t.status!=='ignore').reduce((a,t)=>a+t.amount,0);
-  const LG=ledger();
+  const LG=ledger(); const mtAuto=tx.filter(t=>t.status==='auto'&&isMtPayer(S,t.payer));
   return `<div class="card"><div class="row">
    <select onchange="UI.bBank=this.value;render()">${['AFFIN','PBB'].map(x=>`<option ${x===bank?'selected':''} value="${x}">${x==='AFFIN'?'Affin（BBU）':'Public Bank（TST / TDA）'}</option>`).join('')}</select>
    <input type="month" value="${m}" onchange="UI.bMonth=this.value;render()">
    <label class="b" style="padding:6px 12px;border-radius:7px;background:var(--pri);color:#fff;cursor:pointer">上传银行 statement<input type="file" accept=".xlsx,.xls,.csv,.pdf" style="display:none" onchange="importBank(this)"></label>
    <span class="small mute">有资料的月份：${months.map(x=>`<a href="#" onclick="UI.bMonth='${x}';render();return false">${x}</a>`).join(' ')||'—'}</span></div>
    <div class="small mute" style="margin-top:6px">可以每星期或月中上传，已经上传过的交易会自动跳过。只读入账（Credit）。Affin / Public Bank 格式自动认；其他格式会让你选栏位。</div></div>
+  ${mtAuto.length?`<div class="msg warn">${mtAuto.length} 笔转账的付款人是 MT 的名字，却被自动记成学生的还款。MT 代收现金再转账时，必须人工确认是哪个学生：${mtAuto.map(t=>`<div>${esc(t.date)} ${esc(t.payer)} RM ${money(t.amount)} → ${(t.alloc||[]).map(a=>esc(stuName(a.uid))).join('、')} <button class="g" onclick="mtBack('${bankDocId(bank,m)}','${t.id}')">改回待处理</button></div>`).join('')}</div>`:''}
   <div class="card"><div class="row" style="margin-bottom:8px">
    ${[['need','待处理',cnt.review+cnt.unmatched,'bad'],['auto','自动配对',cnt.auto,'ok'],['manual','手动确认',cnt.manual,'info'],['ignore','非学费',cnt.ignore,'grey'],['all','全部',tx.length,'grey']].map(([k,t,n,c])=>`<button class="${f===k?'b':'g'}" onclick="UI.bFilter='${k}';render()">${t} <span class="tag ${c}">${n}</span></button>`).join('')}
    <span style="flex:1"></span><span class="small">本月入账（学费）：<b>RM ${money(tot)}</b></span></div>
@@ -867,7 +872,7 @@ function drawTx(){
    </table>
    <div class="row" style="margin:8px 0"><input id="txq" placeholder="搜其他学生（名字 / 编号 / 父母）" style="width:300px" oninput="txSearch(this.value)"><div id="txres" class="small"></div></div>
    <div class="${Math.abs(sum-t.amount)<0.01?'msg ok':'msg warn'}">已分配 RM ${money(sum)} / RM ${money(t.amount)}${Math.abs(sum-t.amount)>=0.01?'（差 RM '+money(t.amount-sum)+'）':''}</div>
-   <label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>
+   ${isMtPayer(S,t.payer)?'<div class="msg warn">⚠ 付款人是 MT 的名字：MT 代收现金后转账进公司，不能自动当作这个学生还款。请对照 MT 交来的收据或名单，分配给对应的学生。这种付款不会被记住，每次都要人工处理。</div>':'<label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>'}
    <div class="row" style="margin-top:12px"><button class="b" onclick="txConfirm()" ${Object.keys(sel).length?'':'disabled'}>确认</button><button class="g" onclick="txIgnore()">不是学费（忽略）</button>${t.status!=='review'&&t.status!=='unmatched'?'<button class="g" onclick="txReset()">改回待确认</button>':''}<button class="g" onclick="closeModal()">取消</button></div>`);
 }
 function txRemove(u){ const st=UI._tx; delete st.sel[u]; delete st.mon[u]; st.extra=st.extra.filter(x=>x!==u); drawTx(); }
@@ -880,12 +885,13 @@ async function txConfirm(){
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0); if(Math.abs(sum-t.amount)>=0.01 && !confirmInline()) return;
   t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mk=(UI._tx.mon||{})[uid]||'hint'; if(String(mk).startsWith('inv|')) o.invoice=String(mk).slice(4); else { const mv=monVal(mk); if(mv) o.months=mv; } return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
   await save('bank/'+did,doc);
-  if($('#tx_rem')&&$('#tx_rem').checked){ const p=norm(t.payer); if(p.length>=4){ const rules=JSON.parse(JSON.stringify(S.rules)); rules.amt[p+'|'+(+t.amount).toFixed(2)]=t.alloc.map(a=>a.uid);
+  if($('#tx_rem')&&$('#tx_rem').checked&&!isMtPayer(S,t.payer)){ const p=norm(t.payer); if(p.length>=4){ const rules=JSON.parse(JSON.stringify(S.rules)); rules.amt[p+'|'+(+t.amount).toFixed(2)]=t.alloc.map(a=>a.uid);
       const fam=new Set(rules.payer[p]||[]); t.alloc.forEach(a=>fam.add(a.uid)); rules.payer[p]=[...fam]; await save('settings/rules',rules); } }
   closeModal(); toast('已确认');
 }
 function confirmInline(){ if(UI._tx.warned) return true; UI._tx.warned=true; toast('分配的金额跟入账不一样，再按一次「确认」就照这样保存'); return false; }
 async function txIgnore(){ const {did,id}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); doc.tx[id].status='ignore'; doc.tx[id].alloc=[]; await save('bank/'+did,doc); closeModal(); toast('已标为非学费'); }
+async function mtBack(did,id){ const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id]; t.status='review'; t.how='MT 代收'; t.alloc=[]; await save('bank/'+did,doc); toast('已改回待处理'); }
 async function txReset(){ const {did,id}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); doc.tx[id].status='review'; await save('bank/'+did,doc); closeModal(); }
 
 function stmt(uid){ const s=findStu(S,uid); if(!s) return; const LG=ledger(); const e=LG[uid]||{charges:[],payments:[],credit:0};

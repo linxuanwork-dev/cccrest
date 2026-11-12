@@ -503,6 +503,7 @@ router.post(BASE + '/bills', ...guard(2), async (req, res) => {
     [req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub]
   );
   try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, true); } catch (err) { console.error('purchase items learn failed:', err); }
+  try { await docs.logEvent(req, req.params.companyId, 'purchase_bukku_bill', b.no, 'created', [{ field: 'supplier', from: '', to: b.supplier }, { field: 'total', from: '', to: String(b.total) }]); } catch (err) { console.error('purchase bill history failed:', err); }
   res.status(201).json(billOut(rows[0]));
 });
 
@@ -639,6 +640,7 @@ router.post(BASE + '/export', ...guard(2), async (req, res) => {
   res.setHeader('X-File-Name', encodeURIComponent(filename));
   await wb.xlsx.write(res);
   res.end();
+  try { await docs.logEvent(req, req.params.companyId, 'purchase_bukku', 'Bukku export', 'updated', [{ field: 'exported bills', from: '', to: rows.map((b) => b.no).join(', ').slice(0, 400) }]); } catch (err) { console.error('purchase export history failed:', err); }
   } catch (err) {   // the file could not be made: the bills go back to "not exported"
     await release(claimed.rows.map((r) => r.id)).catch(() => {});
     throw err;

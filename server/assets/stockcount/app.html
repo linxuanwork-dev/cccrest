@@ -276,6 +276,12 @@ body.is-mgr .noman-only{display:none!important}
         </div>
       </aside>
     </div>
+    <div class="panel mgr-only" id="hiPanel" style="margin-top:14px">
+      <h2 style="margin-bottom:6px">导入过去月份的月结报告</h2>
+      <p class="small muted" style="margin:0 0 8px">上传以前从这里下载的 CLOSING STOCK Excel（可以一次选好几个月的文件）。每个月用报告里的数量和<b>当时的旧单价</b>，成为「已结账」的月份。<b>不会改「货品」里的最新单价。</b>先看预览，确认了才会保存。</p>
+      <input type="file" id="hiFile" accept=".xlsx,.xls" multiple>
+      <div id="hiPrev" class="check" style="margin-top:10px" hidden></div>
+    </div>
   </section>
 
   <!-- ITEMS -->
@@ -475,7 +481,15 @@ body.is-mgr .noman-only{display:none!important}
     '这个月已结账，不能下载盘点表': 'This month is closed — the count sheet cannot be downloaded', '这个月已结账，不能导入。': 'This month is closed — nothing can be imported.', '你只能看，不能导入。': 'You have view-only access — you cannot import.',
     '在 Excel 填好 QTY 栏，再按「导入盘点表」。': 'Fill in the QTY column in Excel, then press "Import count sheet".',
     '找不到表头。请用这里下载的盘点表。': 'The header row was not found. Please use the count sheet downloaded here.', '文件里没有填任何数量。': 'No quantity is filled in this file.',
-    '空白的格子不会清掉已经点的数量。': 'Blank cells never clear a quantity that was already counted.', '确认导入并保存': 'Confirm import & save'
+    '空白的格子不会清掉已经点的数量。': 'Blank cells never clear a quantity that was already counted.', '确认导入并保存': 'Confirm import & save',
+    '导入过去月份的月结报告': "Import past months' Closing Stock reports",
+    '上传以前从这里下载的 CLOSING STOCK Excel（可以一次选好几个月的文件）。每个月用报告里的数量和': 'Upload CLOSING STOCK Excel files downloaded from here earlier (you can pick several months at once). Each month uses the quantities and the',
+    '当时的旧单价': 'old prices of that time', '，成为「已结账」的月份。': ' of the report and becomes a "closed" month.',
+    '不会改「货品」里的最新单价。': 'The latest prices in "Items" are never changed.', '先看预览，确认了才会保存。': 'You see a preview first; nothing is saved until you confirm.',
+    '月结报告预览': 'Closing stock report preview', '用哪一页': 'Use which sheet', '各分组页': 'The group sheets', '请选月份。': 'Please choose the month.',
+    '找不到货品资料。请用从这里下载的 CLOSING STOCK 文件。': 'No item data found. Please use a CLOSING STOCK file downloaded from here.',
+    '这个月已经结账，会跳过（要重新导入，请先在这个月按「重开这个月」）。': 'This month is already closed, so it is skipped (to import it again, reopen the month first).',
+    '这些月份现在是「已结账」，用的是报告里的旧单价。货品的最新单价没有改。': 'These months are now "closed" with the old prices of the reports. The latest item prices were not changed.'
   }));
 
   // whole-text patterns (first match wins); $1.. = captured parts
@@ -531,6 +545,11 @@ body.is-mgr .noman-only{display:none!important}
     [/^变更记录没存到：(.*)$/, 'The change log was not saved: $1'],
     [/^请求失败 \((\d+)\)$/, 'Request failed ($1)'],
     [/^你的权限不足（这个操作需要 (L\d) 或以上）$/, 'Not enough permission (this needs $1 or above)'],
+    [/^导入后：(\d+) 项有货 · 合计 RM (.*)$/, 'After import: $1 item(s) in stock · total RM $2'],
+    [/^现在系统里没有这个名字的旧货品（保留在这个月的报告里）：(.*)$/, (m, x) => "Old items not in the system under this name (kept in this month's report): " + x.replace(/、/g, ', ')],
+    [/^报告里写的合计 RM (.*)，跟这一页算出来的差 RM (.*)。导出之后改过单价的话会有差，这是正常的；要用哪一页的价格，在上面选。$/, 'The report states a total of RM $1; this sheet differs by RM $2. A difference is normal if prices were changed after the export; choose above which sheet to use.'],
+    [/^确认导入 (\d+) 个月$/, 'Confirm import ($1 month(s))'],
+    [/^✓ 已导入 (\d+) 个月$/, '✓ Imported $1 month(s)'],
     [/^这个盘点表是 (\S+) 的，现在选的月份是 (\S+)。请先切换到 (\S+)。$/, 'This sheet is for $1 but the selected month is $2. Switch to $1 first.'],
     [/^盘点表预览：(.*)$/, 'Count sheet preview: $1'],
     [/^共 (\d+) 行有数量：(\d+) 项会更新，(\d+) 项没变$/, '$1 row(s) with a quantity: $2 will be updated, $3 unchanged'],
@@ -1255,6 +1274,80 @@ $('reopenBtn').addEventListener('click',async e=>{
   b.dataset.armed=''; b.textContent='重开这个月';
   try{ const was=closing(); await del('closing/'+S.month); logIt([{a:'reopen',t:mLabel(S.month),m:S.month,c:[['状态','已结账 RM '+money(was&&was.total),'重开']]}]); $('closeMsg').hidden=true; toast(mLabel(S.month)+' 已重开，可以再改数量'); }catch(err){dbErr(err)}
 });
+
+/* ---------- import past months' Closing Stock reports: each month keeps its own (old) prices; the item list and its latest prices are never touched ---------- */
+const hi = { files: [] };
+const hiNum = v => { const n = Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(n) ? n : 0; };
+const hiStr = v => String(v==null?'':v).replace(/\s+/g,' ').trim();
+function hiRows(arr){
+  const h=arr.findIndex(r=>r&&r.some(c=>norm(c)==='PRODUCTS')&&r.some(c=>norm(c)==='QTY')); if(h<0) return [];
+  const col={}; arr[h].forEach((c,i)=>{ const k=norm(c); if(k==='PRODUCTS') col.name=i; else if(k==='GROUP') col.group=i; else if(k==='PRICE') col.price=i; else if(k==='ACCOUNT') col.account=i; else if(k==='QTY') col.qty=i; else if(k==='UNIT') col.unit=i; else if(/COUNT DETAIL/.test(k)) col.det=i; });
+  const out=[]; arr.slice(h+1).forEach(r=>{ if(!r) return; const name=hiStr(r[col.name]); if(!name||norm(name)==='TOTAL') return;
+    out.push({name,group:hiStr(r[col.group])||'OTHERS',price:hiNum(r[col.price]),account:hiStr(r[col.account]),qty:hiNum(r[col.qty]),unit:hiStr(r[col.unit]).toUpperCase(),det:hiStr(r[col.det])}); });
+  return out;
+}
+function hiParse(fname, wb){
+  const arrOf=n=>XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});
+  const names=wb.SheetNames, sum=names.find(n=>norm(n)==='SUMMARY'), all=names.find(n=>norm(n)==='ALL ITEMS');
+  const o={name:fname,month:'',countDate:'',sumTotal:null,sets:{},src:'all',err:''};
+  if(sum){ arrOf(sum).forEach(r=>{ const t=String(r[0]||''); let m=/AS AT\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/i.exec(t); if(m) o.month=m[3]+'-'+m[2].padStart(2,'0'); m=/STOCK COUNT DATE:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i.exec(t); if(m) o.countDate=m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'); if(norm(r[0])==='TOTAL' && r[1]!=='') o.sumTotal=hiNum(r[1]); }); }
+  if(!o.month){ const m=/(\d{4})[_\-. ](\d{2})/.exec(fname); if(m) o.month=m[1]+'-'+m[2]; }
+  if(all) o.sets.all=hiRows(arrOf(all));
+  const grp=[]; names.filter(n=>n!==sum&&n!==all).forEach(n=>grp.push(...hiRows(arrOf(n)))); if(grp.length) o.sets.grp=grp;
+  if(!(o.sets.all&&o.sets.all.length) && !grp.length){ o.err='找不到货品资料。请用从这里下载的 CLOSING STOCK 文件。'; return o; }
+  if(!(o.sets.all&&o.sets.all.length)) o.src='grp';
+  return o;
+}
+function hiBuild(f){
+  const rows=f.sets[f.src]||[]; const idByName=new Map(S.items.map(i=>[norm(i.name),i.id])); const used=new Set(); const gi=new Map(); const lines={}; const byGroup={}, byAccount={}; let n=0; const unmatched=[];
+  rows.forEach((r,k)=>{ if(!gi.has(r.group)) gi.set(r.group,gi.size); const amt=r2(r.qty*r.price); byGroup[r.group]=r2((byGroup[r.group]||0)+amt); const ac=r.account||'（无 Account）'; if(amt) byAccount[ac]=r2((byAccount[ac]||0)+amt);
+    if(!(r.qty>0)) return; n++;
+    let id=idByName.get(norm(r.name)); if(!id||used.has(id)){ unmatched.push(r.name); id='h'+String(k+1).padStart(3,'0'); } used.add(id);
+    const l={name:r.name,group:r.group,gi:gi.get(r.group),unit:r.unit,account:r.account,price:r.price,qty:r.qty};
+    const m=r.det?/^(?:(\d+(?:\.\d+)?)\s+([A-Z]+))?(?:\s*\+\s*)?(?:(\d+(?:\.\d+)?)\s+([A-Z]+))?$/i.exec(r.det):null;
+    if(m){ const big=m[1]?Number(m[1]):0, loose=m[3]?Number(m[3]):0, sub=(m[4]||'').toUpperCase(), frac=r.qty-big;
+      if(loose>0 && frac>0 && sub){ const pack=Math.round(loose/frac); if(pack>1 && Math.abs(big+loose/pack-r.qty)<0.0006) Object.assign(l,{pack,sub,big,loose}); } }
+    lines[id]=l; });
+  return {lines,byGroup,byAccount,total:r2(rows.reduce((a,r)=>a+r2(r.qty*r.price),0)),itemCount:rows.length,counted:n,unmatched};
+}
+function hiRender(){
+  const box=$('hiPrev'); if(!hi.files.length){ box.hidden=true; return; }
+  box.hidden=false; let ok=0;
+  const parts=hi.files.map((f,i)=>{
+    if(f.err) return `<div class="prev"><b>${esc(f.name)}</b><br><span>${esc(f.err)}</span></div>`;
+    const bad=!/^\d{4}-\d{2}$/.test(f.month||''), done=!bad&&!!S.closings[f.month]; const b=bad?null:hiBuild(f); f.built=b; f.skip=done||bad;
+    if(!f.skip) ok++;
+    const diff=f.sumTotal!=null&&b?r2(b.total-f.sumTotal):null;
+    return `<div class="prev"><b>${esc(f.name)}</b>
+      <div class="row small" style="gap:8px;margin:4px 0"><span>月份</span><input type="month" data-hi="month" data-i="${i}" value="${esc(f.month)}" style="width:auto">
+      ${f.sets.all&&f.sets.all.length&&f.sets.grp?`<span>用哪一页</span><select data-hi="src" data-i="${i}"><option value="all"${f.src==='all'?' selected':''}>ALL ITEMS</option><option value="grp"${f.src==='grp'?' selected':''}>各分组页</option></select>`:''}</div>
+      ${bad?'<div>请选月份。</div>':done?'<div>这个月已经结账，会跳过（要重新导入，请先在这个月按「重开这个月」）。</div>':`<div>导入后：${b.counted} 项有货 · 合计 RM ${money(b.total)}</div>`}
+      ${b&&b.unmatched.length?`<div class="small muted">现在系统里没有这个名字的旧货品（保留在这个月的报告里）：${esc(b.unmatched.slice(0,6).join('、'))}${b.unmatched.length>6?'…':''}</div>`:''}
+      ${diff!=null&&Math.abs(diff)>=0.05?`<div class="small" style="color:var(--warn)">报告里写的合计 RM ${money(f.sumTotal)}，跟这一页算出来的差 RM ${money(Math.abs(diff))}。导出之后改过单价的话会有差，这是正常的；要用哪一页的价格，在上面选。</div>`:''}</div>`; }).join('');
+  box.className='check '+(ok?'warn':'idle');
+  box.innerHTML=`<strong>月结报告预览</strong>${parts}<div class="row"><button class="btn pri sm" id="hiGo" ${ok?'':'disabled'}>确认导入 ${ok} 个月</button><button class="btn sm" id="hiNo">取消</button></div>`;
+  $('hiNo').onclick=()=>{ hi.files=[]; $('hiFile').value=''; box.hidden=true; };
+  $('hiGo').onclick=hiApply;
+}
+$('hiPrev').addEventListener('change',e=>{ const t=e.target; if(!t.dataset||!t.dataset.hi) return; const f=hi.files[Number(t.dataset.i)]; if(!f) return; if(t.dataset.hi==='month') f.month=t.value; else f.src=t.value; hiRender(); });
+$('hiFile').addEventListener('change',async e=>{
+  const list=[...e.target.files]; if(!list.length) return;
+  if(typeof XLSX==='undefined'){ hi.files=[{name:'',err:'Excel 工具载入失败，请重新打开页面。'}]; return hiRender(); }
+  hi.files=[];
+  for(const f of list.sort((a,b)=>a.name.localeCompare(b.name))){ try{ hi.files.push(hiParse(f.name,XLSX.read(await f.arrayBuffer(),{type:'array'}))); }catch(err){ hi.files.push({name:f.name,err:'读不到这个文件：'+(err&&err.message||err)}); } }
+  hiRender();
+});
+async function hiApply(){
+  const go=$('hiGo'); go.disabled=true; const logs=[]; let n=0;
+  try{
+    for(const f of hi.files){ if(f.err||f.skip||!f.built||S.closings[f.month]) continue; const b=f.built; go.textContent='保存中 '+(n+1)+'…';
+      await put('closing/'+f.month,{month:f.month,total:b.total,byGroup:b.byGroup,byAccount:b.byAccount,lines:b.lines,itemCount:b.itemCount,uncounted:0,closedAt:Date.now(),closedBy:S.uid||'',countDate:f.countDate||'',imported:true,importedFrom:f.name});
+      logs.push({a:'close',t:mLabel(f.month),m:f.month,c:[['导入的月结报告 RM','',money(b.total)]],s:f.name}); n++; }
+    logIt(logs);
+    const box=$('hiPrev'); box.className='check ok'; box.innerHTML=`<strong>✓ 已导入 ${n} 个月</strong><span>这些月份现在是「已结账」，用的是报告里的旧单价。货品的最新单价没有改。</span>`;
+    hi.files=[]; $('hiFile').value='';
+  }catch(err){ dbErr(err); logIt(logs); go.disabled=false; go.textContent='继续导入'; }
+}
 
 /* ---------- REPORT ---------- */
 function renderReport(){

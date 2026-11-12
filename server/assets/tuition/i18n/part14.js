@@ -1,4 +1,6 @@
 module.exports = {
+  '这不是 MT（只是名字相似的家长）': ['This is not an MT (just a parent with a similar name)', 'Ini bukan MT (hanya ibu bapa dengan nama yang serupa)'],
+  '已记住：这个付款人不是 MT': ['Remembered: this payer is not an MT', 'Diingati: pembayar ini bukan MT'],
   '笔转账的付款人是 MT 的名字，却被自动记成学生的还款。MT 代收现金再转账时，必须人工确认是哪个学生：': [' transfer(s) were paid in the name of an MT but were recorded automatically as a student repayment. When an MT collects cash and transfers it, a person must confirm which student it is for: ', ' pemindahan dibayar atas nama MT tetapi direkodkan secara automatik sebagai bayaran murid. Apabila MT mengutip tunai dan memindahkannya, seseorang mesti mengesahkan murid yang berkenaan: '],
   '改回待处理': ['Back to pending', 'Kembali ke belum diproses'],
   '已改回待处理': ['Set back to pending', 'Dikembalikan ke belum diproses'],

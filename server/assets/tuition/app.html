@@ -169,7 +169,8 @@ function combos(arr, target, feeOf){
 // returns {status:'auto'|'review'|'unmatched', how, alloc:[{uid,amt}], sugg:[uid]}
 // An MT collects cash from the parents and transfers it to the company: the bank shows the MT's own name. That payment is never matched by itself
 // (not even by a remembered payer): a person decides which student it is for. The MT names come from the MT profiles (legal name; the bank may cut it short).
-function isMtPayer(state,payer){ const p=norm(payer); if(p.length<10) return false; return Object.values((state&&state.mtp)||{}).some(m=>{ const n=m&&m.name?norm(m.name):''; return n.length>=8&&(n===p||(p.length>=14&&(n.startsWith(p)||p.startsWith(n)))); }); }
+function isMtPayer(state,payer){ const p=norm(payer); if(p.length<10) return false; if(state&&state.rules&&state.rules.notMt&&state.rules.notMt[p]) return false;   // a person said: this name is not an MT (a parent with a similar name)
+    return Object.values((state&&state.mtp)||{}).some(m=>{ const n=m&&m.name?norm(m.name):''; return n.length>=8&&(n===p||(p.length>=14&&(n.startsWith(p)||p.startsWith(n)))); }); }
 function matchTx(state, tx, pool, paidSet){
   if(isMtPayer(state,tx.payer)) return {status:'review', how:'MT 代收', alloc:[], sugg:[]};
   const p=norm(tx.payer); const amt=+tx.amount;
@@ -443,7 +444,7 @@ async function init(){
   const done=k=>{ loaded[k]=true; if(['students','settings','rosters','bank','claims','hqbills'].every(x=>loaded[x])){ clearTimeout(timer); $('#conn').className='tag ok'; $('#conn').textContent=canWrite?'已同步':'已同步 · 只能查看';
     if(!window._deactStamped && MGR && canWrite){ window._deactStamped=true; BRANCHES.forEach(b=>{ const d=S.students[b]; if(d&&d.list&&Object.values(d.list).some(x=>x&&x.status==='Deactive'&&!x.deactSince)) save('students/'+b,JSON.parse(JSON.stringify(d))).catch(()=>{}); }); } } render(); };
   db.collection('students').onSnapshot(s=>{ S.students={}; s.docs.forEach(d=>S.students[d.id]=d.data()); done('students'); });
-  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
+  db.collection('settings').onSnapshot(s=>{ s.docs.forEach(d=>{ const v=d.data(); if(d.id==='packages') S.packages=(v.list||{}); if(d.id==='rules') S.rules={amt:v.amt||{},payer:v.payer||{},notMt:v.notMt||{}}; if(d.id==='mts') S.mts={list:v.list||{},names:v.names||{}}; if(d.id==='mtprofiles') S.mtp=v.list||{}; if(d.id==='config') S.config=v; }); done('settings'); });
   db.collection('rosters').onSnapshot(s=>{ S.rosters={}; s.docs.forEach(d=>S.rosters[d.id]=d.data()); done('rosters'); });
   db.collection('bank').onSnapshot(s=>{ S.bank={}; s.docs.forEach(d=>S.bank[d.id]=d.data()); done('bank'); });
   db.collection('claims').onSnapshot(s=>{ S.claims={}; s.docs.forEach(d=>S.claims[d.id]=d.data()); done('claims'); });
@@ -872,7 +873,7 @@ function drawTx(){
    </table>
    <div class="row" style="margin:8px 0"><input id="txq" placeholder="搜其他学生（名字 / 编号 / 父母）" style="width:300px" oninput="txSearch(this.value)"><div id="txres" class="small"></div></div>
    <div class="${Math.abs(sum-t.amount)<0.01?'msg ok':'msg warn'}">已分配 RM ${money(sum)} / RM ${money(t.amount)}${Math.abs(sum-t.amount)>=0.01?'（差 RM '+money(t.amount-sum)+'）':''}</div>
-   ${isMtPayer(S,t.payer)?'<div class="msg warn">⚠ 付款人是 MT 的名字：MT 代收现金后转账进公司，不能自动当作这个学生还款。请对照 MT 交来的收据或名单，分配给对应的学生。这种付款不会被记住，每次都要人工处理。</div>':'<label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>'}
+   ${isMtPayer(S,t.payer)?'<div class="msg warn">⚠ 付款人是 MT 的名字：MT 代收现金后转账进公司，不能自动当作这个学生还款。请对照 MT 交来的收据或名单，分配给对应的学生。这种付款不会被记住，每次都要人工处理。 <button class="g" onclick="txNotMt()">这不是 MT（只是名字相似的家长）</button></div>':'<label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>'}
    <div class="row" style="margin-top:12px"><button class="b" onclick="txConfirm()" ${Object.keys(sel).length?'':'disabled'}>确认</button><button class="g" onclick="txIgnore()">不是学费（忽略）</button>${t.status!=='review'&&t.status!=='unmatched'?'<button class="g" onclick="txReset()">改回待确认</button>':''}<button class="g" onclick="closeModal()">取消</button></div>`);
 }
 function txRemove(u){ const st=UI._tx; delete st.sel[u]; delete st.mon[u]; st.extra=st.extra.filter(x=>x!==u); drawTx(); }
@@ -891,6 +892,7 @@ async function txConfirm(){
 }
 function confirmInline(){ if(UI._tx.warned) return true; UI._tx.warned=true; toast('分配的金额跟入账不一样，再按一次「确认」就照这样保存'); return false; }
 async function txIgnore(){ const {did,id}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); doc.tx[id].status='ignore'; doc.tx[id].alloc=[]; await save('bank/'+did,doc); closeModal(); toast('已标为非学费'); }
+async function txNotMt(){ const {did,id}=UI._tx; const t=S.bank[did].tx[id]; const p=norm(t.payer); if(!p) return; const rules=JSON.parse(JSON.stringify(S.rules)); rules.notMt=rules.notMt||{}; rules.notMt[p]=true; await save('settings/rules',rules); toast('已记住：这个付款人不是 MT'); drawTx(); }
 async function mtBack(did,id){ const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id]; t.status='review'; t.how='MT 代收'; t.alloc=[]; await save('bank/'+did,doc); toast('已改回待处理'); }
 async function txReset(){ const {did,id}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); doc.tx[id].status='review'; await save('bank/'+did,doc); closeModal(); }
 

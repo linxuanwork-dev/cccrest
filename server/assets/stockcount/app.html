@@ -780,10 +780,19 @@ function monthRows(){
     ids.add(it.id);
     const l=S.lines[it.id];
     const ep=effPack(it), pack=ep.pack, po=S.packs[it.id];
-    const f=fifo?fifoCost(it,l?Number(l.qty):null):null;
-    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:f?r6(f.price):(Number(it.price)||0),fifo:f&&f.src!=='master'?f:null,qty:l?Number(l.qty):null,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
+    const lq=lineQty(l,pack);   // the quantity follows the carton size the item has NOW (a count saved with an older carton size is not stale)
+    const f=fifo?fifoCost(it,lq):null;
+    rows.push({po:po&&Number(po.pack)!==Number(it.pack||0)?{pack:Number(po.pack),orig:Number(it.pack)||0}:null,id:it.id,name:it.name,group:groupName(it),gi:gOrder(it.groupId),unit:it.unit||'',account:itemAccount(it),price:f?r6(f.price):(Number(it.price)||0),fifo:f&&f.src!=='master'?f:null,qty:lq,counted:!!l,pack,sub:pack?ep.sub:'',big:l&&l.big!=null?l.big:null,loose:l&&l.loose!=null?l.loose:null});
   });
   return rows;
+}
+/* the quantity of a saved count line: the whole cartons (big) and the loose pieces counted, with the carton size the item has now.
+   A line saved before the carton size was changed (e.g. 1 SET = 50 PCS, later 1 SET = 10 PCS) is therefore worked out again: 7 PCS = 0.7 SET. */
+function lineQty(l,pack){
+  if(!l) return null;
+  if(l.big==null) return Number(l.qty);
+  const big=Number(l.big)||0, loose=Number(l.loose)||0;
+  return pack>1 ? Math.round((big+loose/pack)*10000)/10000 : big+loose;
 }
 /* carton size: a count-sheet correction for this month wins over the item master */
 function effPack(it){

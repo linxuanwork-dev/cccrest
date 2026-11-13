@@ -39,6 +39,11 @@ function invoiceNo(branch, year, month, day) {
   return `${branch.invoice_prefix}${yy}${pad2(month)}${pad2(day)}${branch.invoice_suffix}`;
 }
 
+// branches that share one running number per day (invoice_seq): prefix + yymmdd + '-' + 3 digits; seq = the rank of the branch among the branches invoicing that day
+function seqInvoiceNo(branch, year, month, day, seq) {
+  return `${branch.invoice_prefix}${String(year).slice(-2)}${pad2(month)}${pad2(day)}-${String(seq).padStart(3, '0')}`;
+}
+
 function reportFileBase(branch, year, month) {
   return `${branch.report_prefix}-BUKKU SALES INV-${year}_${pad2(month)}`;
 }
@@ -49,7 +54,7 @@ function validYearMonth(year, month) {
 
 // menu: [{ id, product, unit_price }] in display order
 // qtyMap / specialMap: { "<day>:<itemId>": number }
-function buildMonth(branch, menu, qtyMap, specialMap, year, month) {
+function buildMonth(branch, menu, qtyMap, specialMap, year, month, seqMap) {
   const lastDay = daysInMonth(year, month);
   const invoices = [];
   const itemTotals = menu.map((m) => ({ itemId: m.id, product: m.product, qty: 0, amountCents: 0 }));
@@ -92,7 +97,7 @@ function buildMonth(branch, menu, qtyMap, specialMap, year, month) {
         day,
         date: ddmmyyyy(year, month, day),
         weekday: weekdayName(year, month, day),
-        no: invoiceNo(branch, year, month, day),
+        no: seqMap ? seqInvoiceNo(branch, year, month, day, seqMap[day]) : invoiceNo(branch, year, month, day),
         lines: kept,
         totalCents: dayTotalCents
       });
@@ -171,5 +176,5 @@ function runChecks(branch, menu, built, year, month) {
 module.exports = {
   YEAR_MIN, YEAR_MAX, WEEKDAYS, MONTH_NAMES,
   pad2, daysInMonth, toCents, centsToNumber, formatCents, weekdayName, ddmmyyyy,
-  invoiceNo, reportFileBase, validYearMonth, buildMonth, buildExcelRows, runChecks
+  invoiceNo, seqInvoiceNo, reportFileBase, validYearMonth, buildMonth, buildExcelRows, runChecks
 };

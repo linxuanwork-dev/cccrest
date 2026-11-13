@@ -549,13 +549,30 @@ router.put(`${BASE}/records/:recordId`, requireAuth, scopeToCompany, needAccess,
   res.json(record);
 });
 
+// invoice_seq branches: the day's running number of this branch = 1 + the branches (in order) that also have an invoice that day, so a day without sales never leaves a gap
+async function dailySeqMap(companyId, branch, year, month) {
+  if (!branch.invoice_seq) return null;
+  const { rows: all } = await pool.query('SELECT * FROM dsi_branches WHERE company_id = $1 AND invoice_seq ORDER BY sort_order, id', [companyId]);
+  const days = {};   // branch id -> Set of days with an invoice
+  for (const b of all) {
+    const built = rules.buildMonth(b, await getMenu(b.id), ...Object.values(await getMonthData(b.id, year, month)), year, month);
+    days[b.id] = new Set(built.invoices.map((i) => i.day));
+  }
+  const map = {};
+  for (let d = 1; d <= rules.daysInMonth(year, month); d++) {
+    if (!days[branch.id] || !days[branch.id].has(d)) continue;
+    map[d] = 1 + all.filter((b) => b.id !== branch.id && days[b.id].has(d) && (b.sort_order < branch.sort_order || (b.sort_order === branch.sort_order && b.id < branch.id))).length;
+  }
+  return map;
+}
+
 async function loadReportContext(req, res) {
   const rec = await getRecordRow(req.params.companyId, req.params.recordId);
   if (!rec) { res.status(404).json({ error: 'Not found' }); return null; }
   const branch = await getBranch(req.params.companyId, rec.branch_id);
   const menu = await getMenu(branch.id);
   const { qtyMap, specialMap } = await getMonthData(branch.id, rec.year, rec.month);
-  const built = rules.buildMonth(branch, menu, qtyMap, specialMap, rec.year, rec.month);
+  const built = rules.buildMonth(branch, menu, qtyMap, specialMap, rec.year, rec.month, await dailySeqMap(req.params.companyId, branch, rec.year, rec.month));
   const errors = rules.runChecks(branch, menu, built, rec.year, rec.month);
   return { rec, branch, menu, built, errors, year: rec.year, month: rec.month };
 }

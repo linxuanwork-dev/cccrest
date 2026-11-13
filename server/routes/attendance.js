@@ -7,6 +7,7 @@ const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
 const STAT = require('../lib/statutory');
 const { buildPayslipPdf } = require('../lib/payslipPdf');
+const { buildJournalPdf } = require('../lib/journalPdf');
 
 const router = express.Router();
 
@@ -147,7 +148,7 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
     const e = byId.get(Number(x.empId));
     if (!e) return;
     const c = STAT.calc({
-      month, basic: num(e.basic_salary), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
+      month, basic: x.wages === true ? num(x.basic) : num(e.basic_salary), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
       commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN'
     });
     slips.push({
@@ -159,6 +160,70 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
   const doc = buildPayslipPdf(slips);
   const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: month, EMP: slips.length === 1 ? docs.hyphenUpper(slips[0].emp.name) : 'ALL' }, 'Salary-Voucher-' + month);
   try { await docs.logEvent(req, req.params.companyId, 'salary_voucher', base + '.pdf', 'generated', [{ field: 'payslips', from: '', to: String(slips.length) }]); } catch (e) { console.error('payslip log failed:', e); }
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));
+  doc.pipe(res);
+  doc.end();
+});
+
+// ---- Bukku import files: the rows are written into Bukku's own template (server/assets/attendance/bukku) so the comment lines, the column headings,
+// the column order and the formats are exactly what Bukku gives. rows = arrays of cells starting at column B. ----
+const BUKKU = {
+  journal: { file: 'journal-entry-template.xlsx', header: /^No\. \(1\)/ },
+  moneyout: { file: 'money-out-template.xlsx', header: /^Contact Code/ }
+};
+router.post(BASE + '/bukku-file', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const type = req.body && req.body.type, rows = req.body && req.body.rows;
+  if (!BUKKU[type] || !Array.isArray(rows) || !rows.length || rows.length > 3000) return bad(res, 'Invalid request');
+  for (const r of rows) {
+    if (!Array.isArray(r) || r.length > 30 || r.some((v) => v !== null && !['string', 'number'].includes(typeof v))) return bad(res, 'Invalid request');
+  }
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(path.join(__dirname, '..', 'assets', 'attendance', 'bukku', BUKKU[type].file));
+  const ws = wb.worksheets[0];
+  let hdr = 0;
+  for (let i = 1; i <= 80 && !hdr; i++) { if (BUKKU[type].header.test(String(ws.getRow(i).getCell(2).value || ''))) hdr = i; }
+  if (!hdr) return bad(res, 'Template problem');
+  for (let i = hdr + 1; i <= ws.rowCount; i++) ws.getRow(i).eachCell({ includeEmpty: false }, (c) => { c.value = null; });   // the sample lines
+  rows.forEach((cells, k) => {
+    const row = ws.getRow(hdr + 1 + k);
+    cells.forEach((v, j) => { if (v !== null && v !== '') row.getCell(2 + j).value = v; });
+  });
+  // the sample lines of the Bukku template are struck through: the lines we write must not be
+  for (let i = hdr + 1; i <= hdr + rows.length + 100; i++) {
+    const row = ws.getRow(i);
+    for (let j = 1; j <= 30; j++) { const c = row.getCell(j); if (c.font && c.font.strike) c.font = Object.assign({}, c.font, { strike: false }); }
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  try { await docs.logEvent(req, req.params.companyId, 'payroll_bukku', type === 'journal' ? 'Bukku Journal Entry' : 'Bukku Money Out', 'generated', [{ field: 'rows', from: '', to: String(rows.length) }]); } catch (e) { console.error('bukku file log failed:', e); }
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(Buffer.from(buf));
+});
+
+// The payroll journals of a month (Journal Entry vouchers) as a PDF, one voucher per page. The page builds the lines; each voucher must balance.
+router.post(BASE + '/journal', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, month = String(b.month || ''), list = Array.isArray(b.vouchers) ? b.vouchers : [];
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !list.length || list.length > 100) return bad(res, 'Invalid request');
+  const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const vouchers = [];
+  for (const v of list) {
+    const lines = (Array.isArray(v && v.lines) ? v.lines : []).slice(0, 60).map((l) => ({
+      account: str(l && l.account, 120), code: str(l && l.code, 20), desc: str(l && l.desc, 160),
+      debit: Math.round((Number(l && l.debit) || 0) * 100) / 100, credit: Math.round((Number(l && l.credit) || 0) * 100) / 100
+    }));
+    const dr = Math.round(lines.reduce((a, l) => a + l.debit * 100, 0)), cr = Math.round(lines.reduce((a, l) => a + l.credit * 100, 0));
+    if (!lines.length || lines.some((l) => !l.account || l.debit < 0 || l.credit < 0) || dr !== cr) return bad(res, '分录不平衡或有空科目：' + str(v && v.no, 40) + ' (Dr ' + dr / 100 + ' / Cr ' + cr / 100 + ')');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v.date || ''))) return bad(res, 'Invalid request');
+    vouchers.push({ no: str(v.no, 40), date: v.date, reference: str(v.reference, 80), lines });
+  }
+  const co = (await pool.query('SELECT name, registration_no FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
+  const doc = buildJournalPdf(co, vouchers);
+  const base = await docs.fileBase('journal_voucher', req.params.companyId, { PERIOD: month }, 'Journal-Entry-' + month);
+  try { await docs.logEvent(req, req.params.companyId, 'journal_voucher', base + '.pdf', 'generated', [{ field: 'vouchers', from: '', to: String(vouchers.length) }]); } catch (e) { console.error('journal log failed:', e); }
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));

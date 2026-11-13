@@ -63,7 +63,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
 (function(){
   var QS = new URLSearchParams(location.search), CID = QS.get('company') || '';
   var API = '/api/companies/' + encodeURIComponent(CID) + '/attendance';
-  var COLLS = ['roster', 'settings', 'entries', 'approvals', 'advances', 'payadj'];
+  var COLLS = ['roster', 'settings', 'entries', 'approvals', 'advances', 'payadj', 'payroll'];
   var memo = {}, subs = {}, docSubs = {};
   COLLS.forEach(function(c){ memo[c] = {}; subs[c] = []; });
   var ATT = window.ATT = { mgr: false, canWrite: false, name: '' };
@@ -144,6 +144,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
     var blob = new Blob([o.data], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
   } };
+  ATT.http = http;
   ATT.init = async function(){
     if(!CID) throw new Error('缺少公司编号');
     var me = await http('GET', '');
@@ -155,6 +156,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
   };
 })();
 </script>
+<script src="/api/attendance/statutory.js"></script>
 <div class="wrap">
   <header><h1>MINIFISH 考勤</h1><span class="sub" id="who"></span></header>
   <nav role="tablist" id="tabs">
@@ -162,6 +164,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
     <button role="tab" data-tab="appr" id="tabAppr">审批<span class="badge" id="cnt" hidden></span></button>
     <button role="tab" data-tab="rec" id="tabRec" hidden>记录</button>
     <button role="tab" data-tab="sum" id="tabSum" hidden>报告</button>
+    <button role="tab" data-tab="pay" id="tabPay" hidden>工资</button>
     <button role="tab" data-tab="ros" id="tabRos" hidden>名册</button>
   </nav>
 
@@ -224,6 +227,23 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <div class="actions"><button class="btn" id="advAdd">加入预支</button></div>
       <div id="advMsg"></div>
       <div class="tw"><table id="advTbl"></table></div>
+    </div>
+  </section>
+
+  <section id="pay" hidden>
+    <div class="card">
+      <div class="row"><label>月份 Month<input id="pmon" type="month"></label></div>
+      <div class="sub" id="payNote"></div>
+    </div>
+    <div class="card">
+      <div class="hd"><strong>本地员工工资 Local Staff Payroll</strong><button class="btn alt" id="plCsv">导出 CSV</button></div>
+      <div class="sub">出勤、OT、无薪假直接来自考勤（点数字可以看是哪几天）。基本工资、出生日期、国籍从 HR 的员工资料读。蓝色格自己填：津贴、奖金、提成、其他（可以是负数）、PCB。预支来自「报告」里的预支记录。EPF、SOCSO、SKBBK、EIS 自动算。</div>
+      <div class="tw"><table id="plTbl"></table></div>
+    </div>
+    <div class="card">
+      <strong>本月要付的法定款项 Statutory payments</strong>
+      <div class="tw"><table id="plDue"></table></div>
+      <div class="sub">下个月 15 号以前付。EPF = 员工 + 雇主；SOCSO = 员工 + SKBBK + 雇主；EIS = 员工 + 雇主。</div>
     </div>
   </section>
 
@@ -433,6 +453,7 @@ const n2=x=>(Math.round((x+1e-9)*100)/100).toFixed(2);
 const r2=x=>Math.round((x+Number.EPSILON)*100)/100;
 const TYPES={F:"外劳",L:"本地",P:"兼职"};
 
+let pinp={},emps=[],empsErr='';
 let db=null,user=null,isMgr=false,roster=[],lists={reasons:[],ptReasons:[],mgr:["KELVIN","BRYAN"]},entries=[],appr={},advs=[],padj={},pay={monthly:1900,days:26,daily:73.08,ot:9.1,mgmt:500};
 try{db=await ATT.init();isMgr=ATT.mgr;if(ATT.name){const h=document.querySelector("h1");if(h)h.textContent=ATT.name+" 考勤"}}
 catch(e){document.querySelector(".wrap").append(el("div",{class:"msg pill bad",text:"无法打开考勤："+(e&&e.message||e)}))}
@@ -782,6 +803,65 @@ async function addAdv(){
   catch(e){msg.append(el("div",{class:"msg pill bad",text:"保存失败："+(e.message||e.code)}))}
 }
 
+/* ---------- payroll of the local staff: the attendance (days / OT / unpaid leave) + the HR employee master + the typed-in lines -> EPF / SOCSO / SKBBK / EIS ---------- */
+async function loadEmps(){
+  try{emps=await ATT.http("GET","/employees");empsErr=""}catch(e){emps=[];empsErr=(e&&e.message)||"读不到 HR 员工资料"}
+  renderPay();
+}
+const nkey=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+const empOf=name=>emps.find(e=>nkey(e.name)===nkey(name));
+function plData(m){
+  return slData(m).map(o=>{
+    const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
+    const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advOf(o.name,m);
+    const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,unpaid,pend:o.pend,adv};
+    if(emp)r.c=STAT.calc({month:m,basic:emp.basic,otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
+    return r});
+}
+const PL_COLS=[["基本工资","basic"],["无薪扣除","unpaidDeduction"],["OT工资","otPay"],["津贴","allowance","in"],["奖金","incentive","in"],["提成","commission","in"],["其他","other","in"],["总收入","gross"],
+  ["EPF","epfEmployee"],["SOCSO","socsoEmployee"],["SKBBK","skbbkEmployee"],["EIS","eisEmployee"],["PCB","pcb","in"],["总扣除","totalDeduction"],["预支","advance"],["实发","net"],
+  ["雇主EPF","epfEmployer"],["雇主SOCSO","socsoEmployer"],["雇主EIS","eisEmployer"]];
+function drill(name,m){$("mon").value=m;$("ftype").value="L";fillFName();$("fname").value=name;renderRec();document.querySelector('#tabs button[data-tab=rec]').click()}
+function renderPay(){
+  const t=$("plTbl");if(!t||!isMgr)return;const m=$("pmon").value;if(!m)return;
+  if(t.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")return;   // do not redraw while typing
+  const rows=plData(m),note=$("payNote");note.replaceChildren();
+  if(empsErr)note.append(el("span",{class:"pill bad",text:"HR 员工资料："+empsErr}));
+  else{const miss=rows.filter(r=>!r.emp);if(miss.length)note.append(el("span",{class:"pill warn",text:"HR 的员工资料里找不到："+miss.map(r=>r.name).join("、")+"（请到 HR > 薪资 新增，名字要一样）"}));
+    const pend=rows.reduce((s,r)=>s+r.pend,0);note.append(" ",el("span",{class:"pill "+(pend?"warn":"ok"),text:pend?`还有 ${pend} 条考勤待审批，审批完工资才准确`:"考勤都已处理"}));
+    note.append(" ",el("span",{class:"sub",text:"PCB 先手动填入。SKBBK 从 2026-06 起。"}))}
+  t.replaceChildren();
+  t.append(el("tr",{},["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0])).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
+  const tot={};
+  rows.forEach(r=>{
+    const tr=el("tr",{});tr.append(el("td",{text:r.name}));
+    const link=(v,fmtv)=>{const td=el("td",{class:"n"});const a=el("a",{href:"#",text:fmtv,style:"color:var(--accent)"});a.onclick=e=>{e.preventDefault();drill(r.name,m)};td.append(a);return td};
+    tr.append(link(r.days,String(r.days)),link(r.ot,n2(r.ot)),link(r.unpaid,String(r.unpaid)));
+    PL_COLS.forEach(([lab,k,ed])=>{
+      if(!r.c){tr.append(el("td",{class:"n",text:"—"}));return}
+      const v=k==="advance"?r.adv:r.c[k];tot[k]=(tot[k]||0)+(Number(v)||0);
+      if(ed==="in"){const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab});
+        i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;
+          try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
+        tr.append(el("td",{class:"n"},i))}
+      else tr.append(el("td",{class:"n"+(k==="net"?" chg":""),text:n2(v)}))});
+    t.append(tr)});
+  if(rows.length){const tr=el("tr",{},el("td",{class:"chg",text:"合计"}),el("td",{class:"chg"}),el("td",{class:"chg"}),el("td",{class:"chg"}));PL_COLS.forEach(([lab,k])=>tr.append(el("td",{class:"n chg",text:n2(tot[k]||0)})));t.append(tr)}
+  else t.append(el("tr",{},el("td",{class:"empty",colspan:20,text:"这个月没有本地员工"})));
+  // what has to be paid to EPF / SOCSO / EIS / LHDN
+  const d=$("plDue");d.replaceChildren();
+  const s=k=>r2(rows.reduce((a,r)=>a+(r.c?Number(r.c[k])||0:0),0));
+  const epfT=r2(s("epfEmployee")+s("epfEmployer")),socT=r2(s("socsoEmployee")+s("skbbkEmployee")+s("socsoEmployer")),eisT=r2(s("eisEmployee")+s("eisEmployer")),pcbT=s("pcb");
+  d.append(el("tr",{},["项目","员工","雇主","合计 RM"].map((h,i)=>el("th",{class:i?"n":"",text:h}))));
+  [["EPF (KWSP)",s("epfEmployee"),s("epfEmployer"),epfT],["SOCSO + SKBBK (PERKESO)",r2(s("socsoEmployee")+s("skbbkEmployee")),s("socsoEmployer"),socT],["EIS (PERKESO)",s("eisEmployee"),s("eisEmployer"),eisT],["PCB (LHDN)",pcbT,0,pcbT]].forEach(a=>
+    d.append(el("tr",{},el("td",{text:a[0]}),el("td",{class:"n",text:n2(a[1])}),el("td",{class:"n",text:n2(a[2])}),el("td",{class:"n",text:n2(a[3])}))));
+  d.append(el("tr",{},el("td",{class:"chg",text:"合计"}),el("td",{class:"n chg"}),el("td",{class:"n chg"}),el("td",{class:"n chg",text:n2(r2(epfT+socT+eisT+pcbT))})));
+}
+async function plCsv(){
+  const m=$("pmon").value,rows=plData(m).filter(r=>r.c);
+  await download(`local-payroll-${m}.csv`,[["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0]))].concat(rows.map(r=>[r.name,r.days,n2(r.ot),r.unpaid].concat(PL_COLS.map(([l,k])=>n2(k==="advance"?r.adv:r.c[k]))))));
+}
+
 /* ---------- roster admin ---------- */
 const FL_COMMON=[["基本",[["name","姓名","text"],["id","护照/IC","text"],["off","公休(星期，例 二)","text"],["brk","休息(h)","num"],["limit","每日上限(h，含休息)","num"],["start","上班","time"],["end","下班","time"]]],
  ["轮值(单双周)",[["rot","轮值","sel",["N","Y"]],["oddIn","单周上班","time"],["oddOut","单周下班","time"],["evenIn","双周上班","time"],["evenOut","双周下班","time"]]],
@@ -846,7 +926,7 @@ function openForm(st,keep){
 
 /* ---------- wiring ---------- */
 function renderAll(){
-  renderAppr();if(isMgr){["tabRec","tabSum","tabRos"].forEach(i=>$(i).hidden=false);renderRec();renderSum();renderRoster();renderPayPar()}
+  renderAppr();if(isMgr){["tabRec","tabSum","tabPay","tabRos"].forEach(i=>$(i).hidden=false);renderRec();renderSum();renderPay();renderRoster();renderPayPar()}
   renderGrid(false);
 }
 function fillNames(){
@@ -859,11 +939,11 @@ function fillNames(){
   fillFName();
 }
 function fillFName(){const f=$("fname"),keep=f.value,t=$("ftype").value;f.replaceChildren(el("option",{value:"",text:"全部"}));roster.filter(s=>s.type===t).forEach(s=>f.append(el("option",{value:s.name,text:s.name})));if([...f.options].some(o=>o.value===keep))f.value=keep}
-$("cmon").value=$("mon").value=$("smon").value=todayKL().slice(0,7);$("advDate").value=todayKL();
+$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("advDate").value=todayKL();
 $("who").textContent=isMgr?"店长视图":"员工打卡（无审批权限）";
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
-  ["clock","appr","rec","sum","ros"].forEach(id=>$(id).hidden=id!==b.dataset.tab)});
+  ["clock","appr","rec","sum","pay","ros"].forEach(id=>$(id).hidden=id!==b.dataset.tab)});
 $("name").addEventListener("change",()=>{$("result").replaceChildren();renderGrid(true)});$("cmon").addEventListener("change",()=>{$("result").replaceChildren();renderGrid(true)});
 $("save").onclick=saveMonth;$("smon").onchange=renderSum;$("sfCsv").onclick=sfCsv;$("slCsv").onclick=slCsv;$("ptCsv").onclick=ptCsv;$("advAdd").onclick=addAdv;$("rosNew").onclick=()=>openForm(null);
 $("mon").onchange=renderRec;$("fname").onchange=renderRec;$("ftype").onchange=()=>{fillFName();renderRec()};$("csv").onclick=csv;
@@ -879,6 +959,10 @@ if(db){
     db.collection("payadj").onSnapshot(s=>{padj={};s.docs.forEach(d=>padj[d.id]=d.data());renderAll()},()=>{});
   }
   db.collection("approvals").onSnapshot(s=>{appr={};s.docs.forEach(d=>appr[d.id]=d.data());renderAll()});
+  if(isMgr){
+    db.collection("payroll").onSnapshot(s=>{pinp={};s.docs.forEach(d=>pinp[d.id]=d.data());renderAll()},()=>{});
+    loadEmps();
+  }
 }
 })();
 </script>

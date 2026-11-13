@@ -22,9 +22,9 @@ const router = express.Router();
 
 const PAGE = path.join(__dirname, '..', 'assets', 'attendance', 'app.html');
 const bad = (res, msg) => res.status(400).json({ error: msg });
-const PATH_RE = /^(roster|settings|entries|approvals|advances|payadj)\/[A-Za-z0-9_.:-]{1,90}$/;
-const MGR_WRITE = new Set(['roster', 'settings', 'approvals', 'advances', 'payadj']);   // only entries (the clock times) can be written by L2
-const MGR_READ = new Set(['advances', 'payadj']);                                        // money: managers only
+const PATH_RE = /^(roster|settings|entries|approvals|advances|payadj|payroll)\/[A-Za-z0-9_.:-]{1,90}$/;
+const MGR_WRITE = new Set(['roster', 'settings', 'approvals', 'advances', 'payadj', 'payroll']);   // only entries (the clock times) can be written by L2
+const MGR_READ = new Set(['advances', 'payadj', 'payroll']);                                        // money: managers only
 const MAX_DOC = 100 * 1024;
 const KEEP_DAYS = 430;                                                                   // the page works on the last ~14 months of clock entries
 
@@ -67,6 +67,16 @@ router.put('/attendance/companies/:id', requireRole('admin'), async (req, res) =
 
 router.get('/attendance/app', requireAuth, (req, res) => { res.sendFile(PAGE); });
 
+// The payroll rules (EPF / SOCSO / SKBBK / EIS and the pay lines) are one file used by the server and by the page: the page gets it as a script.
+let STAT_JS = null;
+router.get('/attendance/statutory.js', requireAuth, (req, res) => {
+  if (!STAT_JS) {
+    const fs = require('fs');
+    STAT_JS = 'window.STAT_TABLES=' + JSON.stringify(require('../lib/statutoryTables')) + ';\n' + fs.readFileSync(path.join(__dirname, '..', 'lib', 'statutory.js'), 'utf8');
+  }
+  res.type('application/javascript').send(STAT_JS);
+});
+
 const BASE = '/companies/:companyId/attendance';
 const guard = (level) => [requireAuth, scopeToCompany, requirePage('payroll', level)];
 const isMgr = (req) => !!(req.pageAccess && (req.pageAccess.ccCrest || req.pageAccess.level >= 3));
@@ -92,7 +102,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
     [req.params.companyId, String(KEEP_DAYS)]
   );
   const mgr = isMgr(req);
-  const by = { roster: [], settings: [], entries: [], approvals: [], advances: [], payadj: [] };
+  const by = { roster: [], settings: [], entries: [], approvals: [], advances: [], payadj: [], payroll: [] };
   rows.forEach((r) => {
     if (!mgr && MGR_READ.has(r.coll)) return;
     let data = r.data;
@@ -100,6 +110,19 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
     (by[r.coll] = by[r.coll] || []).push({ id: r.path.slice(r.coll.length + 1), data });
   });
   res.json({ rev: s.rev, docs: by });
+});
+
+// The HR employee master (Payroll > employees) of the company: what the payroll needs to know about each person (managers only)
+router.get(BASE + '/employees', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const { rows } = await pool.query(
+    `SELECT id, name, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active
+       FROM employees WHERE company_id = $1 ORDER BY name`, [req.params.companyId]);
+  res.json(rows.map((r) => ({
+    id: r.id, name: r.name, basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
+    marital: r.marital_status || '', children: r.children, disabled: r.disabled, epfNo: r.epf_no || '', socsoNo: r.socso_no || '', tin: r.tin_no || '',
+    start: r.start_date ? String(r.start_date).slice(0, 10) : '', active: r.active
+  })));
 });
 
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);

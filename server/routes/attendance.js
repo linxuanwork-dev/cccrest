@@ -4,6 +4,9 @@ const { pool } = require('../db');
 const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
+const docs = require('../lib/docs');
+const STAT = require('../lib/statutory');
+const { buildPayslipPdf } = require('../lib/payslipPdf');
 
 const router = express.Router();
 
@@ -116,13 +119,51 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
 router.get(BASE + '/employees', ...guard(3), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const { rows } = await pool.query(
-    `SELECT id, name, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active
+    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active
        FROM employees WHERE company_id = $1 ORDER BY name`, [req.params.companyId]);
   res.json(rows.map((r) => ({
-    id: r.id, name: r.name, basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
+    id: r.id, name: r.name, ic: r.ic_no || '', basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
     marital: r.marital_status || '', children: r.children, disabled: r.disabled, epfNo: r.epf_no || '', socsoNo: r.socso_no || '', tin: r.tin_no || '',
     start: r.start_date ? String(r.start_date).slice(0, 10) : '', active: r.active
   })));
+});
+
+// Salary vouchers (payslips) as one PDF, a page per person. The page sends what the attendance gave and what was typed in; the numbers are worked out
+// here with the same rules as the page (lib/statutory.js), the person's details come from the HR employee master.
+router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, month = String(b.month || ''), list = Array.isArray(b.slips) ? b.slips : [];
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !list.length || list.length > 80) return bad(res, 'Invalid request');
+  const ids = [...new Set(list.map((x) => Number(x && x.empId)).filter((n) => Number.isInteger(n) && n > 0))];
+  const { rows: emps } = await pool.query(
+    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, epf_no, socso_no, tin_no
+       FROM employees WHERE company_id = $1 AND id = ANY($2::int[])`, [req.params.companyId, ids]);
+  const byId = new Map(emps.map((e) => [e.id, e]));
+  const co = (await pool.query('SELECT name, registration_no, address FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const yymm = month.slice(2, 4) + month.slice(5, 7);
+  const slips = [];
+  list.forEach((x, i) => {
+    const e = byId.get(Number(x.empId));
+    if (!e) return;
+    const c = STAT.calc({
+      month, basic: num(e.basic_salary), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
+      commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN'
+    });
+    slips.push({
+      company: co, month, c, days: x.days, hours: num(x.hours), otHours: num(x.otHours), voucher: 'JVS-' + yymm + '-' + String(i + 1).padStart(3, '0'),
+      emp: { name: e.name, ic: e.ic_no || '', epfNo: e.epf_no || '', socsoNo: e.socso_no || '', tin: e.tin_no || '', bank: [e.bank_name, e.bank_account].filter(Boolean).join(' ') }
+    });
+  });
+  if (!slips.length) return bad(res, '找不到这些员工。 Employees not found.');
+  const doc = buildPayslipPdf(slips);
+  const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: month, EMP: slips.length === 1 ? docs.hyphenUpper(slips[0].emp.name) : 'ALL' }, 'Salary-Voucher-' + month);
+  try { await docs.logEvent(req, req.params.companyId, 'salary_voucher', base + '.pdf', 'generated', [{ field: 'payslips', from: '', to: String(slips.length) }]); } catch (e) { console.error('payslip log failed:', e); }
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));
+  doc.pipe(res);
+  doc.end();
 });
 
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);

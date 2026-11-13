@@ -141,7 +141,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
   };
   // CSV files are saved from the browser
   ATT.downloads = { save: async function(o){
-    var blob = new Blob([o.data], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+    var blob = o.data instanceof Blob ? o.data : new Blob([o.data], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
   } };
   ATT.http = http;
@@ -236,7 +236,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <div class="sub" id="payNote"></div>
     </div>
     <div class="card">
-      <div class="hd"><strong>本地员工工资 Local Staff Payroll</strong><button class="btn alt" id="plCsv">导出 CSV</button></div>
+      <div class="hd"><strong>本地员工工资 Local Staff Payroll</strong><span class="actions"><button class="btn" id="plPdf">下载全部工资单 PDF</button><button class="btn alt" id="plCsv">导出 CSV</button></span></div>
       <div class="sub">出勤、OT、无薪假直接来自考勤（点数字可以看是哪几天）。基本工资、出生日期、国籍从 HR 的员工资料读。蓝色格自己填：津贴、奖金、提成、其他（可以是负数）、PCB。预支来自「报告」里的预支记录。EPF、SOCSO、SKBBK、EIS 自动算。</div>
       <div class="tw"><table id="plTbl"></table></div>
     </div>
@@ -810,11 +810,13 @@ async function loadEmps(){
 }
 const nkey=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
 const empOf=name=>emps.find(e=>nkey(e.name)===nkey(name));
+const normName=s=>String(s||"").toUpperCase().replace(/\s+/g," ").trim();
+const hrAvail=()=>emps.filter(e=>e.active!==false&&!roster.some(r=>nkey(r.name)===nkey(e.name)));   // in the HR employee list, not on the attendance roster yet
 function plData(m){
   return slData(m).map(o=>{
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
     const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advOf(o.name,m);
-    const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,unpaid,pend:o.pend,adv};
+    const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
     if(emp)r.c=STAT.calc({month:m,basic:emp.basic,otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
     return r});
 }
@@ -831,7 +833,7 @@ function renderPay(){
     const pend=rows.reduce((s,r)=>s+r.pend,0);note.append(" ",el("span",{class:"pill "+(pend?"warn":"ok"),text:pend?`还有 ${pend} 条考勤待审批，审批完工资才准确`:"考勤都已处理"}));
     note.append(" ",el("span",{class:"sub",text:"PCB 先手动填入。SKBBK 从 2026-06 起。"}))}
   t.replaceChildren();
-  t.append(el("tr",{},["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0])).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
+  t.append(el("tr",{},["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0]),["工资单"]).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
   const tot={};
   rows.forEach(r=>{
     const tr=el("tr",{});tr.append(el("td",{text:r.name}));
@@ -845,6 +847,7 @@ function renderPay(){
           try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
         tr.append(el("td",{class:"n"},i))}
       else tr.append(el("td",{class:"n"+(k==="net"?" chg":""),text:n2(v)}))});
+    const pb=el("button",{class:"btn alt",text:"PDF"});pb.disabled=!r.c;pb.onclick=()=>payslipPdf([r],m,pb);tr.append(el("td",{class:"n"},pb));
     t.append(tr)});
   if(rows.length){const tr=el("tr",{},el("td",{class:"chg",text:"合计"}),el("td",{class:"chg"}),el("td",{class:"chg"}),el("td",{class:"chg"}));PL_COLS.forEach(([lab,k])=>tr.append(el("td",{class:"n chg",text:n2(tot[k]||0)})));t.append(tr)}
   else t.append(el("tr",{},el("td",{class:"empty",colspan:20,text:"这个月没有本地员工"})));
@@ -857,6 +860,20 @@ function renderPay(){
     d.append(el("tr",{},el("td",{text:a[0]}),el("td",{class:"n",text:n2(a[1])}),el("td",{class:"n",text:n2(a[2])}),el("td",{class:"n",text:n2(a[3])}))));
   d.append(el("tr",{},el("td",{class:"chg",text:"合计"}),el("td",{class:"n chg"}),el("td",{class:"n chg"}),el("td",{class:"n chg",text:n2(r2(epfT+socT+eisT+pcbT))})));
 }
+async function payslipPdf(list,m,btn){
+  const msg=$("payNote");const rows=list.filter(r=>r.emp&&r.c);
+  if(!rows.length)return;
+  if(btn)btn.disabled=true;
+  try{
+    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:r.inp.commission,other:r.inp.other,advance:r.adv,pcb:r.inp.pcb}))};
+    const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/payslips",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
+    const name=decodeURIComponent(res.headers.get("X-File-Name")||("Salary-Voucher-"+m+".pdf"));
+    await ATT.downloads.save({filename:name,data:await res.blob()});
+  }catch(e){msg.append(" ",el("span",{class:"pill bad",text:"工资单下载失败："+(e&&e.message||e)}))}
+  if(btn)btn.disabled=false;
+}
+const plAll=()=>{const m=$("pmon").value;payslipPdf(plData(m),m,$("plPdf"))};
 async function plCsv(){
   const m=$("pmon").value,rows=plData(m).filter(r=>r.c);
   await download(`local-payroll-${m}.csv`,[["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0]))].concat(rows.map(r=>[r.name,r.days,n2(r.ot),r.unpaid].concat(PL_COLS.map(([l,k])=>n2(k==="advance"?r.adv:r.c[k]))))));
@@ -879,7 +896,7 @@ function renderRoster(){
   t.append(el("tr",{},["姓名","类型","状态","今天排班",""].map(h=>el("th",{text:h}))));
   roster.forEach(st=>{
     const b=el("button",{class:"btn alt",text:"编辑"});b.onclick=()=>openForm(st);
-    t.append(el("tr",{},el("td",{text:st.name}),el("td",{text:TYPES[st.type]||st.type}),
+    t.append(el("tr",{},el("td",{},st.name,emps.length||empsErr?(empOf(st.name)?"":el("span",{class:"pill warn",style:"margin-left:6px",text:"HR 没有资料"})):""),el("td",{text:TYPES[st.type]||st.type}),
       el("td",{},el("span",{class:"pill "+(st.active==="N"?"bad":"ok"),text:st.active==="N"?("离职"+(st.resign?" "+st.resign:"")):"在职"})),
       el("td",{class:"mono",text:schedText(st,todayKL())}),el("td",{},b)))});
 }
@@ -887,6 +904,9 @@ function openForm(st,keep){
   const isNew=!st,cur=keep||st||{type:"F",brk:2,limit:12,rot:"N",active:"Y"},box=$("rosForm"),inp={};
   box.replaceChildren();
   const c=el("div",{class:"card"},el("strong",{text:isNew?"新增员工":"编辑："+cur.name}));
+  if(isNew&&!hrAvail().length){
+    c.append(el("div",{class:"msg pill warn",text:empsErr?("读不到 HR 员工资料："+empsErr):"HR 的员工资料里没有可以加入的员工。请先到 HR > 薪资 新增员工（名字、证件号码等），再回来设置排班。"}));
+    const cl0=el("button",{class:"btn alt",text:"关闭"});cl0.onclick=()=>box.replaceChildren();c.append(el("div",{class:"actions"},cl0));box.append(c);return}
   const ts=el("select",{class:"mgr"},Object.entries(TYPES).map(([k,v])=>el("option",{value:k,text:v})));ts.value=cur.type||"F";ts.disabled=!isNew;
   c.append(el("label",{},"类型",ts));
   const gather=()=>{const o={...cur,type:ts.value};for(const[k,[i,kind]]of Object.entries(inp)){const v=i.value.trim();if(v===""){delete o[k];continue}
@@ -896,7 +916,11 @@ function openForm(st,keep){
     c.append(el("div",{class:"sub",text:g}));
     c.append(el("div",{class:"row"},fs.map(([k,lab,kind,opts])=>{
       let i;
-      if(kind==="sel"){i=el("select",{class:"mgr"},opts.map(o=>el("option",{value:o,text:o})));i.value=cur[k]||opts[0]}
+      if(k==="name"&&isNew){   // a new person is picked from the HR employee master
+        i=el("select",{class:"mgr"},el("option",{value:"",text:"— 从 HR 员工资料选 —"}),hrAvail().map(e=>el("option",{value:normName(e.name),text:e.name})));i.value=cur.name||"";
+        i.onchange=()=>{const e=empOf(i.value);if(!e)return;if(inp.id&&!inp.id[0].value)inp.id[0].value=e.ic||"";
+          if(/FOREIGN/i.test(e.nationality||"")&&ts.value!=="F"){ts.value="F";ts.onchange&&ts.onchange()}}}
+      else if(kind==="sel"){i=el("select",{class:"mgr"},opts.map(o=>el("option",{value:o,text:o})));i.value=cur[k]||opts[0]}
       else{i=el("input",{class:"mgr",autocomplete:"off",type:kind==="date"?"date":"text"});
         if(kind==="time")i.value=cur[k]!=null?fmt(cur[k]):"";else i.value=cur[k]!=null?cur[k]:"";
         if(kind==="time")i.placeholder="例 9.30";}
@@ -939,7 +963,7 @@ function fillNames(){
   fillFName();
 }
 function fillFName(){const f=$("fname"),keep=f.value,t=$("ftype").value;f.replaceChildren(el("option",{value:"",text:"全部"}));roster.filter(s=>s.type===t).forEach(s=>f.append(el("option",{value:s.name,text:s.name})));if([...f.options].some(o=>o.value===keep))f.value=keep}
-$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("advDate").value=todayKL();
+$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("plPdf").onclick=()=>plAll();$("advDate").value=todayKL();
 $("who").textContent=isMgr?"店长视图":"员工打卡（无审批权限）";
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));

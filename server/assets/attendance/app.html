@@ -1,0 +1,886 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>考勤 Attendance</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column, phone first. Tabs on top: 打卡 for staff, 审批 and 记录 for the manager. */
+:root{
+  --bg:#f4f6f5; --card:#ffffff; --fg:#17262b; --muted:#5d6f75; --line:#d6dedd;
+  --accent:#0d5c75; --accent-fg:#ffffff;
+  --staff:#fff1a8; --mgr:#d9e8f5;
+  --ok:#2c7a4b; --okbg:#e0f1e6; --warn:#a85a00; --warnbg:#fdebd0; --bad:#b3261e; --badbg:#fbe0dd;
+  --sans:"IBM Plex Sans","Noto Sans SC",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1a1d; --card:#17262b; --fg:#e6eeee; --muted:#93a8ad; --line:#2b4046;
+  --accent:#5fb7d1; --accent-fg:#06222b; --staff:#5a4d0c; --mgr:#1f3d56;
+  --ok:#74c993; --okbg:#173a26; --warn:#f0b36a; --warnbg:#41290b; --bad:#f19b94; --badbg:#47201c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a1d; --card:#17262b; --fg:#e6eeee; --muted:#93a8ad; --line:#2b4046;
+  --accent:#5fb7d1; --accent-fg:#06222b; --staff:#5a4d0c; --mgr:#1f3d56;
+  --ok:#74c993; --okbg:#173a26; --warn:#f0b36a; --warnbg:#41290b; --bad:#f19b94; --badbg:#47201c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--sans);padding-block:16px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:760px;margin:0 auto;display:grid;gap:14px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+h1{font-size:20px;margin:0;font-weight:700}
+.sub{color:var(--muted);font-size:13px}
+nav{display:flex;gap:6px;border-bottom:1px solid var(--line)}
+nav button{background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);font:inherit;font-weight:500;padding:8px 12px;cursor:pointer}
+nav button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.badge{background:var(--bad);color:#fff;border-radius:10px;padding:0 7px;font-size:12px;margin-left:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:12px;min-width:0}
+label{display:grid;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+input,select,textarea,button{font:inherit;color:var(--fg)}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;min-width:0;width:100%}
+input.staff{background:var(--staff)} input.mgr,select.mgr,textarea.mgr{background:var(--mgr)}
+input.t{font-family:var(--mono);font-size:18px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:6px;padding:11px 16px;font-weight:600;cursor:pointer}
+.btn.alt{background:none;color:var(--fg);border:1px solid var(--line)} .btn.bad{background:var(--bad);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.sched{font-family:var(--mono);font-size:14px;background:var(--bg);border-radius:6px;padding:8px 10px}
+.pill{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;font-weight:600}
+.pill.ok{background:var(--okbg);color:var(--ok)} .pill.warn{background:var(--warnbg);color:var(--warn)} .pill.bad{background:var(--badbg);color:var(--bad)}
+.flags{display:flex;gap:6px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;font-size:13px}
+.kv b{display:block;font-family:var(--mono);font-size:15px;font-weight:500}
+.hd{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.hd strong{font-size:16px}
+.msg{padding:10px 12px;border-radius:6px;font-size:14px}
+.tw{overflow-x:auto} table{border-collapse:collapse;width:100%;font-size:13px} th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap} td.n,th.n{text-align:right;font-family:var(--mono)}
+td.chg{background:var(--mgr);font-weight:600}
+input.cell{width:84px;padding:6px 8px;font-size:15px}
+tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
+.mono{font-family:var(--mono)}
+.empty{color:var(--muted);text-align:center;padding:24px 8px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+[hidden]{display:none!important}
+</style>
+<script>
+/* ---------- storage: the CC CREST server. A local copy (memo) is changed first so the screen reacts at once; the server is the real store. ---------- */
+(function(){
+  var QS = new URLSearchParams(location.search), CID = QS.get('company') || '';
+  var API = '/api/companies/' + encodeURIComponent(CID) + '/attendance';
+  var COLLS = ['roster', 'settings', 'entries', 'approvals', 'advances', 'payadj'];
+  var memo = {}, subs = {}, docSubs = {};
+  COLLS.forEach(function(c){ memo[c] = {}; subs[c] = []; });
+  var ATT = window.ATT = { mgr: false, canWrite: false, name: '' };
+  var firstSync = false, syncRev = -1, inflight = 0, syncing = false, syncAgain = false, needForce = true, syncT;
+  try{ var th = QS.get('theme'); if(th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); }catch(e){}
+  window.addEventListener('message', function(e){ if(e.origin === location.origin && e.data && e.data.type === 'pbill-theme') document.documentElement.setAttribute('data-theme', e.data.theme === 'dark' ? 'dark' : 'light'); });
+  function stable(v){ return JSON.stringify(v, function(k, x){ return x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce(function(o, key){ o[key] = x[key]; return o; }, {}) : x; }); }
+  async function http(method, url, body){
+    var r = await fetch(API + url, { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    var j = await r.json().catch(function(){ return {}; });
+    if(!r.ok){ var err = new Error(j.error || ('请求失败 (' + r.status + ')')); err.code = r.status; throw err; }
+    return j;
+  }
+  function collSnap(c){ return { docs: Object.keys(memo[c]).map(function(id){ return { id: id, data: function(){ return memo[c][id]; } }; }) }; }
+  function docSnap(p){ var i = p.indexOf('/'), c = p.slice(0, i), id = p.slice(i + 1), d = memo[c] && memo[c][id]; return { exists: d !== undefined, data: function(){ return d; } }; }
+  function notify(c){
+    if(!firstSync) return;
+    subs[c].forEach(function(cb){ cb(collSnap(c)); });
+    Object.keys(docSubs).forEach(function(p){ if(p.indexOf(c + '/') === 0) docSubs[p].forEach(function(cb){ cb(docSnap(p)); }); });
+  }
+  function apply(docs){
+    COLLS.forEach(function(c){
+      var nxt = {}; (docs[c] || []).forEach(function(r){ nxt[r.id] = r.data; });
+      if(stable(memo[c]) !== stable(nxt)){ memo[c] = nxt; notify(c); }
+    });
+  }
+  function syncSoon(force){ if(force) needForce = true; clearTimeout(syncT); syncT = setTimeout(sync, 120); }
+  async function sync(){
+    if(syncing){ syncAgain = true; return; }
+    syncing = true;
+    try{
+      var d = await http('GET', '/sync' + ((needForce || syncRev < 0) ? '' : '?rev=' + syncRev));
+      needForce = false;
+      if(inflight > 0){ needForce = true; syncAgain = true; }
+      else if(!d.same){ syncRev = d.rev; apply(d.docs); }
+      if(!firstSync){ firstSync = true; COLLS.forEach(notify); Object.keys(docSubs).forEach(function(p){ docSubs[p].forEach(function(cb){ cb(docSnap(p)); }); }); }
+    }catch(e){
+      needForce = true;
+      var el = document.getElementById('dirty'); if(el) el.textContent = '连接不上服务器：' + (e && e.message || e);
+    }finally{
+      syncing = false;
+      if(syncAgain){ syncAgain = false; syncSoon(); }
+    }
+  }
+  var db = {
+    collection: function(name){
+      var q = { orderBy: function(){ return q; }, limit: function(){ return q; },
+        onSnapshot: function(cb){ subs[name].push(cb); if(firstSync) cb(collSnap(name)); return function(){ subs[name] = subs[name].filter(function(f){ return f !== cb; }); }; } };
+      return q;
+    },
+    doc: function(p){
+      var i = p.indexOf('/'), c = p.slice(0, i), id = p.slice(i + 1);
+      return {
+        onSnapshot: function(cb){ (docSubs[p] = docSubs[p] || []).push(cb); if(firstSync) cb(docSnap(p)); },
+        set: async function(data){
+          if(!ATT.canWrite){ var e = new Error('你只有查看权限，不能保存。'); e.code = 403; throw e; }
+          var old = memo[c][id]; memo[c][id] = JSON.parse(JSON.stringify(data)); notify(c);
+          inflight++;
+          try{ await http('POST', '/batch', { ops: [{ op: 'set', path: p, data: data }] }); }
+          catch(e2){ if(old === undefined) delete memo[c][id]; else memo[c][id] = old; notify(c); throw e2; }
+          finally{ inflight--; }
+          syncSoon(true);
+        },
+        delete: async function(){
+          if(!ATT.canWrite){ var e = new Error('你只有查看权限，不能保存。'); e.code = 403; throw e; }
+          var old = memo[c][id]; delete memo[c][id]; notify(c);
+          inflight++;
+          try{ await http('POST', '/batch', { ops: [{ op: 'delete', path: p }] }); }
+          catch(e2){ if(old !== undefined) memo[c][id] = old; notify(c); throw e2; }
+          finally{ inflight--; }
+          syncSoon(true);
+        }
+      };
+    }
+  };
+  // CSV files are saved from the browser
+  ATT.downloads = { save: async function(o){
+    var blob = new Blob([o.data], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+  } };
+  ATT.init = async function(){
+    if(!CID) throw new Error('缺少公司编号');
+    var me = await http('GET', '');
+    if(!me.enabled) throw new Error('这家公司还没有开通考勤');
+    ATT.mgr = !!me.mgr; ATT.canWrite = !!me.canWrite; ATT.name = me.name || '';
+    await sync();
+    setInterval(function(){ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved
+    return db;
+  };
+})();
+</script>
+<div class="wrap">
+  <header><h1>MINIFISH 考勤</h1><span class="sub" id="who"></span></header>
+  <nav role="tablist" id="tabs">
+    <button role="tab" data-tab="clock" aria-selected="true">打卡</button>
+    <button role="tab" data-tab="appr" id="tabAppr">审批<span class="badge" id="cnt" hidden></span></button>
+    <button role="tab" data-tab="rec" id="tabRec" hidden>记录</button>
+    <button role="tab" data-tab="sum" id="tabSum" hidden>报告</button>
+    <button role="tab" data-tab="ros" id="tabRos" hidden>名册</button>
+  </nav>
+
+  <section id="clock" class="grid">
+    <div class="card">
+      <div class="row">
+        <label>姓名 Name<select id="name"></select></label>
+        <label>月份 Month<input id="cmon" type="month"></label>
+      </div>
+      <div class="sub">整个月一页：每天填打卡时间（小时.分，例 9.45）。外劳填午休 OUT/IN；本地填午休①②；兼职填两段的 IN/OUT。公休日留空，请假选原因。填好按「保存」，可以分几天保存。</div>
+      <div class="tw"><table id="grid"></table></div>
+      <div class="actions"><button class="btn" id="save">保存本月</button><span class="sub" id="dirty"></span></div>
+      <div id="result"></div>
+    </div>
+  </section>
+
+  <section id="appr" hidden><div id="apprList" class="grid" style="display:grid;gap:12px"></div></section>
+
+  <section id="rec" hidden>
+    <div class="card">
+      <div class="row"><label>月份 Month<input id="mon" type="month"></label>
+        <label>类型<select id="ftype"><option value="F">外劳</option><option value="L">本地</option><option value="P">兼职</option></select></label>
+        <label>姓名<select id="fname"></select></label></div>
+      <div class="tw"><table id="recTbl"></table></div>
+      <div class="sub">「修正IN / 修正OUT」是迟到进位或店长改动后用来算工时的时间，蓝底=店长改过。</div>
+      <div class="actions"><button class="btn alt" id="csv">下载 CSV</button></div>
+    </div>
+    <div id="recEdit"></div>
+  </section>
+
+  <section id="sum" hidden>
+    <div class="card">
+      <div class="row"><label>月份 Month<input id="smon" type="month"></label></div>
+      <div class="sub" id="pendNote"></div>
+    </div>
+    <div class="card">
+      <div class="hd"><strong>外劳工资 Foreign Payroll</strong><button class="btn alt" id="sfCsv">导出 CSV</button></div>
+      <div class="sub">对应 Excel 的 T-SF。每一项都四舍五入到 sen，总计 = 各人相加。特别奖金、管理费（按比例时可改）、其他调整可直接在表里填（蓝色格）。</div>
+      <div class="tw"><table id="sfTbl"></table></div>
+      <details><summary class="sub">工资参数（月薪 / 天数 / 日薪 / OT 时薪 / 管理费）</summary>
+        <div class="row" id="payPar" style="margin-top:8px"></div></details>
+    </div>
+    <div class="card">
+      <div class="hd"><strong>本地员工月度汇总</strong><button class="btn alt" id="slCsv">导出 CSV</button></div>
+      <div class="tw"><table id="slTbl"></table></div>
+    </div>
+    <div class="card">
+      <div class="hd"><strong>兼职月报</strong><button class="btn alt" id="ptCsv">导出 CSV</button></div>
+      <div class="tw"><table id="ptTbl"></table></div>
+      <div class="sub">参考工资 = 总工时 × 时薪（兼职没有固定工资表）。</div>
+    </div>
+    <div class="card">
+      <strong>预支记录 Advance</strong>
+      <div class="row">
+        <label>姓名<select id="advName"></select></label>
+        <label>日期<input id="advDate" type="date"></label>
+        <label>金额 RM<input id="advAmt" class="mgr" inputmode="decimal" autocomplete="off"></label>
+        <label>备注<input id="advNote" class="mgr" autocomplete="off"></label>
+      </div>
+      <div class="actions"><button class="btn" id="advAdd">加入预支</button></div>
+      <div id="advMsg"></div>
+      <div class="tw"><table id="advTbl"></table></div>
+    </div>
+  </section>
+
+  <section id="ros" hidden>
+    <div class="card">
+      <div class="hd"><strong>员工名册</strong><button class="btn alt" id="rosNew">＋ 新增员工</button></div>
+      <div class="sub">加人、离职、换班都在这里改。换班请填「新排班 + 生效日」，生效日之前的月份仍按旧排班算，不会被改动。</div>
+      <div class="tw"><table id="rosTbl"></table></div>
+    </div>
+    <div id="rosForm"></div>
+  </section>
+</div>
+
+<script>
+(async function(){
+/* ===== MINIFISH rules engine (mirrors MF-WORKER-2026 workbook) ===== */
+const WD=["日","一","二","三","四","五","六"];
+const blank=v=>v==null||v===""||(typeof v==="number"&&isNaN(v));
+const hm=x=>Math.trunc(x)+Math.round((x-Math.trunc(x))*100)/60;          // H.MM -> decimal hours
+const ceilTo=(x,s)=>Math.ceil(x/s-1e-12)*s;
+const lateBr=m=>m<=10?0:m<=15?.25:.5+ceilTo(Math.max(m-30,0),15)/15*.25;     // minutes late/over -> hours
+const rndOut=x=>{const m=Math.round(hm(x)*60);return Math.floor((m+(m%60>=58?2:0))/30)*.5};  // OUT override: half-hour blocks, 58 carry
+const WK=(ds)=>WD[new Date(ds+"T00:00:00Z").getUTCDay()];
+function wkNum(ds){const d=new Date(ds+"T00:00:00Z");const j=new Date(Date.UTC(d.getUTCFullYear(),0,1));const off=(j.getUTCDay()+6)%7;const doy=Math.round((d-j)/864e5)+1;return Math.floor((doy+off-1)/7)+1}
+const has=(s,c)=>!blank(s)&&String(s).includes(c);
+
+/* is the person on the list for this day (active / resigned) */
+function inRoster(st,ds){
+  if(!st)return false;
+  if(st.active==="N"){return !!st.resign&&ds<st.resign}
+  if(st.resign&&/^\d{4}-\d{2}-\d{2}$/.test(st.resign)&&ds>=st.resign)return false;
+  return true;
+}
+/* scheduled IN/OUT for F/L staff. ap = approved approval doc or null. returns {in,out,off} (in/out null = no work) */
+function schedFL(st,ds,ap){
+  const w=WK(ds),rest=ap&&ap.rest;
+  if(rest==="休")return{in:null,out:null,off:true,cancelled:true};
+  const baseTimes=()=>{
+    if(st.ovEff&&ds>=st.ovEff&&!blank(st.ovStart)&&has(st.ovDays,w))return[st.ovStart,st.ovEnd];
+    if(st.rot==="Y"){const first=ds.slice(0,8)+"01";const odd=((wkNum(ds)-wkNum(first)+1)%2+2)%2===1;return odd?[st.oddIn,st.oddOut]:[st.evenIn,st.evenOut]}
+    return[st.start,st.end];
+  };
+  if(st.newEff&&ds>=st.newEff){
+    if(has(st.newOff,w))return{in:null,out:null,off:true};
+    if(has(st.spWd,w)&&!blank(st.spStart))return{in:st.spStart,out:blank(st.spEnd)?st.newEnd:st.spEnd,off:false};
+    return{in:st.newStart,out:st.newEnd,off:false};
+  }
+  if(rest==="班"){
+    if(!blank(ap.tmpIn)||!blank(ap.tmpOut)){const[a,b]=baseTimes();return{in:blank(ap.tmpIn)?a:ap.tmpIn,out:blank(ap.tmpOut)?b:ap.tmpOut,off:true,extra:true}}
+    const[a,b]=baseTimes();return{in:a,out:b,off:true,extra:true};
+  }
+  if(has(st.off,w))return{in:null,out:null,off:true};
+  const[a,b]=baseTimes();return{in:a,out:b,off:false};
+}
+
+/* corrected IN (L) */
+function corrIn(F,K,ov){
+  if(ov!=null){
+    const n=hm(ov);if(F==null)return n;
+    if(n<=F)return F-Math.floor(Math.round((F-n)*60)/30)*.5;
+    const m=Math.round((n-F)*60);return m<=10?F:m<=15?F+.25:F+.5+ceilTo(Math.max(m-30,0),15)/15*.25;
+  }
+  if(K==null)return null;
+  return K<=10?F:K<=15?F+.25:F+.5+ceilTo(Math.max(K-30,0),15)/15*.25;
+}
+
+/* ---------- foreign (F) and local (L) day ---------- */
+function evalFL(st,e,ap){
+  const r={flags:[]};
+  const ok=!!ap&&ap.status==="approved";
+  const a=ok?ap:null;
+  const s=schedFL(st,e.date,a);r.sch=s;
+  const F=s.in==null?null:s.in,G=s.out==null?null:s.out;
+  const hourly=!!(a&&a.hourly);
+  const H=hourly?0:(st.brk||0);r.H=H;
+  const inA=blank(e.inT)?null:e.inT;           // numeric H.MM
+  const J=inA==null?null:hm(inA);
+  const K=(inA==null||F==null)?null:Math.max(0,(J-F)*60);
+  r.late=K;
+  const ovIn=a&&!blank(a.ovIn)?a.ovIn:null;
+  let L=ovIn!=null?corrIn(F,null,ovIn):(K==null?null:corrIn(F,K,null));
+  if(F==null&&ovIn==null)L=null;
+  const M=G;
+  let U=a&&!blank(a.ovOut)?rndOut(a.ovOut):M;
+  if(s.cancelled)U=null;
+  r.F=F;r.G=G;r.L=L;r.U=U;
+  const cap=(st.limit==null?12:st.limit)-H;
+  const OTX=(U==null||G==null)?0:Math.max(0,U-G);
+  r.OTX=OTX;
+  if(st.type==="F"){
+    // lunch: one period
+    const lo=blank(e.loT)?null:e.loT,li=blank(e.liT)?null:e.liT;
+    let AF=null;if(lo!=null&&li!=null)AF=Math.round((hm(li)-hm(lo))*60);
+    const AH=a&&!blank(a.restAdj)?a.restAdj:0;r.AH=AH;
+    let AG=0;
+    if(AF!=null&&!(AF>240||AF<=0)){AG=lateBr(AF-60-Math.max(0,AH)*60)}
+    if(a&&!blank(a.dedOv))AG=a.dedOv;
+    r.AF=AF;r.AG=AG;r.segs=[AF];
+    if(AF!=null&&(AF>240||AF<=0))r.flags.push("午休时间异常，请检查午休OUT/IN");
+    if(Boolean(lo!=null)!==Boolean(li!=null))r.flags.push("午休只填了一个时间");
+    const D=AG+AH;
+    if(hourly){
+      const net=(L==null||U==null)?0:Math.max(0,Math.min(U,G==null?U:G)-L)-H;
+      const base=Math.max(0,net-D);
+      r.W=Math.max(0,Math.min(base,cap));r.V=OTX+Math.max(0,base-cap);
+    }else{
+      const start=F==null?L:(L==null?null:Math.min(L,F));
+      const net=(L==null||U==null)?0:Math.max(0,Math.min(U,G==null?U:G)-start)-H;
+      const lateD=(L==null||F==null)?0:Math.max(0,L-F);
+      r.W=Math.max(0,Math.min(net,cap));
+      r.V=OTX+((net+OTX>0)?Math.max(0,net-cap)-D-lateD:0);
+    }
+    r.X=r.W+r.V;
+  }else{
+    // local: two lunch periods, each 60 min allowance
+    const seg=(o,i)=>{const a1=blank(o)?null:o,b1=blank(i)?null:i;if(a1==null||b1==null)return{part:a1!=null||b1!=null,m:null};return{part:false,m:Math.round((hm(b1)-hm(a1))*60)}};
+    const s1=seg(e.loT,e.liT),s2=seg(e.lo2T,e.li2T);
+    const segs=[s1,s2].filter(x=>x.m!=null);
+    let AI=segs.length?segs.reduce((t,x)=>t+x.m,0):null;
+    const bad=segs.some(x=>x.m>240||x.m<=0);
+    let AJ=0;if(AI!=null&&!bad)AJ=segs.reduce((t,x)=>t+lateBr(x.m-60),0);
+    if(a&&!blank(a.dedOv))AJ=a.dedOv;
+    if(bad)r.flags.push("午休时间异常，请检查午休OUT/IN");
+    if(s1.part||s2.part)r.flags.push("午休OUT/IN缺一");
+    r.AI=AI;r.AJ=AJ;r.segs=[s1.m,s2.m];
+    const net=(L==null||U==null)?0:Math.max(0,Math.min(U,G==null?U:G)-L)-H;
+    r.W=Math.max(0,Math.min(Math.max(0,net-AJ),cap));
+    r.V=OTX+Math.max(0,Math.max(0,net-AJ)-cap);
+    r.X=r.W+r.V;
+    r.AD=(K!=null&&L!=null&&F!=null)?(K>10?Math.max(0,L-F):0):0;
+  }
+  // flags
+  if(inA!=null&&F==null&&!(a&&a.rest==="班"))r.flags.push("休假日出勤需批准");
+  if(K!=null&&K>10)r.flags.push("迟到 "+Math.round(K)+" 分");
+  r.attended=inA!=null;
+  return r;
+}
+
+/* ---------- part-time (P): two segments ---------- */
+function schedPT(st,ds){
+  const w=WK(ds);
+  const useNew=st.newEff&&ds>=st.newEff;
+  const days=useNew?st.nDays:st.days;
+  const work=has(days,w);
+  return useNew?{work,s1:[st.n1In,st.n1Out],s2:[st.n2In,st.n2Out]}:{work,s1:[st.s1In,st.s1Out],s2:[st.s2In,st.s2Out]};
+}
+function evalPTSeg(sch,which,inA,outA,sa){
+  // sa = segment approval {rest,ovIn,ovOut,tmpIn,tmpOut,reason,by} or null (only if approved)
+  const o={};
+  const ok=!!sa&&!blank(sa.reason)&&!blank(sa.by);
+  const[sIn,sOut]=which===1?sch.s1:sch.s2;
+  let F=null,G=null;
+  if(ok&&sa.rest==="休"){F=null;G=null}
+  else if(ok&&sa.rest==="班"){
+    F=!blank(sa.tmpIn)?sa.tmpIn:(!blank(sa.ovIn)?hm(sa.ovIn):null);
+    G=!blank(sa.tmpOut)?sa.tmpOut:(!blank(sa.ovOut)?hm(sa.ovOut):null);
+  }else if(sch.work){F=blank(sIn)?null:sIn;G=blank(sOut)?null:sOut}
+  o.F=F;o.G=G;
+  const hasIn=!blank(inA),hasOut=!blank(outA);
+  let J=null;
+  if(ok&&!blank(sa.ovIn)){J=hm(sa.ovIn)}
+  else if(F==null&&hasIn&&ok){const m=Math.round(hm(inA)*60);J=Math.ceil(Math.max(0,m-10)/30)*30/60}
+  else if(hasIn&&F!=null){const late=Math.round(Math.max(0,(hm(inA)-F)*60)*100)/100;J=late<=10?F:late<=15?F+.25:F+.5+ceilTo(Math.max(late-30,0),15)/15*.25}
+  const r58=x=>{const m=Math.round(hm(x)*60);return Math.floor((m+(m%60>=58?2:0))/30)*.5};
+  let K=null;
+  if(ok&&!blank(sa.ovOut)){K=r58(sa.ovOut)}
+  else if(G==null&&hasOut&&ok){K=r58(outA)}
+  else if(hasOut&&G!=null){K=Math.min(r58(outA),G)}
+  o.J=J;o.K=K;
+  o.S=(J==null||K==null)?0:Math.round(Math.max(0,K-J)*10000)/10000;
+  o.ok=ok;o.len=(F==null||G==null)?0:G-F;o.sched=F!=null;
+  o.flags=[];
+  const ovAny=sa&&(!blank(sa.ovIn)||!blank(sa.ovOut)||!blank(sa.rest)||!blank(sa.tmpIn)||!blank(sa.tmpOut));
+  if(ovAny&&!ok)o.flags.push("第"+which+"段改动缺原因/批准人");
+  if(F==null&&(hasIn||hasOut)&&J==null)o.flags.push("第"+which+"段非排班时间有打卡，需批准");
+  if(hasIn&&!hasOut&&!(ok&&!blank(sa.ovOut)))o.flags.push("第"+which+"段缺OUT打卡");
+  if(hasOut&&!hasIn&&!(ok&&!blank(sa.ovIn)))o.flags.push("第"+which+"段缺IN打卡");
+  return o;
+}
+function evalPT(st,e,ap){
+  const a=ap&&ap.status==="approved"?ap:null;
+  const sch=schedPT(st,e.date);
+  const a1=evalPTSeg(sch,1,e.in1,e.out1,a&&a.s1),a2=evalPTSeg(sch,2,e.in2,e.out2,a&&a.s2);
+  const base=Math.min(a1.S,a1.sched?a1.len:0)+Math.min(a2.S,a2.sched?a2.len:0);
+  const q1=a&&a.s1?a.s1.reason:"",q2=a&&a.s2?a.s2.reason:"";
+  const off1=(!a1.sched&&q1!=="人手不足")?a1.S:0,off2=(!a2.sched&&q2!=="人手不足")?a2.S:0;
+  const offs=off1+off2,add=Math.min(offs,Math.max(0,7.5-base));
+  const r={a1,a2,sch,flags:a1.flags.concat(a2.flags)};
+  r.AH=base+add;
+  const ot1=q1==="人手不足"||!a1.sched?0:Math.max(0,a1.S-a1.len),ot2=q2==="人手不足"||!a2.sched?0:Math.max(0,a2.S-a2.len);
+  r.AI=ot1+ot2+Math.max(0,offs-Math.max(0,7.5-base));
+  const x1=q1==="人手不足"?Math.max(0,a1.S-(a1.sched?a1.len:0)):0,x2=q2==="人手不足"?Math.max(0,a2.S-(a2.sched?a2.len:0)):0;
+  r.AL=x1+x2;r.AJ=r.AH+r.AI+r.AL;
+  r.attended=!blank(e.in1)||!blank(e.in2);
+  return r;
+}
+
+
+const $=id=>document.getElementById(id);
+const todayKL=()=>new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
+const slug=s=>s.replace(/[^A-Za-z0-9]+/g,"_");
+const el=(t,a,...k)=>{const e=document.createElement(t);for(const[x,y]of Object.entries(a||{})){if(x==="class")e.className=y;else if(x==="text")e.textContent=y;else e.setAttribute(x,y)}k.flat().forEach(c=>c!=null&&e.append(c.nodeType?c:document.createTextNode(c)));return e};
+const fmt=h=>{if(h==null||isNaN(h))return"";const m=Math.round(h*60);return Math.floor(m/60)+"."+String(m%60).padStart(2,"0")};   // decimal hours -> H.MM text
+const parseT=s=>{s=(s||"").trim().replace(":",".");if(!s)return null;const m=s.match(/^(\d{1,2})(?:\.(\d{1,2}))?$/);if(!m)return NaN;const hh=+m[1],mm=m[2]==null?0:+(m[2].length===1?m[2]+"0":m[2]);if(hh>24||mm>59)return NaN;return hh+mm/60};   // text -> decimal hours (roster)
+const parseHM=s=>{const v=parseT(s);if(v==null||isNaN(v))return v;const m=Math.round(v*60);return Math.floor(m/60)+(m%60)/100};   // text -> H.MM number (engine)
+const n2=x=>(Math.round((x+1e-9)*100)/100).toFixed(2);
+const r2=x=>Math.round((x+Number.EPSILON)*100)/100;
+const TYPES={F:"外劳",L:"本地",P:"兼职"};
+
+let db=null,user=null,isMgr=false,roster=[],lists={reasons:[],ptReasons:[],mgr:["KELVIN","BRYAN"]},entries=[],appr={},advs=[],padj={},pay={monthly:1900,days:26,daily:73.08,ot:9.1,mgmt:500};
+try{db=await ATT.init();isMgr=ATT.mgr;if(ATT.name){const h=document.querySelector("h1");if(h)h.textContent=ATT.name+" 考勤"}}
+catch(e){document.querySelector(".wrap").append(el("div",{class:"msg pill bad",text:"无法打开考勤："+(e&&e.message||e)}))}
+
+const stByName=n=>roster.find(s=>s.name===n);
+const reasonsFor=st=>st&&st.type==="P"?lists.ptReasons:lists.reasons;
+const NUMF=["inT","loT","liT","lo2T","li2T","in1","out1","in2","out2"];
+const TF=["inT","loT","liT","lo2T","li2T","in1","out1","in2","out2","reason"];
+function ne(e){const o={date:e.date};NUMF.forEach(k=>{const v=parseHM(e[k]);o[k]=(v==null||isNaN(v))?null:v});return o}
+const nv=v=>(v==null||v===""||isNaN(v))?null:Number(v);
+function napSeg(s){if(!s)return null;return{reason:s.reason||"",by:s.by||"",rest:s.rest||null,ovIn:nv(s.ovIn),ovOut:nv(s.ovOut),tmpIn:nv(s.tmpIn)==null?null:hm(s.tmpIn),tmpOut:nv(s.tmpOut)==null?null:hm(s.tmpOut)}}
+function nap(a){if(!a||a.status!=="approved")return null;
+  return{status:"approved",reason:a.reason||"",by:a.by||"",ovIn:nv(a.ovIn),ovOut:nv(a.ovOut),rest:a.rest||null,
+    tmpIn:nv(a.tmpIn)==null?null:hm(a.tmpIn),tmpOut:nv(a.tmpOut)==null?null:hm(a.tmpOut),restAdj:nv(a.restAdj),hourly:!!a.hourly,dedOv:nv(a.dedOv),
+    s1:napSeg(a.s1),s2:napSeg(a.s2)}}
+const validAp=e=>{const a=appr[e.id];return a&&a.v===2&&(a.entryTs||0)>=(e.ts||0)?a:null};
+function compute(st,e,ap){
+  const n=ne(e),a=nap(ap);
+  const r=st.type==="P"?evalPT(st,n,a):evalFL(st,n,a);r.type=st.type;r.n=n;
+  const f=r.flags=r.flags.slice();
+  const fixed=r.type==="P"?[]:[];
+  if(st.type==="P"){
+    [[1,r.a1],[2,r.a2]].forEach(([i,s])=>{
+      const inp=n[i===1?"in1":"in2"];
+      if(s.F!=null&&inp!=null&&s.J!=null&&s.J>s.F+1e-9&&s.J-s.F>0.17)f.push("第"+i+"段迟到 "+Math.round((hm(inp)-s.F)*60)+" 分")});
+  }else{
+    if(st.type==="F"){if(r.AF!=null&&r.AF>0&&r.AF<=240&&r.AF-60>10)f.push("午休超时 "+(r.AF-60)+" 分")}
+    else{(r.segs||[]).forEach((m,i)=>{if(m!=null&&m>0&&m<=240&&m-60>10)f.push("午休"+"①②"[i]+"超时 "+(m-60)+" 分")})}
+  }
+  return r;
+}
+function dayCalc(st,e){const ap=validAp(e);const r=compute(st,e,ap);r.ap=ap;r.ok=!!ap&&ap.status==="approved";r.rejected=!!ap&&ap.status==="rejected";return r}
+function needFlags(st,e){const r=compute(st,e,null),f=r.flags.slice();
+  if(e.reason)f.push(r.attended?"申报原因："+e.reason:"请假/缺勤："+e.reason);return f}
+function statusOf(st,e){
+  const a=validAp(e);
+  if(a)return a.status==="approved"?{k:"ok",t:"已批准"}:{k:"bad",t:"已退回"};
+  return needFlags(st,e).length?{k:"warn",t:"待店长审批"}:{k:"ok",t:"正常"};
+}
+const pending=()=>entries.filter(e=>{const st=stByName(e.name);return st&&statusOf(st,e).k==="warn"});
+
+/* ---------- schedule text ---------- */
+function schedText(st,ds){
+  if(!inRoster(st,ds))return"不在职";
+  if(st.type==="P"){const s=schedPT(st,ds);if(!s.work)return"公休";const p=[s.s1,s.s2].filter(x=>!blank(x[0])&&!blank(x[1])).map(x=>fmt(x[0])+"–"+fmt(x[1]));return p.join(" + ")||"公休"}
+  const s=schedFL(st,ds,null);return s.in==null?"公休":fmt(s.in)+"–"+fmt(s.out);
+}
+const COLS=st=>st.type==="F"?[["inT","上班打卡 IN"],["loT","午休 OUT"],["liT","午休 IN"]]:
+  st.type==="L"?[["inT","上班打卡 IN"],["loT","午休① OUT"],["liT","午休① IN"],["lo2T","午休② OUT"],["li2T","午休② IN"]]:
+  [["in1","第1段 IN"],["out1","第1段 OUT"],["in2","第2段 IN"],["out2","第2段 OUT"]];
+
+/* ---------- clock tab ---------- */
+let draft={},gridKey="";
+const monthDays=m=>{const[y,mo]=m.split("-").map(Number);const n=new Date(Date.UTC(y,mo,0)).getUTCDate();return Array.from({length:n},(_,i)=>m+"-"+String(i+1).padStart(2,"0"))};
+const exOf=ds=>entries.find(x=>x.id===slug($("name").value)+"_"+ds);
+const curOf=ds=>{const x=draft[ds];if(x)return x;const ex=exOf(ds)||{};const o={};TF.forEach(k=>o[k]=ex[k]||"");return o};
+const same=(a,b)=>TF.every(k=>(a[k]||"").trim()===(b[k]||"").trim());
+const isEmpty=c=>TF.every(k=>!(c[k]||"").trim());
+function rowStatus(st,ds,cell){
+  const c=curOf(ds),ex=exOf(ds);cell.replaceChildren();
+  if(isEmpty(c)){const t=schedText(st,ds);if(t==="公休")cell.append(el("span",{class:"sub",text:"公休"}));return}
+  const e={name:st.name,date:ds,...c};
+  const badT=NUMF.filter(k=>(c[k]||"").trim()&&isNaN(parseHM(c[k])));
+  if(badT.length){cell.append(el("span",{class:"pill bad",text:"时间格式错误"}));return}
+  const hasT=NUMF.some(k=>(c[k]||"").trim());
+  if(!hasT&&!c.reason){cell.append(el("span",{class:"pill bad",text:"缺打卡时间"}));return}
+  if(ex&&same(c,ex)){const s=statusOf(st,{...ex,id:ex.id});cell.append(el("span",{class:"pill "+s.k,text:s.t}))}
+  else cell.append(el("span",{class:"pill",style:"background:var(--bg);color:var(--muted)",text:"未保存"}));
+  const fl=needFlags(st,e);fl.forEach(f=>cell.append(" ",el("span",{class:"sub",text:f})));
+}
+function countDirty(){
+  const n=Object.keys(draft).filter(ds=>!same(draft[ds],(exOf(ds)||{}))).length;
+  $("dirty").textContent=n?`有 ${n} 天未保存`:"";
+}
+function renderGrid(force){
+  const st=stByName($("name").value),m=$("cmon").value;
+  if(!st||!m){$("grid").replaceChildren();return}
+  const key=st.name+"|"+m;
+  if(!force&&key===gridKey&&$("grid").contains(document.activeElement))return;
+  if(key!==gridKey){draft={};gridKey=key}
+  const cols=COLS(st),t=$("grid");t.replaceChildren();
+  t.append(el("tr",{},["日期","星期","排班"].concat(cols.map(c=>c[1])).concat(["原因(请假/缺勤选这里)","状态"]).map(h=>el("th",{text:h}))));
+  monthDays(m).forEach(ds=>{
+    const w=new Date(ds+"T00:00:00Z").getUTCDay(),sc=schedText(st,ds),none=sc==="不在职";
+    const stc=el("td");
+    const mk=k=>{const i=el("input",{class:"t staff cell",inputmode:"decimal",autocomplete:"off","aria-label":ds+" "+k});i.value=curOf(ds)[k]||"";
+      i.disabled=none;i.setAttribute("enterkeyhint","next");
+      i.addEventListener("keydown",ev=>{
+        if(ev.key==="ArrowLeft"||ev.key==="ArrowRight"){
+          const L=ev.key==="ArrowLeft";if(L?i.selectionStart!==0||i.selectionEnd>i.selectionStart&&i.selectionEnd!==i.value.length:i.selectionEnd!==i.value.length)return;
+          let td=i.parentElement;td=L?td.previousElementSibling:td.nextElementSibling;
+          while(td){const n=td.querySelector("input:not(:disabled)");if(n){ev.preventDefault();n.focus();n.select();return}td=L?td.previousElementSibling:td.nextElementSibling}
+          return}
+        const up=ev.key==="ArrowUp";if(ev.key!=="Enter"&&ev.key!=="ArrowDown"&&!up)return;ev.preventDefault();
+        const td=i.parentElement,col=[...td.parentElement.children].indexOf(td);let tr=up?td.parentElement.previousElementSibling:td.parentElement.nextElementSibling;
+        while(tr){const n=tr.children[col]&&tr.children[col].querySelector("input:not(:disabled)");if(n){n.focus();n.select();return}tr=up?tr.previousElementSibling:tr.nextElementSibling}
+        if(!up)i.blur()});
+      i.addEventListener("input",()=>{draft[ds]={...curOf(ds),[k]:i.value};rowStatus(st,ds,stc);countDirty()});return el("td",{},i)};
+    const tr=el("tr",{class:w===0||w===6?"wk":""},el("td",{text:ds.slice(8)+"/"+ds.slice(5,7)}),el("td",{text:WD[w]}),el("td",{class:"mono",text:sc}));
+    cols.forEach(([k])=>tr.append(mk(k)));
+    const sel=el("select",{class:"staff cell","aria-label":ds+" 原因"},el("option",{value:"",text:""}),reasonsFor(st).map(x=>el("option",{value:x,text:x})));
+    sel.value=curOf(ds).reason||"";sel.disabled=none;
+    sel.addEventListener("change",()=>{draft[ds]={...curOf(ds),reason:sel.value};rowStatus(st,ds,stc);countDirty()});
+    tr.append(el("td",{},sel),stc);t.append(tr);rowStatus(st,ds,stc);
+  });
+  countDirty();
+}
+async function saveMonth(){
+  const st=stByName($("name").value),res=$("result");res.replaceChildren();
+  const say=(k,t)=>res.append(el("div",{class:"msg pill "+k,text:t}));
+  const todo=Object.keys(draft).filter(ds=>!same(draft[ds],exOf(ds)||{})&&!isEmpty(draft[ds]));
+  if(!todo.length)return say("warn","没有需要保存的改动");
+  const errs=[];
+  for(const ds of todo){const c=draft[ds],d=ds.slice(8)+"日";
+    const bad=NUMF.filter(k=>(c[k]||"").trim()&&isNaN(parseHM(c[k])));
+    if(bad.length){errs.push(d+"时间格式错误（要小时.分，例 9.45）");continue}
+    if(!NUMF.some(k=>(c[k]||"").trim())&&!c.reason){errs.push(d+"缺打卡时间");continue}
+    if(st.type!=="P"){const lo=(c.loT||"").trim(),li=(c.liT||"").trim();if(!!lo!==!!li)errs.push(d+"午休只填了一个时间");
+      if(st.type==="L"){const a=(c.lo2T||"").trim(),b=(c.li2T||"").trim();if(!!a!==!!b)errs.push(d+"午休②只填了一个时间")}}
+  }
+  if(errs.length)return say("bad",errs.join("；"));
+  $("save").disabled=true;let okN=0,flagN=0;
+  try{
+    await Promise.all(todo.map(async ds=>{const c=draft[ds],doc={name:st.name,date:ds,ts:Date.now()};
+      TF.forEach(k=>{const v=(c[k]||"").trim();if(v)doc[k]=v});
+      await db.doc("entries/"+slug(st.name)+"_"+ds).set(doc);
+      okN++;if(needFlags(st,doc).length)flagN++;}));
+    todo.forEach(ds=>delete draft[ds]);
+    say(flagN?"warn":"ok",`已保存 ${okN} 天`+(flagN?`，其中 ${flagN} 天有异常，已送店长审批。`:"。"));
+  }catch(err){say("bad","保存失败："+(err.message||err.code||"请重试"))}
+  $("save").disabled=false;renderGrid(true);
+}
+
+/* ---------- approval cards ---------- */
+function buildCard(e,onDone){
+  const st=stByName(e.name),r=compute(st,e,null),P=st.type==="P";
+  const c=el("div",{class:"card"});
+  c.append(el("div",{class:"hd"},el("strong",{text:e.name+"　"+TYPES[st.type]}),el("span",{class:"sub",text:`${e.date}　星期${WK(e.date)}`})));
+  const fl=el("div",{class:"flags"});needFlags(st,e).forEach(f=>fl.append(el("span",{class:"pill warn",text:f})));c.append(fl);
+  const kv=el("div",{class:"kv"});
+  kv.append(el("div",{},"排班",el("b",{text:schedText(st,e.date)})));
+  if(P){kv.append(el("div",{},"第1段打卡",el("b",{text:(e.in1||"-")+" – "+(e.out1||"-")})),el("div",{},"第2段打卡",el("b",{text:(e.in2||"-")+" – "+(e.out2||"-")})))}
+  else{
+    kv.append(el("div",{},"打卡 IN",el("b",{text:e.inT||"-"})),el("div",{},"修正后 IN",el("b",{text:r.L!=null?fmt(r.L):"-"})));
+    if(st.type==="F")kv.append(el("div",{},"午休",el("b",{text:r.AF!=null?`${e.loT}–${e.liT} (${r.AF}分)`:"-"})),el("div",{},"午休扣除 h",el("b",{text:String(r.AG||0)})));
+    else kv.append(el("div",{},"午休①②",el("b",{text:[e.loT&&e.liT?`${e.loT}–${e.liT}`:"",e.lo2T&&e.li2T?`${e.lo2T}–${e.li2T}`:""].filter(Boolean).join(" / ")||"-"})),el("div",{},"午休扣除 h",el("b",{text:String(r.AJ||0)})));
+  }
+  c.append(kv);
+  const prev=validAp(e);
+  const F={};
+  const mk=(box,k,lab,ph)=>{F[k]=el("input",{class:"t mgr",inputmode:"decimal",placeholder:ph||"例 9.30",autocomplete:"off"});box.push(el("label",{},lab,F[k]));};
+  const rest=(k)=>{F[k]=el("select",{class:"mgr"},el("option",{value:"",text:"— 不变 —"}),el("option",{value:"休",text:"休（当天改公休）"}),el("option",{value:"班",text:"班（公休改上班）"}));return el("label",{},"公休变更",F[k])};
+  const reasonSel=(k,pre)=>{F[k]=el("select",{class:"mgr"},el("option",{value:"",text:"— 原因 —"}),reasonsFor(st).map(x=>el("option",{value:x,text:x})));if(pre&&reasonsFor(st).includes(pre))F[k].value=pre;return el("label",{},"原因",F[k])};
+  if(!P){
+    const a=[];mk(a,"ovIn","IN 改动","例 9.30");mk(a,"ovOut","OUT 改动","例 22.30");a.splice(2,0,rest("rest"));mk(a,"tmpIn","临时 IN","班才填");mk(a,"tmpOut","临时 OUT","班才填");
+    c.append(el("div",{class:"row"},a));
+    const b=[];if(st.type==="F")mk(b,"restAdj","休息调整 h","没休息 -1，补休 +1");mk(b,"dedOv","午休扣除 h（覆盖）","例 0");
+    F.hourly=el("select",{class:"mgr"},el("option",{value:"",text:"否"}),el("option",{value:"Y",text:"Y（只做几个小时）"}));b.push(el("label",{},"按小时计薪",F.hourly));
+    c.append(el("div",{class:"row"},b));
+    c.append(el("div",{class:"row"},reasonSel("reason",e.reason)));
+  }else{
+    [1,2].forEach(i=>{
+      c.append(el("div",{class:"sub",text:`第${i}段`}));
+      const a=[];mk(a,"ovIn"+i,"IN 改动");mk(a,"ovOut"+i,"OUT 改动");a.splice(2,0,rest("rest"+i));mk(a,"tmpIn"+i,"临时 IN","班才填");mk(a,"tmpOut"+i,"临时 OUT","班才填");
+      c.append(el("div",{class:"row"},a));c.append(el("div",{class:"row"},reasonSel("reason"+i,e.reason)));
+    });
+  }
+  const by=el("select",{class:"mgr"},lists.mgr.map(x=>el("option",{value:x,text:x})));
+  const rm=el("input",{class:"mgr",autocomplete:"off"});
+  c.append(el("div",{class:"row"},el("label",{},"批准人",by),el("label",{},"店长备注",rm)));
+  if(prev){const g=(k,v)=>{if(F[k]&&v!=null&&v!=="")F[k].value=v};
+    if(!P){g("ovIn",prev.ovIn);g("ovOut",prev.ovOut);g("rest",prev.rest);g("tmpIn",prev.tmpIn);g("tmpOut",prev.tmpOut);g("restAdj",prev.restAdj);g("dedOv",prev.dedOv);g("hourly",prev.hourly?"Y":"");g("reason",prev.reason)}
+    else[1,2].forEach(i=>{const s=prev["s"+i]||{};g("ovIn"+i,s.ovIn);g("ovOut"+i,s.ovOut);g("rest"+i,s.rest);g("tmpIn"+i,s.tmpIn);g("tmpOut"+i,s.tmpOut);g("reason"+i,s.reason)});
+    if(prev.by)by.value=prev.by;rm.value=prev.remark||""}
+  const msg=el("div"),ok=el("button",{class:"btn",text:"批准"}),no=el("button",{class:"btn bad",text:"退回"});
+  const hmv=k=>{const v=F[k]?F[k].value.trim():"";if(!v)return null;const x=parseHM(v);return x};
+  const save=async status=>{
+    msg.replaceChildren();const bad=t=>msg.append(el("div",{class:"msg pill bad",text:t}));
+    const doc={v:2,status,by:by.value,remark:rm.value.trim(),entryTs:e.ts||0,ts:Date.now()};
+    const timeKeys=P?["ovIn1","ovOut1","tmpIn1","tmpOut1","ovIn2","ovOut2","tmpIn2","tmpOut2"]:["ovIn","ovOut","tmpIn","tmpOut"];
+    for(const k of timeKeys){const x=hmv(k);if(x!=null&&isNaN(x))return bad("时间格式错误（小时.分，例 22.30）")}
+    const num=k=>{const v=F[k]?F[k].value.trim():"";return v===""?null:Number(v)};
+    if(!P){
+      Object.assign(doc,{ovIn:hmv("ovIn"),ovOut:hmv("ovOut"),rest:F.rest.value||null,tmpIn:hmv("tmpIn"),tmpOut:hmv("tmpOut"),restAdj:st.type==="F"?num("restAdj"):null,dedOv:num("dedOv"),hourly:F.hourly.value==="Y",reason:F.reason.value});
+      if([doc.restAdj,doc.dedOv].some(x=>Number.isNaN(x)))return bad("数字格式错误");
+      if(status==="approved"&&!doc.reason)return bad("请选择原因");
+      const sc=schedFL(st,e.date,null);
+      if(status==="approved"&&sc.in==null&&e.inT&&doc.rest!=="班")return bad("公休日上班：公休变更选「班」（临时 IN/OUT 不填就按正常排班）");
+    }else{
+      let any=false;
+      for(const i of [1,2]){
+        const s={ovIn:hmv("ovIn"+i),ovOut:hmv("ovOut"+i),rest:F["rest"+i].value||null,tmpIn:hmv("tmpIn"+i),tmpOut:hmv("tmpOut"+i),reason:F["reason"+i].value};
+        const act=!!(e["in"+i]||e["out"+i])||s.ovIn!=null||s.ovOut!=null||s.rest||s.tmpIn!=null||s.tmpOut!=null;
+        if(status==="approved"&&act&&!s.reason)return bad(`第${i}段有打卡或改动，请选原因`);
+        s.by=by.value;doc["s"+i]=s;if(s.reason)any=true;
+      }
+      if(status==="approved"&&!any)return bad("请选择原因");
+    }
+    ok.disabled=no.disabled=true;
+    try{await db.doc("approvals/"+e.id).set(doc);if(onDone)onDone()}
+    catch(err){bad("保存失败："+(err.message||err.code));ok.disabled=no.disabled=false}
+  };
+  ok.onclick=()=>save("approved");no.onclick=()=>save("rejected");
+  if(!isMgr){ok.disabled=no.disabled=true;msg.append(el("div",{class:"sub",text:"只有店长账号可以批准或退回。"}))}
+  c.append(el("div",{class:"actions"},ok,no),msg);
+  return c;
+}
+function renderAppr(){
+  const list=pending(),box=$("apprList");box.replaceChildren();
+  $("cnt").hidden=!list.length;$("cnt").textContent=list.length;
+  if(!list.length){box.append(el("div",{class:"empty",text:"没有待审批的记录"}));return}
+  list.sort((a,b)=>a.date<b.date?-1:1).forEach(e=>box.append(buildCard(e)));
+}
+
+/* ---------- records ---------- */
+const recDefs=type=>{
+  const hh=(r,k)=>r[k]!=null?fmt(r[k]):"";
+  if(type==="F")return[["日期",x=>x.e.date.slice(5).replace("-","/")],["星期",x=>WK(x.e.date)],["姓名",x=>x.e.name],["排班",x=>schedText(x.st,x.e.date)],
+    ["打卡IN",x=>x.e.inT||"",1],["午休OUT",x=>x.e.loT||"",1],["午休IN",x=>x.e.liT||"",1],["午休分",x=>x.r.AF==null?"":x.r.AF,1],
+    ["修正IN",x=>hh(x.r,"L"),1],["修正OUT",x=>hh(x.r,"U"),1],["迟到分",x=>x.r.late>0?Math.round(x.r.late):"",1],["午休扣h",x=>x.r.AG||"",1],["休息调整",x=>x.r.AH||"",1],
+    ["正常h",x=>n2(x.r.W||0),1],["OT h",x=>n2(x.r.V||0),1],["总h",x=>n2(x.r.X||0),1],["原因",x=>x.r.ok?x.r.ap.reason:x.e.reason||""],["批准人",x=>x.r.ok?x.r.ap.by:""],["状态",null]];
+  if(type==="L")return[["日期",x=>x.e.date.slice(5).replace("-","/")],["星期",x=>WK(x.e.date)],["姓名",x=>x.e.name],["排班",x=>schedText(x.st,x.e.date)],
+    ["打卡IN",x=>x.e.inT||"",1],["午休①",x=>x.e.loT?x.e.loT+"–"+(x.e.liT||""):"",1],["午休②",x=>x.e.lo2T?x.e.lo2T+"–"+(x.e.li2T||""):"",1],["午休分",x=>x.r.AI==null?"":x.r.AI,1],
+    ["修正IN",x=>hh(x.r,"L"),1],["修正OUT",x=>hh(x.r,"U"),1],["迟到分",x=>x.r.late>0?Math.round(x.r.late):"",1],["午休扣h",x=>x.r.AJ||"",1],
+    ["正常h",x=>n2(x.r.W||0),1],["OT h",x=>n2(x.r.V||0),1],["总h",x=>n2(x.r.X||0),1],["原因",x=>x.r.ok?x.r.ap.reason:x.e.reason||""],["批准人",x=>x.r.ok?x.r.ap.by:""],["状态",null]];
+  return[["日期",x=>x.e.date.slice(5).replace("-","/")],["星期",x=>WK(x.e.date)],["姓名",x=>x.e.name],["排班",x=>schedText(x.st,x.e.date)],
+    ["第1段打卡",x=>x.e.in1?x.e.in1+"–"+(x.e.out1||""):"",1],["第2段打卡",x=>x.e.in2?x.e.in2+"–"+(x.e.out2||""):"",1],
+    ["修正1",x=>x.r.a1.J!=null?fmt(x.r.a1.J)+"–"+(x.r.a1.K!=null?fmt(x.r.a1.K):""):"",1],["修正2",x=>x.r.a2.J!=null?fmt(x.r.a2.J)+"–"+(x.r.a2.K!=null?fmt(x.r.a2.K):""):"",1],
+    ["正常h",x=>n2(x.r.AH||0),1],["OT h",x=>n2(x.r.AI||0),1],["加时h",x=>n2(x.r.AL||0),1],["总h",x=>n2(x.r.AJ||0),1],
+    ["原因",x=>x.r.ok?[x.r.ap.s1&&x.r.ap.s1.reason,x.r.ap.s2&&x.r.ap.s2.reason].filter(Boolean).join("/"):x.e.reason||""],["批准人",x=>x.r.ok?x.r.ap.by:""],["状态",null]];
+};
+function recRows(){
+  const m=$("mon").value,t=$("ftype").value,n=$("fname").value;
+  return entries.filter(e=>e.date.startsWith(m)&&(!n||e.name===n)).map(e=>{const st=stByName(e.name);if(!st||st.type!==t)return null;
+    const r=dayCalc(st,e);return{e,st,r,s:statusOf(st,e)}}).filter(Boolean).sort((a,b)=>a.e.date===b.e.date?(a.e.name<b.e.name?-1:1):a.e.date<b.e.date?-1:1);
+}
+function renderRec(){
+  const rows=recRows(),t=$("recTbl"),defs=recDefs($("ftype").value);t.replaceChildren();
+  t.append(el("tr",{},defs.map(d=>el("th",{class:d[2]?"n":"",text:d[0]})).concat(isMgr?[el("th")]:[])));
+  rows.forEach(x=>{
+    const tr=el("tr",{});
+    defs.forEach(d=>{if(d[1]===null)tr.append(el("td",{},el("span",{class:"pill "+x.s.k,text:x.s.t})));else{
+      const chg=x.r.ok&&((d[0]==="修正IN"&&x.r.ap.ovIn!=null)||(d[0]==="修正OUT"&&x.r.ap.ovOut!=null));
+      tr.append(el("td",{class:(d[2]?"n":"")+(chg?" chg":""),text:String(d[1](x))}))}});
+    if(isMgr){const b=el("button",{class:"btn alt",text:"审批/改"});b.onclick=()=>{const box=$("recEdit");box.replaceChildren(buildCard(x.e,()=>box.replaceChildren()));box.scrollIntoView({block:"nearest"})};tr.append(el("td",{},b))}
+    t.append(tr)});
+  if(!rows.length)t.append(el("tr",{},el("td",{class:"empty",colspan:defs.length,text:"这个月没有记录"})));
+}
+async function download(name,lines){
+  const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  try{await ATT.downloads.save({filename:name,data:"﻿"+lines.map(r=>r.map(q).join(",")).join("\n")})}catch(e){}
+}
+async function csv(){
+  const defs=recDefs($("ftype").value),rows=recRows();
+  await download(`attendance-${$("ftype").value}-${$("mon").value}.csv`,[defs.map(d=>d[0])].concat(rows.map(x=>defs.map(d=>d[1]===null?x.s.t:d[1](x)))));
+}
+
+/* ---------- reports ---------- */
+const incl=(st,m)=>st.active!=="N"||!st.resign||m+"-01"<st.resign;
+function monthEntries(st,m){return entries.filter(e=>e.name===st.name&&e.date.startsWith(m)).map(e=>{const r=dayCalc(st,e);return{e,r,pend:!r.ap&&needFlags(st,e).length>0}}).filter(x=>!x.r.rejected)}
+function advOf(name,m){return advs.filter(a=>a.name===name&&(a.date||"").startsWith(m)).reduce((t,a)=>t+(Number(a.amount)||0),0)}
+const LEAVES=["年假","病假","休假","补假","无故旷工","无薪假期"];
+function sfData(m){
+  const first=m+"-01",hr=pay.daily/12;
+  return roster.filter(s=>s.type==="F"&&incl(s,m)).map(st=>{
+    const es=monthEntries(st,m),o={name:st.name,pend:es.filter(x=>x.pend).length,days:0,reg:0,ot:0,hrs:0};
+    es.forEach(({r})=>{
+      if(r.attended&&!(r.ap&&r.ap.hourly))o.days++;
+      o.reg+=r.W||0;o.ot+=r.V||0;if(r.ap&&r.ap.hourly)o.hrs+=r.X||0});
+    const adj=padj[slug(st.name)+"_"+m]||{};
+    o.tot=o.reg+o.ot;
+    o.basic=r2(o.days===pay.days?pay.monthly:o.days*pay.daily);
+    o.hpay=r2(o.hrs*hr);o.otpay=r2(o.ot*pay.ot);
+    o.allow=r2(blank(st.allow)||(st.allowEff&&st.allowEff>first)?0:st.allow);
+    o.fee=r2(!blank(st.fee)&&st.fee!==0&&(!st.feeEff||st.feeEff<=first)?o.days*st.fee:0);
+    o.inc=Number(adj.incentive)||0;o.mgmt=r2(adj.mgmt!=null&&adj.mgmt!==""?Number(adj.mgmt):pay.mgmt);o.adj=Number(adj.adj)||0;
+    o.total=r2(o.basic+o.allow+o.otpay+o.inc+o.mgmt+o.adj+o.fee+o.hpay);
+    o.adv=advOf(st.name,m);o.need=r2(o.total-o.adv);
+    return o});
+}
+const SF_H=["姓名","出勤天","正常h","OT h","总h","按小时h","基本工资","按小时工资","OT工资","津贴","每日附加费","特别奖金","管理费","其他调整","总计","预支","应付","待审批"];
+const sfCells=o=>[o.name,o.days,n2(o.reg),n2(o.ot),n2(o.tot),n2(o.hrs),n2(o.basic),n2(o.hpay),n2(o.otpay),n2(o.allow),n2(o.fee),n2(o.inc),n2(o.mgmt),n2(o.adj),n2(o.total),n2(o.adv),n2(o.need),o.pend];
+function sfTotals(rows){const t=["合计"];[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].forEach(i=>{const k=["","days","reg","ot","tot","hrs","basic","hpay","otpay","allow","fee","inc","mgmt","adj","total","adv","need"][i];
+  const sum=rows.reduce((s,o)=>s+(k==="reg"||k==="ot"||k==="tot"||k==="hrs"?o[k]:k==="days"?o[k]:r2(o[k])),0);t.push(i===1?sum:n2(sum))});t.push(rows.reduce((s,o)=>s+o.pend,0));return t}
+function slData(m){
+  return roster.filter(s=>s.type==="L"&&incl(s,m)).map(st=>{
+    const es=monthEntries(st,m),o={name:st.name,pend:es.filter(x=>x.pend).length,days:0,reg:0,ot:0,leave:{},lateN:0,lateMin:0,lateDed:0,lunch:0};
+    LEAVES.forEach(x=>o.leave[x]=0);
+    es.forEach(({e,r,pend})=>{
+      if(r.attended&&!(r.ap&&r.ap.hourly))o.days++;
+      o.reg+=r.W||0;o.ot+=r.V||0;
+      const reason=r.ok?r.ap.reason:e.reason;if(reason&&o.leave[reason]!=null&&(r.ok||!pend))o.leave[reason]++;
+      if(r.late!=null&&r.late>0.5){o.lateN++;}
+      if(r.late!=null)o.lateMin+=r.late;
+      o.lateDed+=r.AD||0;o.lunch+=r.AJ||0});
+    o.lateMin=Math.round(o.lateMin);return o});
+}
+const SL_H=["姓名","出勤天","正常h","OT h","总h"].concat(LEAVES,["迟到次","迟到分","迟到扣h","午休扣h","总扣h","无薪天合计","待审批"]);
+const slCells=o=>[o.name,o.days,n2(o.reg),n2(o.ot),n2(o.reg+o.ot)].concat(LEAVES.map(x=>o.leave[x]),[o.lateN,o.lateMin,n2(o.lateDed),n2(o.lunch),n2(o.lateDed+o.lunch),o.leave["无薪假期"]+o.leave["无故旷工"],o.pend]);
+function ptData(m){
+  return roster.filter(s=>s.type==="P"&&incl(s,m)).map(st=>{
+    const es=monthEntries(st,m),o={name:st.name,rate:st.rate||0,pend:es.filter(x=>x.pend).length,days:0,reg:0,ot:0,ex:0};
+    es.forEach(({r})=>{if(r.attended)o.days++;o.reg+=r.AH||0;o.ot+=r.AI||0;o.ex+=r.AL||0});return o});
+}
+const PT_H=["姓名","出勤天","正常h","OT h","加时h(人手不足)","总h","时薪","参考工资","待审批"];
+const ptCells=o=>[o.name,o.days,n2(o.reg),n2(o.ot),n2(o.ex),n2(o.reg+o.ot+o.ex),n2(o.rate),n2(r2((o.reg+o.ot+o.ex)*o.rate)),o.pend];
+function fillTable(t,head,rows,totals,editors){
+  t.replaceChildren();t.append(el("tr",{},head.map((h,i)=>el("th",{class:i?"n":"",text:h}))));
+  rows.forEach((cells,ri)=>t.append(el("tr",{},cells.map((v,i)=>{const ed=editors&&editors[i];
+    if(ed&&isMgr){const inp=el("input",{class:"cell mgr",inputmode:"decimal",value:String(v),"aria-label":head[i]});inp.onchange=()=>ed(ri,inp.value);return el("td",{class:"n"},inp)}
+    return el("td",{class:i?"n":"",text:String(v)})}))));
+  if(totals)t.append(el("tr",{},totals.map((v,i)=>el("td",{class:(i?"n":"")+" chg",text:String(v)}))));
+  if(!rows.length)t.append(el("tr",{},el("td",{class:"empty",colspan:head.length,text:"这个月没有员工"})));
+}
+function renderSum(){
+  const m=$("smon").value;if(!m)return;
+  const sf=sfData(m),sl=slData(m),pt=ptData(m);
+  const pend=[...sf,...sl,...pt].reduce((s,o)=>s+o.pend,0);
+  $("pendNote").replaceChildren();
+  $("pendNote").append(pend?el("span",{class:"pill warn",text:`还有 ${pend} 条记录待审批，审批完再导出（待审批的按未批准算）。`}):el("span",{class:"pill ok",text:"所有记录都已处理"}));
+  const save=async(name,field,val)=>{const v=Number(val);if(Number.isNaN(v))return;const id=slug(name)+"_"+m;
+    try{await db.doc("payadj/"+id).set({...(padj[id]||{}),name,month:m,[field]:v,ts:Date.now()})}catch(e){}};
+  fillTable($("sfTbl"),SF_H,sf.map(sfCells),sfTotals(sf),{11:(ri,v)=>save(sf[ri].name,"incentive",v),12:(ri,v)=>save(sf[ri].name,"mgmt",v),13:(ri,v)=>save(sf[ri].name,"adj",v)});
+  fillTable($("slTbl"),SL_H,sl.map(slCells),null);
+  fillTable($("ptTbl"),PT_H,pt.map(ptCells),null);
+  // advances list
+  const at=$("advTbl");at.replaceChildren();
+  at.append(el("tr",{},["日期","姓名","金额 RM","备注",""].map(h=>el("th",{text:h}))));
+  advs.filter(a=>(a.date||"").startsWith(m)).sort((a,b)=>a.date<b.date?-1:1).forEach(a=>{
+    const d=el("button",{class:"btn alt",text:"删除"});d.onclick=async()=>{d.disabled=true;try{await db.doc("advances/"+a.id).delete()}catch(e){d.disabled=false}};
+    at.append(el("tr",{},el("td",{text:a.date}),el("td",{text:a.name}),el("td",{class:"n",text:n2(Number(a.amount)||0)}),el("td",{text:a.note||""}),el("td",{},d)))});
+}
+function renderPayPar(){
+  const box=$("payPar");if(!box||box.contains(document.activeElement))return;box.replaceChildren();
+  [["monthly","月薪 RM"],["days","每月天数"],["daily","每日工资 RM"],["ot","OT 时薪 RM"],["mgmt","管理费 RM/人"]].forEach(([k,lab])=>{
+    const i=el("input",{class:"mgr",inputmode:"decimal",value:String(pay[k]),disabled:isMgr?null:"disabled"});
+    i.onchange=async()=>{const v=Number(i.value);if(Number.isNaN(v))return;try{await db.doc("settings/payroll").set({...pay,[k]:v})}catch(e){}};
+    box.append(el("label",{},lab,i))});
+}
+const sfCsv=async()=>{const m=$("smon").value,sf=sfData(m);await download(`foreign-payroll-${m}.csv`,[SF_H].concat(sf.map(sfCells),[sfTotals(sf)]))};
+const slCsv=async()=>{const m=$("smon").value;await download(`local-summary-${m}.csv`,[SL_H].concat(slData(m).map(slCells)))};
+const ptCsv=async()=>{const m=$("smon").value;await download(`parttime-${m}.csv`,[PT_H].concat(ptData(m).map(ptCells)))};
+async function addAdv(){
+  const msg=$("advMsg");msg.replaceChildren();const amt=Number($("advAmt").value);
+  if(!$("advName").value||!$("advDate").value||!(amt>0)){msg.append(el("div",{class:"msg pill bad",text:"请填姓名、日期和大于 0 的金额"}));return}
+  try{await db.doc("advances/adv_"+Date.now()).set({name:$("advName").value,date:$("advDate").value,amount:amt,note:$("advNote").value.trim(),ts:Date.now()});$("advAmt").value=$("advNote").value=""}
+  catch(e){msg.append(el("div",{class:"msg pill bad",text:"保存失败："+(e.message||e.code)}))}
+}
+
+/* ---------- roster admin ---------- */
+const FL_COMMON=[["基本",[["name","姓名","text"],["id","护照/IC","text"],["off","公休(星期，例 二)","text"],["brk","休息(h)","num"],["limit","每日上限(h，含休息)","num"],["start","上班","time"],["end","下班","time"]]],
+ ["轮值(单双周)",[["rot","轮值","sel",["N","Y"]],["oddIn","单周上班","time"],["oddOut","单周下班","time"],["evenIn","双周上班","time"],["evenOut","双周下班","time"]]],
+ ["在职 / 离职",[["active","在职","sel",["Y","N"]],["resign","离职生效日","date"]]],
+ ["换班：新排班(生效日起)",[["newEff","生效日","date"],["newStart","新上班","time"],["newEnd","新下班","time"],["newOff","新公休","text"],["spWd","特殊星期(例 四)","text"],["spStart","特殊上班","time"],["spEnd","特殊下班","time"]]],
+ ["特别星期时间(例 六,日)",[["ovEff","生效日","date"],["ovDays","星期","text"],["ovStart","上班","time"],["ovEnd","下班","time"]]]];
+const F_EXTRA=["津贴 / 每工作日附加费（工资表用）",[["allow","固定月津贴 RM","num"],["allowEff","津贴生效日","date"],["fee","每工作日附加费 RM","num"],["feeEff","附加费生效日","date"]]];
+const P_FIELDS=[["基本",[["name","姓名","text"],["id","护照/IC","text"],["rate","时薪 RM","num"],["days","工作日(星期，例 六,日)","text"]]],
+ ["排班（两段）",[["s1In","第1段上班","time"],["s1Out","第1段下班","time"],["s2In","第2段上班","time"],["s2Out","第2段下班","time"]]],
+ ["新排班(生效日起)",[["newEff","生效日","date"],["n1In","新第1段上班","time"],["n1Out","新第1段下班","time"],["n2In","新第2段上班","time"],["n2Out","新第2段下班","time"],["nDays","新工作日","text"]]],
+ ["在职 / 离职",[["active","在职","sel",["Y","N"]],["resign","离职生效日","date"]]]];
+const fieldsFor=t=>t==="P"?P_FIELDS:t==="F"?FL_COMMON.concat([F_EXTRA]):FL_COMMON;
+function renderRoster(){
+  const t=$("rosTbl");t.replaceChildren();
+  t.append(el("tr",{},["姓名","类型","状态","今天排班",""].map(h=>el("th",{text:h}))));
+  roster.forEach(st=>{
+    const b=el("button",{class:"btn alt",text:"编辑"});b.onclick=()=>openForm(st);
+    t.append(el("tr",{},el("td",{text:st.name}),el("td",{text:TYPES[st.type]||st.type}),
+      el("td",{},el("span",{class:"pill "+(st.active==="N"?"bad":"ok"),text:st.active==="N"?("离职"+(st.resign?" "+st.resign:"")):"在职"})),
+      el("td",{class:"mono",text:schedText(st,todayKL())}),el("td",{},b)))});
+}
+function openForm(st,keep){
+  const isNew=!st,cur=keep||st||{type:"F",brk:2,limit:12,rot:"N",active:"Y"},box=$("rosForm"),inp={};
+  box.replaceChildren();
+  const c=el("div",{class:"card"},el("strong",{text:isNew?"新增员工":"编辑："+cur.name}));
+  const ts=el("select",{class:"mgr"},Object.entries(TYPES).map(([k,v])=>el("option",{value:k,text:v})));ts.value=cur.type||"F";ts.disabled=!isNew;
+  c.append(el("label",{},"类型",ts));
+  const gather=()=>{const o={...cur,type:ts.value};for(const[k,[i,kind]]of Object.entries(inp)){const v=i.value.trim();if(v===""){delete o[k];continue}
+      o[k]=kind==="time"?parseT(v):kind==="num"?Number(v):v}return o};
+  if(isNew)ts.onchange=()=>{const o=gather();if(o.type==="P"){o.active="Y"}openForm(null,o)};
+  fieldsFor(ts.value).forEach(([g,fs])=>{
+    c.append(el("div",{class:"sub",text:g}));
+    c.append(el("div",{class:"row"},fs.map(([k,lab,kind,opts])=>{
+      let i;
+      if(kind==="sel"){i=el("select",{class:"mgr"},opts.map(o=>el("option",{value:o,text:o})));i.value=cur[k]||opts[0]}
+      else{i=el("input",{class:"mgr",autocomplete:"off",type:kind==="date"?"date":"text"});
+        if(kind==="time")i.value=cur[k]!=null?fmt(cur[k]):"";else i.value=cur[k]!=null?cur[k]:"";
+        if(kind==="time")i.placeholder="例 9.30";}
+      if(k==="name"&&!isNew)i.disabled=true;
+      inp[k]=[i,kind];return el("label",{},lab,i)})));
+  });
+  const msg=el("div"),sv=el("button",{class:"btn",text:"保存"}),cl=el("button",{class:"btn alt",text:"取消"});
+  cl.onclick=()=>box.replaceChildren();
+  sv.onclick=async()=>{
+    msg.replaceChildren();const o={},bad=[];
+    for(const[k,[i,kind]]of Object.entries(inp)){const v=i.value.trim();if(v==="")continue;
+      if(kind==="time"){const x=parseT(v);if(x==null||isNaN(x))bad.push(k);else o[k]=x}
+      else if(kind==="num"){const x=Number(v);if(isNaN(x))bad.push(k);else o[k]=x}
+      else o[k]=v}
+    o.type=ts.value;
+    if(!o.name)return msg.append(el("div",{class:"msg pill bad",text:"请填姓名"}));
+    if(bad.length)return msg.append(el("div",{class:"msg pill bad",text:"格式错误："+bad.join(", ")}));
+    if(isNew&&roster.some(x=>x.name===o.name))return msg.append(el("div",{class:"msg pill bad",text:"名册里已有同名员工"}));
+    if(o.active==="N"&&!o.resign)return msg.append(el("div",{class:"msg pill bad",text:"离职请填「离职生效日」"}));
+    o.sort=cur.sort!=null?cur.sort:(roster.reduce((m,x)=>Math.max(m,x.sort||0),0)+1);
+    sv.disabled=true;
+    try{await db.doc("roster/"+slug(o.name)).set(o);box.replaceChildren()}
+    catch(e){sv.disabled=false;msg.append(el("div",{class:"msg pill bad",text:"保存失败："+(e.message||e.code)}))}
+  };
+  c.append(el("div",{class:"actions"},sv,cl),msg);box.append(c);c.scrollIntoView({block:"nearest"});
+}
+
+/* ---------- wiring ---------- */
+function renderAll(){
+  renderAppr();if(isMgr){["tabRec","tabSum","tabRos"].forEach(i=>$(i).hidden=false);renderRec();renderSum();renderRoster();renderPayPar()}
+  renderGrid(false);
+}
+function fillNames(){
+  const sel=$("name"),keep=sel.value;sel.replaceChildren();
+  [["F","外劳 Foreign"],["L","本地 Local"],["P","兼职 Part-time"]].forEach(([t,lab])=>{
+    const og=el("optgroup",{label:lab});roster.filter(s=>s.type===t&&s.active!=="N").forEach(s=>og.append(el("option",{value:s.name,text:s.name})));
+    if(og.children.length)sel.append(og)});
+  if(keep)sel.value=keep;
+  const an=$("advName");an.replaceChildren();roster.filter(x=>x.active!=="N").forEach(x=>an.append(el("option",{value:x.name,text:x.name})));
+  fillFName();
+}
+function fillFName(){const f=$("fname"),keep=f.value,t=$("ftype").value;f.replaceChildren(el("option",{value:"",text:"全部"}));roster.filter(s=>s.type===t).forEach(s=>f.append(el("option",{value:s.name,text:s.name})));if([...f.options].some(o=>o.value===keep))f.value=keep}
+$("cmon").value=$("mon").value=$("smon").value=todayKL().slice(0,7);$("advDate").value=todayKL();
+$("who").textContent=isMgr?"店长视图":"员工打卡（无审批权限）";
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  ["clock","appr","rec","sum","ros"].forEach(id=>$(id).hidden=id!==b.dataset.tab)});
+$("name").addEventListener("change",()=>{$("result").replaceChildren();renderGrid(true)});$("cmon").addEventListener("change",()=>{$("result").replaceChildren();renderGrid(true)});
+$("save").onclick=saveMonth;$("smon").onchange=renderSum;$("sfCsv").onclick=sfCsv;$("slCsv").onclick=slCsv;$("ptCsv").onclick=ptCsv;$("advAdd").onclick=addAdv;$("rosNew").onclick=()=>openForm(null);
+$("mon").onchange=renderRec;$("fname").onchange=renderRec;$("ftype").onchange=()=>{fillFName();renderRec()};$("csv").onclick=csv;
+
+if(db){
+  const timer=setTimeout(()=>{if(!roster.length)$("dirty").textContent="名册读取失败或为空，请联系店长。"},10000);
+  db.collection("roster").onSnapshot(s=>{clearTimeout(timer);roster=s.docs.map(d=>d.data()).sort((a,b)=>a.sort-b.sort);fillNames();renderAll()});
+  db.doc("settings/lists").onSnapshot(s=>{if(s.exists){const d=s.data();lists={reasons:d.reasons||[],ptReasons:d.ptReasons||d.reasons||[],mgr:d.mgr||lists.mgr};renderAll()}});
+  db.doc("settings/payroll").onSnapshot(s=>{if(s.exists){pay={...pay,...s.data()};renderAll()}});
+  db.collection("entries").orderBy("date","desc").limit(3000).onSnapshot(s=>{entries=s.docs.map(d=>({id:d.id,...d.data()}));renderAll()});
+  if(isMgr){
+    db.collection("advances").onSnapshot(s=>{advs=s.docs.map(d=>({id:d.id,...d.data()}));renderAll()},()=>{});
+    db.collection("payadj").onSnapshot(s=>{padj={};s.docs.forEach(d=>padj[d.id]=d.data());renderAll()},()=>{});
+  }
+  db.collection("approvals").onSnapshot(s=>{appr={};s.docs.forEach(d=>appr[d.id]=d.data());renderAll()});
+}
+})();
+</script>
+
+</body></html>

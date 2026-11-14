@@ -123,7 +123,11 @@ router.get(BASE + '/employees', ...guard(3), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active
        FROM employees WHERE company_id = $1 ORDER BY name`, [req.params.companyId]);
-  res.json(rows.map((r) => ({
+  const hist = (await pool.query(
+    `SELECT employee_id, to_char(effective_date, 'YYYY-MM-DD') AS effective, amount::float AS amount FROM employee_salary_history WHERE company_id = $1 ORDER BY effective_date, id`, [req.params.companyId])).rows;
+  const hby = {};
+  hist.forEach((h) => { (hby[h.employee_id] = hby[h.employee_id] || []).push({ effective: h.effective, amount: h.amount }); });
+  res.json(rows.map((r) => ({ history: hby[r.id] || [],
     id: r.id, name: r.name, ic: r.ic_no || '', basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
     marital: r.marital_status || '', children: r.children, disabled: r.disabled, epfNo: r.epf_no || '', socsoNo: r.socso_no || '', tin: r.tin_no || '',
     start: r.start_date ? String(r.start_date).slice(0, 10) : '', active: r.active
@@ -141,6 +145,9 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
     `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, epf_no, socso_no, tin_no
        FROM employees WHERE company_id = $1 AND id = ANY($2::int[])`, [req.params.companyId, ids]);
   const byId = new Map(emps.map((e) => [e.id, e]));
+  const hbyEmp = new Map();
+  (await pool.query(`SELECT employee_id, to_char(effective_date, 'YYYY-MM-DD') AS effective, amount::float AS amount FROM employee_salary_history WHERE company_id = $1 AND employee_id = ANY($2::int[])`, [req.params.companyId, ids])).rows
+    .forEach((h) => { if (!hbyEmp.has(h.employee_id)) hbyEmp.set(h.employee_id, []); hbyEmp.get(h.employee_id).push({ effective: h.effective, amount: h.amount }); });
   const co = (await pool.query('SELECT name, registration_no, address FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   const yymm = month.slice(2, 4) + month.slice(5, 7);
@@ -150,7 +157,7 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
     if (!e) return;
     const snap = x.snap && typeof x.snap === 'object' && Number.isFinite(Number(x.snap.net)) && Number.isFinite(Number(x.snap.gross)) ? x.snap : null;   // the month was finalized: its saved numbers
     const c = snap || STAT.calc({
-      month, basic: x.wages === true ? num(x.basic) : num(e.basic_salary), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
+      month, basic: x.wages === true ? num(x.basic) : STAT.salaryOn(hbyEmp.get(e.id), month, num(e.basic_salary)), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
       commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN'
     });
     slips.push({

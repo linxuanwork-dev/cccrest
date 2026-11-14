@@ -846,7 +846,7 @@ function plData(m){
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
     const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advOf(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
-    if(emp)r.c=STAT.calc({month:m,basic:emp.basic,otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
+    if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
     return snapOf(r)}).concat(pt.map(snapOf));
 }
 const PL_COLS=[["基本工资","basic"],["无薪扣除","unpaidDeduction"],["OT工资","otPay"],["津贴","allowance","in"],["奖金","incentive","in"],["提成","commission","in"],["其他","other","in"],["总收入","gross"],

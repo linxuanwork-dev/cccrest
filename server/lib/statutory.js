@@ -107,5 +107,15 @@
     };
   }
 
-  return { calc: calc, epf: epf, socso: socso, eis: eis, otRate: otRate, over60: over60, SKBBK_FROM: SKBBK_FROM };
+  // the basic salary that applies in a month, from the salary history [{ effective: 'YYYY-MM-DD', amount }]: the latest change that started in or before the month
+  // (a change applies to the whole month its date falls in); before the first record the first amount; without a history the current salary
+  function salaryOn(history, month, fallback) {
+    var h = (history || []).filter(function (r) { return r && r.effective; }).slice().sort(function (a, b) { return a.effective < b.effective ? -1 : a.effective > b.effective ? 1 : 0; });
+    if (!h.length) return Number(fallback) || 0;
+    var use = null;
+    h.forEach(function (r) { if (String(r.effective).slice(0, 7) <= month) use = r; });
+    return Number((use || h[0]).amount) || 0;
+  }
+
+  return { salaryOn: salaryOn, calc: calc, epf: epf, socso: socso, eis: eis, otRate: otRate, over60: over60, SKBBK_FROM: SKBBK_FROM };
 }));

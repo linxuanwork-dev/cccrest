@@ -72,6 +72,22 @@ function changes(before, after) {
 const baseRow = { name: '', ic_no: null, id_type: 'B', dob: null, gender: null, race: null, nationality: null, address: null, start_date: null, position: null,
   bank_name: null, bank_account: null, epf_no: null, socso_no: null, tin_no: null, tax_resident: 'resident', marital_status: null, children: 0, disabled: false, basic_salary: 0, active: true };
 
+async function addSalaryRecord(companyId, employeeId, effective, amount, reason, userId) {
+  await pool.query(
+    'INSERT INTO employee_salary_history (company_id, employee_id, effective_date, amount, reason, created_by) VALUES ($1,$2,$3,$4,$5,$6)',
+    [companyId, employeeId, effective, amount, String(reason || '').slice(0, 200), userId]);
+}
+
+// the salary history of one employee (newest first)
+router.get('/companies/:companyId/employees/:employeeId/salary-history', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
+  if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
+  const { rows } = await pool.query(
+    `SELECT h.id, to_char(h.effective_date, 'YYYY-MM-DD') AS effective, h.amount::float AS amount, h.reason, h.created_at, u.display_name AS by
+       FROM employee_salary_history h LEFT JOIN users u ON u.id = h.created_by
+      WHERE h.employee_id = $1 AND h.company_id = $2 ORDER BY h.effective_date DESC, h.id DESC`, [req.params.employeeId, req.params.companyId]);
+  res.json(rows);
+});
+
 router.get('/companies/:companyId/employees', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT e.*, (SELECT count(*) FROM employee_documents d WHERE d.employee_id = e.id)::int AS document_count
@@ -92,6 +108,10 @@ router.post('/companies/:companyId/employees', requireAuth, scopeToCompany, requ
     [req.params.companyId, ...COLUMNS.map((c) => f[c])]
   );
 
+  if (Number(f.basic_salary) > 0) {
+    const eff = dateOrNull((req.body || {}).salaryEffective) || (rows[0].start_date ? ymd(rows[0].start_date) : null) || new Date().toISOString().slice(0, 10);
+    await addSalaryRecord(req.params.companyId, rows[0].id, eff, f.basic_salary, (req.body || {}).salaryReason || 'Starting salary', req.user.sub);
+  }
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Added employee', companyRows[0].name, f.name);
   await docs.logEvent(req, req.params.companyId, 'employee', f.name, 'created', []);
@@ -109,6 +129,17 @@ router.patch('/companies/:companyId/employees/:employeeId', requireAuth, scopeTo
     [...COLUMNS.map((c) => f[c]), req.params.employeeId]
   );
 
+  if (Number(before[0].basic_salary) !== Number(rows[0].basic_salary)) {
+    // a salary history that was not kept before starts with the previous salary, so the months already run keep it
+    const n = (await pool.query('SELECT count(*)::int AS n FROM employee_salary_history WHERE employee_id = $1', [req.params.employeeId])).rows[0].n;
+    if (!n && Number(before[0].basic_salary) > 0) {
+      await addSalaryRecord(req.params.companyId, req.params.employeeId, (before[0].start_date ? ymd(before[0].start_date) : null) || '2000-01-01', before[0].basic_salary, 'Salary before the history was kept', req.user.sub);
+    }
+    if (Number(rows[0].basic_salary) > 0) {
+      const eff = dateOrNull((req.body || {}).salaryEffective) || new Date().toISOString().slice(0, 10);
+      await addSalaryRecord(req.params.companyId, req.params.employeeId, eff, rows[0].basic_salary, (req.body || {}).salaryReason || 'Salary change', req.user.sub);
+    }
+  }
   const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Updated employee', companyRows[0].name, f.name);
   await docs.logUpdate(req, req.params.companyId, 'employee', f.name, changes(before[0], rows[0]));

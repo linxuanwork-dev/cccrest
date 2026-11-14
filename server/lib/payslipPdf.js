@@ -24,8 +24,8 @@ function drawSlip(doc, slip) {
   let y = MARGIN;
   text(doc, co.name || '', MARGIN, y, { width: W }, true, 14);
   y += 19;
-  const sub = [co.registration_no, co.address].filter(Boolean).join('   ·   ');
-  if (sub) { text(doc, sub, MARGIN, y, { width: W }, false, 8, MUTED); y += 12; }
+  text(doc, 'Company Registration No.: ' + (co.registration_no || '-'), MARGIN, y, { width: W }, false, 8.5, MUTED); y += 12;
+  if (co.address) { text(doc, co.address, MARGIN, y, { width: W }, false, 8, MUTED); y += 12; }
   y += 8;
   const [yy, mm] = slip.month.split('-');
   text(doc, 'SALARY VOUCHER', MARGIN, y, { width: W / 2 }, true, 13, HEAD);
@@ -77,6 +77,13 @@ function drawSlip(doc, slip) {
     text(doc, r[0], MARGIN + 6, y + i * 15, { width: 200 }, false, 9); text(doc, money(r[1]), MARGIN + 210, y + i * 15, { width: 70, align: 'right' }, false, 9);
   });
   y += 3 * 15 + 12;
+  if (slip.leave) {
+    text(doc, 'Annual leave (' + slip.month.slice(0, 4) + ')', MARGIN, y, { width: W }, true, 9, HEAD); y += 15;
+    [['Entitlement (days)', slip.leave.ent], ['Taken up to ' + MONTHS[Number(mm) - 1] + ' (days)', slip.leave.taken], ['Balance annual leave (days)', slip.leave.bal]].forEach((r, i) => {
+      text(doc, r[0], MARGIN + 6, y + i * 15, { width: 200 }, i === 2, 9); text(doc, String(r[1]), MARGIN + 210, y + i * 15, { width: 70, align: 'right' }, i === 2, 9);
+    });
+    y += 3 * 15 + 12;
+  }
   text(doc, 'Payment Method: ' + (slip.payMethod || 'ONLINE BANKING'), MARGIN, y, { width: W }, false, 9);
   y += 50;
   doc.moveTo(MARGIN, y).lineTo(MARGIN + 160, y).moveTo(MARGIN + W - 160, y).lineTo(MARGIN + W, y).lineWidth(0.6).strokeColor(MUTED).stroke();

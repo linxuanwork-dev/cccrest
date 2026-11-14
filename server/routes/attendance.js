@@ -7,6 +7,7 @@ const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
 const STAT = require('../lib/statutory');
 const { buildPayslipPdf } = require('../lib/payslipPdf');
+const { buildTablePdf } = require('../lib/tablePdf');
 const { buildJournalPdf } = require('../lib/journalPdf');
 const { buildEaPdf } = require('../lib/eaPdf');
 
@@ -152,7 +153,7 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !list.length || list.length > 80) return bad(res, 'Invalid request');
   const ids = [...new Set(list.map((x) => Number(x && x.empId)).filter((n) => Number.isInteger(n) && n > 0))];
   const { rows: emps } = await pool.query(
-    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, epf_no, socso_no, tin_no, skbbk_opt_out
+    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, epf_no, socso_no, tin_no, skbbk_opt_out, to_char(start_date,'YYYY-MM-DD') AS start_date
        FROM employees WHERE company_id = $1 AND id = ANY($2::int[])`, [req.params.companyId, ids]);
   const byId = new Map(emps.map((e) => [e.id, e]));
   const hbyEmp = new Map();
@@ -160,6 +161,17 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
     .forEach((h) => { if (!hbyEmp.has(h.employee_id)) hbyEmp.set(h.employee_id, []); hbyEmp.get(h.employee_id).push({ effective: h.effective, amount: h.amount }); });
   const co = (await pool.query('SELECT name, registration_no, address FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  // Annual leave: entitlement by length of service (Employment Act: under 2 years 8 days, 2 to under 5 years 12, 5 years or more 16), taken = the days marked 年假 in the Attendance this year up to the month
+  const normName = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const leaveTaken = new Map();
+  (await pool.query(`SELECT data->>'name' AS name, count(*)::int AS n FROM attendance_docs WHERE company_id = $1 AND coll = 'entries' AND data->>'reason' = $2 AND data->>'date' >= $3 AND data->>'date' <= $4 GROUP BY 1`,
+    [req.params.companyId, '年假', month.slice(0, 4) + '-01-01', month + '-31'])).rows.forEach((r) => leaveTaken.set(normName(r.name), r.n));
+  const leaveOf = (e) => {
+    if (!e.start_date) return null;
+    const yrs = (Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0) - Date.parse(e.start_date)) / (365.25 * 86400000);
+    const ent = yrs < 2 ? 8 : yrs < 5 ? 12 : 16, taken = leaveTaken.get(normName(e.name)) || 0;
+    return { ent, taken, bal: ent - taken };
+  };
   const yymm = month.slice(2, 4) + month.slice(5, 7);
   const slips = [];
   list.forEach((x, i) => {
@@ -171,14 +183,37 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
       commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN', skbbkOptOut: !!e.skbbk_opt_out
     });
     slips.push({
-      company: co, month, c, days: x.days, hours: num(x.hours), otHours: num(x.otHours), voucher: 'JVS-' + yymm + '-' + String(i + 1).padStart(3, '0'),
+      company: co, month, c, leave: leaveOf(e), days: x.days, hours: num(x.hours), otHours: num(x.otHours), voucher: 'JVS-' + yymm + '-' + String(i + 1).padStart(3, '0'),
       emp: { name: e.name, ic: e.ic_no || '', epfNo: e.epf_no || '', socsoNo: e.socso_no || '', tin: e.tin_no || '', bank: [e.bank_name, e.bank_account].filter(Boolean).join(' ') }
     });
   });
   if (!slips.length) return bad(res, '找不到这些员工。 Employees not found.');
   const doc = buildPayslipPdf(slips);
-  const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: month, EMP: slips.length === 1 ? docs.hyphenUpper(slips[0].emp.name) : 'ALL' }, 'Salary-Voucher-' + month);
+  const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: month, YYYY: month.slice(0, 4), MM: month.slice(5, 7), EMP: slips.length === 1 ? String(slips[0].emp.name).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim() : 'ALL' }, 'SALARY VOUCHER-' + month.slice(0, 4) + '_' + month.slice(5, 7));
   try { await docs.logEvent(req, req.params.companyId, 'salary_voucher', base + '.pdf', 'generated', [{ field: 'payslips', from: '', to: String(slips.length) }]); } catch (e) { console.error('payslip log failed:', e); }
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));
+  doc.pipe(res);
+  doc.end();
+});
+
+// Payroll summary (a month, or the months picked in a year) as a landscape table PDF. The page works the figures out from the payroll rows it shows and sends them.
+router.post(BASE + '/summary-pdf', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, secs = Array.isArray(b.sections) ? b.sections : [];
+  const str = (v) => String(v == null ? '' : v).slice(0, 80);
+  const span = String(b.span || '').replace(/[^0-9_-]/g, '').slice(0, 40);
+  if (!secs.length || secs.length > 4 || !span) return bad(res, 'Invalid request');
+  const sections = secs.map((s) => ({
+    heading: str(s.heading), columns: (Array.isArray(s.columns) ? s.columns : []).slice(0, 20).map(str),
+    rows: (Array.isArray(s.rows) ? s.rows : []).slice(0, 300).map((r) => (Array.isArray(r) ? r : []).slice(0, 20).map(str)),
+    total: Array.isArray(s.total) ? s.total.slice(0, 20).map(str) : null
+  }));
+  const co = (await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
+  const doc = buildTablePdf({ company: co.name, title: str(b.title), subtitle: str(b.subtitle), sections, notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 6).map((t) => String(t).slice(0, 200)) });
+  const base = await docs.fileBase('payroll_summary', req.params.companyId, { SPAN: span }, 'PAYROLL SUMMARY-' + span);
+  try { await docs.logEvent(req, req.params.companyId, 'payroll_summary', base + '.pdf', 'generated', [{ field: 'summary', from: '', to: str(b.title) }]); } catch (e) { console.error('summary log failed:', e); }
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));

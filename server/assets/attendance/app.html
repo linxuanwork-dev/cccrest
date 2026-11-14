@@ -244,6 +244,23 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <div class="sub">出勤、OT、无薪假直接来自考勤（点数字可以看是哪几天）。基本工资、出生日期、国籍从 HR 的员工资料读。蓝色格自己填：津贴、奖金、提成、其他（可以是负数）、PCB。预支来自「报告」里的预支记录。EPF、SOCSO、SKBBK、EIS 自动算。</div>
       <div class="tw"><table id="plTbl"></table></div>
     </div>
+    <div class="card" id="sumBox">
+      <div class="hd"><strong>月度汇总 Monthly Summary</strong><span class="actions"><button class="btn alt" id="msCsv">下载 CSV</button><button class="btn" id="msPdf">下载 PDF</button></span></div>
+      <div class="sub" id="msNote"></div>
+      <div class="tw"><table id="msTbl"></table></div>
+    </div>
+    <div class="card">
+      <div class="hd"><strong>年度汇总 Yearly Summary</strong><span class="actions"><button class="btn alt" id="ysCsv">下载 CSV</button><button class="btn" id="ysPdf">下载 PDF</button></span></div>
+      <div class="sub">选年份，再勾要算进去的月份。已「确认」的月份用锁定的数字；还没确认的月份用现在的算法即时算（带 * 号）。</div>
+      <div class="row"><label>年份 Year<input id="ysYear" type="number" min="2020" max="2100" style="width:90px"></label>
+        <span class="actions"><button class="btn alt" id="ysAll">全选</button><button class="btn alt" id="ysNone">全不选</button><button class="btn alt" id="ysFin">只选已确认</button></span></div>
+      <div class="row" id="ysMonths" style="margin-top:6px"></div>
+      <div class="sub" id="ysNote"></div>
+      <strong class="sub">每位员工（选中月份合计）</strong>
+      <div class="tw"><table id="ysTbl"></table></div>
+      <strong class="sub">每个月</strong>
+      <div class="tw"><table id="ysMon"></table></div>
+    </div>
     <div class="card">
       <div class="hd"><strong>会计分录 Journal Entry</strong><button class="btn" id="jvPdf">下载会计分录 PDF</button></div>
       <div class="sub">跟你们现在的做法一样：每个人一张（收入记借方，EPF / SOCSO / EIS / PCB / 预支 / Salary Control 记贷方），再加一张雇主 EPF、SOCSO、EIS。日期是月底。</div>
@@ -849,6 +866,9 @@ const nkey=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
 const empOf=name=>emps.find(e=>nkey(e.name)===nkey(name));
 const normName=s=>String(s||"").toUpperCase().replace(/\s+/g," ").trim();
 const hrAvail=()=>emps.filter(e=>e.active!==false&&!roster.some(r=>nkey(r.name)===nkey(e.name)));   // in the HR employee list, not on the attendance roster yet
+/* the commission of the month sent from the Daily Sales Reconciliation (Sales > 提成); a figure typed in the Commission cell wins */
+function commOf(name,inp,m){ if(inp&&inp.commission!=null)return inp.commission; const d=pinp["COMM_"+String(name).toUpperCase().replace(/[^A-Za-z0-9]+/g,"_")+"_"+m]; return d&&d.amount?d.amount:0 }
+function commSales(name,m){ const d=pinp["COMM_"+String(name).toUpperCase().replace(/[^A-Za-z0-9]+/g,"_")+"_"+m]; return d&&d.amount?d.amount:0 }
 function plData(m){
   if(ATT.payrollOnly)return plDataManual(m);
   const pt=ptData(m).map(o=>{
@@ -861,7 +881,7 @@ function plData(m){
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
     const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advFor(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
-    if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     return snapOf(r)}).concat(pt.map(snapOf));
 }
 /* a company without attendance: the rows are the HR employees (salaried); the overtime hours, unpaid days and advance are typed in each month */
@@ -869,7 +889,7 @@ function plDataManual(m){
   return emps.filter(e=>e.active!==false).map(emp=>{
     const id=slug(emp.name)+"_"+m,inp=pinp[id]||{},ot=Number(inp.otHours)||0,unpaid=Number(inp.unpaidDays)||0,adv=advFor(emp.name,m);
     const r={name:emp.name,id,emp,inp,days:null,ot,hours:null,unpaid,pend:0,adv,manual:true};
-    r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(emp.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     const sn=inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true}
     return r});
 }
@@ -910,6 +930,7 @@ function renderPay(){
         td.append(lab);tr.append(td);return}
       if(ed==="in"&&r.final){tr.append(el("td",{class:"n",text:n2(r.c[k])}));return}
       if(ed==="in"){const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab});
+        if(k==="commission"&&commSales(r.name,m)){i.placeholder=n2(commSales(r.name,m));i.title="来自销售（每日营业对账 > 提成）：RM "+n2(commSales(r.name,m))+"。这里填数字会盖过它。";i.style.background="var(--mgr)"}
         i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;
           try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
         tr.append(el("td",{class:"n"},i))}
@@ -929,6 +950,7 @@ function renderPay(){
   renderJv(rows,m);
   renderEa();
   renderAdv();
+  renderSummaries();
 }
 /* ---------- the payroll journals of the month (MINIFISH files them as Journal Entry vouchers) ---------- */
 const JV_ACC=[["salaries","Salaries"],["wages","Wages"],["ot","Overtime"],["allowance","Allowance"],["incentive","Incentive"],["commission","Commission"],["other","Other"],
@@ -1142,7 +1164,7 @@ async function payslipPdf(list,m,btn){
   if(!rows.length)return;
   if(btn)btn.disabled=true;
   try{
-    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,snap:r.final?r.c:undefined,wages:!!r.wages,basic:r.wageBasic,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:r.inp.commission,other:r.inp.other,advance:r.adv,pcb:r.inp.pcb}))};
+    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,snap:r.final?r.c:undefined,wages:!!r.wages,basic:r.wageBasic,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:commOf(r.name,r.inp,m),other:r.inp.other,advance:r.adv,pcb:r.inp.pcb}))};
     const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/payslips",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
     const name=decodeURIComponent(res.headers.get("X-File-Name")||("Salary-Voucher-"+m+".pdf"));
@@ -1150,6 +1172,77 @@ async function payslipPdf(list,m,btn){
   }catch(e){msg.append(" ",el("span",{class:"pill bad",text:"工资单下载失败："+(e&&e.message||e)}))}
   if(btn)btn.disabled=false;
 }
+
+/* ---------- payroll summaries: one month (the month picked above) and a year with the months picked ---------- */
+const SUM_COLS=[["基本工资","Basic",(c)=>c.basic-c.unpaidDeduction],["OT","OT",(c)=>c.otPay],["津贴/奖金/其他","Allow/Inc/Other",(c)=>c.allowance+c.incentive+c.other],["提成","Comm.",(c)=>c.commission],["总收入","Gross",(c)=>c.gross],
+  ["EPF","EPF",(c)=>c.epfEmployee],["SOCSO","SOCSO",(c)=>c.socsoEmployee+c.skbbkEmployee],["EIS","EIS",(c)=>c.eisEmployee],["PCB","PCB",(c)=>c.pcb],["预支","Advance",(c,r)=>r.adv],["实发","Net",(c)=>c.net],
+  ["雇主EPF","Er EPF",(c)=>c.epfEmployer],["雇主SOCSO","Er SOCSO",(c)=>c.socsoEmployer],["雇主EIS","Er EIS",(c)=>c.eisEmployer],["雇主总成本","Total cost",(c)=>c.gross+c.epfEmployer+c.socsoEmployer+c.eisEmployer]];
+const sumVals=rows=>SUM_COLS.map(([,,f])=>r2(rows.reduce((s,r)=>s+(Number(f(r.c,r))||0),0)));
+const MONTH_NAMES=["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+let ysSel=null;
+function monthSummaryData(){const m=$("pmon").value;const rows=m?plData(m).filter(r=>r.c):[];return{m,rows}}
+function yearSummaryData(){
+  const y=$("ysYear").value,months=[];if(!y)return{y,months,pick:[],people:[],perMonth:[]};
+  for(let i=1;i<=12;i++){const m=y+"-"+String(i).padStart(2,"0");const rows=plData(m).filter(r=>r.c);months.push({m,i,rows,fin:rows.length>0&&rows.every(r=>r.final)})}
+  if(ysSel===null||ysSel.y!==y){const fin=months.filter(x=>x.fin).map(x=>x.i);ysSel={y,set:new Set(fin.length?fin:[Number($("pmon").value.slice(5,7))||1])}}
+  const pick=months.filter(x=>ysSel.set.has(x.i));
+  const by=new Map();
+  pick.forEach(x=>x.rows.forEach(r=>{const k=nkey(r.name);if(!by.has(k))by.set(k,{name:r.name,rows:[],n:0,live:false});const o=by.get(k);o.rows.push(r);o.n++;if(!r.final)o.live=true}));
+  const people=[...by.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const perMonth=pick.map(x=>({m:x.m,i:x.i,n:x.rows.length,fin:x.fin,vals:sumVals(x.rows)}));
+  return{y,months,pick,people,perMonth};
+}
+function fillSumTable(t,head,rows,total){
+  t.replaceChildren();t.append(el("tr",{},head.map((h,i)=>el("th",{class:i?"n":"",text:h}))));
+  rows.forEach(r=>t.append(el("tr",{},r.map((v,i)=>el("td",{class:i?"n":"",text:v})))));
+  if(total)t.append(el("tr",{},total.map((v,i)=>el("td",{class:"chg"+(i?" n":""),text:v}))));
+  if(!rows.length)t.append(el("tr",{},el("td",{class:"empty",colspan:head.length,text:"没有资料"})));
+}
+function renderSummaries(){
+  if(!$("msTbl")||!isMgr)return;
+  const {m,rows}=monthSummaryData(),H=["姓名"].concat(SUM_COLS.map(c=>c[0]));
+  const fin=rows.length&&rows.every(r=>r.final);
+  $("msNote").textContent=m?(m+" · "+rows.length+" 人 · "+(fin?"已确认":rows.some(r=>r.final)?"部分已确认":"还没确认（数字是即时计算）")):"";
+  fillSumTable($("msTbl"),H,rows.map(r=>[r.name].concat(SUM_COLS.map(([,,f])=>n2(Number(f(r.c,r))||0)))),rows.length?["合计 "+rows.length+" 人"].concat(sumVals(rows).map(n2)):null);
+  const ys=$("ysYear");if(!ys.value)ys.value=(m||todayKL()).slice(0,4);
+  const d=yearSummaryData(),box=$("ysMonths");
+  if(box.dataset.y!==d.y||!box.children.length){
+    box.dataset.y=d.y;box.replaceChildren();
+    for(let i=1;i<=12;i++){const cb=el("input",{type:"checkbox",style:"width:auto"});cb.dataset.i=i;cb.onchange=()=>{if(cb.checked)ysSel.set.add(i);else ysSel.set.delete(i);renderSummaries()};box.append(el("label",{class:"sub",style:"display:flex;gap:3px;align-items:center;margin-right:10px;white-space:nowrap"},cb,el("span",{text:i+"月"})))}
+  }
+  [...box.querySelectorAll("input")].forEach(cb=>{const x=d.months[Number(cb.dataset.i)-1];cb.checked=ysSel.set.has(x.i);const sp=cb.nextSibling;sp.textContent=x.i+"月"+(x.rows.length?(x.fin?" ✓":" *"):" ·");cb.parentNode.title=x.rows.length?(x.fin?"已确认":"还没确认，即时计算"):"这个月没有资料"});
+  const liveN=d.pick.filter(x=>x.rows.length&&!x.fin).length;
+  $("ysNote").textContent=d.pick.length?("已选 "+d.pick.length+" 个月"+(liveN?"，其中 "+liveN+" 个月还没确认（* 号，数字会随考勤和输入变动）":"，全部已确认")):"请勾选月份";
+  const all=d.people.flatMap(p=>p.rows);
+  fillSumTable($("ysTbl"),["姓名","月数"].concat(SUM_COLS.map(c=>c[0])),d.people.map(p=>[p.name+(p.live?" *":""),String(p.n)].concat(sumVals(p.rows).map(n2))),d.people.length?["合计 "+d.people.length+" 人",""].concat(sumVals(all).map(n2)):null);
+  fillSumTable($("ysMon"),["月份","人数"].concat(SUM_COLS.map(c=>c[0])),d.perMonth.map(x=>[MON3[x.i-1]+" "+d.y+(x.fin?"":" *"),String(x.n)].concat(x.vals.map(n2))),d.perMonth.length?["合计",""].concat(sumVals(all).map(n2)):null);
+}
+const spanOfYear=d=>{const a=d.pick.map(x=>x.i).sort((p,q)=>p-q);return a.length===12?d.y:d.y+"_"+a.map(i=>String(i).padStart(2,"0")).join("_")};
+async function summaryPdf(body,btn,fallback){
+  const msg=$("payNote");if(btn)btn.disabled=true;
+  try{
+    const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/summary-pdf",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
+    await ATT.downloads.save({filename:decodeURIComponent(res.headers.get("X-File-Name")||fallback),data:await res.blob()});
+  }catch(e){msg.append(" ",el("span",{class:"pill bad",text:"汇总下载失败："+(e&&e.message||e)}))}
+  if(btn)btn.disabled=false;
+}
+$("msCsv").onclick=async()=>{const {m,rows}=monthSummaryData();if(!rows.length)return;await download("payroll-summary-"+m+".csv",[["姓名"].concat(SUM_COLS.map(c=>c[0]))].concat(rows.map(r=>[r.name].concat(SUM_COLS.map(([,,f])=>n2(Number(f(r.c,r))||0)))),[["合计"].concat(sumVals(rows).map(n2))]))};
+$("msPdf").onclick=()=>{const {m,rows}=monthSummaryData();if(!rows.length)return;const [y,mo]=m.split("-");
+  summaryPdf({title:"PAYROLL SUMMARY - "+MONTH_NAMES[+mo-1]+" "+y,subtitle:rows.length+" staff"+(rows.every(r=>r.final)?" · confirmed":" · not yet confirmed"),span:y+"_"+mo,
+    sections:[{columns:["Name"].concat(SUM_COLS.map(c=>c[1])),rows:rows.map(r=>[r.name].concat(SUM_COLS.map(([,,f])=>n2(Number(f(r.c,r))||0)))),total:["TOTAL"].concat(sumVals(rows).map(n2))}],notes:["Amounts in RM. Er = employer's contribution (not deducted from the salary). Total cost = gross + employer EPF, SOCSO and EIS."]},$("msPdf"),"PAYROLL SUMMARY-"+y+"_"+mo+".pdf")};
+$("ysYear").onchange=()=>{ysSel=null;$("ysMonths").replaceChildren();renderSummaries()};
+$("ysAll").onclick=()=>{yearSummaryData();for(let i=1;i<=12;i++)ysSel.set.add(i);renderSummaries()};
+$("ysNone").onclick=()=>{yearSummaryData();ysSel.set.clear();renderSummaries()};
+$("ysFin").onclick=()=>{const d=yearSummaryData();ysSel.set=new Set(d.months.filter(x=>x.fin).map(x=>x.i));renderSummaries()};
+$("ysCsv").onclick=async()=>{const d=yearSummaryData();if(!d.people.length)return;const all=d.people.flatMap(p=>p.rows);
+  await download("payroll-summary-"+spanOfYear(d)+".csv",[["姓名","月数"].concat(SUM_COLS.map(c=>c[0]))].concat(d.people.map(p=>[p.name,p.n].concat(sumVals(p.rows).map(n2))),[["合计",""].concat(sumVals(all).map(n2))],[[]],[["月份","人数"].concat(SUM_COLS.map(c=>c[0]))],d.perMonth.map(x=>[x.m,x.n].concat(x.vals.map(n2)))))};
+$("ysPdf").onclick=()=>{const d=yearSummaryData();if(!d.people.length)return;const all=d.people.flatMap(p=>p.rows),span=spanOfYear(d),live=d.pick.some(x=>x.rows.length&&!x.fin);
+  summaryPdf({title:"PAYROLL SUMMARY - "+d.y,subtitle:"Months: "+d.pick.map(x=>MON3[x.i-1]).join(", "),span,
+    sections:[{heading:"Per employee (selected months)",columns:["Name","Months"].concat(SUM_COLS.map(c=>c[1])),rows:d.people.map(p=>[p.name+(p.live?" *":""),String(p.n)].concat(sumVals(p.rows).map(n2))),total:["TOTAL",""].concat(sumVals(all).map(n2))},
+      {heading:"Per month",columns:["Month","Staff"].concat(SUM_COLS.map(c=>c[1])),rows:d.perMonth.map(x=>[MON3[x.i-1]+" "+d.y+(x.fin?"":" *"),String(x.n)].concat(x.vals.map(n2))),total:["TOTAL",""].concat(sumVals(all).map(n2))}],
+    notes:["Amounts in RM. Er = employer's contribution (not deducted from the salary)."+(live?" * = month not yet confirmed (figures calculated live).":"")]},$("ysPdf"),"PAYROLL SUMMARY-"+span+".pdf")};
+
 const plAll=()=>{const m=$("pmon").value;payslipPdf(plData(m),m,$("plPdf"))};
 async function plCsv(){
   const m=$("pmon").value,rows=plData(m).filter(r=>r.c);

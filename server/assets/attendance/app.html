@@ -236,7 +236,8 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <div class="sub" id="payNote"></div>
     </div>
     <div class="card">
-      <div class="hd"><strong>本地员工工资 Local Staff Payroll</strong><span class="actions"><button class="btn" id="plPdf">下载全部工资单 PDF</button><button class="btn alt" id="plCsv">导出 CSV</button></span></div>
+      <div class="hd"><strong>本地员工工资 Local Staff Payroll</strong><span class="actions"><button class="btn" id="plFinal">确认本月工资</button><button class="btn alt" id="plReopen">重新打开本月</button><button class="btn" id="plPdf">下载全部工资单 PDF</button><button class="btn alt" id="plCsv">导出 CSV</button></span></div>
+      <div class="sub" id="plState"></div>
       <div class="sub">出勤、OT、无薪假直接来自考勤（点数字可以看是哪几天）。基本工资、出生日期、国籍从 HR 的员工资料读。蓝色格自己填：津贴、奖金、提成、其他（可以是负数）、PCB。预支来自「报告」里的预支记录。EPF、SOCSO、SKBBK、EIS 自动算。</div>
       <div class="tw"><table id="plTbl"></table></div>
     </div>
@@ -247,6 +248,12 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <details style="margin-top:8px"><summary class="sub">会计科目设置（名称和代码，只用设置一次）</summary>
         <div class="sub" style="margin-top:8px">Bukku 导入用科目代码。付款银行、KWSP / PERKESO / LHDN：</div><div class="row" id="bkSet" style="margin-top:6px"></div>
         <div class="sub" style="margin-top:8px">分录科目：</div><div class="row" id="jvAcc" style="margin-top:6px"></div></details>
+    </div>
+    <div class="card">
+      <div class="hd"><strong>EA 表格 Form EA (C.P.8A)</strong><span class="actions"><label style="display:flex;gap:6px;align-items:center">年份<input id="eaYear" type="number" min="2020" max="2100" style="width:90px"></label><button class="btn" id="eaAll">下载全部 EA PDF</button></span></div>
+      <div class="sub">金额 = 已「确认」的月份合计，再加上你补录的「系统以前的月份」。(a) 薪金 = 总收入扣除提成；(b) 佣金 / 奖金 = 提成；PCB、EPF、SOCSO + EIS 都是员工扣的部分。CP38、Zakat、子女减免要手动填。员工的 TIN、EPF / SOCSO 号码、子女数、入职日期来自员工资料。</div>
+      <div id="eaBox"></div><div id="eaMsg"></div>
+      <details style="margin-top:8px"><summary class="sub">雇主资料（印在 EA 上，只用设置一次）</summary><div class="row" id="eaSet" style="margin-top:8px"></div></details>
     </div>
     <div class="card">
       <div class="hd"><strong>进 Bukku（工资算好以后）</strong></div>
@@ -468,7 +475,7 @@ const n2=x=>(Math.round((x+1e-9)*100)/100).toFixed(2);
 const r2=x=>Math.round((x+Number.EPSILON)*100)/100;
 const TYPES={F:"外劳",L:"本地",P:"兼职"};
 
-let pinp={},emps=[],empsErr='',pacct={};
+let pinp={},emps=[],empsErr='',pacct={},easet={};
 let db=null,user=null,isMgr=false,roster=[],lists={reasons:[],ptReasons:[],mgr:["KELVIN","BRYAN"]},entries=[],appr={},advs=[],padj={},pay={monthly:1900,days:26,daily:73.08,ot:9.1,mgmt:500};
 const VIEW=new URLSearchParams(location.search).get("view")||"";   // 'payroll' = only the payroll (HR > Payroll); 'attendance' = everything but the payroll (HR > Attendance)
 try{db=await ATT.init();isMgr=ATT.mgr;if(ATT.name){const h=document.querySelector("h1");if(h)h.textContent=ATT.name+(VIEW==="payroll"?" 工资 Payroll":" 考勤")}}
@@ -834,12 +841,13 @@ function plData(m){
     const r={name:o.name,id,emp,inp,days:o.days,ot:0,hours:hrs,unpaid:0,pend:o.pend,adv,wages:true,wageBasic:r2(hrs*(o.rate||0))};
     if(emp)r.c=STAT.calc({month:m,basic:r.wageBasic,otHours:0,unpaidDays:0,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
     return r});
+  const snapOf=r=>{const sn=r.inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true;r.days=sn.days!=null?sn.days:r.days;r.hours=sn.hours!=null?sn.hours:r.hours;r.ot=sn.ot!=null?sn.ot:r.ot;r.unpaid=sn.unpaid!=null?sn.unpaid:r.unpaid}return r};
   return slData(m).map(o=>{
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
     const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advOf(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
     if(emp)r.c=STAT.calc({month:m,basic:emp.basic,otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
-    return r}).concat(pt);
+    return snapOf(r)}).concat(pt.map(snapOf));
 }
 const PL_COLS=[["基本工资","basic"],["无薪扣除","unpaidDeduction"],["OT工资","otPay"],["津贴","allowance","in"],["奖金","incentive","in"],["提成","commission","in"],["其他","other","in"],["总收入","gross"],
   ["EPF","epfEmployee"],["SOCSO","socsoEmployee"],["SKBBK","skbbkEmployee"],["EIS","eisEmployee"],["PCB","pcb","in"],["总扣除","totalDeduction"],["预支","advance"],["实发","net"],
@@ -853,6 +861,8 @@ function renderPay(){
   else{const miss=rows.filter(r=>!r.emp);if(miss.length)note.append(el("span",{class:"pill warn",text:"HR 的员工资料里找不到："+miss.map(r=>r.name).join("、")+"（请到 HR > 薪资 新增，名字要一样）"}));
     const pend=rows.reduce((s,r)=>s+r.pend,0);note.append(" ",el("span",{class:"pill "+(pend?"warn":"ok"),text:pend?`还有 ${pend} 条考勤待审批，审批完工资才准确`:"考勤都已处理"}));
     note.append(" ",el("span",{class:"sub",text:"PCB 先手动填入。SKBBK 从 2026-06 起。外劳是外包，不在这里扣 EPF / SOCSO。兼职按「总工时 × 时薪」当基本工资（Wages）。"}))}
+  const nFinal=rows.filter(r=>r.final).length;
+  $("plState").textContent=nFinal?(nFinal===rows.filter(r=>r.c).length?"这个月的工资已经确认（数字已锁定，给 EA 用）。要改请先「重新打开本月」。":`已确认 ${nFinal} 人，其余还没确认。`):"这个月还没确认。确认后数字会锁定，EA 表格用已确认的月份。";
   t.replaceChildren();
   t.append(el("tr",{},["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0]),["工资单"]).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
   const tot={};
@@ -863,6 +873,7 @@ function renderPay(){
     PL_COLS.forEach(([lab,k,ed])=>{
       if(!r.c){tr.append(el("td",{class:"n",text:"—"}));return}
       const v=k==="advance"?r.adv:r.c[k];tot[k]=(tot[k]||0)+(Number(v)||0);
+      if(ed==="in"&&r.final){tr.append(el("td",{class:"n",text:n2(r.c[k])}));return}
       if(ed==="in"){const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab});
         i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;
           try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
@@ -881,6 +892,7 @@ function renderPay(){
     d.append(el("tr",{},el("td",{text:a[0]}),el("td",{class:"n",text:n2(a[1])}),el("td",{class:"n",text:n2(a[2])}),el("td",{class:"n",text:n2(a[3])}))));
   d.append(el("tr",{},el("td",{class:"chg",text:"合计"}),el("td",{class:"n chg"}),el("td",{class:"n chg"}),el("td",{class:"n chg",text:n2(r2(epfT+socT+eisT+pcbT))})));
   renderJv(rows,m);
+  renderEa();
 }
 /* ---------- the payroll journals of the month (MINIFISH files them as Journal Entry vouchers) ---------- */
 const JV_ACC=[["salaries","Salaries"],["wages","Wages"],["ot","Overtime"],["allowance","Allowance"],["incentive","Incentive"],["commission","Commission"],["other","Other"],
@@ -1000,12 +1012,73 @@ async function jvDownload(){
   }catch(e){msg.append(" ",el("span",{class:"pill bad",text:"会计分录下载失败："+(e&&e.message||e)}))}
   b.disabled=false;
 }
+async function plFinalize(){
+  const m=$("pmon").value,rows=plData(m).filter(r=>r.c&&!r.final);
+  if(!rows.length)return $("plState").textContent="没有需要确认的人（要先在 HR 加好员工资料）";
+  const pend=rows.reduce((s,r)=>s+r.pend,0);
+  if(!confirm((pend?`还有 ${pend} 条考勤待审批，确认后这些数字会锁定。\n`:"")+`确认 ${m} 的工资（${rows.length} 人）？确认后数字锁定，EA 表格会用这些数字。`))return;
+  for(const r of rows){await db.doc("payroll/"+r.id).set({...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now(),finalAt:Date.now(),snap:{c:r.c,days:r.days,hours:r.hours,ot:r.ot,unpaid:r.unpaid}})}
+}
+async function plReopen(){
+  const m=$("pmon").value,rows=plData(m).filter(r=>r.final);
+  if(!rows.length)return;
+  if(!confirm(`重新打开 ${m} 的工资（${rows.length} 人）？之前锁定的数字会失效，要重新确认。`))return;
+  for(const r of rows){const d={...(pinp[r.id]||{})};delete d.snap;delete d.finalAt;d.ts=Date.now();await db.doc("payroll/"+r.id).set(d)}
+}
+/* ---------- Form EA: the year's totals of the finalized months (+ what was paid before the system) ---------- */
+const EA_NUM=[["preA","(a) 薪金"],["preB","(b) 佣金奖金"],["prePcb","PCB"],["preEpf","EPF"],["preSocso","SOCSO+EIS"]];
+function eaData(year){
+  const names=[...new Set(roster.filter(s=>s.type!=="F").map(s=>s.name).concat(Object.values(pinp).filter(d=>d&&d.snap&&String(d.month||"").startsWith(year)).map(d=>d.name)))];
+  return names.map(name=>{
+    const emp=empOf(name),snaps=Object.values(pinp).filter(d=>d&&d.name===name&&d.snap&&d.snap.c&&String(d.month||"").startsWith(year)),ea=pinp["EA_"+year+"_"+slug(name)]||{};
+    const sum=f=>r2(snaps.reduce((s,d)=>s+(Number(f(d.snap.c))||0),0)),n=k=>Number(ea[k])||0;
+    const sys={a:sum(c=>c.gross-c.commission),b:sum(c=>c.commission),pcb:sum(c=>c.pcb),epf:sum(c=>c.epfEmployee),socso:sum(c=>c.socsoEmployee+c.skbbkEmployee+c.eisEmployee)};
+    return{name,emp,ea,id:"EA_"+year+"_"+slug(name),months:snaps.length,sys,
+      tot:{a:r2(sys.a+n("preA")),b:r2(sys.b+n("preB")),pcb:r2(sys.pcb+n("prePcb")),epf:r2(sys.epf+n("preEpf")),socso:r2(sys.socso+n("preSocso"))}}});
+}
+function renderEa(){
+  const box=$("eaBox"),year=$("eaYear").value;if(!box||!isMgr||!year)return;
+  if(box.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")return;
+  const rows=eaData(year);box.replaceChildren();
+  const t=el("table",{});
+  t.append(el("tr",{},["姓名","已确认月数","系统 (a)","系统 (b)","系统 PCB","系统 EPF","系统 SOCSO+EIS"].concat(EA_NUM.map(x=>"补录 "+x[1]),["CP38","Zakat","子女减免","合计 (a)","合计 (b)","合计 PCB","合计 EPF","合计 SOCSO","EA"]).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
+  rows.forEach(r=>{
+    const tr=el("tr",{},el("td",{text:r.name}),el("td",{class:"n",text:String(r.months)}));
+    ["a","b","pcb","epf","socso"].forEach(k=>tr.append(el("td",{class:"n",text:n2(r.sys[k])})));
+    const inp=(k)=>{const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.ea[k]!=null?String(r.ea[k]):"","aria-label":r.name+" "+k});
+      i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const d={...(pinp[r.id]||{}),name:r.name,year,ts:Date.now()};if(x==null)delete d[k];else d[k]=x;try{await db.doc("payroll/"+r.id).set(d)}catch(e){}};return el("td",{class:"n"},i)};
+    EA_NUM.forEach(([k])=>tr.append(inp(k)));["cp38","zakat","childRelief"].forEach(k=>tr.append(inp(k)));
+    ["a","b","pcb","epf","socso"].forEach(k=>tr.append(el("td",{class:"n chg",text:n2(r.tot[k])})));
+    const pb=el("button",{class:"btn alt",text:"PDF"});pb.disabled=!r.emp;pb.title=r.emp?"":"HR 员工资料里没有这个人";pb.onclick=()=>eaPdf([r],year,pb);tr.append(el("td",{class:"n"},pb));
+    t.append(tr)});
+  if(!rows.length)t.append(el("tr",{},el("td",{class:"empty",colspan:20,text:"没有本地 / 兼职员工"})));
+  box.append(el("div",{class:"tw"},t));
+  const es=$("eaSet");
+  if(es&&!es.contains(document.activeElement)){
+    es.replaceChildren();
+    [["employerE","雇主 E 号码"],["lhdnState","LHDNM 分行 State"],["officerName","负责人姓名 Name of Officer"],["officerDesignation","职位 Designation"],["phone","雇主电话"]].forEach(([k,lab])=>{
+      const i=el("input",{class:"mgr",value:easet[k]||"","aria-label":lab});i.onchange=async()=>{try{await db.doc("settings/ea").set({...easet,[k]:i.value.trim()})}catch(e){}};es.append(el("label",{},lab,i))})}
+}
+async function eaPdf(list,year,btn){
+  const msg=$("eaMsg");msg.replaceChildren();
+  const ok=list.filter(r=>r.emp);if(!ok.length)return msg.append(el("span",{class:"pill warn",text:"HR 员工资料里没有这些人"}));
+  if(btn)btn.disabled=true;
+  try{
+    const n=(r,k)=>Number(r.ea[k])||0;
+    const body={year,items:ok.map(r=>({empId:r.emp.id,a:r.tot.a,b:r.tot.b,pcb:r.tot.pcb,epf:r.tot.epf,socso:r.tot.socso,cp38:n(r,"cp38"),zakat:n(r,"zakat"),childRelief:n(r,"childRelief")}))};
+    const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/ea",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
+    await ATT.downloads.save({filename:decodeURIComponent(res.headers.get("X-File-Name")||("EA-"+year+".pdf")),data:await res.blob()});
+    msg.append(el("span",{class:"pill ok",text:"已下载 EA（"+ok.length+" 人）"}));
+  }catch(e){msg.append(el("span",{class:"pill bad",text:"EA 下载失败："+(e&&e.message||e)}))}
+  if(btn)btn.disabled=false;
+}
 async function payslipPdf(list,m,btn){
   const msg=$("payNote");const rows=list.filter(r=>r.emp&&r.c);
   if(!rows.length)return;
   if(btn)btn.disabled=true;
   try{
-    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,wages:!!r.wages,basic:r.wageBasic,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:r.inp.commission,other:r.inp.other,advance:r.adv,pcb:r.inp.pcb}))};
+    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,snap:r.final?r.c:undefined,wages:!!r.wages,basic:r.wageBasic,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:r.inp.commission,other:r.inp.other,advance:r.adv,pcb:r.inp.pcb}))};
     const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/payslips",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
     const name=decodeURIComponent(res.headers.get("X-File-Name")||("Salary-Voucher-"+m+".pdf"));
@@ -1103,7 +1176,7 @@ function fillNames(){
   fillFName();
 }
 function fillFName(){const f=$("fname"),keep=f.value,t=$("ftype").value;f.replaceChildren(el("option",{value:"",text:"全部"}));roster.filter(s=>s.type===t).forEach(s=>f.append(el("option",{value:s.name,text:s.name})));if([...f.options].some(o=>o.value===keep))f.value=keep}
-$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);bkDates(true);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("plPdf").onclick=()=>plAll();$("jvPdf").onclick=()=>jvDownload();$("bkJe").onclick=()=>bkJournal();$("bkSal").onclick=()=>bkSalary();$("bkStat").onclick=()=>bkStatutory();
+$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);bkDates(true);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("plPdf").onclick=()=>plAll();$("plFinal").onclick=()=>plFinalize();$("plReopen").onclick=()=>plReopen();$("jvPdf").onclick=()=>jvDownload();$("eaYear").value=new Date().getFullYear();$("eaYear").onchange=renderEa;$("eaAll").onclick=()=>eaPdf(eaData($("eaYear").value).filter(r=>r.months||Object.keys(r.ea).length),$("eaYear").value,$("eaAll"));$("bkJe").onclick=()=>bkJournal();$("bkSal").onclick=()=>bkSalary();$("bkStat").onclick=()=>bkStatutory();
 $("pmon").addEventListener("change",()=>{bkDates(true)});$("advDate").value=todayKL();
 $("who").textContent=isMgr?"店长视图":"员工打卡（无审批权限）";
 if(VIEW==="payroll"){$("tabs").hidden=true;["clock","appr","rec","sum","ros"].forEach(id=>$(id).hidden=true);$("pay").hidden=false;$("who").textContent=isMgr?"":"";
@@ -1129,6 +1202,7 @@ if(db){
   if(isMgr){
     db.collection("payroll").onSnapshot(s=>{pinp={};s.docs.forEach(d=>pinp[d.id]=d.data());renderAll()},()=>{});
     db.doc("settings/payacct").onSnapshot(s=>{pacct=s.exists?s.data():{};renderPay()});
+    db.doc("settings/ea").onSnapshot(s=>{easet=s.exists?s.data():{};renderPay()});
     loadEmps();
   }
 }

@@ -8,6 +8,7 @@ const docs = require('../lib/docs');
 const STAT = require('../lib/statutory');
 const { buildPayslipPdf } = require('../lib/payslipPdf');
 const { buildJournalPdf } = require('../lib/journalPdf');
+const { buildEaPdf } = require('../lib/eaPdf');
 
 const router = express.Router();
 
@@ -147,7 +148,8 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
   list.forEach((x, i) => {
     const e = byId.get(Number(x.empId));
     if (!e) return;
-    const c = STAT.calc({
+    const snap = x.snap && typeof x.snap === 'object' && Number.isFinite(Number(x.snap.net)) && Number.isFinite(Number(x.snap.gross)) ? x.snap : null;   // the month was finalized: its saved numbers
+    const c = snap || STAT.calc({
       month, basic: x.wages === true ? num(x.basic) : num(e.basic_salary), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
       commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN'
     });
@@ -224,6 +226,44 @@ router.post(BASE + '/journal', ...guard(3), async (req, res) => {
   const doc = buildJournalPdf(co, vouchers);
   const base = await docs.fileBase('journal_voucher', req.params.companyId, { PERIOD: month }, 'Journal-Entry-' + month);
   try { await docs.logEvent(req, req.params.companyId, 'journal_voucher', base + '.pdf', 'generated', [{ field: 'vouchers', from: '', to: String(vouchers.length) }]); } catch (e) { console.error('journal log failed:', e); }
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));
+  doc.pipe(res);
+  doc.end();
+});
+
+// Form EA (C.P.8A) for a year, one page per employee. The page sends the year's totals; the person's details come from the HR employee master,
+// the employer details from the EA settings of the page (settings/ea).
+router.post(BASE + '/ea', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, year = String(b.year || ''), list = Array.isArray(b.items) ? b.items : [];
+  if (!/^20\d{2}$/.test(year) || !list.length || list.length > 80) return bad(res, 'Invalid request');
+  const ids = [...new Set(list.map((x) => Number(x && x.empId)).filter((n) => Number.isInteger(n) && n > 0))];
+  const { rows: emps } = await pool.query(
+    `SELECT id, name, position, ic_no, id_type, epf_no, socso_no, tin_no, children, start_date FROM employees WHERE company_id = $1 AND id = ANY($2::int[])`,
+    [req.params.companyId, ids]);
+  const byId = new Map(emps.map((e) => [e.id, e]));
+  const co = (await pool.query('SELECT name, address FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
+  const st = (await pool.query("SELECT data FROM attendance_docs WHERE company_id = $1 AND path = 'settings/ea'", [req.params.companyId])).rows[0];
+  const set = Object.assign({}, st && st.data, { date: new Date().toISOString().slice(0, 10) });
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+  const items = [];
+  list.forEach((x) => {
+    const e = byId.get(Number(x.empId));
+    if (!e) return;
+    const start = e.start_date ? String(e.start_date).slice(0, 10) : '';
+    items.push({
+      name: e.name, position: e.position || '', staffNo: String(x.staffNo || '').slice(0, 30), ic: e.id_type === 'passport' ? '' : (e.ic_no || ''), passport: e.id_type === 'passport' ? (e.ic_no || '') : '',
+      epfNo: e.epf_no || '', socsoNo: e.socso_no || '', tin: e.tin_no || '', children: e.children, start: start.slice(0, 4) === year && start.slice(5, 10) !== '01-01' ? start : '', end: /^\d{4}-\d{2}-\d{2}$/.test(String(x.end || '')) ? x.end : '',
+      a: num(x.a), b: num(x.b), c: num(x.c), pcb: num(x.pcb), cp38: num(x.cp38), zakat: num(x.zakat), donation: num(x.donation), tp1Relief: num(x.tp1Relief), tp1Zakat: num(x.tp1Zakat),
+      childRelief: num(x.childRelief), fundName: 'KWSP (EPF)', epf: num(x.epf), socso: num(x.socso), exempt: num(x.exempt)
+    });
+  });
+  if (!items.length) return bad(res, '找不到这些员工。 Employees not found.');
+  const doc = buildEaPdf(co, set, year, items);
+  const base = await docs.fileBase('ea_form', req.params.companyId, { PERIOD: year, EMP: items.length === 1 ? docs.hyphenUpper(items[0].name) : 'ALL' }, 'EA-' + year);
+  try { await docs.logEvent(req, req.params.companyId, 'ea_form', base + '.pdf', 'generated', [{ field: 'forms', from: '', to: String(items.length) }]); } catch (e) { console.error('EA log failed:', e); }
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));

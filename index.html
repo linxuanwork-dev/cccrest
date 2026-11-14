@@ -727,6 +727,10 @@
         <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
       </button>
       <div class="nav-sub" id="nav-sub-hr" hidden>
+        <button class="nav-item" data-panel="panel-staff">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="nav-label" data-i18n="nav_staff_info">Staff Information</span>
+        </button>
         <button class="nav-item" data-panel="panel-payroll">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><circle cx="12" cy="13" r="2"/></svg>
           <span class="nav-label" data-i18n="nav_payroll">Payroll</span>
@@ -1294,10 +1298,9 @@
       </section>
 
       <!-- ---- PAYROLL ---- -->
-      <section class="panel" id="panel-payroll" hidden>
-        <div class="content-header"><h2 data-i18n="nav_payroll">Payroll</h2><span class="sub" id="payroll-sub">Select a company · employee payroll</span></div>
-        <div id="payroll-estimate-note" style="font-size:11.5px;color:var(--primary-soft);margin-bottom:16px;" data-i18n="payroll_estimate_note">EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.</div>
-
+      <!-- ---- HR > Staff Information: the employee master ---- -->
+      <section class="panel" id="panel-staff" hidden>
+        <div class="content-header"><h2 data-i18n="nav_staff_info">Staff Information</h2><span class="sub" id="staff-sub" data-i18n="staff_sub">Employee details used by Payroll, Attendance and the KWSP &amp; PERKESO forms</span></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div class="section-title" style="margin:0;" data-i18n="employees_label">Employees</div>
           <button type="button" class="btn-ghost" id="add-employee-btn" data-i18n="add_employee_btn">+ Add Employee</button>
@@ -1308,6 +1311,13 @@
             <tbody id="employees-tbody"></tbody>
           </table>
         </div>
+      </section>
+
+      <section class="panel" id="panel-payroll" hidden>
+        <div class="content-header"><h2 data-i18n="nav_payroll">Payroll</h2><span class="sub" id="payroll-sub">Select a company · employee payroll</span></div>
+        <iframe id="payroll-frame" title="Payroll" hidden style="width:100%;height:calc(100vh - 150px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
+        <div id="payroll-legacy">
+        <div id="payroll-estimate-note" style="font-size:11.5px;color:var(--primary-soft);margin-bottom:16px;" data-i18n="payroll_estimate_note">EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.</div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
           <div class="section-title" style="margin:0;" data-i18n="payroll_entries_label">Payroll</div>
@@ -1321,6 +1331,7 @@
             <thead><tr><th data-i18n="th_name">Name</th><th data-i18n="th_basic_salary">Basic</th><th data-i18n="th_net_pay">Net Pay</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
             <tbody id="payroll-tbody"></tbody>
           </table>
+        </div>
         </div>
       </section>
 
@@ -2596,7 +2607,7 @@
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
       no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
-      nav_payroll:"Payroll", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
+      nav_payroll:"Payroll", nav_staff_info:"Staff Information", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
       pf_info:"Company Information", pf_info_desc:"Information related to the company.", pf_legal:"Legal Name", pf_friendly:"Friendly Name (as shown in this system)", pf_regtype:"Registration No. Type", pf_regno:"Registration No.", pf_oldreg:"Old Registration No.", pf_tin:"TIN (e-Invoice)", pf_msic:"MSIC Code", pf_msicdesc:"MSIC Description", pf_tourism:"Tourism Tax Registration No.", pf_country:"Home Country", pf_currency:"Home Currency",
       pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
       pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
@@ -2887,7 +2898,7 @@
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
       no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
-      nav_payroll:"薪资", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
+      nav_payroll:"薪资", nav_staff_info:"员工资料", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
       pf_info:"公司信息", pf_info_desc:"公司的基本资料。", pf_legal:"法定名称", pf_friendly:"简称（系统内显示的名称）", pf_regtype:"注册号类型", pf_regno:"注册号", pf_oldreg:"旧注册号", pf_tin:"TIN（电子发票）", pf_msic:"MSIC 行业代码", pf_msicdesc:"行业说明", pf_tourism:"旅游税注册号", pf_country:"所在国家", pf_currency:"本位币",
       pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
       pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
@@ -3463,7 +3474,7 @@
       if(pf2 && pf2.contentWindow) pf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
       var sf2 = document.getElementById('stock-frame');
       if(sf2 && sf2.contentWindow) sf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
-      ['tuition-frame', 'contact-frame', 'mtclaim-frame', 'attendance-frame'].forEach(function(id){
+      ['tuition-frame', 'contact-frame', 'mtclaim-frame', 'attendance-frame', 'payroll-frame'].forEach(function(id){
         var tf2 = document.getElementById(id);
         if(tf2 && tf2.contentWindow) tf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
       });
@@ -4329,18 +4340,28 @@
       }
     };
     var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    var resetPayroll = function(){ var pf = document.getElementById('payroll-frame'), legacy = document.getElementById('payroll-legacy'); if(pf && legacy){ pf.hidden = true; legacy.hidden = false; } };
     if(!companyId){ if(COMPANIES && COMPANIES.length) show(false); return; }
     var mine = ++attendanceReq;
     api('/companies/' + companyId + '/attendance').then(function(cfg){
       if(mine !== attendanceReq) return;
-      if(!cfg.enabled){ show(false); return; }
+      if(!cfg.enabled){ resetPayroll(); show(false); return; }
       sub.textContent = currentCompany + ' · ' + t('att_sub');
       show(true);
       if(frame.dataset.loadedFor !== String(companyId)){
         frame.dataset.loadedFor = String(companyId);
-        frame.src = '/api/attendance/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+        frame.src = '/api/attendance/app?view=attendance&company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
       }
-    }).catch(function(){ if(mine === attendanceReq) show(false); });   // not available to this user: no menu item
+      // HR > Payroll: where Attendance is on, the monthly payroll (from the attendance) is shown here; otherwise the simple payroll below stays
+      var pf = document.getElementById('payroll-frame'), legacy = document.getElementById('payroll-legacy');
+      if(pf && legacy){
+        pf.hidden = false; legacy.hidden = true;
+        if(pf.dataset.loadedFor !== String(companyId)){
+          pf.dataset.loadedFor = String(companyId);
+          pf.src = '/api/attendance/app?view=payroll&company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+        }
+      }
+    }).catch(function(){ if(mine === attendanceReq){ resetPayroll(); show(false); } });   // not available to this user: no menu item
   }
 
   // ---- Tuition & Allowance (CC CREST people only; menu item and page appear where the Owner switched it on for the company) ----
@@ -6708,7 +6729,7 @@
   }
 
   // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
-  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-attendance':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-tuition':'tuition', 'panel-contact':'tuition', 'panel-mtclaim':'tuition', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-staff':'payroll', 'panel-attendance':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-tuition':'tuition', 'panel-contact':'tuition', 'panel-mtclaim':'tuition', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
   function applyPageAccess(){
     if(CURRENT_ROLE !== 'staff') return;
     var rec = customerRecord(currentCompany);

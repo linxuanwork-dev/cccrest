@@ -470,7 +470,8 @@ const TYPES={F:"外劳",L:"本地",P:"兼职"};
 
 let pinp={},emps=[],empsErr='',pacct={};
 let db=null,user=null,isMgr=false,roster=[],lists={reasons:[],ptReasons:[],mgr:["KELVIN","BRYAN"]},entries=[],appr={},advs=[],padj={},pay={monthly:1900,days:26,daily:73.08,ot:9.1,mgmt:500};
-try{db=await ATT.init();isMgr=ATT.mgr;if(ATT.name){const h=document.querySelector("h1");if(h)h.textContent=ATT.name+" 考勤"}}
+const VIEW=new URLSearchParams(location.search).get("view")||"";   // 'payroll' = only the payroll (HR > Payroll); 'attendance' = everything but the payroll (HR > Attendance)
+try{db=await ATT.init();isMgr=ATT.mgr;if(ATT.name){const h=document.querySelector("h1");if(h)h.textContent=ATT.name+(VIEW==="payroll"?" 工资 Payroll":" 考勤")}}
 catch(e){document.querySelector(".wrap").append(el("div",{class:"msg pill bad",text:"无法打开考勤："+(e&&e.message||e)}))}
 
 const stByName=n=>roster.find(s=>s.name===n);
@@ -1089,7 +1090,7 @@ function openForm(st,keep){
 
 /* ---------- wiring ---------- */
 function renderAll(){
-  renderAppr();if(isMgr){["tabRec","tabSum","tabPay","tabRos"].forEach(i=>$(i).hidden=false);renderRec();renderSum();renderPay();renderRoster();renderPayPar()}
+  renderAppr();if(isMgr){["tabRec","tabSum",...(VIEW==="attendance"?[]:["tabPay"]),"tabRos"].forEach(i=>$(i).hidden=false);renderRec();renderSum();renderPay();renderRoster();renderPayPar()}
   renderGrid(false);
 }
 function fillNames(){
@@ -1105,6 +1106,8 @@ function fillFName(){const f=$("fname"),keep=f.value,t=$("ftype").value;f.replac
 $("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);bkDates(true);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("plPdf").onclick=()=>plAll();$("jvPdf").onclick=()=>jvDownload();$("bkJe").onclick=()=>bkJournal();$("bkSal").onclick=()=>bkSalary();$("bkStat").onclick=()=>bkStatutory();
 $("pmon").addEventListener("change",()=>{bkDates(true)});$("advDate").value=todayKL();
 $("who").textContent=isMgr?"店长视图":"员工打卡（无审批权限）";
+if(VIEW==="payroll"){$("tabs").hidden=true;["clock","appr","rec","sum","ros"].forEach(id=>$(id).hidden=true);$("pay").hidden=false;$("who").textContent=isMgr?"":"";
+  if(!isMgr)$("pay").replaceChildren(el("div",{class:"msg pill warn",text:"只有店长 / manager 可以看工资。"}))}
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
   ["clock","appr","rec","sum","pay","ros"].forEach(id=>$(id).hidden=id!==b.dataset.tab)});

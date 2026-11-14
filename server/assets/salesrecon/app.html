@@ -5,6 +5,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
 <style>
+html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of a wide table must not go back or refresh the page */
+.tw,.tbl-wrap,.table-card,.tbl,.scroll-x,[style*="overflow-x"],[style*="overflow:auto"]{overscroll-behavior-x:contain}
+
 :root{
   --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
   --accent:#0f6b6b; --accent-ink:#ffffff; --accent-soft:#e0f0ef;

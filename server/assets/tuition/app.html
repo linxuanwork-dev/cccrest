@@ -9,6 +9,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
+html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of a wide table must not go back or refresh the page */
+.tw,.tbl-wrap,.table-card,.tbl,.scroll-x,[style*="overflow-x"],[style*="overflow:auto"]{overscroll-behavior-x:contain}
+
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--mute:#6b7280;--line:#e5e7eb;--pri:#2457c5;--ok:#15803d;--okbg:#e8f6ec;--warn:#b45309;--warnbg:#fdf3e3;--bad:#b91c1c;--badbg:#fdecec;--info:#1e40af;--infobg:#e8effd}
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
 header{background:#fff;border-bottom:1px solid var(--line);padding:12px 18px;position:sticky;top:0;z-index:5}

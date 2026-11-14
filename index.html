@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Neuton:wght@400;700;800&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
 <style>
+html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of a wide table must not go back or refresh the page */
+.tw,.tbl-wrap,.table-card,.tbl,.scroll-x,[style*="overflow-x"],[style*="overflow:auto"]{overscroll-behavior-x:contain}
+
   :root{
     --bg:#ffffff;
     --surface:#f6f7f8;
@@ -2081,9 +2084,9 @@
       </div>
       <div class="modal-body">
         <div class="emp-ic-box">
-          <div style="font-weight:700;font-size:13px;margin-bottom:4px;" data-i18n="emp_ic_upload">Upload IC (photo of the front)</div>
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px;" data-i18n="emp_ic_upload">Upload IC (photo or PDF of the front)</div>
           <div style="font-size:12px;color:var(--primary-soft);margin-bottom:10px;" data-i18n="emp_ic_note">The name, IC no., date of birth, gender and address are read from the photo in your browser and filled in below (yellow = check it). The picture is saved with the employee.</div>
-          <input type="file" id="emp-ic-file" accept="image/jpeg,image/png,image/webp" multiple />
+          <input type="file" id="emp-ic-file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple />
           <div id="emp-ic-status" style="font-size:12.5px;margin-top:8px;"></div>
           <div class="emp-thumbs" id="emp-thumbs"></div>
         </div>
@@ -2115,6 +2118,7 @@
           <div class="field full"><label for="emp-marital" data-i18n="emp_marital">Marital status</label><select id="emp-marital"></select></div>
           <div class="field"><label for="emp-children" data-i18n="emp_children">No. of children</label><input type="number" min="0" max="30" step="1" id="emp-children" /></div>
           <div class="field"><label for="emp-disabled" data-i18n="emp_disabled">Disabled individual</label><select id="emp-disabled"></select></div>
+          <div class="field"><label for="emp-skbbk" data-i18n="emp_skbbk">SKBBK (from 1 Jun 2026)</label><select id="emp-skbbk"></select></div>
 
           <div class="emp-sec" data-i18n="emp_sec_bank">Bank</div>
           <div class="field"><label for="emp-bank-name" data-i18n="field_bank_name">Bank Name</label><input type="text" id="emp-bank-name" /></div>
@@ -2635,7 +2639,7 @@
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
       no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
-      nav_payroll:"Payroll", nav_sales_recon:"Daily Sales Reconciliation", srx_title:"Daily Sales Reconciliation", srx_desc:"Switch the daily sales reconciliation (POS, PingPong, bank, Grab, ShopeeFood, Foodpanda to Bukku files) on for a restaurant company. It appears in the Bookkeeping menu.", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", att_payonly:"Payroll only (no attendance: days, overtime and advances are typed in)", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
+      nav_payroll:"Payroll", nav_sales_recon:"Daily Sales Reconciliation", srx_title:"Daily Sales Reconciliation", srx_desc:"Switch the daily sales reconciliation (POS, PingPong, bank, Grab, ShopeeFood, Foodpanda to Bukku files) on for a restaurant company. It appears in the Bookkeeping menu.", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_skbbk:"SKBBK (from 1 Jun 2026)", emp_skbbk_on:"Deduct", emp_skbbk_off:"Opted out (not deducted)", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", att_payonly:"Payroll only (no attendance: days, overtime and advances are typed in)", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
       pf_info:"Company Information", pf_info_desc:"Information related to the company.", pf_legal:"Legal Name", pf_friendly:"Friendly Name (as shown in this system)", pf_regtype:"Registration No. Type", pf_regno:"Registration No.", pf_oldreg:"Old Registration No.", pf_tin:"TIN (e-Invoice)", pf_msic:"MSIC Code", pf_msicdesc:"MSIC Description", pf_tourism:"Tourism Tax Registration No.", pf_country:"Home Country", pf_currency:"Home Currency",
       pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
       pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
@@ -2649,7 +2653,7 @@
       payroll_estimate_note:"EPF/SOCSO/EIS are computed estimates — please verify against current official rates. PCB must be entered manually.",
       employees_label:"Employees", add_employee_btn:"+ Add Employee", payroll_entries_label:"Payroll", run_payroll_btn:"Run Payroll",
       th_name:"Name", th_position:"Position", th_basic_salary:"Basic Salary", th_net_pay:"Net Pay",
-      add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.", edit_employee_title:"Edit Employee", emp_ic_upload:"Upload IC (photo of the front)", emp_ic_note:"The name, IC no., date of birth, gender and address are read from the photo in your browser and filled in below (yellow = check it). The picture is saved with the employee.",
+      add_employee_title:"Add Employee", add_employee_sub:"Employee payroll record for this company.", edit_employee_title:"Edit Employee", emp_ic_upload:"Upload IC (photo or PDF of the front)", emp_ic_note:"The name, IC no., date of birth, gender and address are read from the photo in your browser and filled in below (yellow = check it). The picture is saved with the employee.",
       emp_ic_reading:"Reading the IC… (the first time it loads about 7 MB)", emp_ic_done:"IC read — please check the yellow fields.", emp_ic_none:"Could not read an IC number from this photo — type the details in.", emp_ic_fail:"Could not read the IC: ", emp_ic_saved:"IC images saved with the employee.",
       emp_id_type:"ID type", emp_dob:"Date of birth", emp_gender:"Gender", emp_gender_m:"Male (L)", emp_gender_f:"Female (P)", emp_race:"Race", emp_nationality:"Nationality", emp_address:"Address", emp_start:"Start date",
       emp_sec_job:"Job", emp_sec_stat:"EPF · SOCSO · tax", emp_sec_bank:"Bank", emp_tin:"TIN No.", emp_tax_status:"Tax status", emp_resident:"Resident", emp_nonresident:"Non-resident",
@@ -2926,7 +2930,7 @@
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
       no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
-      nav_payroll:"薪资", nav_sales_recon:"每日营业对账", srx_title:"每日营业对账", srx_desc:"为餐厅公司开通每日营业对账（POS、PingPong、银行、Grab、ShopeeFood、Foodpanda 对账并导出 Bukku 文件）。开通后会出现在 Bookkeeping 菜单里。", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", att_payonly:"只开薪资（不用考勤：OT、无薪假、预支每月手动填）", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
+      nav_payroll:"薪资", nav_sales_recon:"每日营业对账", srx_title:"每日营业对账", srx_desc:"为餐厅公司开通每日营业对账（POS、PingPong、银行、Grab、ShopeeFood、Foodpanda 对账并导出 Bukku 文件）。开通后会出现在 Bookkeeping 菜单里。", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_skbbk:"SKBBK（2026 年 6 月起）", emp_skbbk_on:"扣", emp_skbbk_off:"选择不扣（已退出）", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", att_payonly:"只开薪资（不用考勤：OT、无薪假、预支每月手动填）", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
       pf_info:"公司信息", pf_info_desc:"公司的基本资料。", pf_legal:"法定名称", pf_friendly:"简称（系统内显示的名称）", pf_regtype:"注册号类型", pf_regno:"注册号", pf_oldreg:"旧注册号", pf_tin:"TIN（电子发票）", pf_msic:"MSIC 行业代码", pf_msicdesc:"行业说明", pf_tourism:"旅游税注册号", pf_country:"所在国家", pf_currency:"本位币",
       pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
       pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
@@ -2940,7 +2944,7 @@
       payroll_estimate_note:"公积金/社保/就业保险为估算金额，请核对最新官方费率。所得税预扣（PCB）须手动输入。",
       employees_label:"员工", add_employee_btn:"+ 添加员工", payroll_entries_label:"薪资记录", run_payroll_btn:"发放薪资",
       th_name:"姓名", th_position:"职位", th_basic_salary:"基本薪资", th_net_pay:"实发薪资",
-      add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。", edit_employee_title:"编辑员工", emp_ic_upload:"上传 IC（正面照片）", emp_ic_note:"姓名、IC 号、出生日期、性别和地址会在你的浏览器里从照片读出并填在下面（黄色 = 请核对）。照片会和员工资料一起保存。",
+      add_employee_title:"添加员工", add_employee_sub:"该公司的员工薪资记录。", edit_employee_title:"编辑员工", emp_ic_upload:"上传 IC（正面照片或 PDF）", emp_ic_note:"姓名、IC 号、出生日期、性别和地址会在你的浏览器里从照片读出并填在下面（黄色 = 请核对）。照片会和员工资料一起保存。",
       emp_ic_reading:"正在读取 IC…（第一次要加载约 7 MB）", emp_ic_done:"已读取 IC，请核对黄色的栏位。", emp_ic_none:"这张照片读不到 IC 号，请手动填写。", emp_ic_fail:"读取 IC 失败：", emp_ic_saved:"IC 图片已和员工资料一起保存。",
       emp_id_type:"证件类型", emp_dob:"出生日期", emp_gender:"性别", emp_gender_m:"男 (L)", emp_gender_f:"女 (P)", emp_race:"种族", emp_nationality:"国籍", emp_address:"地址", emp_start:"入职日期",
       emp_sec_job:"工作", emp_sec_stat:"公积金 · 社保 · 税务", emp_sec_bank:"银行", emp_tin:"TIN 号", emp_tax_status:"税务身份", emp_resident:"居民", emp_nonresident:"非居民",
@@ -4368,6 +4372,7 @@
       }
     };
     var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    if(frame.dataset.loadedFor && frame.dataset.loadedFor !== String(companyId)){ frame.removeAttribute('src'); delete frame.dataset.loadedFor; }
     if(!companyId){ if(COMPANIES && COMPANIES.length) show(false); return; }
     var mine = ++salesReconReq;
     api('/companies/' + companyId + '/sales-recon').then(function(cfg){
@@ -4400,6 +4405,8 @@
       }
     };
     var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    // the page of the company that was open before must never stay on the screen under another company's name
+    ['attendance-frame', 'payroll-frame'].forEach(function(id){ var f = document.getElementById(id); if(f && f.dataset.loadedFor && f.dataset.loadedFor !== String(companyId)){ f.removeAttribute('src'); delete f.dataset.loadedFor; } });
     var resetPayroll = function(){ var pf = document.getElementById('payroll-frame'), legacy = document.getElementById('payroll-legacy'); if(pf && legacy){ pf.hidden = true; legacy.hidden = false; } };
     if(!companyId){ if(COMPANIES && COMPANIES.length) show(false); return; }
     var mine = ++attendanceReq;
@@ -5915,6 +5922,7 @@
     empEl('emp-tax').innerHTML = empOpts([['resident', t('emp_resident')], ['non_resident', t('emp_nonresident')]]);
     empEl('emp-marital').innerHTML = empOpts([['', t('emp_choose')], ['single', t('emp_m_single')], ['married_spouse_not_working', t('emp_m_spouse_not_working')], ['married_working_spouse', t('emp_m_working_spouse')], ['widow_divorced', t('emp_m_widow_divorced')]]);
     empEl('emp-disabled').innerHTML = empOpts([['false', t('emp_no')], ['true', t('emp_yes')]]);
+    empEl('emp-skbbk').innerHTML = empOpts([['false', t('emp_skbbk_on')], ['true', t('emp_skbbk_off')]]);
   }
   var EMP_FIELDS = ['emp-name','emp-id-type','emp-ic','emp-dob','emp-gender','emp-race','emp-nationality','emp-address','emp-position','emp-start','emp-salary','emp-active','emp-epf','emp-socso','emp-tin','emp-tax','emp-marital','emp-children','emp-disabled','emp-bank-name','emp-bank-account'];
 
@@ -5922,11 +5930,15 @@
     var wrap = empEl('emp-thumbs');
     var companyId = customerRecordId(currentCompany);
     var html = '';
+    var pdfTile = function(name){ return '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;font-size:11px;color:#333;padding:4px;text-align:center;"><b style="font-size:18px;color:#b42318;">PDF</b><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;">' + String(name || '').replace(/[&<>"]/g, '') + '</span></div>'; };
     (empState.saved || []).forEach(function(d){
-      html += '<div class="emp-thumb"><a href="/api/companies/' + companyId + '/employees/' + empState.id + '/documents/' + d.id + '" target="_blank"><img src="/api/companies/' + companyId + '/employees/' + empState.id + '/documents/' + d.id + '" alt="" /></a><button type="button" data-del-doc="' + d.id + '" aria-label="Remove">✕</button></div>';
+      var href = '/api/companies/' + companyId + '/employees/' + empState.id + '/documents/' + d.id;
+      var isPdf = d.mime === 'application/pdf';
+      html += '<div class="emp-thumb"><a href="' + href + '" target="_blank">' + (isPdf ? pdfTile(d.fileName) : '<img src="' + href + '" alt="" />') + '</a><button type="button" data-del-doc="' + d.id + '" aria-label="Remove">✕</button></div>';
     });
     empState.previews.forEach(function(p, i){
-      html += '<div class="emp-thumb"><img src="' + p + '" alt="" /><button type="button" data-del-pending="' + i + '" aria-label="Remove">✕</button></div>';
+      var f = empState.pending[i], isPdf = f && f.type === 'application/pdf';
+      html += '<div class="emp-thumb">' + (isPdf ? pdfTile(f.name) : '<img src="' + p + '" alt="" />') + '<button type="button" data-del-pending="' + i + '" aria-label="Remove">✕</button></div>';
     });
     wrap.innerHTML = html;
   }
@@ -5942,7 +5954,7 @@
     set('emp-position', e.position); set('emp-start', e.start_date ? String(e.start_date).slice(0, 10) : ''); set('emp-salary', e.basic_salary != null && emp ? Number(e.basic_salary) : '');
     set('emp-active', e.active === false ? 'false' : 'true'); set('emp-epf', e.epf_no); set('emp-socso', e.socso_no); set('emp-tin', e.tin_no);
     set('emp-tax', e.tax_resident || 'resident'); set('emp-marital', e.marital_status); set('emp-children', emp ? (e.children || 0) : 0);
-    set('emp-disabled', e.disabled ? 'true' : 'false'); set('emp-bank-name', e.bank_name); set('emp-bank-account', e.bank_account);
+    set('emp-disabled', e.disabled ? 'true' : 'false'); set('emp-bank-name', e.bank_name); set('emp-bank-account', e.bank_account); set('emp-skbbk', e.skbbk_opt_out ? 'true' : 'false');
     empEl('emp-ic-status').textContent = '';
     empState.salary = e.basic_salary != null && emp ? Number(e.basic_salary) : 0;
     set('emp-salary-eff', ''); set('emp-salary-reason', '');
@@ -5988,6 +6000,23 @@
       var s = document.createElement('script'); s.src = '/api/kwsp/assets/ocr.js'; s.onload = res; s.onerror = function(){ rej(new Error('OCR component')); }; document.head.appendChild(s);
     }));
   }
+  var empPdfLoaded = null;
+  function empLoadPdfJs(){
+    function load(src){ return new Promise(function(res, rej){ var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function(){ rej(new Error('PDF component')); }; document.head.appendChild(s); }); }
+    return empPdfLoaded || (empPdfLoaded = load('/api/kwsp/assets/vendor/pdf.min.js').then(function(){ return load('/api/kwsp/assets/vendor/pdf.worker.min.js'); }));
+  }
+  // the first page of a PDF as a picture (PNG file) for the OCR
+  function empPdfToImage(file){
+    return empLoadPdfJs().then(function(){ return file.arrayBuffer(); }).then(function(buf){
+      return window.pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
+    }).then(function(doc){ return doc.getPage(1); }).then(function(page){
+      var vp = page.getViewport({ scale: 2.2 }), c = document.createElement('canvas');
+      c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      return page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise.then(function(){
+        return new Promise(function(res){ c.toBlob(function(b){ res(new File([b], 'ic.png', { type: 'image/png' })); }, 'image/png'); });
+      });
+    });
+  }
   empEl('emp-ic-file').addEventListener('change', function(){
     var files = Array.prototype.slice.call(this.files); this.value = '';
     if(!files.length) return;
@@ -5995,7 +6024,9 @@
     status.style.color = ''; status.textContent = t('emp_ic_reading');
     files.forEach(function(f){ empState.pending.push(f); empState.previews.push(URL.createObjectURL(f)); });
     empThumbs();
-    empLoadOcr().then(function(){ return window.SSMOcr.readIdCard(files[0]); }).then(function(r){
+    var first = files[0];
+    var firstImg = first.type === 'application/pdf' ? empPdfToImage(first) : Promise.resolve(first);
+    empLoadOcr().then(function(){ return firstImg; }).then(function(img){ return window.SSMOcr.readIdCard(img); }).then(function(r){
       var put = function(id, v){ if(!v) return; empEl(id).value = v; empEl(id).classList.add('ocr'); };
       if(!r.ic){ status.textContent = t('emp_ic_none'); status.style.color = 'var(--danger)'; return; }
       put('emp-ic', r.ic); empEl('emp-id-type').value = 'B'; put('emp-name', r.name); put('emp-dob', r.dob); put('emp-gender', r.gender); put('emp-nationality', r.nationality); put('emp-address', r.address);
@@ -6030,7 +6061,7 @@
       address:v('emp-address').trim(), position:v('emp-position').trim(), startDate:v('emp-start'), basicSalary:Number(v('emp-salary')) || 0, active:v('emp-active') === 'true',
       epfNo:v('emp-epf').trim(), socsoNo:v('emp-socso').trim(), tinNo:v('emp-tin').trim(), taxResident:v('emp-tax'), maritalStatus:v('emp-marital'),
       children:Number(v('emp-children')) || 0, disabled:v('emp-disabled') === 'true', bankName:v('emp-bank-name').trim(), bankAccount:v('emp-bank-account').trim(),
-      salaryEffective:v('emp-salary-eff'), salaryReason:v('emp-salary-reason').trim()
+      salaryEffective:v('emp-salary-eff'), salaryReason:v('emp-salary-reason').trim(), skbbkOptOut:v('emp-skbbk') === 'true'
     };
     var btn = this;
     btn.disabled = true;

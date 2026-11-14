@@ -6,6 +6,9 @@
 <meta name="robots" content="noindex">
 <title>MT Claim Form</title>
 <style>
+html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of a wide table must not go back or refresh the page */
+.tw,.tbl-wrap,.table-card,.tbl,.scroll-x,[style*="overflow-x"],[style*="overflow:auto"]{overscroll-behavior-x:contain}
+
 :root{--bg:#f4f6f9;--card:#fff;--ink:#1c2430;--mute:#667085;--line:#d9dee6;--pri:#1f5fbf;--ok:#1a7f4b;--warn:#b26a00;--bad:#c0392b}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans SC","Microsoft YaHei",sans-serif}

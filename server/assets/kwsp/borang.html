@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KWSP & PERKESO 开户表格</title>
 <style>
+html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of a wide table must not go back or refresh the page */
+.tw,.tbl-wrap,.table-card,.tbl,.scroll-x,[style*="overflow-x"],[style*="overflow:auto"]{overscroll-behavior-x:contain}
+
 /* Layout: data-entry column on the left, sticky "print desk" on the right listing the 8 forms */
 :root {
   --bg: #eef1f6;

@@ -1,4 +1,7 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>
+html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of a wide table must not go back or refresh the page */
+.tw,.tbl-wrap,.table-card,.tbl,.scroll-x,[style*="overflow-x"],[style*="overflow:auto"]{overscroll-behavior-x:contain}
+:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>考勤 Attendance</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
 <style>
@@ -248,6 +251,13 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <details style="margin-top:8px"><summary class="sub">会计科目设置（名称和代码，只用设置一次）</summary>
         <div class="sub" style="margin-top:8px">Bukku 导入用科目代码。付款银行、KWSP / PERKESO / LHDN：</div><div class="row" id="bkSet" style="margin-top:6px"></div>
         <div class="sub" style="margin-top:8px">分录科目：</div><div class="row" id="jvAcc" style="margin-top:6px"></div></details>
+    </div>
+    <div class="card" id="advBox">
+      <div class="hd"><strong>预支记录 Advances</strong></div>
+      <div class="sub">员工预支时先在这里记下（日期、金额），不用马上扣。到算工资的那个月，系统会把还没扣的预支自动加起来，放进「预支」一栏；确认本月工资后，这些预支就标记为已扣。</div>
+      <div class="row"><label>员工<select id="pvName"></select></label><label>日期<input id="pvDate" type="date"></label><label>金额 RM<input id="pvAmt" class="mgr" inputmode="decimal" autocomplete="off"></label><label>备注<input id="pvNote" class="mgr" autocomplete="off"></label></div>
+      <div class="actions"><button class="btn" id="pvAdd">记下预支</button></div><div id="pvMsg"></div>
+      <div class="tw"><table id="pvTbl"></table></div>
     </div>
     <div class="card">
       <div class="hd"><strong>EA 表格 Form EA (C.P.8A)</strong><span class="actions"><label style="display:flex;gap:6px;align-items:center">年份<input id="eaYear" type="number" min="2020" max="2100" style="width:90px"></label><button class="btn" id="eaAll">下载全部 EA PDF</button></span></div>
@@ -737,6 +747,10 @@ async function csv(){
 /* ---------- reports ---------- */
 const incl=(st,m)=>st.active!=="N"||!st.resign||m+"-01"<st.resign;
 function monthEntries(st,m){return entries.filter(e=>e.name===st.name&&e.date.startsWith(m)).map(e=>{const r=dayCalc(st,e);return{e,r,pend:!r.ap&&needFlags(st,e).length>0}}).filter(x=>!x.r.rejected)}
+/* an advance is deducted in the payroll month that picks it up: the one it was marked for (deductedIn) or, until then, the first month run on or after its date */
+function advFor(name,m){
+  return advs.filter(a=>nkey(a.name)===nkey(name)&&(a.deductedIn?a.deductedIn===m:(a.date||"").slice(0,7)<=m)).reduce((t,a)=>t+(Number(a.amount)||0),0);
+}
 function advOf(name,m){return advs.filter(a=>a.name===name&&(a.date||"").startsWith(m)).reduce((t,a)=>t+(Number(a.amount)||0),0)}
 const LEAVES=["年假","病假","休假","补假","无故旷工","无薪假期"];
 function sfData(m){
@@ -838,24 +852,24 @@ const hrAvail=()=>emps.filter(e=>e.active!==false&&!roster.some(r=>nkey(r.name)=
 function plData(m){
   if(ATT.payrollOnly)return plDataManual(m);
   const pt=ptData(m).map(o=>{
-    const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{},hrs=o.reg+o.ot+o.ex,adv=advOf(o.name,m);
+    const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{},hrs=o.reg+o.ot+o.ex,adv=advFor(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:0,hours:hrs,unpaid:0,pend:o.pend,adv,wages:true,wageBasic:r2(hrs*(o.rate||0))};
-    if(emp)r.c=STAT.calc({month:m,basic:r.wageBasic,otHours:0,unpaidDays:0,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
+    if(emp)r.c=STAT.calc({month:m,basic:r.wageBasic,otHours:0,unpaidDays:0,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     return r});
   const snapOf=r=>{const sn=r.inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true;r.days=sn.days!=null?sn.days:r.days;r.hours=sn.hours!=null?sn.hours:r.hours;r.ot=sn.ot!=null?sn.ot:r.ot;r.unpaid=sn.unpaid!=null?sn.unpaid:r.unpaid}return r};
   return slData(m).map(o=>{
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
-    const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advOf(o.name,m);
+    const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advFor(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
-    if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
+    if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     return snapOf(r)}).concat(pt.map(snapOf));
 }
 /* a company without attendance: the rows are the HR employees (salaried); the overtime hours, unpaid days and advance are typed in each month */
 function plDataManual(m){
   return emps.filter(e=>e.active!==false).map(emp=>{
-    const id=slug(emp.name)+"_"+m,inp=pinp[id]||{},ot=Number(inp.otHours)||0,unpaid=Number(inp.unpaidDays)||0,adv=Number(inp.advance)||0;
+    const id=slug(emp.name)+"_"+m,inp=pinp[id]||{},ot=Number(inp.otHours)||0,unpaid=Number(inp.unpaidDays)||0,adv=advFor(emp.name,m);
     const r={name:emp.name,id,emp,inp,days:null,ot,hours:null,unpaid,pend:0,adv,manual:true};
-    r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
+    r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     const sn=inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true}
     return r});
 }
@@ -865,7 +879,7 @@ const PL_COLS=[["基本工资","basic"],["无薪扣除","unpaidDeduction"],["OT�
 function drill(name,m){$("mon").value=m;$("ftype").value="L";fillFName();$("fname").value=name;renderRec();document.querySelector('#tabs button[data-tab=rec]').click()}
 function renderPay(){
   const t=$("plTbl");if(!t||!isMgr)return;const m=$("pmon").value;if(!m)return;
-  if(t.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")return;   // do not redraw while typing
+  if(t.contains(document.activeElement)&&document.activeElement.tagName==="INPUT"&&document.activeElement.type!=="checkbox")return;   // do not redraw while typing
   const rows=plData(m),note=$("payNote");note.replaceChildren();
   if(empsErr)note.append(el("span",{class:"pill bad",text:"HR 员工资料："+empsErr}));
   else{const miss=rows.filter(r=>!r.emp);if(miss.length)note.append(el("span",{class:"pill warn",text:"HR 的员工资料里找不到："+miss.map(r=>r.name).join("、")+"（请到 HR > 薪资 新增，名字要一样）"}));
@@ -889,7 +903,11 @@ function renderPay(){
     PL_COLS.forEach(([lab,k,ed])=>{
       if(!r.c){tr.append(el("td",{class:"n",text:"—"}));return}
       const v=k==="advance"?r.adv:r.c[k];tot[k]=(tot[k]||0)+(Number(v)||0);
-      if(k==="advance"&&r.manual){tr.append(typed("advance","预支"));return}
+      if(k==="skbbkEmployee"&&r.emp&&!r.final&&m>=STAT.SKBBK_FROM&&!/FOREIGN/i.test(r.emp.nationality||"")){
+        const td=el("td",{class:"n"},n2(v)+" "),cb=el("input",{type:"checkbox",style:"width:auto;vertical-align:middle","aria-label":r.name+" SKBBK 不扣"});
+        cb.checked=!!r.emp.skbbkOptOut;const lab=el("label",{class:"sub",style:"white-space:nowrap;margin-left:4px"},cb," 不扣");lab.title="这个员工选择不参加 SKBBK（8 月 31 日前已提交，或新会员不想参加）";
+        cb.onchange=async()=>{cb.disabled=true;try{await ATT.http("POST","/employees/"+r.emp.id+"/skbbk",{optOut:cb.checked});await loadEmps()}catch(e){cb.checked=!cb.checked;alert((e&&e.message)||e)}cb.disabled=false};
+        td.append(lab);tr.append(td);return}
       if(ed==="in"&&r.final){tr.append(el("td",{class:"n",text:n2(r.c[k])}));return}
       if(ed==="in"){const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab});
         i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;
@@ -910,6 +928,7 @@ function renderPay(){
   d.append(el("tr",{},el("td",{class:"chg",text:"合计"}),el("td",{class:"n chg"}),el("td",{class:"n chg"}),el("td",{class:"n chg",text:n2(r2(epfT+socT+eisT+pcbT))})));
   renderJv(rows,m);
   renderEa();
+  renderAdv();
 }
 /* ---------- the payroll journals of the month (MINIFISH files them as Journal Entry vouchers) ---------- */
 const JV_ACC=[["salaries","Salaries"],["wages","Wages"],["ot","Overtime"],["allowance","Allowance"],["incentive","Incentive"],["commission","Commission"],["other","Other"],
@@ -1034,13 +1053,41 @@ async function plFinalize(){
   if(!rows.length)return $("plState").textContent="没有需要确认的人（要先在 HR 加好员工资料）";
   const pend=rows.reduce((s,r)=>s+r.pend,0);
   if(!confirm((pend?`还有 ${pend} 条考勤待审批，确认后这些数字会锁定。\n`:"")+`确认 ${m} 的工资（${rows.length} 人）？确认后数字锁定，EA 表格会用这些数字。`))return;
-  for(const r of rows){await db.doc("payroll/"+r.id).set({...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now(),finalAt:Date.now(),snap:{c:r.c,days:r.days,hours:r.hours,ot:r.ot,unpaid:r.unpaid}})}
+  for(const r of rows){
+    await db.doc("payroll/"+r.id).set({...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now(),finalAt:Date.now(),snap:{c:r.c,days:r.days,hours:r.hours,ot:r.ot,unpaid:r.unpaid}});
+    for(const a of advs.filter(a=>nkey(a.name)===nkey(r.name)&&!a.deductedIn&&(a.date||"").slice(0,7)<=m))await db.doc("advances/"+a.id).set({...a,id:undefined,deductedIn:m});
+  }
 }
 async function plReopen(){
   const m=$("pmon").value,rows=plData(m).filter(r=>r.final);
   if(!rows.length)return;
   if(!confirm(`重新打开 ${m} 的工资（${rows.length} 人）？之前锁定的数字会失效，要重新确认。`))return;
-  for(const r of rows){const d={...(pinp[r.id]||{})};delete d.snap;delete d.finalAt;d.ts=Date.now();await db.doc("payroll/"+r.id).set(d)}
+  for(const r of rows){
+    const d={...(pinp[r.id]||{})};delete d.snap;delete d.finalAt;d.ts=Date.now();await db.doc("payroll/"+r.id).set(d);
+    for(const a of advs.filter(a=>nkey(a.name)===nkey(r.name)&&a.deductedIn===m)){const x={...a,id:undefined};delete x.deductedIn;await db.doc("advances/"+a.id).set(x)}
+  }
+}
+/* ---------- advances: written down when they are given, taken off in the payroll of the month that picks them up ---------- */
+function renderAdv(){
+  const box=$("advBox");if(!box||!isMgr)return;
+  if(box.contains(document.activeElement)&&["INPUT","SELECT"].includes(document.activeElement.tagName))return;
+  const names=emps.filter(e=>e.active!==false).map(e=>e.name).concat(roster.filter(s=>s.type!=="F"&&s.active!=="N").map(s=>s.name));
+  const list=[...new Set(names.map(normName))];
+  const sel=$("pvName");if(sel&&!sel.contains(document.activeElement)){const keep=sel.value;sel.replaceChildren(...list.map(n=>el("option",{value:n,text:n})));if(keep)sel.value=keep}
+  const t=$("pvTbl");t.replaceChildren();
+  t.append(el("tr",{},["日期","姓名","金额 RM","备注","状态",""].map((h,i)=>el("th",{class:i===2?"n":"",text:h}))));
+  advs.filter(a=>nkey(a.name)&&list.some(n=>nkey(n)===nkey(a.name))).sort((a,b)=>(b.date||"")<(a.date||"")?-1:1).slice(0,60).forEach(a=>{
+    const done=!!a.deductedIn,b=el("button",{class:"btn alt",text:"删除"});b.disabled=done;b.title=done?"已经在 "+a.deductedIn+" 的工资里扣了":"";
+    b.onclick=async()=>{if(!confirm("删除这笔预支？"))return;b.disabled=true;try{await db.doc("advances/"+a.id).delete()}catch(e){b.disabled=false}};
+    t.append(el("tr",{},el("td",{text:a.date||""}),el("td",{text:a.name}),el("td",{class:"n",text:n2(Number(a.amount)||0)}),el("td",{text:a.note||""}),
+      el("td",{},el("span",{class:"pill "+(done?"ok":"warn"),text:done?"已在 "+a.deductedIn+" 扣":"待扣（下次算工资时扣）"})),el("td",{},b)))});
+  if(t.rows.length===1)t.append(el("tr",{},el("td",{class:"empty",colspan:6,text:"还没有预支记录"})));
+}
+async function pvAdd(){
+  const msg=$("pvMsg");msg.replaceChildren();const amt=Number($("pvAmt").value);
+  if(!$("pvName").value||!$("pvDate").value||!(amt>0)){msg.append(el("span",{class:"pill bad",text:"请选员工、日期，金额要大于 0"}));return}
+  try{await db.doc("advances/adv_"+Date.now()).set({name:$("pvName").value,date:$("pvDate").value,amount:amt,note:$("pvNote").value.trim(),ts:Date.now()});$("pvAmt").value=$("pvNote").value="";msg.append(el("span",{class:"pill ok",text:"已记下，下次算工资时会自动扣"}))}
+  catch(e){msg.append(el("span",{class:"pill bad",text:"保存失败："+(e&&e.message||e)}))}
 }
 /* ---------- Form EA: the year's totals of the finalized months (+ what was paid before the system) ---------- */
 const EA_NUM=[["preA","(a) 薪金"],["preB","(b) 佣金奖金"],["prePcb","PCB"],["preEpf","EPF"],["preSocso","SOCSO+EIS"]];
@@ -1193,7 +1240,7 @@ function fillNames(){
   fillFName();
 }
 function fillFName(){const f=$("fname"),keep=f.value,t=$("ftype").value;f.replaceChildren(el("option",{value:"",text:"全部"}));roster.filter(s=>s.type===t).forEach(s=>f.append(el("option",{value:s.name,text:s.name})));if([...f.options].some(o=>o.value===keep))f.value=keep}
-$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);bkDates(true);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("plPdf").onclick=()=>plAll();$("plFinal").onclick=()=>plFinalize();$("plReopen").onclick=()=>plReopen();$("jvPdf").onclick=()=>jvDownload();$("eaYear").value=new Date().getFullYear();$("eaYear").onchange=renderEa;$("eaAll").onclick=()=>eaPdf(eaData($("eaYear").value).filter(r=>r.months||Object.keys(r.ea).length),$("eaYear").value,$("eaAll"));$("bkJe").onclick=()=>bkJournal();$("bkSal").onclick=()=>bkSalary();$("bkStat").onclick=()=>bkStatutory();
+$("cmon").value=$("mon").value=$("smon").value=$("pmon").value=todayKL().slice(0,7);bkDates(true);$("pmon").onchange=renderPay;$("plCsv").onclick=()=>plCsv();$("pvDate").value=todayKL();$("pvAdd").onclick=pvAdd;$("plPdf").onclick=()=>plAll();$("plFinal").onclick=()=>plFinalize();$("plReopen").onclick=()=>plReopen();$("jvPdf").onclick=()=>jvDownload();$("eaYear").value=new Date().getFullYear();$("eaYear").onchange=renderEa;$("eaAll").onclick=()=>eaPdf(eaData($("eaYear").value).filter(r=>r.months||Object.keys(r.ea).length),$("eaYear").value,$("eaAll"));$("bkJe").onclick=()=>bkJournal();$("bkSal").onclick=()=>bkSalary();$("bkStat").onclick=()=>bkStatutory();
 $("pmon").addEventListener("change",()=>{bkDates(true)});$("advDate").value=todayKL();
 $("who").textContent=isMgr?"店长视图":"员工打卡（无审批权限）";
 if(VIEW==="payroll"){$("tabs").hidden=true;["clock","appr","rec","sum","ros"].forEach(id=>$(id).hidden=true);$("pay").hidden=false;$("who").textContent=isMgr?"":"";

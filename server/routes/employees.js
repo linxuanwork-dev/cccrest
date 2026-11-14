@@ -52,12 +52,13 @@ function readFields(body, base) {
     children: pick('children', 'children', (v) => Math.min(30, Math.max(0, parseInt(v, 10) || 0))),
     disabled: pick('disabled', 'disabled', (v) => v === true || v === 'true'),
     basic_salary: pick('basicSalary', 'basic_salary', (v) => Math.max(0, Number(v) || 0)),
+    skbbk_opt_out: pick('skbbkOptOut', 'skbbk_opt_out', (v) => v === true || v === 'true'),
     active: typeof body.active === 'boolean' ? body.active : base.active
   };
 }
 
 const COLUMNS = ['name', 'ic_no', 'id_type', 'dob', 'gender', 'race', 'nationality', 'address', 'start_date', 'position', 'bank_name', 'bank_account',
-  'epf_no', 'socso_no', 'tin_no', 'tax_resident', 'marital_status', 'children', 'disabled', 'basic_salary', 'active'];
+  'epf_no', 'socso_no', 'tin_no', 'tax_resident', 'marital_status', 'children', 'disabled', 'basic_salary', 'skbbk_opt_out', 'active'];
 
 // A readable "what changed" list for the history (dates as plain text, no images)
 function changes(before, after) {
@@ -70,7 +71,7 @@ function changes(before, after) {
 }
 
 const baseRow = { name: '', ic_no: null, id_type: 'B', dob: null, gender: null, race: null, nationality: null, address: null, start_date: null, position: null,
-  bank_name: null, bank_account: null, epf_no: null, socso_no: null, tin_no: null, tax_resident: 'resident', marital_status: null, children: 0, disabled: false, basic_salary: 0, active: true };
+  bank_name: null, bank_account: null, epf_no: null, socso_no: null, tin_no: null, tax_resident: 'resident', marital_status: null, children: 0, disabled: false, basic_salary: 0, skbbk_opt_out: false, active: true };
 
 async function addSalaryRecord(companyId, employeeId, effective, amount, reason, userId) {
   await pool.query(

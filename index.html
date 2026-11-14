@@ -1513,6 +1513,7 @@
           <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
             <div class="field" style="min-width:260px;flex:1;margin:0;"><label for="att-company" data-i18n="stk_company">Company</label><select id="att-company"></select></div>
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding-bottom:10px;"><input type="checkbox" id="att-enabled" style="width:16px;height:16px;accent-color:var(--accent);" /><span data-i18n="tfa_enabled">Switched on for this company</span></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding-bottom:10px;"><input type="checkbox" id="att-payonly" style="width:16px;height:16px;accent-color:var(--accent);" /><span data-i18n="att_payonly">Payroll only (no attendance: days, overtime and advances are typed in)</span></label>
           </div>
           <div id="att-stats" style="font-size:12.5px;color:var(--primary-soft);margin-top:10px;"></div>
           <div style="display:flex;gap:14px;align-items:center;margin-top:14px;flex-wrap:wrap;">
@@ -2610,7 +2611,7 @@
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
       no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
-      nav_payroll:"Payroll", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
+      nav_payroll:"Payroll", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", att_payonly:"Payroll only (no attendance: days, overtime and advances are typed in)", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
       pf_info:"Company Information", pf_info_desc:"Information related to the company.", pf_legal:"Legal Name", pf_friendly:"Friendly Name (as shown in this system)", pf_regtype:"Registration No. Type", pf_regno:"Registration No.", pf_oldreg:"Old Registration No.", pf_tin:"TIN (e-Invoice)", pf_msic:"MSIC Code", pf_msicdesc:"MSIC Description", pf_tourism:"Tourism Tax Registration No.", pf_country:"Home Country", pf_currency:"Home Currency",
       pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
       pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
@@ -2901,7 +2902,7 @@
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
       no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
-      nav_payroll:"薪资", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
+      nav_payroll:"薪资", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", att_payonly:"只开薪资（不用考勤：OT、无薪假、预支每月手动填）", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
       pf_info:"公司信息", pf_info_desc:"公司的基本资料。", pf_legal:"法定名称", pf_friendly:"简称（系统内显示的名称）", pf_regtype:"注册号类型", pf_regno:"注册号", pf_oldreg:"旧注册号", pf_tin:"TIN（电子发票）", pf_msic:"MSIC 行业代码", pf_msicdesc:"行业说明", pf_tourism:"旅游税注册号", pf_country:"所在国家", pf_currency:"本位币",
       pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
       pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
@@ -4350,8 +4351,8 @@
       if(mine !== attendanceReq) return;
       if(!cfg.enabled){ resetPayroll(); show(false); return; }
       sub.textContent = currentCompany + ' · ' + t('att_sub');
-      show(true);
-      if(frame.dataset.loadedFor !== String(companyId)){
+      show(!cfg.payrollOnly);   // payroll only: the Payroll page is there, the Attendance menu item is not
+      if(!cfg.payrollOnly && frame.dataset.loadedFor !== String(companyId)){
         frame.dataset.loadedFor = String(companyId);
         frame.src = '/api/attendance/app?view=attendance&company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
       }
@@ -6533,7 +6534,7 @@
     var id = pfEl('att-company').value;
     var r = attRows.filter(function(x){ return String(x.id) === String(id); })[0];
     if(!r) return;
-    pfEl('att-enabled').checked = !!r.enabled;
+    pfEl('att-enabled').checked = !!r.enabled; pfEl('att-payonly').checked = !!r.payroll_only;
     pfEl('att-stats').textContent = t('tfa_docs') + ': ' + r.docs;
     attSay('');
   }
@@ -6553,7 +6554,7 @@
     var btn = this, id = pfEl('att-company').value;
     if(!id) return;
     btn.disabled = true;
-    api('/attendance/companies/' + id, { method:'PUT', body: JSON.stringify({ enabled: pfEl('att-enabled').checked }) })
+    api('/attendance/companies/' + id, { method:'PUT', body: JSON.stringify({ enabled: pfEl('att-enabled').checked, payrollOnly: pfEl('att-payonly').checked }) })
       .then(function(){ attSay(t('pbk_saved')); renderAttSettings(); renderActivityLog(); renderAttendance(); })
       .catch(function(err){ attSay(err.message, true); })
       .finally(function(){ btn.disabled = false; });

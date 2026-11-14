@@ -149,7 +149,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
     if(!CID) throw new Error('缺少公司编号');
     var me = await http('GET', '');
     if(!me.enabled) throw new Error('这家公司还没有开通考勤');
-    ATT.mgr = !!me.mgr; ATT.canWrite = !!me.canWrite; ATT.name = me.name || '';
+    ATT.mgr = !!me.mgr; ATT.canWrite = !!me.canWrite; ATT.name = me.name || ''; ATT.payrollOnly = !!me.payrollOnly;
     await sync();
     setInterval(function(){ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved
     return db;
@@ -836,6 +836,7 @@ const empOf=name=>emps.find(e=>nkey(e.name)===nkey(name));
 const normName=s=>String(s||"").toUpperCase().replace(/\s+/g," ").trim();
 const hrAvail=()=>emps.filter(e=>e.active!==false&&!roster.some(r=>nkey(r.name)===nkey(e.name)));   // in the HR employee list, not on the attendance roster yet
 function plData(m){
+  if(ATT.payrollOnly)return plDataManual(m);
   const pt=ptData(m).map(o=>{
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{},hrs=o.reg+o.ot+o.ex,adv=advOf(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:0,hours:hrs,unpaid:0,pend:o.pend,adv,wages:true,wageBasic:r2(hrs*(o.rate||0))};
@@ -848,6 +849,15 @@ function plData(m){
     const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
     if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
     return snapOf(r)}).concat(pt.map(snapOf));
+}
+/* a company without attendance: the rows are the HR employees (salaried); the overtime hours, unpaid days and advance are typed in each month */
+function plDataManual(m){
+  return emps.filter(e=>e.active!==false).map(emp=>{
+    const id=slug(emp.name)+"_"+m,inp=pinp[id]||{},ot=Number(inp.otHours)||0,unpaid=Number(inp.unpaidDays)||0,adv=Number(inp.advance)||0;
+    const r={name:emp.name,id,emp,inp,days:null,ot,hours:null,unpaid,pend:0,adv,manual:true};
+    r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:inp.commission,other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN"});
+    const sn=inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true}
+    return r});
 }
 const PL_COLS=[["基本工资","basic"],["无薪扣除","unpaidDeduction"],["OT工资","otPay"],["津贴","allowance","in"],["奖金","incentive","in"],["提成","commission","in"],["其他","other","in"],["总收入","gross"],
   ["EPF","epfEmployee"],["SOCSO","socsoEmployee"],["SKBBK","skbbkEmployee"],["EIS","eisEmployee"],["PCB","pcb","in"],["总扣除","totalDeduction"],["预支","advance"],["实发","net"],
@@ -868,11 +878,18 @@ function renderPay(){
   const tot={};
   rows.forEach(r=>{
     const tr=el("tr",{});tr.append(el("td",{text:r.name}));
+    const typed=(k,lab,isInt)=>{const td=el("td",{class:"n"});
+      if(r.final){td.textContent=n2(r.inp[k]||0);return td}
+      const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab,style:"width:70px"});
+      i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
+      td.append(i);return td};
     const link=(v,fmtv)=>{const td=el("td",{class:"n"});const a=el("a",{href:"#",text:fmtv,style:"color:var(--accent)"});a.onclick=e=>{e.preventDefault();drill(r.name,m)};td.append(a);return td};
-    tr.append(link(r.days,String(r.days)),link(r.ot,n2(r.ot)),link(r.unpaid,String(r.unpaid)));
+    if(r.manual)tr.append(el("td",{class:"n",text:"—"}),typed("otHours","OT h"),typed("unpaidDays","无薪天"));
+    else tr.append(link(r.days,String(r.days)),link(r.ot,n2(r.ot)),link(r.unpaid,String(r.unpaid)));
     PL_COLS.forEach(([lab,k,ed])=>{
       if(!r.c){tr.append(el("td",{class:"n",text:"—"}));return}
       const v=k==="advance"?r.adv:r.c[k];tot[k]=(tot[k]||0)+(Number(v)||0);
+      if(k==="advance"&&r.manual){tr.append(typed("advance","预支"));return}
       if(ed==="in"&&r.final){tr.append(el("td",{class:"n",text:n2(r.c[k])}));return}
       if(ed==="in"){const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab});
         i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;
@@ -1028,7 +1045,7 @@ async function plReopen(){
 /* ---------- Form EA: the year's totals of the finalized months (+ what was paid before the system) ---------- */
 const EA_NUM=[["preA","(a) 薪金"],["preB","(b) 佣金奖金"],["prePcb","PCB"],["preEpf","EPF"],["preSocso","SOCSO+EIS"]];
 function eaData(year){
-  const names=[...new Set(roster.filter(s=>s.type!=="F").map(s=>s.name).concat(Object.values(pinp).filter(d=>d&&d.snap&&String(d.month||"").startsWith(year)).map(d=>d.name)))];
+  const names=[...new Set(roster.filter(s=>s.type!=="F").map(s=>s.name).concat(ATT.payrollOnly?emps.filter(e=>e.active!==false).map(e=>e.name):[]).concat(Object.values(pinp).filter(d=>d&&d.snap&&String(d.month||"").startsWith(year)).map(d=>d.name)))];
   return names.map(name=>{
     const emp=empOf(name),snaps=Object.values(pinp).filter(d=>d&&d.name===name&&d.snap&&d.snap.c&&String(d.month||"").startsWith(year)),ea=pinp["EA_"+year+"_"+slug(name)]||{};
     const sum=f=>r2(snaps.reduce((s,d)=>s+(Number(f(d.snap.c))||0),0)),n=k=>Number(ea[k])||0;

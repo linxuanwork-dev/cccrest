@@ -35,19 +35,19 @@ const KEEP_DAYS = 430;                                                          
 
 async function loadSettings(companyId) {
   const { rows } = await pool.query(
-    `SELECT c.name, COALESCE(s.enabled, false) AS enabled, COALESCE(s.rev, 0) AS rev
+    `SELECT c.name, COALESCE(s.enabled, false) AS enabled, COALESCE(s.rev, 0) AS rev, COALESCE(s.payroll_only, false) AS payroll_only
        FROM companies c LEFT JOIN attendance_settings s ON s.company_id = c.id WHERE c.id = $1`,
     [companyId]
   );
   const r = rows[0];
-  return r ? { name: r.name, enabled: r.enabled, rev: Number(r.rev) } : null;
+  return r ? { name: r.name, enabled: r.enabled, rev: Number(r.rev), payrollOnly: r.payroll_only } : null;
 }
 
 // ============ CONTROL PANEL (Owner): switch the feature on per company ============
 
 router.get('/attendance/companies', requireRole('admin'), async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT c.id, c.name, COALESCE(s.enabled, false) AS enabled,
+    `SELECT c.id, c.name, COALESCE(s.enabled, false) AS enabled, COALESCE(s.payroll_only, false) AS payroll_only,
        (SELECT COUNT(*) FROM attendance_docs d WHERE d.company_id = c.id)::int AS docs
      FROM companies c LEFT JOIN attendance_settings s ON s.company_id = c.id
      ORDER BY COALESCE(s.enabled, false) DESC, c.name`
@@ -58,13 +58,13 @@ router.get('/attendance/companies', requireRole('admin'), async (req, res) => {
 router.put('/attendance/companies/:id', requireRole('admin'), async (req, res) => {
   const s = await loadSettings(req.params.id);
   if (!s) return res.status(404).json({ error: 'Not found' });
-  const enabled = !!(req.body && req.body.enabled === true);
+  const enabled = !!(req.body && req.body.enabled === true), payrollOnly = !!(req.body && req.body.payrollOnly === true);
   await pool.query(
-    `INSERT INTO attendance_settings (company_id, enabled, rev, updated_at) VALUES ($1,$2,1, now())
-     ON CONFLICT (company_id) DO UPDATE SET enabled = $2, rev = attendance_settings.rev + 1, updated_at = now()`,
-    [req.params.id, enabled]
+    `INSERT INTO attendance_settings (company_id, enabled, payroll_only, rev, updated_at) VALUES ($1,$2,$3,1, now())
+     ON CONFLICT (company_id) DO UPDATE SET enabled = $2, payroll_only = $3, rev = attendance_settings.rev + 1, updated_at = now()`,
+    [req.params.id, enabled, payrollOnly]
   );
-  await logActivity(req.user.sub, 'Updated HR Attendance settings', s.name, enabled ? 'on' : 'off');
+  await logActivity(req.user.sub, 'Updated HR Attendance settings', s.name, enabled ? (payrollOnly ? 'on (payroll only)' : 'on') : 'off');
   res.json({ ok: true });
 });
 
@@ -94,7 +94,7 @@ async function enabledSettings(req, res) {
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await loadSettings(req.params.companyId);
   if (!s) return res.status(404).json({ error: 'Not found' });
-  res.json({ enabled: s.enabled, name: s.name, uid: String(req.user.sub), mgr: isMgr(req), canWrite: !!(req.pageAccess && req.pageAccess.level >= 2) });
+  res.json({ enabled: s.enabled, payrollOnly: s.payrollOnly, name: s.name, uid: String(req.user.sub), mgr: isMgr(req), canWrite: !!(req.pageAccess && req.pageAccess.level >= 2) });
 });
 
 // Everything the page shows, in one request; "same" when nothing changed since the revision the page has.

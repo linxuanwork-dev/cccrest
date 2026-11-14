@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>每日营业对账 Daily Sales Reconciliation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
+  --accent:#0f6b6b; --accent-ink:#ffffff; --accent-soft:#e0f0ef;
+  --must:#fff3a6; --must-line:#e4cf4a;
+  --bad:#b42318; --bad-soft:#fde8e6; --warn:#9a6200; --warn-soft:#fff1d6; --ok:#1f7a3d; --ok-soft:#e3f4e8;
+  --f-body:"IBM Plex Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;padding-bottom:env(safe-area-inset-bottom,0px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding-block:12px 8px}
+.brand{font-weight:700;font-size:16px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.brand small{font-weight:400;color:var(--muted);font-size:12px}
+.hright{display:flex;align-items:center;gap:8px;margin-left:auto}
+.hright label{font-size:12px;color:var(--muted)}
+nav{display:flex;gap:2px;overflow-x:auto}
+nav button{border:0;background:none;color:var(--muted);padding:8px 14px;font:inherit;font-weight:500;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav button .ct{font-family:var(--f-mono);font-size:11px;background:var(--line2);border-radius:9px;padding:0 6px;margin-left:4px}
+nav button .ct.bad{background:var(--bad-soft);color:var(--bad)}
+main{padding-block:18px 64px}
+h2{font-size:15px;margin:0;text-wrap:balance}
+h3{font-size:13px;margin:0 0 6px;font-weight:600}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.panel + .panel{margin-top:14px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+textarea{resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11.5px;font-weight:500;color:var(--muted);text-align:left;background:var(--line2);padding:7px 8px;white-space:nowrap;position:sticky;top:0;z-index:1}
+td{border-top:1px solid var(--line2);padding:6px 8px;vertical-align:middle}
+td.r,th.r{text-align:right}
+td.num{white-space:nowrap}
+tr.sel td{background:var(--accent-soft)}
+tbody.click tr{cursor:pointer}
+tbody.click tr:hover td{background:var(--line2)}
+tr.tot td{font-weight:600;border-top:1px solid var(--line)}
+.pill{display:inline-block;font-size:11px;font-weight:500;border-radius:10px;padding:1px 8px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.mute{background:var(--line2);color:var(--muted)}
+.pill.open{background:var(--accent-soft);color:var(--accent)}
+.d{color:var(--bad);font-family:var(--f-mono);font-size:12px}
+.d.ok{color:var(--muted)}
+.check{border-radius:8px;padding:12px 14px;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.check.ok{background:var(--ok-soft);color:var(--ok)}
+.check.bad{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}
+.check.warn{background:var(--warn-soft);color:var(--warn)}
+.check.idle{background:var(--line2);color:var(--muted)}
+.check ul{margin:0;padding-left:18px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.notice{padding:10px 14px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px;margin-bottom:14px}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--panel);min-width:0}
+.stat div{font-size:11.5px;color:var(--muted)}
+.stat b{font-family:var(--f-mono);font-size:17px;font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat.bad b{color:var(--bad)}
+body:not(.is-mgr) .mgr-only{display:none!important}
+body.is-mgr .staff-only{display:none!important}
+.role{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--muted);white-space:nowrap}
+.drop{border:2px dashed var(--line);border-radius:8px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;background:var(--panel)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.drop b{color:var(--ink)}
+.srcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.src{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.src.have{border-color:var(--ok)}
+.src.need{border-color:var(--must-line);background:var(--must)}
+.src .t{font-weight:600;display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.src .f{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.daysbar{display:grid;grid-template-columns:repeat(31,1fr);gap:2px;margin-top:4px}
+.daysbar i{height:6px;border-radius:1px;background:var(--line2)}
+.daysbar i.on{background:var(--ok)}
+.daysbar i.miss{background:var(--bad)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 10px;font-size:13px}
+.kv .h{font-size:11.5px;color:var(--muted)}
+.kv .r{text-align:right;font-family:var(--f-mono)}
+.kv .sep{grid-column:1/-1;border-top:1px solid var(--line2);margin:4px 0}
+.kv .b{font-weight:600}
+.flag{display:flex;gap:6px;align-items:flex-start;font-size:13px;padding:6px 8px;border-radius:6px;background:var(--bad-soft);color:var(--bad);margin-top:6px}
+.flag.ack{background:var(--ok-soft);color:var(--ok)}
+.flag.info{background:var(--warn-soft);color:var(--warn)}
+.sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px 14px}
+.sets label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.sets h3{grid-column:1/-1;margin:10px 0 0;color:var(--ink)}
+.prog{font-size:12.5px;margin-top:8px;display:flex;flex-direction:column;gap:3px}
+.prog .muted{color:var(--muted)} .prog .ok{color:var(--ok)} .prog .bad{color:var(--bad)} .prog .warn{color:var(--warn)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:root[data-theme="light"]{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
+  --accent:#0f6b6b; --accent-ink:#ffffff; --accent-soft:#e0f0ef;
+  --must:#fff3a6; --must-line:#e4cf4a;
+  --bad:#b42318; --bad-soft:#fde8e6; --warn:#9a6200; --warn-soft:#fff1d6; --ok:#1f7a3d; --ok-soft:#e3f4e8; color-scheme:light}
+:root[data-theme="dark"]{
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}
+</style></head><body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">MINIFISH 每日营业对账 <small>Daily Sales Reconciliation → Bukku</small></div>
+      <div class="hright">
+        <button type="button" class="btn sm" id="mPrev" aria-label="上个月">‹</button>
+        <input type="month" id="mSel" style="width:auto">
+        <button type="button" class="btn sm" id="mNext" aria-label="下个月">›</button>
+        <span id="mStatus"></span>
+        <span class="role" id="roleTag">员工</span>
+      </div>
+    </div>
+    <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="up" aria-selected="true">上传报告 Upload</button>
+      <button role="tab" data-tab="daily" aria-selected="false">每日对账 Daily<span class="ct" id="ctFlags">0</span></button>
+      <button role="tab" data-tab="del" aria-selected="false">外卖 Delivery<span class="ct" id="ctDel">0</span></button>
+      <button role="tab" data-tab="exp" aria-selected="false" class="mgr-only">Bukku 导出 Export</button>
+      <button role="tab" data-tab="set" aria-selected="false">设定 Settings</button>
+      <button role="tab" data-tab="log" aria-selected="false">变更记录 Log</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="offline" class="notice" hidden>正在连接资料库…</div>
+
+  <!-- UPLOAD -->
+  <section id="v-up">
+    <div class="panel">
+      <div class="ph"><div><h2 id="upTitle">上传原始报告</h2><div class="small muted">把系统 / 平台 / 银行下载的原始文件直接拖进来，不用整理。可以一次放很多个（Excel、CSV、PDF 都可以）。系统会自己认出是哪一种报告，只读这个月的日期。</div></div></div>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="选择文件上传"><b>拖文件到这里</b>，或者点这里选择文件<br><span class="small">堂食：POS 每日汇总 · PingPong 交易 / 钱包 · BSM PDF · Grab 三方支付 · Surcharge<br>外卖：Grab Food 交易 / 转账 · ShopeeFood 订单 / 明细 / 钱包 / 调整 · Foodpanda SUMMARY / Appendix A</span></div>
+      <input type="file" id="fileIn" multiple accept=".xlsx,.xls,.csv,.pdf" hidden>
+      <div class="prog" id="prog"></div>
+      <div id="lockNote" class="check idle" style="margin-top:12px" hidden>这个月已经结账锁定，不能再上传。要改的话请 manager 先「重开」。</div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>这个月的来源 Sources</h2><span class="small muted">绿色 = 已有资料 · 黄色 = 必须要有 · 下面小格 = 1 号到月底每天有没有资料</span></div>
+      <h3>堂食 Dine-in</h3>
+      <div class="srcs" id="srcList"></div>
+      <h3 style="margin-top:14px">外卖平台 Delivery（有哪个平台就上传哪个）</h3>
+      <div class="srcs" id="srcList2"></div>
+    </div>
+  </section>
+
+  <!-- DAILY -->
+  <section id="v-daily" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2 id="dTitle">每日对账</h2><div class="small muted" id="dSub"></div></div>
+        <div class="row"><button class="btn mgr-only" id="closeBtn">结账 · 锁定这个月</button><button class="btn mgr-only" id="reopenBtn" hidden>重开这个月</button></div></div>
+      <div class="stats">
+        <div class="stat"><div>营业额（发票总额）RM</div><b id="sInv">0.00</b></div>
+        <div class="stat"><div>SST 6% RM</div><b id="sSst">0.00</b></div>
+        <div class="stat"><div>实收 DN+卡+现金 RM</div><b id="sRec">0.00</b></div>
+        <div class="stat"><div>手续费 Bank charges RM</div><b id="sFee">0.00</b></div>
+        <div class="stat" id="sFlagBox"><div>待核对差异</div><b id="sFlag">0</b></div>
+      </div>
+      <div id="closeMsg" style="margin-top:12px" hidden></div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="panel">
+        <div class="ph"><h2>每天 Daily</h2><label class="small row" style="gap:4px"><input type="checkbox" id="onlyFlag" style="width:auto"> 只看有差异</label></div>
+        <div class="tbl-wrap" style="max-height:72vh">
+          <table>
+            <thead><tr><th>日期</th><th class="r">发票总额</th><th class="r">DuitNow</th><th class="r">卡 Card</th><th class="r">现金</th><th class="r">Royalty</th><th>状态</th></tr></thead>
+            <tbody id="dBody" class="click"></tbody>
+          </table>
+        </div>
+        <div class="small muted" style="margin-top:8px">DuitNow / 卡 下面的小字 = 跟 POS 的差额（红色要核对）。点一天看明细。</div>
+      </div>
+      <aside class="panel" id="dDetail"><div class="empty">点左边任何一天看明细</div></aside>
+    </div>
+  </section>
+
+  <!-- DELIVERY -->
+  <section id="v-del" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2 id="delTitle">外卖平台</h2><div class="small muted">每天一张平台发票：营业额、折扣、佣金、广告、调整；收款 = 平台实际转进来的钱。</div></div>
+        <div class="row" id="platChips"></div></div>
+      <div class="stats">
+        <div class="stat"><div>SALES RM</div><b id="pSales">0.00</b></div>
+        <div class="stat"><div>折扣 Discount RM</div><b id="pDisc">0.00</b></div>
+        <div class="stat"><div>平台费用 RM</div><b id="pFee">0.00</b></div>
+        <div class="stat"><div>实收 Received RM</div><b id="pRec">0.00</b></div>
+        <div class="stat" id="pFlagBox"><div>待核对差异</div><b id="pFlag">0</b></div>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="panel">
+        <div class="tbl-wrap" style="max-height:72vh">
+          <table><thead><tr><th>日期</th><th class="r">单数</th><th class="r">SALES</th><th class="r">折扣</th><th class="r">平台费用</th><th class="r">发票总额</th><th class="r">实收</th><th>状态</th></tr></thead>
+          <tbody id="pBody" class="click"></tbody></table>
+        </div>
+        <div class="small muted" style="margin-top:8px" id="pNote"></div>
+      </div>
+      <aside class="panel" id="pDetail"><div class="empty">点左边任何一天看明细</div></aside>
+    </div>
+  </section>
+
+  <!-- EXPORT -->
+  <section id="v-exp" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2>Bukku 导出</h2><div class="small muted">纯数值、只有 Worksheet 一页，可以直接 import 进 Bukku。先 import 发票，再 import 收款。</div></div></div>
+      <div id="expCheck"></div>
+      <div class="srcs" style="margin-top:12px">
+        <div class="src"><div class="t">Sales Invoice <span class="pill open" id="eInvN">0</span></div><div class="f" id="eInvF"></div><button class="btn pri" data-exp="inv">下载 Sales Invoice</button></div>
+        <div class="src"><div class="t">Sales Payment <span class="pill open" id="ePayN">0</span></div><div class="f" id="ePayF"></div><button class="btn pri" data-exp="pay">下载 Sales Payment</button></div>
+        <div class="src"><div class="t">Royalty Cash Bill <span class="pill open" id="eBillN">0</span></div><div class="f" id="eBillF"></div><button class="btn pri" data-exp="bill">下载 Royalty Cash Bill</button></div>
+        <div class="src"><div class="t">Grab Food <span class="pill open" id="eGbN">0</span></div><div class="f" id="eGbF"></div><div class="row"><button class="btn pri sm" data-exp="gb-inv">Sales（不含税）</button><button class="btn pri sm" data-exp="gb-dout">到店 Sales（含税）</button><button class="btn pri sm" data-exp="gb-pay">Payment</button></div></div>
+        <div class="src"><div class="t">ShopeeFood <span class="pill open" id="eSpN">0</span></div><div class="f" id="eSpF"></div><div class="row"><button class="btn pri sm" data-exp="sp-inv">Sales（含税）</button><button class="btn pri sm" data-exp="sp-pay">Payment</button></div></div>
+        <div class="src"><div class="t">Foodpanda <span class="pill open" id="eFpN">0</span></div><div class="f" id="eFpF"></div><div class="row"><button class="btn pri sm" data-exp="fp-inv">Sales（含税）</button><button class="btn pri sm" data-exp="fp-pay">Payment</button></div></div>
+        <div class="src"><div class="t">对账总表 Summary</div><div class="f">每天的营业额、各来源金额、差异、核对备注</div><button class="btn" data-exp="sum">下载对账总表</button></div>
+      </div>
+      <div id="expMsg" style="margin-top:12px" hidden></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="v-set" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2>Bukku 设定</h2><div class="small muted">科目代码、单号格式、付款方式名称。只有 manager 可以改。</div></div><button class="btn pri mgr-only" id="setSave">保存设定</button></div>
+      <form class="sets" id="setForm" onsubmit="return false"></form>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section id="v-log" hidden>
+    <div class="panel">
+      <div class="ph"><h2>变更记录</h2><div class="row"><input type="month" id="lMonth" style="width:auto"></div></div>
+      <div class="tbl-wrap" style="max-height:72vh"><table><thead><tr><th>时间</th><th>谁</th><th>动作</th><th>内容</th></tr></thead><tbody id="lBody"></tbody></table></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/api/kwsp/assets/vendor/pdf.min.js"></script>
+<script src="/api/kwsp/assets/vendor/pdf.worker.min.js"></script>
+<script>
+/* ---------- storage: the CC CREST server. A local copy (memo) is changed first so the screen reacts at once; the server is the real store. ---------- */
+(function(){
+  var QS = new URLSearchParams(location.search), CID = QS.get('company') || '';
+  var API = '/api/companies/' + encodeURIComponent(CID) + '/sales-recon';
+  var COLLS = ['src', 'adj', 'closing', 'settings', 'log'];
+  var memo = {}, subs = {}, errSubs = {};
+  COLLS.forEach(function(c){ memo[c] = {}; subs[c] = []; });
+  var REC = window.REC = { mgr: false, canWrite: false, name: '', uid: '', names: {} };
+  var firstSync = false, syncRev = -1, inflight = 0, syncing = false, syncAgain = false, needForce = true, syncT;
+  try{ var th = QS.get('theme'); if(th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); }catch(e){}
+  window.addEventListener('message', function(e){ if(e.origin === location.origin && e.data && e.data.type === 'pbill-theme') document.documentElement.setAttribute('data-theme', e.data.theme === 'dark' ? 'dark' : 'light'); });
+  function stable(v){ return JSON.stringify(v, function(k, x){ return x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce(function(o, key){ o[key] = x[key]; return o; }, {}) : x; }); }
+  async function http(method, url, body){
+    var r = await fetch(API + url, { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    var j = await r.json().catch(function(){ return {}; });
+    if(!r.ok){ var err = new Error(j.error || ('请求失败 (' + r.status + ')')); err.code = r.status === 403 ? 'permission_denied' : r.status; throw err; }
+    return j;
+  }
+  function collSnap(c){ return { docs: Object.keys(memo[c]).map(function(id){ return { id: id, data: function(){ return memo[c][id]; } }; }) }; }
+  function notify(c){ if(firstSync) subs[c].forEach(function(cb){ cb(collSnap(c)); }); }
+  function apply(docs, names){
+    Object.assign(REC.names, names || {});
+    COLLS.forEach(function(c){
+      var nxt = {}; (docs[c] || []).forEach(function(r){ nxt[r.id] = r.data; });
+      if(stable(memo[c]) !== stable(nxt)){ memo[c] = nxt; notify(c); }
+    });
+  }
+  function syncSoon(force){ if(force) needForce = true; clearTimeout(syncT); syncT = setTimeout(sync, 120); }
+  async function sync(){
+    if(syncing){ syncAgain = true; return; }
+    syncing = true;
+    try{
+      var d = await http('GET', '/sync' + ((needForce || syncRev < 0) ? '' : '?rev=' + syncRev));
+      needForce = false;
+      if(inflight > 0){ needForce = true; syncAgain = true; }
+      else if(!d.same){ syncRev = d.rev; apply(d.docs, d.names); }
+      if(!firstSync){ firstSync = true; COLLS.forEach(notify); }
+    }catch(e){
+      needForce = true;
+      var el = document.getElementById('offline'); if(el){ el.hidden = false; el.textContent = '连接不上服务器：' + (e && e.message || e); }
+    }finally{
+      syncing = false;
+      if(syncAgain){ syncAgain = false; syncSoon(); }
+    }
+  }
+  function split(p){ var i = p.indexOf('/'); return [p.slice(0, i), p.slice(i + 1)]; }
+  var db = {
+    collection: function(name){
+      return { onSnapshot: function(cb, errCb){ subs[name].push(cb); if(firstSync) cb(collSnap(name)); return function(){ subs[name] = subs[name].filter(function(f){ return f !== cb; }); }; } };
+    },
+    doc: function(p){
+      var a = split(p), c = a[0], id = a[1];
+      return {
+        get: async function(){ var d = memo[c] && memo[c][id]; return { exists: d !== undefined, data: function(){ return d; } }; },
+        set: async function(data){
+          if(!REC.canWrite){ var e = new Error('你只有查看权限，不能保存。'); e.code = 'permission_denied'; throw e; }
+          var old = memo[c][id]; memo[c][id] = JSON.parse(JSON.stringify(data)); notify(c);
+          inflight++;
+          try{ await http('POST', '/batch', { ops: [{ op: 'set', path: p, data: data }] }); }
+          catch(e2){ if(old === undefined) delete memo[c][id]; else memo[c][id] = old; notify(c); throw e2; }
+          finally{ inflight--; }
+          syncSoon(true);
+        },
+        delete: async function(){
+          if(!REC.canWrite){ var e = new Error('你只有查看权限，不能保存。'); e.code = 'permission_denied'; throw e; }
+          var old = memo[c][id]; delete memo[c][id]; notify(c);
+          inflight++;
+          try{ await http('POST', '/batch', { ops: [{ op: 'delete', path: p }] }); }
+          catch(e2){ if(old !== undefined) memo[c][id] = old; notify(c); throw e2; }
+          finally{ inflight--; }
+          syncSoon(true);
+        }
+      };
+    }
+  };
+  REC.downloads = { save: async function(o){
+    var blob = o.data instanceof Blob ? o.data : new Blob([o.data]), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+  } };
+  REC.user = { profiles: async function(ids){ var o = {}; (ids || []).forEach(function(id){ o[id] = { name: REC.names[id] || '' }; }); return o; } };
+  REC.init = async function(){
+    if(!CID) throw new Error('缺少公司编号');
+    var me = await http('GET', '');
+    if(!me.enabled) throw new Error('这家公司还没有开通每日营业对账');
+    REC.mgr = !!me.mgr; REC.canWrite = !!me.canWrite; REC.name = me.name || ''; REC.uid = String(me.uid || '');
+    await sync();
+    setInterval(function(){ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved
+    return db;
+  };
+})();
+</script>
+<script>
+(() => {
+const TPL = {"inv": [["#", "TEMPLATE FOR INVOICES (CREDIT SALES) - EXTENDED MODE - MY"], ["#"], ["#", "INSTRUCTIONS FOR IMPORT (PLEASE READ FIRST)"], ["#", "Lines that start with '#' are comments and will be ignored by the system during import."], ["#", "DO NOT remove the line started with '$', the system requires it to identify the columns."], ["#", "DO NOT remove the first column with '#' and '$', system will read data from 2nd column."], ["#", "Fields marked with '*' are required."], ["#", "- To create a transaction with more than one line item, you can either:"], ["#", "    > Add additional lines with the same data in the columns before column N."], ["#", "    > Add additional lines with all columns left blank before column N."], ["#"], ["#", "NOTES:"], ["#", "(D) Accepted format for dates is \"DD/MM/YYYY\"."], ["#", "(1) The transaction's customer, enter the Contact's Contact Code (eg. C-A0001). If left blank, the customer will be matched by Legal Name instead (Column 2)."], ["#", "(2) The customer's Legal Name (eg. Acme Sdn Bhd). Used to match the customer only if Contact Code is blank or doesn't match an existing code."], ["#", "(3) The transaction's unique number, enter the actual number or a number format with number placeholder (eg. IV-[5DIGIT]) for automated running number, default number format is used if left blank."], ["#", "(4) The transaction's payment term, enter the Payment Term's name (eg. NET30), you may leave blank to set a Due Date."], ["#", "(5) The transaction's due date, only use this if Payment Term is not provided, default to the transaction's Date if left blank."], ["#", "(6) The transaction's currency, enter the 3 character ISO currency code (eg. MYR), default to home currency if left blank."], ["#", "(7) The transaction's exchange rate used to convert the amount into home currency, default to 1 if left blank."], ["#", "(8) Assign the transaction to multiple tags, enter the Tag's name and you may specific multiple tags with with commas."], ["#", "(9) The line item's product, enter the Product's name."], ["#", "(10) The line item's account, enter the Account's code."], ["#", "(11) The line item's quantity, default to 1 if left blank."], ["#", "(12) The line item's product UOM (Unit of Measurements), only used when product is selected, it will set to the default / base UOM if left blank."], ["#", "(13) The line item's product location, enter the Location's code, only used when inventory product is selected, it will set to default location if left blank."], ["#", "(14) The line item’s discount, enter amount value (eg. 5.00) or percentage value (eg. 5%)."], ["#", "(15) The sales tax applicable for the line item, enter the Tax's code."], ["#", "(16) The classification code, used for MyInvois submission (Malaysia only)."], ["#"], ["#", "Custom Fields"], ["$", "Contact Code (1)", "Legal Name (2)", "No. (3)", "Reference No.", "Date (D) *", "Payment Term (4)", "Due Date (D) (5)", "Currency (6)", "Rate (7)", "Tags (8)", "Title", "Description", "Product (9)", "Account (10) *", "Item Description *", "Quantity (11)", "UOM (12)", "Location (13)", "Unit Price *", "Discount (14)", "Tax (15)", "Classification Code (16)"]], "pay": [["#", "TEMPLATE FOR SALES PAYMENTS"], ["#"], ["#", "INSTRUCTIONS FOR IMPORT (PLEASE READ FIRST)"], ["#", "Lines that start with '#' are comments and will be ignored by the system during import."], ["#", "DO NOT remove the line started with '$', the system requires it to identify the columns."], ["#", "DO NOT remove the first column with '#' and '$', system will read data from 2nd column."], ["#", "Fields marked with '*' are required."], ["#", "- To create a transaction with more than one line item, you can either:"], ["#", "    > Add additional lines with the same data in the columns before column P."], ["#", "    > Add additional lines with all columns left blank before column P."], ["#"], ["#", "NOTES:"], ["#", "(D) Accepted format for dates is \"DD/MM/YYYY\"."], ["#", "(1) The transaction's customer, enter the Contact's Contact Code (eg. C-A0001). If left blank, the customer will be matched by Legal Name instead (Column 2)."], ["#", "(2) The customer's Legal Name (eg. Acme Sdn Bhd). Used to match the customer only if Contact Code is blank or doesn't match an existing code."], ["#", "(3) The transaction's unique number, enter the actual number or a number format with number placeholder (eg. IV-[5DIGIT]) for automated running number, default number format is used if left blank."], ["#", "(4) The transaction's currency, enter the 3 character ISO currency code (eg. MYR), default to home currency if left blank."], ["#", "(5) The transaction's exchange rate used to convert the amount into home currency, default to 1 if left blank."], ["#", "(6) The total payment amount."], ["#", "(7) The payment method, common methods are Bank Transfer, Cash, Cheque, Credit Card, Online Payment, Other and Payment Gateway."], ["#", "(8) The account that the money is deposited into, enter the Account's code."], ["#", "(9) Enter a non-zero positive amount if the payment is subject to a transaction fee."], ["#", "(10) Enter the account code for the fee incurred (if any)."], ["#", "(11) Assign the transaction to multiple tags, enter the Tag's name and you may specific multiple tags with with commas."], ["#", "(12) The invoice that you are knocking off with the payment, please enter the Invoice's number."], ["#", "(13) The amount that you are knocking off with the payment, the amount should be equal or less than the invoice's outstanding amount."], ["#"], ["$", "Contact Code (1)", "Legal Name (2)", "No. (3)", "Reference No.", "Date (D) *", "Currency (4)", "Rate (5)", "Amount (6) *", "Payment Method (7)", "Deposit Account (8) *", "Fee Amount (9)", "Fee Account (10)", "Tags (11)", "Description", "Invoice No. (12)", "Apply Amount (13)"]], "bill": [["#", "TEMPLATE FOR BILLS (CASH PURCHASE) - EXTENDED MODE - MY"], ["#"], ["#", "INSTRUCTIONS FOR IMPORT (PLEASE READ FIRST)"], ["#", "Lines that start with '#' are comments and will be ignored by the system during import."], ["#", "DO NOT remove the line started with '$', the system requires it to identify the columns."], ["#", "DO NOT remove the first column with '#' and '$', system will read data from 2nd column."], ["#", "Fields marked with '*' are required."], ["#", "- To create a transaction with more than one line item, you can either:"], ["#", "    > Add additional lines with the same data in the columns before column L."], ["#", "    > Add additional lines with all columns left blank before column L."], ["#"], ["#", "NOTES:"], ["#", "(D) Accepted format for dates is \"DD/MM/YYYY\"."], ["#", "(1) The transaction's supplier, enter the Contact's Contact Code (eg. C-A0001). If left blank, the supplier will be matched by Legal Name instead (Column 2)."], ["#", "(2) The supplier's Legal Name (eg. Acme Sdn Bhd). Used to match the supplier only if Contact Code is blank or doesn't match an existing code."], ["#", "(3) The transaction's unique number, enter the actual number or a number format with number placeholder (eg. IV-[5DIGIT]) for automated running number, default number format is used if left blank."], ["#", "(4) The transaction's currency, enter the 3 character ISO currency code (eg. MYR), default to home currency if left blank."], ["#", "(5) The transaction's exchange rate used to convert the amount into home currency, default to 1 if left blank."], ["#", "(6) The account that the money is paid from, enter the Account's code."], ["#", "(7) Assign the transaction to multiple tags, enter the Tag's name and you may specific multiple tags with with commas."], ["#", "(8) The line item's product, enter the Product's name."], ["#", "(9) The line item's account, enter the Account's code."], ["#", "(10) The line item's quantity, default to 1 if left blank."], ["#", "(11) The line item's product UOM (Unit of Measurements), only used when product is selected, it will set to the default / base UOM if left blank."], ["#", "(12) The line item's product location, enter the Location's code, only used when inventory product is selected, it will set to default location if left blank."], ["#", "(13) The line item’s discount, enter amount value (eg. 5.00) or percentage value (eg. 5%)."], ["#", "(14) The purchase tax applicable for the line item, enter the Tax's code."], ["#", "(15) The classification code, used for MyInvois submission (Malaysia only)."], ["#"], ["$", "Contact Code (1)", "Legal Name (2)", "No. (3)", "Reference No.", "Date (D) *", "Currency (4)", "Rate (5)", "Payment Account (6) *", "Tags (7)", "Description", "Product (8)", "Account (9) *", "Item Description *", "Quantity (10)", "UOM (11)", "Location (12)", "Unit Price *", "Discount (13)", "Tax (14)", "Classification Code (15)"]], "simple": [["#", "TEMPLATE FOR INVOICES (CREDIT SALES) - SIMPLE MODE - MY"], ["#"], ["#", "INSTRUCTIONS FOR IMPORT (PLEASE READ FIRST)"], ["#", "Lines that start with '#' are comments and will be ignored by the system during import."], ["#", "DO NOT remove the line started with '$', the system requires it to identify the columns."], ["#", "DO NOT remove the first column with '#' and '$', system will read data from 2nd column."], ["#", "Fields marked with '*' are required."], ["#", "- To create a transaction with more than one line item, you can either:"], ["#", "    > Add additional lines with the same data in the columns before column I."], ["#", "    > Add additional lines with all columns left blank before column I."], ["#"], ["#", "NOTES:"], ["#", "(D) Accepted format for dates is \"DD/MM/YYYY\"."], ["#", "(1) The transaction's customer, enter the Contact's Contact Code (eg. C-A0001). If left blank, the customer will be matched by Legal Name instead (Column 2)."], ["#", "(2) The customer's Legal Name (eg. Acme Sdn Bhd). Used to match the customer only if Contact Code is blank or doesn't match an existing code."], ["#", "(3) The transaction's unique number, enter the actual number or a number format with number placeholder (eg. IV-[5DIGIT]) for automated running number, default number format is used if left blank."], ["#", "(4) The transaction's due date, default to the transaction's Date if left blank."], ["#", "(5) The transaction's currency, enter the 3 character ISO currency code (eg. MYR), default to home currency if left blank."], ["#", "(6) The transaction's exchange rate used to convert the amount into home currency, default to 1 if left blank."], ["#", "(7) The line item's account, enter the Account's code."], ["#", "(8) The sales tax applicable for the line item, enter the Tax's code."], ["#", "(9) The classification code, used for MyInvois submission (Malaysia only)."], ["#"], ["$", "Contact Code (1)", "Legal Name (2)", "No. (3)", "Date (D) *", "Due Date (D) (4)", "Currency (5)", "Rate (6)", "Account (7) *", "Item Description *", "Amount *", "Tax (8)", "Classification Code (9)"]]};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2 = n => Math.round((Number(n)||0)*100+(n<0?-1e-6:1e-6))/100;
+const money = n => (Number(n)||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dmy = iso => iso ? iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4) : '';
+const yymm = iso => iso.slice(2,4)+iso.slice(5,7);
+const dd = iso => iso.slice(8,10);
+const pad = n => String(n).padStart(2,'0');
+const isoOf = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const addDays = (iso,n) => { const d=new Date(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)+n); return isoOf(d); };
+const lastDay = m => new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+const daysOf = m => Array.from({length:lastDay(m)},(_,i)=>m+'-'+pad(i+1));
+const prevMonth = m => { const d=new Date(+m.slice(0,4),+m.slice(5,7)-2,1); return d.getFullYear()+'-'+pad(d.getMonth()+1); };
+const nextMonth = m => { const d=new Date(+m.slice(0,4),+m.slice(5,7),1); return d.getFullYear()+'-'+pad(d.getMonth()+1); };
+function defaultMonth(){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+function num(v){ if(v===null||v===undefined||v==='') return 0; if(typeof v==='number') return v; const s=String(v).replace(/[,'\s]/g,''); const n=Number(s); return isFinite(n)?n:0; }
+function normDate(v){
+  if(v===null||v===undefined||v==='') return '';
+  if(v instanceof Date) return isoOf(v);
+  if(typeof v==='number'){ if(v>20000&&v<80000){ const d=new Date(Math.round((v-25569)*864e5)); return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate()); } return ''; }
+  const s=String(v).trim().replace(/^'/,'');
+  let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/); if(m) return m[1]+'-'+pad(m[2])+'-'+pad(m[3]);
+  m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); if(m){ const y=m[3].length===2?'20'+m[3]:m[3]; return y+'-'+pad(m[2])+'-'+pad(m[1]); }
+  return '';
+}
+const MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+function normMDY(v){ if(typeof v==='string'){ const m=v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+pad(m[1])+'-'+pad(m[2]); } return normDate(v); }
+function normAny(v){ if(typeof v==='string'){ const m=v.trim().match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/); if(m&&MON[m[2].toLowerCase()]) return m[3]+'-'+pad(MON[m[2].toLowerCase()])+'-'+pad(m[1]); } return normDate(v); }
+const H = s => String(s??'').replace(/\s+/g,' ').trim().toLowerCase();
+
+/* ---------- default Bukku settings (manager can change in 设定) ---------- */
+const DEF = {
+  contact:'C-C0001', legal:'CASH SALES', invPrefix:'MF', taxCode:'SV6', taxRate:0.06, taxMode:'INVOICE', classCode:'',
+  accSales:'5000', accDisc:'5055', accPkg:'5002', accSvc:'5002', accRound:'6686', splitDisc:'Y',
+  descSales:'DAILY SALES', descDisc:'DISCOUNT GIVEN', descPkg:'PACKAGING FEE', descSvc:'SERVICE CHARGE', descRound:'ROUNDING ADJUSTMENT',
+  pfxDN:'ODN', pfxVISA:'OPBV', pfxMASTER:'OPBM', pfxMYDEBIT:'OPBD', pfxCASH:'OCS',
+  mDN:'DUITNOW', mVISA:'VISA', mMASTER:'MASTER', mMYDEBIT:'MY DEBIT', mCASH:'CASH IN CASHIER',
+  depDN:'1000-04', depCARD:'1000-01', depCASH:'1000-03', feeDN:'6606-03', feeCARD:'6606-02',
+  royContact:'C-Y0003', royLegal:'YONNY BRAND MANAGEMENT (MY) SDN. BHD.', royKey:'YONNY', royAcc:'6662', royPay:'1000-04', royPrefix:'RY', royDesc:'ROYALTY FEE',
+  bankVISA:'33', bankMASTER:'55', bankMYDEBIT:'66', tol:0.01, roundWarn:1,
+  gbContact:'C-G0004', gbLegal:'GPay Network (M) Sdn Bhd', gbPrefix:'GB', gbRcpt:'OGB', gbMethod:'GRABFOOD', gbDep:'1000-01',
+  gbDoPrefix:'GB-', gbDoSuffix:'A', gbDoSales:'5000', gbDoSur:'5002',
+  gbSales:'5001-01G', gbDisc:'5056-01G', gbComm:'6617-02G', gbMkt:'6617-03G', gbAds:'6617-01G', gbAdj:'6617-04G', gbRnd:'6693',
+  spContact:'C-S0009', spLegal:'ShopeePay Malaysia', spPrefix:'SP', spRcpt:'OSP', spMethod:'SHOPEE PAY', spDep:'1000-01',
+  spSales:'5001-01S', spDisc:'5056-01S', spComm:'6617-02S', spAds:'6617-01S', spAdj:'6617-04S',
+  fpContact:'C-D0003', fpLegal:'Delivery Hero Malaysia Sdn Bhd', fpPrefix:'FP', fpRcpt:'OFP', fpMethod:'FOOD PANDA', fpDep:'1000-01',
+  fpSales:'5001-01F', fpDisc:'5056-01F', fpComm:'6617-02F', fpAds:'6617-01F', fpAdj:'6617-04F'
+};
+const SET_FIELDS = [
+  ['客户与发票 Customer & Invoice',[['contact','Contact Code'],['legal','Legal Name'],['invPrefix','发票前缀（MF → MF2609-01）'],['taxCode','SST Tax Code'],['taxRate','SST 税率（0.06 = 6%）'],['taxMode','SST 计算：INVOICE = 整张单合计再四舍五入 / LINE = 每行四舍五入'],['classCode','Classification Code（可留空）']]],
+  ['营业额科目 Sales accounts',[['accSales','DAILY SALES 科目'],['accDisc','DISCOUNT GIVEN 科目'],['splitDisc','折扣分开记 Y/N（N = 只记 Net）'],['accPkg','PACKAGING FEE 科目'],['accSvc','SERVICE CHARGE 科目'],['accRound','ROUNDING 科目']]],
+  ['发票行描述 Item descriptions',[['descSales','营业额'],['descDisc','折扣'],['descPkg','打包费'],['descSvc','服务费'],['descRound','Rounding']]],
+  ['收据前缀 Receipt prefix',[['pfxDN','DuitNow'],['pfxVISA','VISA'],['pfxMASTER','MASTER'],['pfxMYDEBIT','MY DEBIT'],['pfxCASH','现金']]],
+  ['付款方式名称（要跟 Bukku 一模一样）',[['mDN','DuitNow'],['mVISA','VISA'],['mMASTER','MASTER'],['mMYDEBIT','MY DEBIT'],['mCASH','现金']]],
+  ['存入户口与手续费 Deposit & fees',[['depDN','DuitNow 存入'],['depCARD','卡 存入'],['depCASH','现金 存入'],['feeDN','DuitNow 手续费科目'],['feeCARD','卡 手续费科目']]],
+  ['Royalty Cash Bill',[['royContact','Contact Code'],['royLegal','Legal Name'],['royKey','钱包流水里收款人关键字'],['royAcc','科目'],['royPay','Payment Account'],['royPrefix','单号前缀（RY → RY2609-01）'],['royDesc','Item Description']]],
+  ['Grab Food',[['gbContact','Contact Code'],['gbLegal','Legal Name'],['gbPrefix','发票前缀 GB → GB2609-01'],['gbRcpt','收据前缀'],['gbMethod','付款方式'],['gbDep','存入户口'],['gbSales','SALES'],['gbDisc','DISCOUNT'],['gbComm','COMMISSION'],['gbMkt','MARKETING FEE'],['gbAds','ADVERTISEMENT'],['gbAdj','ADJUSTMENT'],['gbRnd','SST ROUNDING DIFF'],['gbDoPrefix','到店单前缀（GB- → GB-2609-04A）'],['gbDoSuffix','到店单后缀'],['gbDoSales','到店 SALES 科目（含税）']]],
+  ['ShopeeFood',[['spContact','Contact Code'],['spLegal','Legal Name'],['spPrefix','发票前缀 SP'],['spRcpt','收据前缀'],['spMethod','付款方式'],['spDep','存入户口'],['spSales','SALES'],['spDisc','DISCOUNT'],['spComm','COMMISSION'],['spAds','ADVERTISEMENT'],['spAdj','ADJUSTMENT']]],
+  ['Foodpanda',[['fpContact','Contact Code'],['fpLegal','Legal Name'],['fpPrefix','发票前缀 FP'],['fpRcpt','收据前缀'],['fpMethod','付款方式'],['fpDep','存入户口'],['fpSales','SALES'],['fpDisc','DISCOUNT'],['fpComm','COMMISSION'],['fpAds','ADVERTISEMENT'],['fpAdj','其他调整']]],
+  ['BSM 银行代码 & 容差',[['bankVISA','VISA = BANK'],['bankMASTER','MASTER = BANK'],['bankMYDEBIT','MY DEBIT = BANK'],['tol','差额容差 RM'],['roundWarn','Rounding 超过多少要提醒 RM']]]
+];
+
+const SRC = {
+  pos:{name:'POS 每日汇总',need:true,hint:'POS & ONLINE 报表（营业日期 / Business Date）'},
+  pp:{name:'PingPong 交易明细',need:true,hint:'DuitNow / 电子钱包 / 网关刷卡，每笔交易'},
+  bsm:{name:'Public Bank BSM PDF',need:true,hint:'每天一份，VISA / MASTER / MyDebit'},
+  wallet:{name:'PingPong 钱包流水',need:true,hint:'Royalty（转给 YONNY）、Settlement、Payout'},
+  grab:{name:'Grab 三方支付',need:false,hint:'可选：有 Taxable 栏就用它拆 Grab 单'},
+  sur:{name:'Surcharge 明细',need:false,hint:'可选：核对服务费 / 打包费'},
+  gf:{name:'Grab Food 交易明细',need:false,grp:'del',plat:'gb',hint:'Grab Merchant → Transactions（每笔 Payment / 广告 / 调整）'},
+  gft:{name:'Grab Food 转账 Transfer',need:false,grp:'del',plat:'gb',hint:'可选：核对每天转进银行的钱'},
+  sp:{name:'ShopeeFood 订单结算',need:false,grp:'del',plat:'sp',hint:'Order Payment 报表（Order Amount / Commission / Net Income）'},
+  sp1:{name:'ShopeeFood 订单明细',need:false,grp:'del',plat:'sp',hint:'有 Flash sale discount 的订单报表'},
+  spa:{name:'ShopeeFood 钱包流水',need:false,grp:'del',plat:'sp',hint:'Ads Top Up 广告费'},
+  spj:{name:'ShopeeFood 调整',need:false,grp:'del',plat:'sp',hint:'Wallet Adjustment（漏单 / 错单扣款）'},
+  fps:{name:'Foodpanda 发票汇总',need:false,grp:'del',plat:'fp',hint:'SUMMARY：每天一张发票、Balance Amount'},
+  fpa:{name:'Foodpanda Appendix A',need:false,grp:'del',plat:'fp',hint:'每笔订单：销售、折扣、佣金'}
+};
+const PLAT = {gb:{name:'Grab Food',srcs:['gf','gft'],main:'gf'},sp:{name:'ShopeeFood',srcs:['sp','sp1','spa','spj'],main:'sp'},fp:{name:'Foodpanda',srcs:['fps','fpa'],main:'fps'}};
+
+const S = { db:null, mem:null, mgr:false, canWrite:true, uid:'', user:null, month:defaultMonth(), src:{}, adj:{}, closings:{}, set:Object.assign({},DEF), sel:'', logs:[], names:{}, unsub:[] };
+let downloads=null;
+
+/* ---------- storage ---------- */
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,3200); }
+function dbErr(e){ console.error(e); toast(e && (e.code==='permission_denied'||e.code==='not_granted') ? '没有权限做这个，请找 manager' : '保存失败：'+(e && e.message || e)); }
+let memListeners=[];
+async function put(path,data){ if(S.db) return S.db.doc(path).set(data); S.mem[path]=JSON.parse(JSON.stringify(data)); memNotify(path); }
+async function getDoc(path){ if(S.db){ const d=await S.db.doc(path).get(); return d.exists?d.data():null; } return S.mem[path]?JSON.parse(JSON.stringify(S.mem[path])):null; }
+async function del(path){ if(S.db) return S.db.doc(path).delete(); delete S.mem[path]; memNotify(path); }
+function memNotify(path){ const coll=path.slice(0,path.lastIndexOf('/')); memListeners.forEach(f=>{ if(f.coll===coll) f(); }); }
+function listen(coll, cb){
+  if(S.db){
+    const timer=setTimeout(()=>{$('offline').hidden=false},10000);
+    return S.db.collection(coll).onSnapshot(snap=>{ clearTimeout(timer); $('offline').hidden=true; cb(snap.docs.map(d=>Object.assign({id:d.id},d.data()))); }, e=>{clearTimeout(timer);dbErr(e);});
+  }
+  const run=()=>{ const pre=coll+'/'; cb(Object.keys(S.mem).filter(k=>k.startsWith(pre)&&!k.slice(pre.length).includes('/')).map(k=>Object.assign({id:k.slice(pre.length)},S.mem[k]))); };
+  run.coll=coll; memListeners.push(run); run(); return ()=>{memListeners=memListeners.filter(f=>f!==run);};
+}
+/* change log: one doc per person per day */
+const dayStr = t => isoOf(new Date(t));
+let logChain=Promise.resolve();
+function logIt(a,t,extra){
+  const e=Object.assign({at:Date.now(),a,t,m:S.month},extra||{});
+  logChain=logChain.then(async()=>{
+    const day=dayStr(e.at), base='log/'+day+'_'+(S.uid||'anon');
+    for(let k=1;k<50;k++){
+      const path=base+(k>1?'_'+k:'');
+      const prev=((await getDoc(path))||{}).entries||[];
+      const all=prev.concat([e]);
+      if(prev.length && JSON.stringify(all).length>200000) continue;
+      await put(path,{day,by:S.uid||'',entries:all}); return;
+    }
+  }).catch(err=>console.error('log',err));
+}
+
+/* ---------- parsing ---------- */
+function findHeader(aoa, must, maxRow){
+  for(let i=0;i<Math.min(aoa.length,maxRow||15);i++){
+    const row=(aoa[i]||[]).map(H);
+    if(must.every(alts=>alts.some(a=>row.includes(H(a))))) return i;
+  }
+  return -1;
+}
+const col = (row, alts) => { const r=row.map(H); for(const a of alts){ const i=r.indexOf(H(a)); if(i>=0) return i; } return -1; };
+
+function parsePOS(aoa){
+  const hi=findHeader(aoa,[['Business Date','营业日期'],['Gross Sales','菜品总价'],['Total Sales','含税销售额']]);
+  if(hi<0) return null;
+  const r1=aoa[hi]||[], r3=aoa[hi+2]||[];
+  const cGross=col(r1,['Gross Sales','菜品总价']), cDisc=col(r1,['Amount Of Discount','优惠金额']), cDate=col(r1,['Business Date','营业日期']), cTotal=col(r1,['Total Sales','含税销售额']);
+  const groups=[]; let g='';
+  const width=Math.max(r1.length,r3.length);
+  for(let c=0;c<width;c++){ if(r1[c]!=null && String(r1[c]).trim()!=='') g=H(r1[c]); groups[c]= (r3[c]!=null&&String(r3[c]).trim()!=='') ? {g,s:String(r3[c]).trim()} : null; }
+  const isG=(x,keys)=>keys.some(k=>x.g.includes(k));
+  const pick=(grp,alts)=>{ for(let c=0;c<width;c++){ const x=groups[c]; if(x && isG(x,grp) && alts.some(a=>H(a)===H(x.s))) return c; } return -1; };
+  const cSst=pick(['tax name','税名称'],['SST6%','SST 6%','SST']), cRnd=pick(['discount subtype','优惠子类型'],['Rounding','圆整']), cPmd=pick(['discount subtype','优惠子类型'],['Payment method discounts','结账方式优惠']);
+  const cSvc=pick(['surcharge type','附加费类型'],['Service charges','服务费']), cPkg=pick(['surcharge type','附加费类型'],['Packaging fees','打包费']);
+  const payCols=[]; for(let c=0;c<width;c++){ const x=groups[c]; if(x && isG(x,['third-party payment','三方支付']) && !/^(subtotal|小计)$/i.test(x.s)) payCols.push([c,x.s]); }
+  const payNames=payCols.map(x=>H(x[1]));
+  if(payNames.some(n=>/takeout|grabfood|foodpanda|shopeefood/.test(n)) || !payNames.some(n=>n==='cash'||n==='现金')) return {key:'_skip',msg:'跳过：不是堂食 POS & ONLINE 表（这是外卖 / 全部渠道的 POS 表）'};
+  const miss=[]; [['Gross',cGross],['Discount',cDisc],['SST',cSst],['Rounding',cRnd],['Service',cSvc]].forEach(([n,c])=>{ if(c<0) miss.push(n); });
+  if(miss.length) throw new Error('POS 报表少了这些栏：'+miss.join(', ')+'（格式可能改了）');
+  const days={};
+  for(let i=hi+3;i<aoa.length;i++){
+    const r=aoa[i]||[]; const d=normDate(r[cDate]); if(!d) continue;
+    const pay={}; payCols.forEach(([c,n])=>{ const v=num(r[c]); if(v) pay[n]=r2((pay[n]||0)+v); });
+    days[d]={gross:num(r[cGross]),disc:num(r[cDisc]),sst:num(r[cSst]),rnd:num(r[cRnd]),pmd:cPmd>=0?num(r[cPmd]):0,svc:num(r[cSvc]),pkg:cPkg>=0?num(r[cPkg]):0,total:cTotal>=0?num(r[cTotal]):0,pay};
+  }
+  return {key:'pos',days};
+}
+function parsePP(aoa){
+  const hi=findHeader(aoa,[['TradeType'],['SettleAmount'],['RequestTime']]);
+  if(hi<0) return null;
+  const h=aoa[hi], cT=col(h,['TradeType']), cA=col(h,['SettleAmount']), cF=col(h,['TotalFee']), cM=col(h,['PaymentMethod']), cR=col(h,['RequestTime']);
+  const days={}; let skip=0;
+  for(let i=hi+1;i<aoa.length;i++){
+    const r=aoa[i]||[]; const d=normDate(r[cR]); if(!d) continue;
+    const t=String(r[cT]||'').toUpperCase(); if(!/SUCCEED|SUCCESS/.test(t)){ skip++; continue; }
+    const o=days[d]||(days[d]={amt:0,fee:0,n:0,by:{}}); const a=num(r[cA]), f=-num(r[cF]), m=String(r[cM]||'?');
+    o.amt=r2(o.amt+a); o.fee=r2(o.fee+f); o.n++; const b=o.by[m]||(o.by[m]={amt:0,fee:0,n:0}); b.amt=r2(b.amt+a); b.fee=r2(b.fee+f); b.n++;
+    if(/REFUND/.test(t)) o.refund=r2((o.refund||0)+a);
+  }
+  return {key:'pp',days,skip};
+}
+function parseWallet(aoa){
+  const hi=findHeader(aoa,[['OrderType'],['RecipientName'],['RequestAmount']],10);
+  if(hi<0) return null;
+  const h=aoa[hi], cC=col(h,['CreateTime']), cT=col(h,['OrderType']), cN=col(h,['RecipientName']), cA=col(h,['ReceiveAmount','RequestAmount']), cS=col(h,['Status']), cNote=col(h,['Note']), cId=col(h,['TransactionID']);
+  const key=H(S.set.royKey||'YONNY');
+  const roy={}, recv=[], payout=[];
+  for(let i=hi+1;i<aoa.length;i++){
+    const r=aoa[i]||[]; const at=String(r[cC]||'').trim(); const d=normDate(at); if(!d) continue;
+    if(cS>=0 && r[cS] && !/success/i.test(String(r[cS]))) continue;
+    const typ=String(r[cT]||''), amt=num(r[cA]), note=String(r[cNote]||'');
+    if(/internal transfer/i.test(typ) && H(r[cN]).includes(key)){
+      const m=note.match(/(\d{4}-\d\d-\d\d)\s*~/); const rd=m?m[1]:addDays(d,-1);
+      roy[rd]={amt:r2(amt),paid:at.slice(0,16),id:String(r[cId]||'').replace(/^'/,''),guess:!m};
+    } else if(/^receive$/i.test(typ)){ const m=note.match(/(\d{8})MYR/); recv.push({at:at.slice(0,16),amt:r2(amt),batch:m?m[1].slice(0,4)+'-'+m[1].slice(4,6)+'-'+m[1].slice(6):''}); }
+    else if(/payout/i.test(typ)) payout.push({at:at.slice(0,16),amt:r2(amt),to:String(r[cN]||'')});
+  }
+  return {key:'wallet',days:roy,recv,payout};
+}
+function parseGrab(aoa){
+  const hi=findHeader(aoa,[['三方支付方式','Third-Party Payment Method'],['支付小计','Payment Subtotal'],['POS 订单号','POS Order Number','订单类型']]);
+  if(hi<0) return null;
+  const h=aoa[hi], cD=col(h,['营业日期','Business Date']), cM=col(h,['三方支付方式','Third-Party Payment Method']), cP=col(h,['支付小计','Payment Subtotal']), cTx=col(h,['Taxable Amount']), cTax=col(h,['Original Tax Amount']), cSv=col(h,['SURCHARGES','Surcharges']);
+  const days={}; const svCol = cSv>=0 && aoa.slice(hi+1).some(r=>r&&r[cSv]!=null&&r[cSv]!==''&&/grab/i.test(String(r[cM]||'')));
+  for(let i=hi+1;i<aoa.length;i++){
+    const r=aoa[i]||[]; const d=normDate(r[cD]); if(!d) continue;
+    if(!/grab/i.test(String(r[cM]||''))) continue;
+    const o=days[d]||(days[d]={paid:0,n:0}); o.paid=r2(o.paid+num(r[cP])); o.n++;
+    if(cTx>=0){ const tx=num(r[cTx]), tv=num(r[cTax]); const hasSv=svCol || (cSv>=0 && r[cSv]!=null && r[cSv]!==''); const sv=hasSv ? num(r[cSv]) : r2(num(r[cP])-tx-tv); if(!hasSv && tx) o.est=true; o.taxable=r2((o.taxable||0)+tx); o.tax=r2((o.tax||0)+tv); o.svc=r2((o.svc||0)+sv); }
+  }
+  return {key:'grab',days,hasSplit:cTx>=0};
+}
+function parseSur(aoa){
+  const hi=findHeader(aoa,[['Surcharge Type','附加费类型'],['Fees & Surcharge','附加费金额'],['Order Number','订单号']]);
+  if(hi<0) return null;
+  const h=aoa[hi], cD=col(h,['Business Date','营业日期']), cT=col(h,['Surcharge Type','附加费类型']), cA=col(h,['Fees & Surcharge','附加费金额']), cR=col(h,['Surcharge Refund Amount','附加费退款金额']);
+  const days={};
+  for(let i=hi+1;i<aoa.length;i++){
+    const r=aoa[i]||[]; const d=normDate(r[cD]); if(!d) continue;
+    const o=days[d]||(days[d]={svc:0,pkg:0,n:0}); const a=num(r[cA]);
+    if(/packag|打包/i.test(String(r[cT]))) o.pkg=r2(o.pkg+a); else o.svc=r2(o.svc+a); o.n++;
+  }
+  return {key:'sur',days};
+}
+/* ----- delivery platforms ----- */
+function sumInto(days,d,o){ const x=days[d]||(days[d]={}); for(const k in o){ x[k]=r2((x[k]||0)+o[k]); } }
+function parseGF(aoa){
+  const hi=findHeader(aoa,[['Category'],['Updated On'],['Order commission']]); if(hi<0) return null;
+  const h=aoa[hi], c=n=>col(h,[n]);
+  const cD=c('Updated On'),cC=c('Category'),cS=c('Status'),cA=c('Amount'),cT=c('Tax on Order Value'),cDi=c('Discount (Merchant-Funded)'),cCo=c('Order commission'),cM=c('Marketing success fee'),cTot=c('Total');
+  const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normAny(r[cD]); if(!d) continue;
+    if(cS>=0 && !/transferred|completed|success/i.test(String(r[cS]||''))) continue;
+    const cat=String(r[cC]||'').trim().toLowerCase(), tot=num(r[cTot]);
+    if(cat.startsWith('payment')) sumInto(days,d,{n:1,amt:num(r[cA]),sst:num(r[cT]),disc:num(r[cDi]),comm:num(r[cCo]),mkt:num(r[cM]),tot});
+    else if(cat.startsWith('dine out')) sumInto(days,d,{doAmt:r2(num(r[cA])+num(r[cDi])),doComm:num(r[cCo]),tot});
+    else if(cat.startsWith('advert')) sumInto(days,d,{ads:tot,tot});
+    else if(cat.startsWith('adjust')) sumInto(days,d,{adj:num(r[cA]),tot});
+    else sumInto(days,d,{other:tot,tot});
+  }
+  return {key:'gf',days};
+}
+function parseGFT(aoa){
+  const hi=findHeader(aoa,[['Settlement ID'],['Net Total'],['Transfer Date']]); if(hi<0) return null;
+  const h=aoa[hi], cD=col(h,['Date']), cN=col(h,['Net Total']), cT=col(h,['Transfer Date']); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normAny(r[cT]>=0?r[cT]:r[cD])||normAny(r[cD]); if(!d) continue; sumInto(days,d,{amt:num(r[cN])}); }
+  return {key:'gft',days};
+}
+function parseSP(aoa){
+  const hi=findHeader(aoa,[['Order Complete/Cancel Time'],['Merchant Prepaid Subsidy'],['Net Income']]); if(hi<0) return null;
+  const h=aoa[hi], c=n=>col(h,[n]); const cD=c('Order Complete/Cancel Time'), cSt=c('Order Status'); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue;
+    if(cSt>=0 && /cancel/i.test(String(r[cSt]||''))) continue;
+    sumInto(days,d,{n:1,amt:num(r[c('Order Amount')]),tax:num(r[c('Food Tax')]),prepaid:num(r[c('Merchant Prepaid Subsidy')]),direct:num(r[c('Food Direct Discount')]),voucher:num(r[c('Merchant Food Voucher Subsidy')]),comm:num(r[c('Commission')])+num(r[c('Tax on Commission')]),prog:num(r[c('Program Fee')])+num(r[c('Tax on Program Fee')]),net:num(r[c('Net Income')])}); }
+  return {key:'sp',days};
+}
+function parseSP1(aoa){
+  const hi=findHeader(aoa,[['Food original price'],['Flash sale discount'],['Complete Time']]); if(hi<0) return null;
+  const h=aoa[hi], cD=col(h,['Complete Time']), cF=col(h,['Flash sale discount']), cSt=col(h,['Order Status']); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue; if(cSt>=0 && !/complete/i.test(String(r[cSt]||''))) continue; sumInto(days,d,{flash:num(r[cF]),n:1}); }
+  return {key:'sp1',days};
+}
+function parseSPA(aoa){
+  const hi=findHeader(aoa,[['Wallet Type'],['Closing Date'],['Amount']]); if(hi<0) return null;
+  const h=aoa[hi], cT=col(h,['Type']), cA=col(h,['Amount']), cD=col(h,['Closing Date']), cS=col(h,['Status']); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue; if(cS>=0 && r[cS] && !/success/i.test(String(r[cS]))) continue;
+    if(/ads/i.test(String(r[cT]||''))) sumInto(days,d,{ads:num(r[cA])}); }
+  return {key:'spa',days};
+}
+function parseSPJ(aoa){
+  const hi=findHeader(aoa,[['Wallet Adjustment Amount'],['Create Time']]); if(hi<0) return null;
+  const h=aoa[hi], cA=col(h,['Wallet Adjustment Amount']), cD=col(h,['Create Time']), cS=col(h,['Status']); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue; if(cS>=0 && r[cS] && !/success/i.test(String(r[cS]))) continue; sumInto(days,d,{adj:num(r[cA]),n:1}); }
+  return {key:'spj',days};
+}
+function parseFPS(aoa){
+  const hi=findHeader(aoa,[['Invoice No'],['Balance Amount'],['Appendix B total']]); if(hi<0) return null;
+  const h=aoa[hi], cN=col(h,['Invoice No']), cB=col(h,['Balance Amount']), cA=col(h,['Appendix A total']), cBt=col(h,['Appendix B total']), cF=col(h,['Invoice from']), cDoc=col(h,['Document Date']); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const no=String(r[cN]||'').replace(/^'/,'').trim(); const d=normDate(r[cF]>=0?r[cF]:r[cDoc])||normDate(r[cF])||normDate(r[cDoc]); if(!no||!d) continue;
+    days[d+'|'+no]={no,bal:num(r[cB]),a:num(r[cA]),b:num(r[cBt])}; }
+  return {key:'fps',days};
+}
+function parseFPA(aoa){
+  const hi=findHeader(aoa,[['Order Code'],['Products Value Paid By Customer'],['foodpanda Commission']]); if(hi<0) return null;
+  const h=aoa[hi], c=n=>col(h,[n]); const cI=c('Invoice Number'), cD=c('Order Date'); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const no=String(r[cI]||'').replace(/^'/,'').trim(); const d=normDate(r[cD]); if(!no||!d) continue;
+    const g=n=>{ const k=c(n); return k>=0?num(r[k]):0; };
+    sumInto(days,d+'|'+no,{n:1,sales:g('Products Value Paid By Customer')+g('Packaging Fees Paid By Customer')+g('Vendor Delivery Fee Paid By Customer'),
+      disc:-(g('Voucher Paid By Vendor')+g('Discount Paid By Vendor')+g('Pandabox Voucher Paid By Vendor')+g('Delivery Fee Discount Paid By Vendor')),
+      comm:-(g('foodpanda Commission')+g('SST on foodpanda commission')),pay:g('Payable Amount')}); }
+  return {key:'fpa',days};
+}
+async function pdfLines(buf){
+  const doc=await pdfjsLib.getDocument({data:buf,isEvalSupported:false}).promise;
+  const out=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent();
+    const rows=new Map();
+    tc.items.forEach(it=>{ const y=Math.round(it.transform[5]); const k=[...rows.keys()].find(v=>Math.abs(v-y)<=2); const key=k===undefined?y:k; if(!rows.has(key)) rows.set(key,[]); rows.get(key).push(it); });
+    [...rows.entries()].sort((a,b)=>b[0]-a[0]).forEach(([,its])=>out.push(its.sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str).join(' ')));
+  }
+  return out;
+}
+function parseBSM(lines){
+  const days={}; let cur=null, warn=[];
+  const typeOf=b=>{ for(const t of ['VISA','MASTER','MYDEBIT']) if(String(S.set['bank'+t])===String(b)) return t; return 'BANK '+b; };
+  lines.forEach(l=>{
+    const s=l.replace(/\s+/g,' ');
+    let m=s.match(/REPORT DATE\s*:\s*(\d\d)\/(\d\d)\/(\d\d)/); if(m){ cur={d:'20'+m[3]+'-'+m[2]+'-'+m[1]}; return; }
+    m=s.match(/BANK\s*:\s*(\d+)/); if(m && cur){ cur.t=typeOf(m[1]); return; }
+    if(cur && /M\s*E\s*R\s*C\s*H\s*A\s*N\s*T\s+T\s*O\s*T\s*A\s*L/.test(s)){
+      const ns=(s.split(/T\s*O\s*T\s*A\s*L/).pop().match(/-?[\d,]+\.\d\d|\b\d+\b/g)||[]).map(x=>num(x));
+      // VISA/MASTER: n, gross, net, comm   ·   MyDebit (EFT): n, gross, net, cashback, comm
+      const n=ns[0], gross=ns[1], net=ns[2], comm=ns[ns.length-1];
+      if(!(gross>0)){ warn.push(cur.d); return; }
+      const o=days[cur.d]||(days[cur.d]={}); const t=cur.t||'?';
+      const x=o[t]||(o[t]={gross:0,comm:0,net:0,n:0}); x.gross=r2(x.gross+gross); x.comm=r2(x.comm+(r2(gross-net)||comm)); x.net=r2(x.net+net); x.n+=n;
+      cur.t=null;
+    }
+  });
+  return {key:'bsm',days,warn};
+}
+async function readFile(file){
+  const name=file.name, out=[];
+  const buf=await file.arrayBuffer();
+  if(/\.pdf$/i.test(name)){
+    if(typeof pdfjsLib==='undefined') throw new Error('PDF 读取工具没载入');
+    const lines=await pdfLines(new Uint8Array(buf));
+    const txt=lines.join('\n');
+    if(!/BATCH|MERCHANT/i.test(txt)) throw new Error('认不出这个 PDF（不是 BSM 报告？）');
+    out.push(parseBSM(lines));
+  } else {
+    if(typeof XLSX==='undefined') throw new Error('Excel 读取工具没载入');
+    const wb=XLSX.read(buf,{type:'array',cellDates:false,raw:/\.csv$/i.test(name)});
+    for(const sn of wb.SheetNames){
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});
+      try{ for(const fn of [parsePOS,parsePP,parseWallet,parseGrab,parseSur,parseGF,parseGFT,parseSP,parseSP1,parseSPA,parseSPJ,parseFPS,parseFPA]){ const r=fn(aoa); if(r){ r.sheet=sn; out.push(r); break; } } }
+      catch(err){ out.push({key:'_err',sheet:sn,msg:err.message||String(err)}); }
+    }
+  }
+  return out;
+}
+
+/* ---------- upload ---------- */
+const srcPath = k => 'src/'+S.month+'_'+k;
+const isClosed = () => !!S.closings[S.month];
+function progLine(cls,msg){ const d=document.createElement('div'); d.className=cls; d.textContent=msg; $('prog').appendChild(d); }
+function mergeDays(base,add){ for(const d in add){ const p=base[d], n=add[d]; if(p && n && n.est && !p.est && p.taxable!=null) continue; base[d]=n; } return base; }
+async function handleFiles(files){
+  if(isClosed()) return toast('这个月已经结账，不能上传');
+  if(!S.canWrite) return toast('你只能看，不能上传');
+  $('prog').innerHTML='';
+  const inMonth = d => d.slice(0,7)===S.month;
+  const found={};
+  for(const f of files){
+    try{
+      const res=await readFile(f);
+      if(!res.length){ progLine('warn','⚠ '+f.name+'：认不出是哪一种报告，没有用到'); continue; }
+      res.forEach(r=>{
+        if(r.key==='_err'){ progLine('bad','✗ '+f.name+' ['+r.sheet+']：'+r.msg); return; }
+        if(r.key==='_skip'){ progLine('muted','· '+f.name+' ['+r.sheet+']：'+r.msg); return; }
+        const all=Object.keys(r.days); const keep=all.filter(inMonth);
+        if(r.key==='wallet'){ r.recv=(r.recv||[]).filter(x=>x.at.slice(0,7)===S.month||(x.batch&&inMonth(x.batch))); r.payout=(r.payout||[]).filter(x=>x.at.slice(0,7)===S.month); }
+        if(!keep.length && !(r.key==='wallet'&&(r.recv.length||r.payout.length))){ const other=[...new Set(all.map(d=>d.slice(0,7)))].join(', '); progLine('warn','⚠ '+f.name+(r.sheet?' ['+r.sheet+']':'')+' → '+SRC[r.key].name+'：没有 '+S.month+' 的资料'+(other?'（文件是 '+other+'）':'')); return; }
+        const days={}; keep.forEach(d=>days[d]=r.days[d]);
+        const o=found[r.key]||(found[r.key]={days:{},files:[],recv:[],payout:[],warn:[]});
+        mergeDays(o.days,days); o.files.push(f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':''));
+        if(r.recv) o.recv.push(...r.recv); if(r.payout) o.payout.push(...r.payout); if(r.warn) o.warn.push(...r.warn); if(r.hasSplit) o.hasSplit=true;
+        progLine('ok','✓ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+' → '+SRC[r.key].name+'：'+keep.length+' 天'+(r.skip?'（跳过 '+r.skip+' 笔非成功交易）':''));
+        if(r.warn&&r.warn.length) progLine('warn','⚠ '+f.name+'：有一段读不到合计，请检查 '+r.warn.join(', '));
+      });
+    }catch(err){ console.error(err); progLine('bad','✗ '+f.name+'：'+(err.message||err)); }
+  }
+  for(const [k,o] of Object.entries(found)){
+    try{
+      const prev=(await getDoc(srcPath(k)))||{days:{},files:[]};
+      const merged=mergeDays(Object.assign({},prev.days||{}),o.days);
+      const doc={month:S.month,key:k,days:merged,files:(prev.files||[]).concat(o.files.map(n=>({name:n,at:Date.now(),by:S.uid||''}))).slice(-80),at:Date.now(),by:S.uid||''};
+      if(k==='wallet'){ const seen=new Set(); doc.recv=(prev.recv||[]).concat(o.recv).filter(x=>{const id=x.at+x.amt; if(seen.has(id)) return false; seen.add(id); return true;}); const s2=new Set(); doc.payout=(prev.payout||[]).concat(o.payout).filter(x=>{const id=x.at+x.amt; if(s2.has(id)) return false; s2.add(id); return true;}); }
+      if(k==='grab') doc.hasSplit=!!(o.hasSplit||prev.hasSplit);
+      await put(srcPath(k),doc);
+      logIt('upload',SRC[k].name+'：'+Object.keys(o.days).length+' 天',{s:o.files.join(', ')});
+    }catch(err){ dbErr(err); }
+  }
+  if(Object.keys(found).length) toast('已保存，去「每日对账」看结果');
+}
+$('drop').addEventListener('click',()=>$('fileIn').click());
+$('drop').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); $('fileIn').click(); } });
+$('fileIn').addEventListener('change',e=>{ const fs=[...e.target.files]; e.target.value=''; if(fs.length) handleFiles(fs); });
+['dragenter','dragover'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('over');}));
+['dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('over');}));
+$('drop').addEventListener('drop',e=>{ const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])]; if(fs.length) handleFiles(fs); });
+
+/* ---------- compute ---------- */
+const PAYTYPES=['DN','VISA','MASTER','MYDEBIT','CASH'];
+function classify(pay){ let grab=0,cash=0,ext=0,dn=0; Object.entries(pay||{}).forEach(([k,v])=>{ if(/grab/i.test(k)) grab+=v; else if(/^cash$|现金/i.test(k)) cash+=v; else if(/external bank card|外部银行卡/i.test(k)) ext+=v; else dn+=v; }); return {grab:r2(grab),cash:r2(cash),ext:r2(ext),dn:r2(dn)}; }
+function computeLive(){
+  const C=S.set, rate=Number(C.taxRate)||0, tol=Number(C.tol)||0.01;
+  const pos=(S.src.pos||{}).days||{}, pp=(S.src.pp||{}).days||{}, bsm=(S.src.bsm||{}).days||{}, grab=(S.src.grab||{}).days||{}, sur=(S.src.sur||{}).days||{}, wal=(S.src.wallet||{}).days||{};
+  const adj=(S.adj[S.month]||{}).days||{};
+  const rows=[];
+  daysOf(S.month).forEach(d=>{
+    const p=pos[d]; const roy=wal[d];
+    if(!p){ rows.push({d,none:true,roy:roy?roy.amt:0,royGuess:roy&&roy.guess}); return; }
+    const k=classify(p.pay);
+    const g=grab[d]; let gTax, gVat, gSvc;
+    if(k.grab){
+      if(g && g.taxable!=null && Math.abs(g.paid-k.grab)<=tol){ gTax=g.taxable; gVat=g.tax; gSvc=g.svc; }
+      else { gTax=r2(k.grab/(1+rate+0.10)); gVat=r2(gTax*rate); gSvc=r2(k.grab-gTax-gVat); }
+    } else { gTax=0; gVat=0; gSvc=0; }
+    const gross=r2(p.gross-gTax+p.pmd);
+    const net=r2(gross-p.disc+p.rnd);
+    const disc=r2(net-gross), pkg=r2(p.pkg), svc=r2(p.svc-gSvc);
+    // Bukku taxes each line separately, so SST = sum of per-line rounded tax
+    const split=String(C.splitDisc).toUpperCase()==='Y';
+    const sst=sstOf(split?[gross,disc,pkg]:[net,pkg],C);
+    const total=r2(k.dn+k.ext+k.cash);
+    const rnd=r2(total-(net+pkg+svc+sst));
+    const flags=[];
+    // payments
+    const pays=[];
+    const ppd=pp[d];
+    if(k.dn||ppd){
+      if(ppd){ pays.push({t:'DN',amt:ppd.amt,fee:ppd.fee}); if(Math.abs(ppd.amt-k.dn)>tol) flags.push({k:'dn',msg:`DuitNow：PingPong ${money(ppd.amt)}，POS ${money(k.dn)}，差 ${money(r2(ppd.amt-k.dn))}`}); }
+      else { pays.push({t:'DN',amt:k.dn,fee:0,est:true}); flags.push({k:'dn',msg:`DuitNow：没有 PingPong 资料，先用 POS ${money(k.dn)}，手续费 0`}); }
+    }
+    const b=bsm[d]; let cardSum=0;
+    if(b){ ['VISA','MASTER','MYDEBIT'].forEach(t=>{ if(b[t]&&b[t].gross){ pays.push({t,amt:b[t].gross,fee:b[t].comm}); cardSum=r2(cardSum+b[t].gross); } }); Object.keys(b).filter(t=>!['VISA','MASTER','MYDEBIT'].includes(t)).forEach(t=>flags.push({k:'card',msg:`BSM 有不认识的 ${t}（${money(b[t].gross)}），请在设定检查 BANK 代码`})); }
+    if(k.ext||b){
+      if(!b) flags.push({k:'card',msg:`卡：没有 BSM PDF，POS 卡 ${money(k.ext)} 没有收款记录`});
+      else if(Math.abs(cardSum-k.ext)>tol) flags.push({k:'card',msg:`卡：BSM ${money(cardSum)}，POS ${money(k.ext)}，差 ${money(r2(cardSum-k.ext))}${cardSum>k.ext?'（多收：通常是刷卡多付、现金退还）':''}`});
+    }
+    if(k.cash) pays.push({t:'CASH',amt:k.cash,fee:0});
+    pays.forEach(x=>x.apply=x.amt);
+    const paid=r2(pays.reduce((s,x)=>s+x.amt,0));
+    const over=r2(paid-total);
+    if(over>tol){ const order=['VISA','MASTER','MYDEBIT','DN','CASH']; for(const t of order){ const x=pays.find(y=>y.t===t&&y.amt>=over); if(x){ x.apply=r2(x.amt-over); break; } } }
+    if(over< -tol) flags.push({k:'pay',msg:`收款比发票少 ${money(-over)}：Bukku 发票会留余额`});
+    if(Math.abs(rnd)>(Number(C.roundWarn)||1)) flags.push({k:'rnd',msg:`Rounding ${money(rnd)} 太大，请检查 POS 资料`});
+    const s=sur[d]; const svcPos=r2(p.svc), pkgPos=r2(p.pkg);
+    if(s && (Math.abs(s.svc-svcPos)>tol||Math.abs(s.pkg-pkgPos)>tol)) flags.push({k:'sur',msg:`Surcharge 明细：服务费 ${money(s.svc)} / 打包费 ${money(s.pkg)}，POS ${money(svcPos)} / ${money(pkgPos)}`});
+    const a=adj[d]||{};
+    rows.push({d,k,p,gross,disc,net,pkg,svc,sst,rnd,total,grab:k.grab,gTax,gVat,gSvc,pays,paid,over,flags,ack:!!a.ok,note:a.note||'',ackBy:a.by||'',roy:roy?roy.amt:0,royGuess:roy&&roy.guess,royPaid:roy&&roy.paid});
+  });
+  return rows;
+}
+/* ---------- delivery compute ---------- */
+const dkey = (p,d) => p+':'+d;
+function computeDel(p){
+  const C=S.set, rate=Number(C.taxRate)||0, tol=Number(C.tol)||0.01, adj=(S.adj[S.month]||{}).days||{};
+  const D=k=>(S.src[k]||{}).days||{};
+  const out=[];
+  const ack=(r)=>{ const a=adj[dkey(p,r.key||r.d)]||{}; r.ack=!!a.ok; r.note=a.note||''; r.ackBy=a.by||''; return r; };
+  const tax2=(a,b)=>sstOf([a,b],C);
+  if(p==='gb'){
+    const g=D('gf'), t=D('gft');
+    const live=computeLive(); const gsvc={}; live.forEach(r=>{ if(!r.none && r.grab) gsvc[r.d]=r.gSvc; });
+    Object.keys(g).sort().forEach(d=>{ const o=g[d]; if(!(o.amt||o.tot)) return;
+      const sales=r2(o.amt||0), disc=r2(o.disc||0), comm=r2(o.comm||0), mkt=r2(o.mkt||0), ads=r2(o.ads||0), adjm=r2(o.adj||0), doNet=r2((o.doAmt||0)+(o.doComm||0)), rec=r2(o.tot||0);
+      const target=r2(rec-doNet);
+      const rnd=r2(target-(sales+disc+tax2(sales,disc)+comm+mkt+ads+adjm));
+      const lines=[['SALES',C.gbSales,sales,1],['DISCOUNT',C.gbDisc,disc,1],['COMMISSION',C.gbComm,comm],['MARKETING FEE',C.gbMkt,mkt],['ADVERTISEMENT CHARGES',C.gbAds,ads],['ADJUSTMENT-EATER COMPENSATION',C.gbAdj,adjm],['SST ROUNDING DIFF',C.gbRnd,rnd]];
+      const flags=[];
+      let dout=null;
+      if(o.doAmt){
+        const sur=r2(gsvc[d]||0);
+        dout={no:(C.gbDoPrefix||'')+yymm(d)+'-'+dd(d)+(C.gbDoSuffix||''),lines:[{desc:'SALES',acc:C.gbDoSales,amt:r2(o.doAmt),tax:C.taxCode},{desc:'COMMISSION',acc:C.gbComm,amt:r2(o.doComm||0),tax:''}]};
+        dout.total=r2(dout.lines.reduce((s,l)=>s+l.amt,0));
+        dout.apply=r2(Math.max(0,Math.min(dout.total, rec-Math.min(rec,target))));
+        if(Math.abs(dout.apply-dout.total)>tol) flags.push({msg:`到店单 ${dout.no}（含税）总额 ${money(dout.total)}，这天收款只够 knock off ${money(dout.apply)}，差 ${money(r2(dout.total-dout.apply))}`});
+      }
+      if(Math.abs(rnd)>2) flags.push({msg:`SST ROUNDING DIFF ${money(rnd)} 太大，请检查`});
+      if(o.other) flags.push({msg:`有不认识的类别 RM ${money(o.other)}`});
+      const nx=addDays(d,1);
+      if(Object.keys(t).length){ if(t[nx]){ if(Math.abs(t[nx].amt-rec)>tol) flags.push({msg:`转账 ${dmy(nx)} RM ${money(t[nx].amt)} 跟当天实收 ${money(rec)} 不同`}); } else if(nx.slice(0,7)===S.month) flags.push({msg:`找不到 ${dmy(nx)} 的转账记录`}); }
+      out.push(ack({d,n:o.n||0,lines:lines.map(([desc,acc,amt,tx])=>({desc,acc,amt,tax:tx?C.taxCode:''})),sst:tax2(sales,disc),total:target,rec,apply:Math.min(rec,target),flags,dout}));
+    });
+  }
+  if(p==='sp'){
+    const a=D('sp'), f=D('sp1'), w=D('spa'), j=D('spj');
+    const have1=Object.keys(f).length>0, haveW=Object.keys(w).length>0;
+    [...new Set([...Object.keys(a),...Object.keys(j)])].sort().forEach(d=>{ const o=a[d]||{}; if(!(o.n||(j[d]||{}).adj)) return;
+      const flash=r2((f[d]||{}).flash||0), ads=r2((w[d]||{}).ads||0), adjm=r2((j[d]||{}).adj||0);
+      const sales=r2((o.amt||0)+flash), disc=r2(-((o.prepaid||0)+flash+(o.voucher||0)+(o.direct||0))), comm=r2(-((o.comm||0)+(o.prog||0)));
+      const rec=r2((o.net||0)-(o.prog||0)+ads+adjm);
+      const lines=[['SALES',C.spSales,sales,1],['DISCOUNT',C.spDisc,disc,1],['COMMISSION',C.spComm,comm],['ADVERTISEMENT CHARGES',C.spAds,ads],['ADJUSTMENT-WRONG/MISSING ITEM',C.spAdj,adjm]];
+      const total=r2(sales+disc+comm+ads+adjm);
+      const flags=[];
+      if(!have1) flags.push({msg:'没有 ShopeeFood 订单明细（Flash sale discount），SALES 和 DISCOUNT 可能少算'});
+      if(!haveW) flags.push({msg:'没有 ShopeeFood 钱包流水，广告费没算'});
+      if(Math.abs(total-rec)>tol) flags.push({msg:`发票合计 ${money(total)} 跟实收 ${money(rec)} 差 ${money(r2(total-rec))}`});
+      out.push(ack({d,n:o.n||0,lines:lines.map(([desc,acc,amt,tx])=>({desc,acc,amt,tax:tx?C.taxCode:''})),sst:r2(o.tax||0),total,rec,apply:Math.min(rec,total),flags,incl:true}));
+    });
+  }
+  if(p==='fp'){
+    const s=D('fps'), a=D('fpa');
+    const byNo={}; Object.entries(a).forEach(([k,v])=>{ const no=k.split('|')[1]; const x=byNo[no]||(byNo[no]={}); for(const q in v) x[q]=r2((x[q]||0)+v[q]); });
+    Object.entries(s).sort().forEach(([k,v])=>{ const d=k.slice(0,10), no=v.no, o=byNo[no];
+      const flags=[]; let lines=[], total=0;
+      if(!o){ flags.push({msg:`没有 Appendix A（发票 ${no}），拆不出销售 / 折扣 / 佣金`}); }
+      else {
+        const sales=r2(o.sales), disc=r2(o.disc), comm=r2(o.comm), ads=r2(v.b||0);
+        const other=r2(v.bal-(sales+disc+comm+ads));
+        lines=[['SALES',C.fpSales,sales,1],['DISCOUNT',C.fpDisc,disc,1],['COMMISSION',C.fpComm,comm],['ADVERTISEMENT CHARGES',C.fpAds,ads],['ADJUSTMENT',C.fpAdj,other]].map(([desc,acc,amt,tx])=>({desc,acc,amt,tax:tx?C.taxCode:''}));
+        total=r2(sales+disc+comm+ads+other);
+        if(Math.abs(other)>tol) flags.push({msg:`Balance ${money(v.bal)} 跟 销售+折扣+佣金+广告 差 ${money(other)}，已放进 ADJUSTMENT（${C.fpAdj}）`});
+      }
+      out.push(ack({d,key:d+'|'+no,ref:no,n:o?o.n:0,lines,total,rec:r2(v.bal),apply:r2(v.bal),flags,incl:true}));
+    });
+  }
+  return out;
+}
+function delNow(p){ const c=S.closings[S.month]; return c&&c.del ? (c.del[p]||[]) : computeDel(p); }
+const delPending = () => Object.keys(PLAT).flatMap(p=>delNow(p).filter(r=>r.flags.length&&!r.ack).map(r=>Object.assign({p},r)));
+function rowsNow(){ const c=S.closings[S.month]; return c&&c.rows ? c.rows : computeLive(); }
+const sstOf = (amts,C) => { const rate=Number(C.taxRate)||0; return String(C.taxMode||'INVOICE').toUpperCase()==='LINE' ? r2(amts.reduce((s,a)=>s+r2(a*rate),0)) : r2(amts.reduce((s,a)=>s+a,0)*rate); };
+const CS = () => (S.closings[S.month]&&S.closings[S.month].set) || S.set;
+const pending = rows => rows.filter(r=>!r.none && r.flags.length && !r.ack);
+
+/* ---------- render: upload ---------- */
+function renderUp(){
+  $('lockNote').hidden=!isClosed(); $('drop').hidden=isClosed();
+  const n=lastDay(S.month);
+  const card=([k,m])=>{
+    const s=S.src[k]; const days=s?[...new Set(Object.keys(s.days||{}).map(x=>x.slice(0,10)))]:[]; const have=days.length>0||(k==='wallet'&&s&&((s.recv||[]).length));
+    const pd=new Set(Object.keys((S.src.pos||{}).days||{}));
+    const bar=Array.from({length:31},(_,i)=>{ if(i>=n) return '<i style="visibility:hidden"></i>'; const d=S.month+'-'+pad(i+1); const on=days.includes(d); const need=pd.has(d)&&!on&&(k==='pp'||k==='bsm'); return `<i class="${on?'on':need?'miss':''}" title="${d}"></i>`; }).join('');
+    let sum='';
+    if(k==='pos'&&have){ let t=0; days.forEach(d=>{const c=classify(s.days[d].pay); t+=c.dn+c.ext+c.cash;}); sum='收款（不含 Grab）RM '+money(t); }
+    if(k==='pp'&&have){ let t=0,f=0; days.forEach(d=>{t+=s.days[d].amt;f+=s.days[d].fee;}); sum='RM '+money(t)+' · 手续费 '+money(f); }
+    if(k==='bsm'&&have){ let t=0; days.forEach(d=>Object.values(s.days[d]).forEach(x=>t+=x.gross)); sum='RM '+money(t)+' · '+days.length+' 天'; }
+    if(k==='wallet'&&have){ let t=0; days.forEach(d=>t+=s.days[d].amt); sum='Royalty '+days.length+' 天 RM '+money(t); }
+    if(k==='gf'&&have){ let t=0; days.forEach(d=>t+=s.days[d].tot||0); sum='实收 RM '+money(t); }
+    if(k==='sp'&&have){ let t=0; days.forEach(d=>t+=s.days[d].net||0); sum='Net Income RM '+money(t); }
+    if(k==='fps'&&have){ let t=0; Object.values(s.days).forEach(v=>t+=v.bal||0); sum=Object.keys(s.days).length+' 张发票 RM '+money(t); }
+    if(k==='grab'&&have){ let t=0; days.forEach(d=>t+=s.days[d].paid); sum='RM '+money(t)+(s.hasSplit?' · 有 Taxable 栏':''); }
+    const last=s&&s.files&&s.files.length?s.files[s.files.length-1]:null;
+    return `<div class="src ${have?'have':(m.need?'need':'')}"><div class="t"><span>${esc(m.name)}</span><span class="pill ${have?'ok':m.need?'warn':'mute'}">${have?days.length+' 天':m.need?'必须':'可选'}</span></div>
+      <div class="f">${esc(m.hint)}</div>${sum?`<div class="small mono">${esc(sum)}</div>`:''}
+      ${last?`<div class="f">最后上传：${esc(last.name)}<br>${esc(tstr(last.at))} · ${esc(who(last.by))}${s.files.length>1?' · 共 '+s.files.length+' 个文件':''}</div>`:''}
+      <div class="daysbar">${bar}</div>
+      ${have&&!isClosed()?`<button class="btn sm danger mgr-only" data-clear="${k}" style="align-self:flex-start;margin-top:4px">清除这个来源</button>`:''}</div>`;
+  };
+  $('srcList').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp!=='del').map(card).join('');
+  $('srcList2').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp==='del').map(([k,m])=>{ const pl=PLAT[m.plat]; const any=pl.srcs.some(x=>S.src[x]); return card([k,Object.assign({},m,{need:any&&k!=='gft'})]); }).join('');
+}
+['srcList','srcList2'].forEach(id=>$(id).addEventListener('click',async e=>{
+  const b=e.target.closest('[data-clear]'); if(!b) return;
+  const k=b.dataset.clear;
+  if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='再按一次确认清除'; setTimeout(()=>{b.dataset.sure='';b.textContent='清除这个来源';},4000); return; }
+  try{ await del(srcPath(k)); logIt('clear',SRC[k].name); toast('已清除 '+SRC[k].name); }catch(err){dbErr(err)}
+}));
+
+/* ---------- render: daily ---------- */
+const dcell = (v,diff,tol) => `${money(v)}${diff!=null&&Math.abs(diff)>tol?`<div class="d">${diff>0?'+':''}${money(diff)}</div>`:''}`;
+function renderDaily(){
+  const rows=rowsNow(), C=CS(), tol=Number(C.tol)||0.01;
+  const live=rows.filter(r=>!r.none);
+  const tot=k=>r2(live.reduce((s,r)=>s+(r[k]||0),0));
+  const fee=r2(live.reduce((s,r)=>s+r.pays.reduce((a,x)=>a+(x.fee||0),0),0));
+  const pend=pending(rows);
+  $('sInv').textContent=money(tot('total')); $('sSst').textContent=money(tot('sst')); $('sRec').textContent=money(tot('paid')); $('sFee').textContent=money(fee);
+  $('sFlag').textContent=pend.length; $('sFlagBox').classList.toggle('bad',pend.length>0);
+  const ct=$('ctFlags'); ct.textContent=pend.length; ct.classList.toggle('bad',pend.length>0);
+  const closed=isClosed();
+  $('dTitle').textContent='每日对账 · '+S.month+(closed?'（已结账）':'');
+  $('dSub').textContent= live.length ? `${live.length} 天有 POS 资料 · Royalty RM ${money(r2(rows.reduce((s,r)=>s+(r.roy||0),0)))}` : '还没有 POS 资料，请先到「上传报告」上传';
+  $('closeBtn').hidden=closed; $('reopenBtn').hidden=!closed;
+  const only=$('onlyFlag').checked;
+  const show=rows.filter(r=>!only || (!r.none && r.flags.length));
+  $('dBody').innerHTML = show.length ? show.map(r=>{
+    if(r.none) return `<tr data-d="${r.d}" class="${S.sel===r.d?'sel':''}"><td class="mono">${dmy(r.d)}</td><td colspan="4" class="muted small">没有 POS 资料</td><td class="r num">${r.roy?money(r.roy):''}</td><td></td></tr>`;
+    const dn=r.pays.find(x=>x.t==='DN'), card=r2(r.pays.filter(x=>['VISA','MASTER','MYDEBIT'].includes(x.t)).reduce((s,x)=>s+x.amt,0));
+    const st= !r.flags.length ? '<span class="pill ok">TALLY</span>' : r.ack ? '<span class="pill ok">已核对</span>' : '<span class="pill bad">'+r.flags.length+' 差异</span>';
+    return `<tr data-d="${r.d}" class="${S.sel===r.d?'sel':''}"><td class="mono">${dmy(r.d)}</td><td class="r num">${money(r.total)}</td>
+      <td class="r num">${dcell(dn?dn.amt:0, dn?r2(dn.amt-r.k.dn):null, tol)}</td><td class="r num">${dcell(card, r2(card-r.k.ext), tol)}</td><td class="r num">${money(r.k.cash)}</td><td class="r num">${r.roy?money(r.roy):'<span class="muted">—</span>'}</td><td>${st}</td></tr>`;
+  }).join('') + `<tr class="tot"><td>合计</td><td class="r num">${money(tot('total'))}</td><td class="r num">${money(r2(live.reduce((s,r)=>s+((r.pays.find(x=>x.t==='DN')||{}).amt||0),0)))}</td><td class="r num">${money(r2(live.reduce((s,r)=>s+r.pays.filter(x=>['VISA','MASTER','MYDEBIT'].includes(x.t)).reduce((a,x)=>a+x.amt,0),0)))}</td><td class="r num">${money(r2(live.reduce((s,r)=>s+r.k.cash,0)))}</td><td class="r num">${money(r2(rows.reduce((s,r)=>s+(r.roy||0),0)))}</td><td></td></tr>`
+    : `<tr><td colspan="7" class="empty">${only?'没有差异 🎉':'还没有资料'}</td></tr>`;
+  renderDetail(rows);
+}
+$('onlyFlag').addEventListener('change',renderDaily);
+$('dBody').addEventListener('click',e=>{ const tr=e.target.closest('tr[data-d]'); if(!tr) return; S.sel=tr.dataset.d; renderDaily(); if(window.innerWidth<980) $('dDetail').scrollIntoView({behavior:'smooth',block:'start'}); });
+const LBL={DN:'DuitNow',VISA:'VISA',MASTER:'MASTER',MYDEBIT:'MY DEBIT',CASH:'现金'};
+function renderDetail(rows){
+  const r=rows.find(x=>x.d===S.sel);
+  if(!r){ $('dDetail').innerHTML='<div class="empty">点左边任何一天看明细</div>'; return; }
+  if(r.none){ $('dDetail').innerHTML=`<h2>${dmy(r.d)}</h2><div class="empty">这天没有 POS 资料${r.roy?'，但有 Royalty RM '+money(r.roy):''}</div>`; return; }
+  const C=CS(), kv=(a,b,c,cls)=>`<div class="${cls||''}">${a}</div><div class="r ${cls||''}">${b??''}</div><div class="r muted small">${c??''}</div>`;
+  const inv = invLines(r,C);
+  let h=`<div class="ph" style="margin-bottom:6px"><h2>${dmy(r.d)} · ${esc(invNo(r.d,C))}</h2></div>`;
+  h+=`<h3>发票 Sales Invoice</h3><div class="kv">${inv.map(l=>kv(esc(l.desc.replace(/ \d\d\/\d\d\/\d{4}$/,'')),money(l.amt),esc(l.acc)+(l.tax?' · '+esc(l.tax):''))).join('')}${kv('SST '+(Number(C.taxRate)*100)+'%',money(r.sst),'')}<div class="sep"></div>${kv('发票总额',money(r.total),'',"b")}</div>`;
+  h+=`<h3 style="margin-top:12px">收款 Payments</h3><div class="kv"><div class="h">方式</div><div class="h r">金额</div><div class="h r">手续费</div>${r.pays.map(x=>kv(LBL[x.t]+(x.est?' <span class="pill warn">估计</span>':'')+(x.apply!==x.amt?`<div class="small muted">knock off 只用 ${money(x.apply)}</div>`:''),money(x.amt),x.fee?money(x.fee):'')).join('')}<div class="sep"></div>${kv('合计',money(r.paid),'','b')}</div>`;
+  h+=`<h3 style="margin-top:12px">POS 原始</h3><div class="kv">${kv('Gross Sales',money(r.p.gross))}${kv('优惠 Discount',money(r.p.disc))}${kv('其中 Rounding',money(r.p.rnd))}${r.p.pmd?kv('结账方式优惠（加入营业额）',money(r.p.pmd)):''}${kv('服务费 / 打包费',money(r.p.svc)+' / '+money(r.p.pkg))}${kv('POS SST',money(r.p.sst))}${r.grab?kv('Grab 到店（另外记）',money(r.grab),'应税 '+money(r.gTax)):''}</div>`;
+  if(r.roy) h+=`<div class="small muted" style="margin-top:8px">Royalty RM ${money(r.roy)}${r.royPaid?' · '+esc(r.royPaid)+' 转出':''}${r.royGuess?' · 日期是推算的（钱包流水没有写日期）':''}</div>`;
+  if(r.flags.length){
+    h+=`<h3 style="margin-top:12px">差异</h3>`+r.flags.map(f=>`<div class="flag ${r.ack?'ack':''}">${r.ack?'✓':'!'} <span>${esc(f.msg)}</span></div>`).join('');
+    h+= r.ack ? `<div class="small muted" style="margin-top:6px">已核对 · ${esc(who(r.ackBy))}${r.note?'<br>备注：'+esc(r.note):''}</div>` : '';
+    if(!isClosed()) h+=`<div class="mgr-only" style="margin-top:8px"><textarea id="ackNote" rows="2" placeholder="备注：例如「客人刷卡多付 29.95，现金退还，Bukku 记 refund」">${esc(r.note)}</textarea><div class="row" style="margin-top:6px"><button class="btn pri sm" id="ackBtn">${r.ack?'更新备注':'已核对 ✓'}</button>${r.ack?'<button class="btn sm" id="unackBtn">取消核对</button>':''}</div></div><div class="staff-only small muted" style="margin-top:6px">差异要由 manager 核对。</div>`;
+  } else h+=`<div class="flag ack" style="margin-top:12px">✓ 全部对上</div>`;
+  $('dDetail').innerHTML=h;
+  const ab=$('ackBtn'); if(ab) ab.onclick=()=>setAck(r.d,true,$('ackNote').value.trim());
+  const ub=$('unackBtn'); if(ub) ub.onclick=()=>setAck(r.d,false,$('ackNote').value.trim());
+}
+S.plat='gb'; S.psel='';
+function renderDel(){
+  const C=CS(), p=S.plat, rows=delNow(p);
+  $('platChips').innerHTML=Object.entries(PLAT).map(([k,v])=>{ const n=delNow(k).filter(r=>r.flags.length&&!r.ack).length; return `<button class="chip btn sm${k===p?' pri':''}" data-plat="${k}">${esc(v.name)}${n?` <span class="pill bad">${n}</span>`:''}</button>`; }).join('');
+  const fee=r=>r2(r.lines.filter(l=>!['SALES','DISCOUNT'].includes(l.desc)).reduce((s,l)=>s+l.amt,0));
+  const sum=f=>r2(rows.reduce((s,r)=>s+f(r),0));
+  const L=(r,n)=>((r.lines.find(l=>l.desc===n)||{}).amt||0);
+  $('pSales').textContent=money(sum(r=>L(r,'SALES'))); $('pDisc').textContent=money(sum(r=>L(r,'DISCOUNT'))); $('pFee').textContent=money(sum(fee)); $('pRec').textContent=money(sum(r=>r.rec));
+  const pend=rows.filter(r=>r.flags.length&&!r.ack).length; $('pFlag').textContent=pend; $('pFlagBox').classList.toggle('bad',pend>0);
+  const allP=delPending().length; const ct=$('ctDel'); ct.textContent=allP; ct.classList.toggle('bad',allP>0);
+  $('delTitle').textContent=PLAT[p].name+' · '+S.month+(isClosed()?'（已结账）':'');
+  $('pBody').innerHTML=rows.length?rows.map(r=>{ const id=r.key||r.d; const st=!r.flags.length?'<span class="pill ok">TALLY</span>':r.ack?'<span class="pill ok">已核对</span>':`<span class="pill bad">${r.flags.length} 差异</span>`;
+    return `<tr data-k="${esc(id)}" class="${S.psel===id?'sel':''}"><td class="mono">${dmy(r.d)}</td><td class="r num">${r.n||''}</td><td class="r num">${money(L(r,'SALES'))}</td><td class="r num">${money(L(r,'DISCOUNT'))}</td><td class="r num">${money(fee(r))}</td><td class="r num">${r.lines.length?money(r.total):'—'}</td><td class="r num">${money(r.rec)}</td><td>${st}</td></tr>`; }).join('')
+    + `<tr class="tot"><td>合计</td><td class="r num">${sum(r=>r.n||0)}</td><td class="r num">${money(sum(r=>L(r,'SALES')))}</td><td class="r num">${money(sum(r=>L(r,'DISCOUNT')))}</td><td class="r num">${money(sum(fee))}</td><td class="r num">${money(sum(r=>r.total))}</td><td class="r num">${money(sum(r=>r.rec))}</td><td></td></tr>`
+    : `<tr><td colspan="8" class="empty">还没有 ${esc(PLAT[p].name)} 的资料。到「上传报告」把平台下载的原始报告拖进来。</td></tr>`;
+  $('pNote').textContent = p==='gb' ? 'Grab 外卖单 = 不含税（Bukku 按 SV6 加 6%，差额放 SST ROUNDING DIFF）；Grab 到店单（GB-…A）= 含税，另外一个 import 文件。' : '金额已含 SST（跟你原本的做法一样）：SALES + DISCOUNT + 各项费用 = 实收。';
+  const r=rows.find(x=>(x.key||x.d)===S.psel);
+  if(!r){ $('pDetail').innerHTML='<div class="empty">点左边任何一天看明细</div>'; return; }
+  const kv=(a,b,c,cls)=>`<div class="${cls||''}">${a}</div><div class="r ${cls||''}">${b??''}</div><div class="r muted small">${c??''}</div>`;
+  let h=`<div class="ph" style="margin-bottom:6px"><h2>${dmy(r.d)} · ${esc(delInvNo(p,r.d,C))}</h2>${r.ref?`<span class="small muted">平台发票 ${esc(r.ref)}</span>`:''}</div>`;
+  h+=`<h3>发票 Sales</h3><div class="kv">${r.lines.filter(l=>Math.abs(l.amt)>=0.005).map(l=>kv(esc(l.desc),money(l.amt),esc(l.acc)+(l.tax?' · '+esc(l.tax):''))).join('')}${p==='gb'?kv('SST 6%（Bukku 计算）',money(r.sst)):''}<div class="sep"></div>${kv('发票总额',money(r.total),'','b')}</div>`;
+  if(r.dout) h+=`<h3 style="margin-top:12px">到店单 ${esc(r.dout.no)}（含税）</h3><div class="kv">${r.dout.lines.map(l=>kv(esc(l.desc),money(l.amt),esc(l.acc)+(l.tax?' · '+esc(l.tax):''))).join('')}<div class="sep"></div>${kv('到店单总额',money(r.dout.total),'','b')}</div>`;
+  h+=`<h3 style="margin-top:12px">收款 Payment</h3><div class="kv">${kv(esc(C[p+'Method']),money(r.rec),esc(C[p+'Dep']))}${kv('knock off '+esc(delInvNo(p,r.d,C)),money(r.apply))}${r.dout?kv('knock off '+esc(r.dout.no),money(r.dout.apply)):''}</div>`;
+  if(r.flags.length){
+    h+=`<h3 style="margin-top:12px">差异</h3>`+r.flags.map(f=>`<div class="flag ${r.ack?'ack':''}">${r.ack?'✓':'!'} <span>${esc(f.msg)}</span></div>`).join('');
+    if(r.ack) h+=`<div class="small muted" style="margin-top:6px">已核对 · ${esc(who(r.ackBy))}${r.note?'<br>备注：'+esc(r.note):''}</div>`;
+    if(!isClosed()) h+=`<div class="mgr-only" style="margin-top:8px"><textarea id="pAckNote" rows="2" placeholder="备注">${esc(r.note)}</textarea><div class="row" style="margin-top:6px"><button class="btn pri sm" id="pAckBtn">${r.ack?'更新备注':'已核对 ✓'}</button>${r.ack?'<button class="btn sm" id="pUnackBtn">取消核对</button>':''}</div></div>`;
+  } else h+=`<div class="flag ack" style="margin-top:12px">✓ 全部对上</div>`;
+  $('pDetail').innerHTML=h;
+  const id=dkey(p,r.key||r.d);
+  const ab=$('pAckBtn'); if(ab) ab.onclick=()=>setAck(id,true,$('pAckNote').value.trim());
+  const ub=$('pUnackBtn'); if(ub) ub.onclick=()=>setAck(id,false,$('pAckNote').value.trim());
+}
+$('platChips').addEventListener('click',e=>{ const b=e.target.closest('[data-plat]'); if(!b) return; S.plat=b.dataset.plat; S.psel=''; renderDel(); });
+$('pBody').addEventListener('click',e=>{ const tr=e.target.closest('tr[data-k]'); if(!tr) return; S.psel=tr.dataset.k; renderDel(); if(window.innerWidth<980) $('pDetail').scrollIntoView({behavior:'smooth',block:'start'}); });
+const delInvNo = (p,d,C) => (C[p+'Prefix']||'')+yymm(d)+'-'+dd(d);
+async function setAck(d,ok,note){
+  try{
+    const path='adj/'+S.month; const doc=(await getDoc(path))||{month:S.month,days:{}};
+    doc.days=doc.days||{}; doc.days[d]={ok,note,by:S.uid||'',at:Date.now()};
+    await put(path,doc); logIt('ack',(d.includes(':')?PLAT[d.split(':')[0]].name+' '+dmy(d.split(':')[1].slice(0,10)):dmy(d))+(ok?' 已核对':' 取消核对')+(note?'：'+note:'')); toast(ok?'已核对':'已取消');
+  }catch(err){dbErr(err)}
+}
+
+/* ---------- Bukku lines ---------- */
+const invNo = (d,C) => (C.invPrefix||'')+yymm(d)+'-'+dd(d);
+function invLines(r,C){
+  const L=[]; const tag=' '+dmy(r.d);
+  if(String(C.splitDisc).toUpperCase()==='Y'){ L.push({acc:C.accSales,desc:C.descSales+tag,amt:r.gross,tax:C.taxCode}); L.push({acc:C.accDisc,desc:C.descDisc+tag,amt:r.disc,tax:C.taxCode}); }
+  else L.push({acc:C.accSales,desc:C.descSales+tag,amt:r.net,tax:C.taxCode});
+  L.push({acc:C.accPkg,desc:C.descPkg+tag,amt:r.pkg,tax:C.taxCode});
+  L.push({acc:C.accSvc,desc:C.descSvc+tag,amt:r.svc,tax:''});
+  L.push({acc:C.accRound,desc:C.descRound+tag,amt:r.rnd,tax:''});
+  return L.filter(l=>Math.abs(l.amt)>=0.005);
+}
+function buildInv(rows,C){
+  const out=[];
+  rows.filter(r=>!r.none).forEach(r=>{ invLines(r,C).forEach((l,i)=>{ const x=Array(23).fill(null);
+    if(i===0){ x[1]=C.contact||null; x[2]=C.contact?null:(C.legal||null); x[3]=invNo(r.d,C); x[5]=dmy(r.d); }
+    x[14]=l.acc; x[15]=l.desc; x[16]=1; x[19]=l.amt; x[21]=l.tax||null; x[22]=C.classCode||null; out.push(x); }); });
+  return out;
+}
+function buildPay(rows,C){
+  const out=[];
+  rows.filter(r=>!r.none).forEach(r=>r.pays.forEach(p=>{ if(!(p.amt>0)) return; const x=Array(17).fill(null);
+    x[1]=C.contact||null; x[2]=C.contact?null:(C.legal||null); x[3]=(C['pfx'+p.t]||'')+yymm(r.d)+'-'+dd(r.d); x[5]=dmy(r.d); x[8]=p.amt; x[9]=C['m'+p.t];
+    x[10]= p.t==='DN'?C.depDN : p.t==='CASH'?C.depCASH : C.depCARD;
+    if(p.fee>0){ x[11]=p.fee; x[12]= p.t==='DN'?C.feeDN:C.feeCARD; }
+    x[14]=(p.t==='MYDEBIT'?'MYDEBIT':p.t==='DN'?'DUITNOW':p.t)+' '+dmy(r.d); x[15]=invNo(r.d,C); x[16]=p.apply; out.push(x); }));
+  return out;
+}
+function buildBill(rows,C){
+  const out=[];
+  rows.filter(r=>r.roy>0).forEach(r=>{ const x=Array(21).fill(null);
+    x[1]=C.royContact||null; x[2]=C.royContact?null:(C.royLegal||null); x[3]=(C.royPrefix||'')+yymm(r.d)+'-'+dd(r.d); x[5]=dmy(r.d); x[8]=C.royPay;
+    x[12]=C.royAcc; x[13]=C.royDesc+' '+dmy(r.d); x[14]=1; x[17]=r.roy; out.push(x); });
+  return out;
+}
+
+function buildDelInv(p,rows,C){
+  const out=[];
+  rows.filter(r=>r.lines.length).forEach(r=>{ const L=r.lines.filter(l=>Math.abs(l.amt)>=0.005); L.forEach((l,i)=>{
+    if(p==='fp'){ const x=Array(23).fill(null); if(i===0){ x[1]=C.fpContact; x[2]=C.fpLegal; x[3]=delInvNo(p,r.d,C); x[4]=r.ref||null; x[5]=dmy(r.d); } x[14]=l.acc; x[15]=l.desc; x[16]=1; x[19]=l.amt; x[21]=l.tax||null; out.push(x); }
+    else { const x=Array(13).fill(null); if(i===0){ x[1]=C[p+'Contact']; x[2]=C[p+'Legal']; x[3]=delInvNo(p,r.d,C); x[4]=dmy(r.d); } x[8]=l.acc; x[9]=l.desc; x[10]=l.amt; x[11]=l.tax||null; out.push(x); }
+  }); });
+  return out;
+}
+function buildDelPay(p,rows,C){
+  return rows.filter(r=>r.lines.length && r.rec>0).map(r=>{ const x=Array(17).fill(null); const inv=delInvNo(p,r.d,C);
+    x[1]=C[p+'Contact']; x[2]=C[p+'Legal']; x[3]=(C[p+'Rcpt']||'')+yymm(r.d)+'-'+dd(r.d); x[5]=dmy(r.d);
+    if(p==='fp'){ x[6]='MYR'; x[7]=1; }
+    x[8]=r.rec; x[9]=C[p+'Method']; x[10]=C[p+'Dep']; x[14]=(p==='fp'?'FOODPANDA PAYMENT TO ':'PAYMENT TO ')+inv; x[15]=inv; x[16]=r2(r.apply);
+    const rowsOut=[x];
+    if(r.dout && r.dout.apply>0){ x[14]+=' & '+r.dout.no; const y=Array(17).fill(null); y[15]=r.dout.no; y[16]=r.dout.apply; rowsOut.push(y); }
+    return rowsOut; }).flat();
+}
+function buildGbDout(rows,C){
+  const out=[];
+  rows.filter(r=>r.dout).forEach(r=>r.dout.lines.filter(l=>Math.abs(l.amt)>=0.005).forEach((l,i)=>{ const x=Array(13).fill(null);
+    if(i===0){ x[1]=C.gbContact; x[2]=C.gbLegal; x[3]=r.dout.no; x[4]=dmy(r.d); } x[8]=l.acc; x[9]=l.desc; x[10]=l.amt; x[11]=l.tax||null; out.push(x); }));
+  return out;
+}
+/* ---------- export ---------- */
+function renderExp(){
+  const rows=rowsNow(), C=CS(), pend=pending(rows), live=rows.filter(r=>!r.none);
+  const inv=buildInv(rows,C), pay=buildPay(rows,C), bill=buildBill(rows,C);
+  $('eInvN').textContent=live.length+' 张'; $('ePayN').textContent=pay.length+' 笔'; $('eBillN').textContent=bill.length+' 张';
+  $('eInvF').textContent=`RM ${money(r2(live.reduce((s,r)=>s+r.total,0)))} · SST ${money(r2(live.reduce((s,r)=>s+r.sst,0)))} · ${inv.length} 行`;
+  $('ePayF').textContent=`RM ${money(r2(pay.reduce((s,x)=>s+x[8],0)))} · 手续费 ${money(r2(pay.reduce((s,x)=>s+(x[11]||0),0)))}`;
+  $('eBillF').textContent=`RM ${money(r2(bill.reduce((s,x)=>s+x[17],0)))}`;
+  [['gb','eGb'],['sp','eSp'],['fp','eFp']].forEach(([p,id])=>{ const dr=delNow(p).filter(r=>r.lines.length); const dd2=dr.filter(r=>r.dout); $(id+'N').textContent=dr.length+' 张'+(dd2.length?' + 到店 '+dd2.length:''); $(id+'F').textContent=dr.length?`${p==='gb'?'不含税':'含税'} · 发票 RM ${money(r2(dr.reduce((s,r)=>s+r.total,0)))}${dd2.length?' · 到店单 RM '+money(r2(dd2.reduce((s,r)=>s+r.dout.total,0))):''} · 实收 RM ${money(r2(dr.reduce((s,r)=>s+r.rec,0)))}`:'没有资料'; });
+  const miss=[]; const pd=Object.keys((S.src.pos||{}).days||{});
+  ['pp','bsm','wallet'].forEach(k=>{ if(!S.src[k]) miss.push(SRC[k].name); });
+  let h='';
+  if(!live.length) h=`<div class="check idle">还没有 POS 资料。</div>`;
+  else {
+    const items=[];
+    if(!isClosed()) items.push('这个月还没结账：可以先下载检查，确认后记得结账锁定。');
+    if(pend.length) items.push(pend.length+' 天有差异还没核对：'+pend.map(r=>dmy(r.d).slice(0,5)).join(', '));
+    const dp=delPending(); if(dp.length) items.push('外卖 '+dp.length+' 天有差异还没核对：'+dp.map(r=>PLAT[r.p].name+' '+dmy(r.d).slice(0,5)).join(', '));
+    if(miss.length) items.push('还没上传：'+miss.join('、'));
+    if(pd.length<lastDay(S.month)) items.push('POS 只有 '+pd.length+' 天');
+    h = items.length ? `<div class="check ${pend.length?'bad':'warn'}"><b>下载前请看</b><ul>${items.map(x=>'<li>'+esc(x)+'</li>').join('')}</ul></div>` : `<div class="check ok">✓ 已结账，全部差异已核对，可以导出。</div>`;
+  }
+  $('expCheck').innerHTML=h;
+}
+const ymTag = () => S.month.slice(2,4)+S.month.slice(5,7);
+async function saveXlsx(filename, tplKey, dataRows, sheet){
+  if(typeof XLSX==='undefined') return toast('Excel 工具没载入');
+  if(!downloads && !S.mem) return toast('这个画面不能下载文件');
+  const aoa = tplKey ? TPL[tplKey].map(r=>r.slice()).concat(dataRows) : dataRows;
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,sheet||'Worksheet');
+  const blob=new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]);
+  try{
+    if(downloads) await downloads.save({filename,data:blob});
+    else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); }
+    logIt('export',filename,{n:dataRows.length});
+  }
+  catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
+}
+document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{
+  const rows=rowsNow(), C=CS(), k=b.dataset.exp;
+  if(k==='inv') return saveXlsx(`MF-BUKKU-SALES-INVOICE-${ymTag()}.xlsx`,'inv',buildInv(rows,C));
+  if(k==='pay') return saveXlsx(`MF-BUKKU-SALES-PAYMENT-${ymTag()}.xlsx`,'pay',buildPay(rows,C));
+  const dm=k.match(/^(gb|sp|fp)-(inv|pay|dout)$/);
+  if(dm){ const [,p,t]=dm, nm={gb:'GRAB',sp:'SHOPEE',fp:'FOODPANDA'}[p], dr=delNow(p);
+    if(!dr.length) return toast('没有 '+PLAT[p].name+' 资料');
+    const tx = p==='gb' ? 'TAX EXCLUSIVE' : 'TAX INCLUSIVE';
+    if(t==='dout'){ const rows=buildGbDout(dr,C); if(!rows.length) return toast('这个月没有 Grab 到店单'); return saveXlsx(`MF-BUKKU-GRAB-DINE OUT-SALES-TAX INCLUSIVE-${ymTag()}.xlsx`,'simple',rows); }
+    return t==='inv' ? saveXlsx(`MF-BUKKU-${nm}-SALES-${tx}-${ymTag()}.xlsx`, p==='fp'?'inv':'simple', buildDelInv(p,dr,C)) : saveXlsx(`MF-BUKKU-${nm}-PAYMENT-${ymTag()}.xlsx`,'pay',buildDelPay(p,dr,C)); }
+  if(k==='bill') return saveXlsx(`MF-BUKKU-ROYALTY-CASHBILL-${ymTag()}.xlsx`,'bill',buildBill(rows,C));
+  if(k==='sum'){
+    const head=['DATE','INVOICE NO','DAILY SALES','DISCOUNT','NET SALES','PACKAGING','SERVICE CHARGE','SST','ROUNDING','INVOICE TOTAL','POS DUITNOW','PINGPONG','DN FEE','POS CARD','BSM VISA','BSM MASTER','BSM MYDEBIT','CARD FEE','CASH','RECEIVED','GRAB (SEPARATE)','ROYALTY','DIFFERENCES','CHECKED','NOTE'];
+    const data=[head];
+    rows.forEach(r=>{ if(r.none){ data.push([dmy(r.d),'','','','','','','','','','','','','','','','','','','','',r.roy||'','NO POS DATA','','']); return; }
+      const g=t=>(r.pays.find(x=>x.t===t)||{}); const cf=r2(['VISA','MASTER','MYDEBIT'].reduce((s,t)=>s+(g(t).fee||0),0));
+      data.push([dmy(r.d),invNo(r.d,C),r.gross,r.disc,r.net,r.pkg,r.svc,r.sst,r.rnd,r.total,r.k.dn,g('DN').est?'':(g('DN').amt||0),g('DN').fee||0,r.k.ext,g('VISA').amt||0,g('MASTER').amt||0,g('MYDEBIT').amt||0,cf,r.k.cash,r.paid,r.grab,r.roy||0,r.flags.map(f=>f.msg).join(' | '),r.flags.length?(r.ack?'Y':'N'):'',r.note]); });
+    return saveXlsx(`MF-DAILY SALES RECON-${S.month.replace('-','_')}.xlsx`,null,data,'SUMMARY');
+  }
+}));
+
+/* ---------- close / reopen ---------- */
+$('closeBtn').addEventListener('click',async()=>{
+  const rows=computeLive(), pend=pending(rows).concat(delPending()), msg=$('closeMsg');
+  if(!rows.some(r=>!r.none)){ msg.hidden=false; msg.className='check bad'; msg.textContent='没有 POS 资料，不能结账。'; return; }
+  if(pend.length){ msg.hidden=false; msg.className='check bad'; msg.innerHTML='还有 '+pend.length+' 天差异没核对，不能结账：'+pend.map(r=>(r.p?PLAT[r.p].name+' ':'')+dmy(r.d).slice(0,5)).join(', '); return; }
+  const b=$('closeBtn'); if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='再按一次确认结账'; setTimeout(()=>{b.dataset.sure='';b.textContent='结账 · 锁定这个月';},4000); return; }
+  try{ await put('closing/'+S.month,{month:S.month,rows:JSON.parse(JSON.stringify(rows)),del:JSON.parse(JSON.stringify({gb:computeDel('gb'),sp:computeDel('sp'),fp:computeDel('fp')})),set:Object.assign({},S.set),closedAt:Date.now(),closedBy:S.uid||''}); logIt('close','结账 '+S.month); msg.hidden=false; msg.className='check ok'; msg.textContent='✓ 已结账锁定。之后上传和设定改变都不会影响这个月的结果。'; }catch(err){dbErr(err)}
+});
+$('reopenBtn').addEventListener('click',async()=>{
+  const b=$('reopenBtn'); if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='再按一次确认重开'; setTimeout(()=>{b.dataset.sure='';b.textContent='重开这个月';},4000); return; }
+  try{ await del('closing/'+S.month); logIt('reopen','重开 '+S.month); $('closeMsg').hidden=true; toast('已重开'); }catch(err){dbErr(err)}
+});
+
+/* ---------- settings ---------- */
+function renderSet(){
+  const dis=S.mgr?'':' disabled';
+  $('setForm').innerHTML=SET_FIELDS.map(([t,fs])=>`<h3>${esc(t)}</h3>`+fs.map(([k,l])=>`<label>${esc(l)}<input data-k="${k}" value="${esc(S.set[k])}"${dis}></label>`).join('')).join('');
+}
+$('setSave').addEventListener('click',async()=>{
+  const nv=Object.assign({},S.set), ch=[];
+  $('setForm').querySelectorAll('input[data-k]').forEach(i=>{ const k=i.dataset.k; let v=i.value.trim(); if(['taxRate','tol','roundWarn'].includes(k)) v=Number(v)||0; if(String(nv[k])!==String(v)){ ch.push(k+': '+nv[k]+' → '+v); nv[k]=v; } });
+  if(!ch.length) return toast('没有改变');
+  try{ await put('settings/bukku',nv); logIt('settings',ch.join('；')); toast('设定已保存'); }catch(err){dbErr(err)}
+});
+
+/* ---------- log ---------- */
+const ACT={upload:['上传','open'],clear:['清除','bad'],ack:['核对','ok'],close:['结账','ok'],reopen:['重开','warn'],settings:['设定','warn'],export:['导出','mute']};
+const tstr = t => { if(!t) return ''; const d=new Date(t); return d.toLocaleDateString('en-GB')+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); };
+const who = id => !id ? (S.db?'某人':'（试用）') : (S.names[id] || (id===S.uid?'你':'某人'));
+async function resolveNames(ids){
+  ids=[...new Set(ids.filter(id=>id && !(id in S.names)))]; if(!S.user||!ids.length) return;
+  try{ const ps=await S.user.profiles(ids); ids.forEach(id=>S.names[id]=(ps[id]&&ps[id].name)||''); renderAll(); }catch(e){}
+}
+function renderLog(){
+  const m=$('lMonth').value||S.month;
+  const rows=S.logs.filter(e=>(e.day||dayStr(e.at)).slice(0,7)===m).sort((a,b)=>b.at-a.at);
+  $('lBody').innerHTML=rows.length?rows.slice(0,600).map(e=>{ const [l,c]=ACT[e.a]||[e.a,'mute']; return `<tr><td class="mono small" style="white-space:nowrap">${tstr(e.at)}</td><td class="small">${esc(who(e.by))}</td><td><span class="pill ${c}">${esc(l)}</span>${e.m?`<div class="small muted">${esc(e.m)}</div>`:''}</td><td>${esc(e.t)}${e.s?`<div class="small muted">${esc(e.s)}</div>`:''}</td></tr>`; }).join('')
+    : '<tr><td colspan="4" class="empty">这个月没有记录</td></tr>';
+}
+$('lMonth').addEventListener('change',renderLog);
+
+/* ---------- month / tabs / boot ---------- */
+function watchMonth(){
+  S.unsub.forEach(f=>f()); S.unsub=[]; S.src={}; S.sel='';
+  S.unsub.push(listen('src',rows=>{ const m={}; rows.filter(r=>r.month===S.month||r.id.startsWith(S.month+'_')).forEach(r=>m[r.key||r.id.split('_').pop()]=r); S.src=m; resolveNames(rows.flatMap(r=>[r.by,...(r.files||[]).map(f=>f.by)])); renderAll(); }));
+}
+function setMonth(m){ if(!m) return; S.month=m; $('mSel').value=m; $('lMonth').value=m; $('prog').innerHTML=''; $('closeMsg').hidden=true; watchMonth(); renderAll(); }
+$('mSel').addEventListener('change',e=>setMonth(e.target.value));
+$('mPrev').addEventListener('click',()=>setMonth(prevMonth(S.month)));
+$('mNext').addEventListener('click',()=>setMonth(nextMonth(S.month)));
+function setTab(t){
+  if(t==='exp' && !S.mgr) t='daily';
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  ['up','daily','del','exp','set','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  try{localStorage.setItem('mf-recon-tab',t)}catch(e){}
+}
+$('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
+function renderAll(){
+  const c=S.closings[S.month];
+  $('mStatus').innerHTML = c ? '<span class="pill ok">已结账</span>' : '<span class="pill open">未结账</span>';
+  $('upTitle').textContent='上传原始报告 · '+S.month;
+  renderUp(); renderDaily(); renderDel(); renderExp(); renderLog();
+  if(!document.activeElement || !document.activeElement.closest('#setForm')) renderSet();
+}
+$('mSel').value=S.month; $('lMonth').value=S.month;
+renderAll();
+try{ const t=localStorage.getItem('mf-recon-tab'); if(t&&$('v-'+t)) setTab(t); }catch(e){}
+(async()=>{
+  let db=null;
+  try{ db=await REC.init(); }catch(e){ $('offline').hidden=false; $('offline').textContent='无法打开：'+(e&&e.message||e); return; }
+  downloads=REC.downloads; S.user=REC.user; S.names=REC.names;
+  S.mgr=REC.mgr; S.canWrite=REC.canWrite; S.uid=REC.uid;
+  const bt=document.querySelector('.brand'); if(bt&&REC.name) bt.firstChild.textContent=REC.name+' 每日营业对账 ';
+  document.body.classList.toggle('is-mgr',S.mgr); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
+  if(db) S.db=db; else { S.mem={}; $('offline').hidden=false; $('offline').textContent='这个画面连不上资料库：可以试用，但资料不会保存。'; }
+  listen('settings',rows=>{ const s=rows.find(r=>r.id==='bukku'); S.set=Object.assign({},DEF,s||{}); delete S.set.id; renderAll(); });
+  listen('adj',rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.adj=m; renderAll(); });
+  listen('closing',rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.closings=m; resolveNames(rows.map(r=>r.closedBy)); renderAll(); });
+  listen('log',rows=>{ const all=[]; rows.forEach(d=>(d.entries||[]).forEach(e=>all.push(Object.assign({by:d.by,day:d.day},e)))); S.logs=all; resolveNames(all.map(e=>e.by)); renderLog(); });
+  watchMonth();
+  setTab((()=>{ try{ return localStorage.getItem('mf-recon-tab')||'up'; }catch(e){ return 'up'; } })());
+})();
+})();
+</script>
+</body></html>

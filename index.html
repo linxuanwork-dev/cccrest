@@ -692,6 +692,10 @@
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>
           <span class="nav-label" data-i18n="nav_stock_count">Stock Count</span>
         </button>
+        <button class="nav-item" data-panel="panel-salesrecon" data-roles="admin staff manager client" hidden>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M17 5h3v3"/></svg>
+          <span class="nav-label" data-i18n="nav_sales_recon">Daily Sales Reconciliation</span>
+        </button>
         <button class="nav-item" data-panel="panel-tuition" data-roles="admin staff manager" hidden>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/><path d="M22 10v6"/></svg>
           <span class="nav-label" data-i18n="nav_tuition">Tuition & Allowance</span>
@@ -1145,6 +1149,12 @@
         <iframe id="stock-frame" title="Stock Count" style="width:100%;height:calc(100vh - 150px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
       </section>
 
+      <!-- ---- Daily Sales Reconciliation (appears where the Owner switched it on for the company) ---- -->
+      <section class="panel" id="panel-salesrecon" hidden>
+        <div class="content-header"><h2 data-i18n="nav_sales_recon">Daily Sales Reconciliation</h2><span class="sub" id="salesrecon-sub">Select a company</span></div>
+        <iframe id="salesrecon-frame" title="Daily Sales Reconciliation" style="width:100%;height:calc(100vh - 150px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:var(--surface-card);"></iframe>
+      </section>
+
       <!-- ---- Tuition fee reconciliation & MT Allowance (CC CREST only; appears where the Owner switched it on for the company) ---- -->
       <section class="panel" id="panel-tuition" hidden>
         <div class="content-header"><h2 data-i18n="nav_tuition">Tuition & Allowance</h2><span class="sub" id="tuition-sub">Select a company</span></div>
@@ -1504,6 +1514,20 @@
           <div style="display:flex;gap:14px;align-items:center;margin-top:14px;flex-wrap:wrap;">
             <button type="button" class="btn-primary" id="tfa-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
             <span id="tfa-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:22px;" data-i18n="srx_title">Daily Sales Reconciliation</div>
+        <p style="font-size:12.5px;color:var(--primary-soft);margin:6px 0 14px;max-width:780px;line-height:1.7;" data-i18n="srx_desc">Switch the daily sales reconciliation (POS, PingPong, bank, Grab, ShopeeFood, Foodpanda to Bukku files) on for a restaurant company. It appears in the Bookkeeping menu.</p>
+        <div class="table-card" style="padding:16px 18px;max-width:900px;">
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="field" style="min-width:260px;flex:1;margin:0;"><label for="srx-company" data-i18n="stk_company">Company</label><select id="srx-company"></select></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding-bottom:10px;"><input type="checkbox" id="srx-enabled" style="width:16px;height:16px;accent-color:var(--accent);" /><span data-i18n="tfa_enabled">Switched on for this company</span></label>
+          </div>
+          <div id="srx-stats" style="font-size:12.5px;color:var(--primary-soft);margin-top:10px;"></div>
+          <div style="display:flex;gap:14px;align-items:center;margin-top:14px;flex-wrap:wrap;">
+            <button type="button" class="btn-primary" id="srx-save" style="width:auto;padding:10px 22px;" data-i18n="save_btn">Save</button>
+            <span id="srx-status" style="font-size:12.5px;color:var(--primary-soft);"></span>
           </div>
         </div>
 
@@ -2453,7 +2477,7 @@
       var enabled = profile.enabledFeatures || [];
       document.querySelectorAll('#nav-group-bookkeeping .nav-item[data-panel]').forEach(function(btn){
         // KWSP & PERKESO is needed by every company, so it is not controlled by the feature switches.
-        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-stock' && btn.dataset.panel !== 'panel-profile' && btn.dataset.panel !== 'panel-docs' && enabled.indexOf(btn.dataset.panel) === -1;
+        btn.hidden = btn.dataset.panel !== 'panel-kwsp' && btn.dataset.panel !== 'panel-stock' && btn.dataset.panel !== 'panel-salesrecon' && btn.dataset.panel !== 'panel-profile' && btn.dataset.panel !== 'panel-docs' && enabled.indexOf(btn.dataset.panel) === -1;
         // pages left unticked in Manage Permissions (level 0) are hidden for this user (Administrators always see everything)
         var pgKey = PAGE_KEY_BY_PANEL[btn.dataset.panel];
         if(!btn.hidden && pgKey && profile.userType !== 'administrator' && profile.permissions && profile.permissions[pgKey] === 0) btn.hidden = true;
@@ -2611,7 +2635,7 @@
       letterhead_label:"Letterhead", remove_btn:"Remove", edit_btn:"Edit",
       no_letterhead_yet:"No letterhead uploaded yet.", letterhead_uploaded_success:"Letterhead uploaded.",
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
-      nav_payroll:"Payroll", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", att_payonly:"Payroll only (no attendance: days, overtime and advances are typed in)", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
+      nav_payroll:"Payroll", nav_sales_recon:"Daily Sales Reconciliation", srx_title:"Daily Sales Reconciliation", srx_desc:"Switch the daily sales reconciliation (POS, PingPong, bank, Grab, ShopeeFood, Foodpanda to Bukku files) on for a restaurant company. It appears in the Bookkeeping menu.", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", att_payonly:"Payroll only (no attendance: days, overtime and advances are typed in)", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
       pf_info:"Company Information", pf_info_desc:"Information related to the company.", pf_legal:"Legal Name", pf_friendly:"Friendly Name (as shown in this system)", pf_regtype:"Registration No. Type", pf_regno:"Registration No.", pf_oldreg:"Old Registration No.", pf_tin:"TIN (e-Invoice)", pf_msic:"MSIC Code", pf_msicdesc:"MSIC Description", pf_tourism:"Tourism Tax Registration No.", pf_country:"Home Country", pf_currency:"Home Currency",
       pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
       pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
@@ -2902,7 +2926,7 @@
       letterhead_label:"信头", remove_btn:"移除", edit_btn:"编辑",
       no_letterhead_yet:"尚未上传信头。", letterhead_uploaded_success:"信头已上传。",
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
-      nav_payroll:"薪资", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", att_payonly:"只开薪资（不用考勤：OT、无薪假、预支每月手动填）", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
+      nav_payroll:"薪资", nav_sales_recon:"每日营业对账", srx_title:"每日营业对账", srx_desc:"为餐厅公司开通每日营业对账（POS、PingPong、银行、Grab、ShopeeFood、Foodpanda 对账并导出 Bukku 文件）。开通后会出现在 Bookkeeping 菜单里。", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", att_payonly:"只开薪资（不用考勤：OT、无薪假、预支每月手动填）", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
       pf_info:"公司信息", pf_info_desc:"公司的基本资料。", pf_legal:"法定名称", pf_friendly:"简称（系统内显示的名称）", pf_regtype:"注册号类型", pf_regno:"注册号", pf_oldreg:"旧注册号", pf_tin:"TIN（电子发票）", pf_msic:"MSIC 行业代码", pf_msicdesc:"行业说明", pf_tourism:"旅游税注册号", pf_country:"所在国家", pf_currency:"本位币",
       pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
       pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
@@ -3478,7 +3502,7 @@
       if(pf2 && pf2.contentWindow) pf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
       var sf2 = document.getElementById('stock-frame');
       if(sf2 && sf2.contentWindow) sf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
-      ['tuition-frame', 'contact-frame', 'mtclaim-frame', 'attendance-frame', 'payroll-frame'].forEach(function(id){
+      ['tuition-frame', 'contact-frame', 'mtclaim-frame', 'attendance-frame', 'payroll-frame', 'salesrecon-frame'].forEach(function(id){
         var tf2 = document.getElementById(id);
         if(tf2 && tf2.contentWindow) tf2.contentWindow.postMessage({ type:'pbill-theme', theme:next }, location.origin);
       });
@@ -4324,6 +4348,38 @@
         frame.src = '/api/stock-count/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light') + '&lang=' + (LANG === 'zh' ? 'zh' : 'en');
       }
     }).catch(function(){ if(mine === stockReq) show(false); });   // not available to this user: no menu item
+  }
+
+  // ---- Daily Sales Reconciliation (menu item and page appear where the Owner switched it on for the company) ----
+  var salesReconReq = 0;
+  function renderSalesRecon(){
+    var btn = document.querySelector('.nav-item[data-panel="panel-salesrecon"]');
+    var frame = document.getElementById('salesrecon-frame'), sub = document.getElementById('salesrecon-sub');
+    if(!btn || !frame) return;
+    var show = function(on){
+      btn.hidden = !on;
+      refreshServiceGroups();
+      var panel = document.getElementById('panel-salesrecon');
+      if(!on && panel && !panel.hidden){
+        var fb = serviceGroupItems(serviceMode)[0];
+        if(!fb && CURRENT_ROLE === 'client'){ clientNoPages(); return; }
+        fb = fb || document.querySelector('.nav-item[data-panel="panel-company-home"]');
+        if(fb) fb.click();
+      }
+    };
+    var companyId = currentCompany ? customerRecordId(currentCompany) : null;
+    if(!companyId){ if(COMPANIES && COMPANIES.length) show(false); return; }
+    var mine = ++salesReconReq;
+    api('/companies/' + companyId + '/sales-recon').then(function(cfg){
+      if(mine !== salesReconReq) return;
+      if(!cfg.enabled){ show(false); return; }
+      sub.textContent = currentCompany;
+      show(true);
+      if(frame.dataset.loadedFor !== String(companyId)){
+        frame.dataset.loadedFor = String(companyId);
+        frame.src = '/api/sales-recon/app?company=' + companyId + '&theme=' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+      }
+    }).catch(function(){ if(mine === salesReconReq) show(false); });   // not available to this user: no menu item
   }
 
   // ---- HR > Attendance (menu item and page appear where the Owner switched it on for the company) ----
@@ -6119,6 +6175,7 @@
     renderBank();
     renderPurchases();
     renderStock();
+    renderSalesRecon();
     renderAttendance();
     renderTuition();
     renderClaim();
@@ -6527,6 +6584,39 @@
       .finally(function(){ btn.disabled = false; });
   });
 
+  // ---- Control Panel: Daily Sales Reconciliation — switch on per company ----
+  function srxSay(text, isErr){ var el = pfEl('srx-status'); el.textContent = text; el.style.color = isErr ? 'var(--danger)' : 'var(--primary-soft)'; }
+  var srxRows = [];
+  function srxShow(){
+    var id = pfEl('srx-company').value;
+    var r = srxRows.filter(function(x){ return String(x.id) === String(id); })[0];
+    if(!r) return;
+    pfEl('srx-enabled').checked = !!r.enabled;
+    pfEl('srx-stats').textContent = t('tfa_docs') + ': ' + r.docs;
+    srxSay('');
+  }
+  function renderSrxSettings(){
+    var sel = pfEl('srx-company');
+    if(!sel) return;
+    api('/sales-recon/companies').then(function(rows){
+      srxRows = rows;
+      var keep = sel.value;
+      sel.innerHTML = rows.map(function(r){ return '<option value="' + r.id + '">' + pfEsc(r.name) + (r.enabled ? '  ✓' : '') + '</option>'; }).join('');
+      if(keep && rows.some(function(r){ return String(r.id) === keep; })) sel.value = keep;
+      srxShow();
+    }).catch(function(err){ srxSay(err.message, true); });
+  }
+  pfEl('srx-company').addEventListener('change', srxShow);
+  pfEl('srx-save').addEventListener('click', function(){
+    var btn = this, id = pfEl('srx-company').value;
+    if(!id) return;
+    btn.disabled = true;
+    api('/sales-recon/companies/' + id, { method:'PUT', body: JSON.stringify({ enabled: pfEl('srx-enabled').checked }) })
+      .then(function(){ srxSay(t('pbk_saved')); renderSrxSettings(); renderActivityLog(); renderSalesRecon(); })
+      .catch(function(err){ srxSay(err.message, true); })
+      .finally(function(){ btn.disabled = false; });
+  });
+
   // ---- Control Panel: HR Attendance — switch on per company ----
   function attSay(text, isErr){ var el = pfEl('att-status'); el.textContent = text; el.style.color = isErr ? 'var(--danger)' : 'var(--primary-soft)'; }
   var attRows = [];
@@ -6565,6 +6655,7 @@
     renderStkSettings();
     renderTfaSettings();
     renderAttSettings();
+    renderSrxSettings();
     api('/doc-settings').then(function(r){
       cp.features = r.features;
       pfEl('cp-tokens').innerHTML = '<b>' + t('cp_tokens') + ':</b> ' + Object.keys(r.tokens).map(function(k){ return '<code>{' + k + '}</code> ' + pfEsc(r.tokens[k]); }).join(' · ');
@@ -6748,7 +6839,7 @@
   }
 
   // Pages for which a CC CREST staff member was given "No access" on this company disappear from the menu.
-  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-staff':'payroll', 'panel-attendance':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-tuition':'tuition', 'panel-contact':'tuition', 'panel-mtclaim':'tuition', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
+  var PAGE_KEY_BY_PANEL = { 'panel-sales':'sales', 'panel-purchases':'purchases', 'panel-bank':'bank', 'panel-claim':'claim', 'panel-petty':'petty', 'panel-merchant':'merchant', 'panel-payroll':'payroll', 'panel-staff':'payroll', 'panel-attendance':'payroll', 'panel-kwsp':'payroll', 'panel-stock':'stock', 'panel-salesrecon':'sales', 'panel-tuition':'tuition', 'panel-contact':'tuition', 'panel-mtclaim':'tuition', 'panel-company-home':'home', 'panel-docs':'docs', 'panel-profile':'profile' };
   function applyPageAccess(){
     if(CURRENT_ROLE !== 'staff') return;
     var rec = customerRecord(currentCompany);

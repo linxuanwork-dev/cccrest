@@ -180,6 +180,7 @@ body.is-mgr .noman-only{display:none!important}
     <nav role="tablist" id="tabs">
       <button role="tab" data-tab="count" aria-selected="true">盘点 Stock Count</button>
       <button role="tab" data-tab="report" aria-selected="false">月结报告 Closing Stock</button>
+      <button role="tab" data-tab="card" aria-selected="false">库存卡 Stock Card</button>
       <button role="tab" data-tab="items" aria-selected="false">货品 Items<span class="ct" id="ctItems">0</span></button>
       <button role="tab" data-tab="groups" aria-selected="false">分组 Groups<span class="ct" id="ctGroups">0</span></button>
       <button role="tab" data-tab="log" aria-selected="false">变更记录 Log</button>
@@ -232,6 +233,56 @@ body.is-mgr .noman-only{display:none!important}
       <div id="cxMsg" class="check" style="margin-top:8px" hidden></div>
       <div class="clist" id="cList"></div>
       <div class="savebar" id="saveBar"><span class="small" id="saveInfo">打好数量后按保存</span><button class="btn pri" id="saveBtn" disabled>保存</button></div>
+    </div>
+  </section>
+
+  <!-- STOCK CARD -->
+  <section id="v-card" hidden>
+    <div class="panel">
+      <div class="ph">
+        <div>
+          <h2>库存卡 Stock Card</h2>
+          <div class="small muted">每个货品的进（采购单）、出（卖出 / 损耗 / 转出 / 调整，手动记）和每月盘点。两次盘点之间的「用量」= 期初 + 进货 + 转入 − 出 − 盘点数量，是推算出来的。</div>
+        </div>
+        <div class="row"><button class="btn" id="scRefresh">重新读取采购单</button><button class="btn pri" id="scDown">下载这张卡 Excel</button></div>
+      </div>
+      <div class="filters" style="margin-bottom:10px">
+        <input type="search" id="scQ" placeholder="搜货品名字" style="width:180px">
+        <select id="scItem" style="min-width:260px;max-width:100%"></select>
+        <label class="small row" style="gap:4px">从<input type="date" id="scFrom" style="width:auto"></label>
+        <label class="small row" style="gap:4px">到<input type="date" id="scTo" style="width:auto"></label>
+      </div>
+      <div class="stats" id="scStats"></div>
+      <div id="scNote" style="margin-top:10px" hidden></div>
+      <div class="tbl-wrap" style="max-height:60vh;overflow:auto;margin-top:10px">
+        <table>
+          <thead><tr><th>日期 Date</th><th>类别 Type</th><th>单号 / 供应商</th><th class="r">进 In</th><th class="r">出 Out</th><th class="r">结存 Balance</th><th class="r">进价 Cost</th><th>备注</th><th></th></tr></thead>
+          <tbody id="scBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" id="scAdd" style="margin-top:14px">
+      <h2 style="margin-bottom:8px">记一笔 出 / 入（手动）</h2>
+      <div class="small muted" style="margin-bottom:8px">卖出、损耗、转到别的店、盘点以外的调整，在这里记。采购单进货会自动出现，不用再记。已结账月份的日期只有 manager 可以记。</div>
+      <div class="filters">
+        <label class="small">日期<input type="date" id="scMDate"></label>
+        <label class="small">类别<select id="scMKind"><option value="sold">卖出 Sold</option><option value="waste">损耗 Wastage</option><option value="xout">转出 Transfer out</option><option value="xin">转入 Transfer in</option><option value="gain">调整 + Adjust in</option><option value="loss">调整 − Adjust out</option></select></label>
+        <label class="small">数量（可打 2+0.5）<input id="scMQty" inputmode="decimal" autocomplete="off" style="width:110px"></label>
+        <label class="small">备注<input id="scMNote" autocomplete="off" style="width:220px"></label>
+        <button class="btn pri" id="scMAdd">记下</button>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <div class="ph">
+        <div><h2>每月进出汇总 Monthly Movement</h2><div class="small muted">所有货品：期初、进货、手动出入、月底盘点、推算用量。</div></div>
+        <div class="row"><label class="small row" style="gap:4px">月份<input type="month" id="scMonth" style="width:auto"></label><button class="btn" id="scMDown">下载 Excel</button></div>
+      </div>
+      <div class="tbl-wrap" style="max-height:60vh;overflow:auto">
+        <table>
+          <thead><tr><th>货品 Products</th><th>单位</th><th class="r">期初 Opening</th><th class="r">进货 Purchased</th><th class="r">进货金额 RM</th><th class="r">转入/调整+</th><th class="r">出（手动）</th><th class="r">盘点 Counted</th><th class="r">用量 Used</th></tr></thead>
+          <tbody id="scMBody"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 
@@ -723,7 +774,7 @@ function listenLog(start,end,cb){
 /* ---------- keep the local copy in step with the server ---------- */
 const stable = v => JSON.stringify(v, (k,x)=>x && typeof x==='object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o,key)=>{ o[key]=x[key]; return o; },{}) : x);
 function applySync(d){
-  const colls = {settings:d.settings, groups:d.groups, items:d.items, counts:d.counts, closing:d.closing, log:d.log};
+  const colls = {settings:d.settings, groups:d.groups, items:d.items, counts:d.counts, closing:d.closing, moves:d.moves||[], log:d.log};
   colls['counts/'+d.month+'/lines']=d.lines; colls['counts/'+d.month+'/packs']=d.packs;
   Object.keys(colls).forEach(coll=>{
     const pre=coll+'/', cur={}, nxt={};
@@ -1738,7 +1789,7 @@ $('gForm').addEventListener('submit',async e=>{
 });
 
 /* ---------- LOG view ---------- */
-const ACT={count:['盘点数量','count'],pack:['本月箱数','count'],item:['改货品','item'],'item-add':['新增货品','item'],group:['分组','group'],close:['结账','close'],reopen:['重开','close']};
+const ACT={count:['盘点数量','count'],pack:['本月箱数','count'],item:['改货品','item'],'item-add':['新增货品','item'],group:['分组','group'],close:['结账','close'],reopen:['重开','close'],move:['出入库','count']};
 const curMonth = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
 $('lMonth').value=curMonth();
 let unsubLog=null;
@@ -1783,14 +1834,151 @@ $('lExport').addEventListener('click',async()=>{
   try{ await downloads.save({filename:`${filePrefix()}-STOCK CHANGE LOG-${($('lMonth').value||curMonth()).replace('-','_')}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) toast('下载失败：'+(err&&err.message||err)); }
 });
 
+
+/* ---------- stock card: purchases in, hand-entered movements out, month-end counts; used = opening + in - out - counted ---------- */
+S.moves=[]; S.purch=null; S.purchAt=0; S.purchErr='';
+const MOVE={sold:{l:'卖出 Sold',d:-1},waste:{l:'损耗 Wastage',d:-1},xout:{l:'转出 Transfer out',d:-1},xin:{l:'转入 Transfer in',d:1},gain:{l:'调整 + Adjust in',d:1},loss:{l:'调整 − Adjust out',d:-1}};
+const r4 = n => Math.round((Number(n)||0)*10000)/10000;
+async function loadPurch(force){
+  if(!force && S.purch && Date.now()-S.purchAt<20000) return;
+  try{ const d=await http('GET','/stock-card'); const by={}; (d.rows||[]).forEach(r=>(by[r.item]=by[r.item]||[]).push(r)); S.purch=by; S.purchAt=Date.now(); S.purchErr=''; }
+  catch(e){ console.error('stock-card',e); if(!S.purch) S.purch={}; S.purchErr=(e&&e.message)||String(e); }
+  renderCard();
+}
+function cardData(it){
+  const id=it.id, P=(S.purch&&S.purch[id])||[];
+  const counts=[];
+  Object.keys(S.closings).sort().forEach(m=>{ const c=S.closings[m], l=c&&c.lines&&c.lines[id]; if(l&&l.qty!=null&&l.qty!==''&&!isNaN(Number(l.qty))) counts.push({d:c.countDate||monthEnd(m),m,qty:Number(l.qty),closed:true}); });
+  if(!isClosed()){ const l=S.lines[id]; if(l){ const q=lineQty(l,effPack(it).pack); if(q!=null&&!isNaN(q)) counts.push({d:countDate()||monthEnd(S.month),m:S.month,qty:q,closed:false}); } }
+  counts.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(a.m<b.m?-1:1));
+  const first=counts[0], rest=counts.slice(1), ev=[];
+  P.forEach(p=>{ if(!first||p.d>first.d) ev.push({o:0,d:p.d,t:'buy',ref:[p.no,p.sup].filter(Boolean).join(' · '),qin:Number(p.q)||0,cost:Number(p.c)||0,note:p.bq?('买 '+qfmt(p.bq)+' '+(p.bu||'')):''}); });
+  S.moves.filter(x=>x.item===id&&x.date&&(!first||x.date>first.d)).forEach(x=>{ const k=MOVE[x.kind]||MOVE.loss, q=Number(x.qty)||0; ev.push({o:0,d:x.date,t:'move',mid:x.id,ref:k.l,qin:k.d>0?q:0,qout:k.d<0?q:0,note:x.note||''}); });
+  rest.forEach(c=>ev.push({o:1,d:c.d,t:'count',m:c.m,qty:c.qty,closed:c.closed}));
+  ev.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:a.o-b.o);
+  const rows=[], segs=[]; let bal=first?first.qty:0;
+  let seg={from:first?first.d:'',open:bal,buy:0,buyV:0,min:0,mout:0,evs:[]};
+  if(first) rows.push({d:first.d,type:'open',ref:'期初盘点 Opening count',bal,m:first.m,note:mLabel(first.m)});
+  ev.forEach(e=>{
+    if(e.t==='count'){
+      const used=r4(bal-e.qty);
+      rows.push({d:e.d,type:'count',ref:'盘点 Count · '+mLabel(e.m),qin:used<0?-used:0,qout:used>0?used:0,bal:e.qty,used,m:e.m,note:(used>=0?'用量 Used（推算） ':'盘盈 Surplus ')+qfmt(Math.abs(used))+(e.closed?'':' · 还没结账')});
+      seg.to=e.d; seg.close=e.qty; seg.used=used; seg.m=e.m; segs.push(seg);
+      bal=e.qty; seg={from:e.d,open:bal,buy:0,buyV:0,min:0,mout:0,evs:[]};
+    }else{
+      bal=r4(bal+(e.qin||0)-(e.qout||0));
+      if(e.t==='buy'){ seg.buy=r4(seg.buy+e.qin); seg.buyV+=e.qin*e.cost; } else { seg.min=r4(seg.min+e.qin); seg.mout=r4(seg.mout+e.qout); }
+      seg.evs.push(e);
+      rows.push(Object.assign({type:e.t,bal},e));
+    }
+  });
+  return {rows,segs,pending:seg,bal,counted:counts.length};
+}
+function cardItemList(){ const q=norm($('scQ').value); return sortItems(S.items.filter(i=>i.active!==false&&(!q||norm(i.name).includes(q)))); }
+function renderCard(){
+  if(!$('v-card')||$('v-card').hidden) return;
+  const list=cardItemList(), sel=$('scItem'), keep=sel.value||S.cardItem;
+  const sig=list.map(i=>i.id).join(',');
+  if(sel.dataset.sig!==sig){ sel.innerHTML=list.map(i=>`<option value="${esc(i.id)}">${esc(i.name)}${i.unit?' ('+esc(i.unit)+')':''}</option>`).join(''); sel.dataset.sig=sig; }
+  if(list.some(i=>i.id===keep)) sel.value=keep; else if(list.length) sel.value=list[0].id;
+  S.cardItem=sel.value;
+  $('scAdd').hidden=!S.canWrite;
+  const it=S.items.find(i=>i.id===sel.value);
+  if(!S.purch) loadPurch();
+  if(!it){ $('scBody').innerHTML='<tr><td colspan="9" class="empty">没有货品</td></tr>'; $('scStats').innerHTML=''; $('scNote').hidden=true; renderCardMonth(); return; }
+  const d=cardData(it), from=$('scFrom').value, to=$('scTo').value;
+  const rows=d.rows.filter(r=>(!from||r.d>=from)&&(!to||r.d<=to));
+  const sum=f=>r4(rows.reduce((a,r)=>a+(f(r)||0),0));
+  const buyQ=sum(r=>r.type==='buy'?r.qin:0), buyV=sum(r=>r.type==='buy'?r.qin*r.cost:0), mout=sum(r=>r.type==='move'?r.qout:0), min=sum(r=>r.type==='move'?r.qin:0), used=sum(r=>r.type==='count'?r.used:0);
+  $('scStats').innerHTML=`<div class="stat"><div>账面结存 Balance（${esc(it.unit||'')}）</div><b>${qfmt(d.bal)}</b></div><div class="stat"><div>进货 Purchased</div><b>${qfmt(buyQ)}</b></div><div class="stat"><div>进货金额 RM</div><b>${money(buyV)}</b></div><div class="stat"><div>手动出 / 入</div><b>${qfmt(mout)} / ${qfmt(min)}</b></div><div class="stat"><div>推算用量 Used</div><b>${qfmt(used)}</b></div>`;
+  const notes=[];
+  if(S.purchErr) notes.push(`<div class="check bad">读不到采购单：${esc(S.purchErr)}</div>`);
+  else if(S.purch&&!(S.purch[it.id]||[]).length) notes.push('<div class="check warn">这个货品还没有采购记录（采购单录入 → 货品对应，要把供应商的品名对应到这个货品，进货才会出现在这里）。</div>');
+  if(!d.counted) notes.push('<div class="check warn">这个货品还没有盘点记录，结存从 0 开始，只算采购进货和手动记录。</div>');
+  $('scNote').innerHTML=notes.join(''); $('scNote').hidden=!notes.length;
+  const lastClosed=Object.keys(S.closings).sort().map(m=>S.closings[m].countDate||monthEnd(m)).pop()||'';
+  $('scBody').innerHTML=rows.length?rows.map(r=>{
+    const lab=r.type==='open'?'期初':r.type==='buy'?'进货 Purchase':r.type==='count'?'盘点':r.type==='move'?'手动':'';
+    const del=r.type==='move'&&S.canWrite&&(S.mgr||!lastClosed||r.d>lastClosed)?`<button class="btn sm danger" data-mdel="${esc(r.mid)}">删</button>`:'';
+    return `<tr${r.type==='count'||r.type==='open'?' style="font-weight:600"':''}><td class="mono" style="white-space:nowrap">${dmy(r.d)}</td><td class="small">${lab}</td><td class="small">${esc(r.ref||'')}</td><td class="r mono">${r.qin?qfmt(r.qin):''}</td><td class="r mono">${r.qout?qfmt(r.qout):''}</td><td class="r mono">${qfmt(r.bal)}</td><td class="r mono">${r.type==='buy'&&r.cost?money(r.cost):''}</td><td class="small">${esc(r.note||'')}</td><td>${del}</td></tr>`;
+  }).join(''):'<tr><td colspan="9" class="empty">这段时间没有记录</td></tr>';
+  renderCardMonth();
+}
+function cardMonthRows(m){
+  const end=monthEnd(m), out=[];
+  sortItems(S.items.filter(i=>i.active!==false)).forEach(it=>{
+    const d=cardData(it), seg=d.segs.find(x=>x.m===m);
+    let o;
+    if(seg) o={open:seg.open,buy:seg.buy,buyV:seg.buyV,min:seg.min,mout:seg.mout,close:seg.close,used:seg.used};
+    else{
+      const pd=d.pending; if(pd.from&&pd.from>=end) return;
+      const es=pd.evs.filter(e=>e.d<=end);
+      o={open:pd.open,buy:r4(es.filter(e=>e.t==='buy').reduce((a,e)=>a+e.qin,0)),buyV:es.filter(e=>e.t==='buy').reduce((a,e)=>a+e.qin*e.cost,0),min:r4(es.filter(e=>e.t==='move').reduce((a,e)=>a+e.qin,0)),mout:r4(es.filter(e=>e.t==='move').reduce((a,e)=>a+e.qout,0)),close:null,used:null};
+    }
+    if(!(o.open||o.buy||o.min||o.mout||o.close)) return;
+    out.push(Object.assign({it},o));
+  });
+  return out;
+}
+function renderCardMonth(){
+  const mi=$('scMonth'); if(!mi.value) mi.value=S.month;
+  const rows=cardMonthRows(mi.value);
+  const totV=r2n(rows.reduce((a,r)=>a+r.buyV,0));
+  $('scMBody').innerHTML=rows.length?rows.map(r=>`<tr><td style="min-width:220px">${esc(r.it.name)}</td><td class="small">${esc(r.it.unit||'')}</td><td class="r mono">${qfmt(r.open)}</td><td class="r mono">${r.buy?qfmt(r.buy):''}</td><td class="r mono">${r.buyV?money(r.buyV):''}</td><td class="r mono">${r.min?qfmt(r.min):''}</td><td class="r mono">${r.mout?qfmt(r.mout):''}</td><td class="r mono">${r.close==null?'<span class="muted">没盘点</span>':qfmt(r.close)}</td><td class="r mono">${r.used==null?'':qfmt(r.used)}</td></tr>`).join('')+`<tr style="font-weight:600"><td colspan="4">合计 Total</td><td class="r mono">${money(totV)}</td><td colspan="4"></td></tr>`
+    :'<tr><td colspan="9" class="empty">这个月没有记录</td></tr>';
+}
+const r2n = n => Math.round((Number(n)||0)*100)/100;
+['scQ','scItem','scFrom','scTo'].forEach(id=>$(id).addEventListener('input',()=>{ if(id==='scQ') $('scItem').dataset.sig=''; renderCard(); }));
+$('scMonth').addEventListener('input',renderCardMonth);
+$('scRefresh').addEventListener('click',()=>loadPurch(true));
+$('scMDate').value=dayStr(Date.now());
+$('scMAdd').addEventListener('click',async()=>{
+  if(!S.canWrite) return;
+  const it=S.items.find(i=>i.id===$('scItem').value); if(!it) return toast('先选一个货品');
+  const date=$('scMDate').value, kind=$('scMKind').value, qty=parseQty($('scMQty').value), note=$('scMNote').value.trim().slice(0,120);
+  if(!date) return toast('要填日期');
+  if(qty==null||isNaN(qty)||!(qty>0)) return toast('数量要大于 0');
+  const lastClosed=Object.keys(S.closings).sort().map(m=>S.closings[m].countDate||monthEnd(m)).pop()||'';
+  if(!S.mgr&&lastClosed&&date<=lastClosed) return toast('这个日期已经结账，请找 manager 记');
+  try{ await put('moves/'+uid(),{item:it.id,date,kind,qty,note,by:S.uid||'',at:Date.now()}); logIt([{a:'move',t:it.name,c:[[MOVE[kind].l,'',dmy(date)+' · '+qfmt(qty)+' '+(it.unit||'')+(note?' · '+note:'')]]}]); $('scMQty').value=''; $('scMNote').value=''; toast('已记下'); renderCard(); }
+  catch(err){ dbErr(err); }
+});
+$('scBody').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-mdel]'); if(!b) return;
+  const m=S.mem['moves/'+b.dataset.mdel]; if(!m) return;
+  const it=S.items.find(i=>i.id===m.item)||{name:m.item,unit:''};
+  if(!confirm('删掉这一笔？\n'+it.name+' · '+(MOVE[m.kind]||{}).l+' · '+dmy(m.date)+' · '+qfmt(m.qty))) return;
+  try{ await del('moves/'+b.dataset.mdel); logIt([{a:'move',t:it.name,c:[[(MOVE[m.kind]||{}).l||'出入','',dmy(m.date)+' · '+qfmt(m.qty)+'（删除）']]}]); renderCard(); }catch(err){ dbErr(err); }
+});
+const safeName = s => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().slice(0,40)||'ITEM';
+$('scDown').addEventListener('click',async()=>{
+  const it=S.items.find(i=>i.id===$('scItem').value); if(!it||typeof XLSX==='undefined'||!downloads) return;
+  const d=cardData(it), from=$('scFrom').value, to=$('scTo').value, rows=d.rows.filter(r=>(!from||r.d>=from)&&(!to||r.d<=to));
+  const aoa=[['STOCK CARD',it.name,'UNIT',it.unit||''],[],['DATE','TYPE','REFERENCE','IN','OUT','BALANCE','COST','NOTE']];
+  rows.forEach(r=>aoa.push([dmy(r.d),r.type==='open'?'OPENING':r.type==='buy'?'PURCHASE':r.type==='count'?'COUNT':'MOVEMENT',r.ref||'',r.qin||'',r.qout||'',r.bal,r.type==='buy'?r.cost:'',r.note||'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:12},{wch:12},{wch:44},{wch:10},{wch:10},{wch:10},{wch:10},{wch:44}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'STOCK CARD');
+  try{ await downloads.save({filename:`${filePrefix()}-STOCK CARD-${safeName(it.name)}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) dbErr(err); }
+});
+$('scMDown').addEventListener('click',async()=>{
+  if(typeof XLSX==='undefined'||!downloads) return;
+  const m=$('scMonth').value||S.month, rows=cardMonthRows(m);
+  const aoa=[['STOCK MOVEMENT',mLabel(m)],[],['PRODUCT','GROUP','UNIT','OPENING','PURCHASED','PURCHASED RM','IN (TRANSFER/ADJ)','OUT (MANUAL)','COUNTED','USED']];
+  rows.forEach(r=>aoa.push([r.it.name,groupName(r.it),r.it.unit||'',r.open,r.buy||'',r.buyV?r2n(r.buyV):'',r.min||'',r.mout||'',r.close==null?'':r.close,r.used==null?'':r.used]));
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:60},{wch:24},{wch:8},{wch:10},{wch:11},{wch:13},{wch:16},{wch:13},{wch:10},{wch:10}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'MOVEMENT');
+  try{ await downloads.save({filename:`${filePrefix()}-STOCK MOVEMENT-${m.replace('-','_')}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) dbErr(err); }
+});
+
 /* ---------- tabs / boot ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
-  ['count','report','items','groups','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  ['count','report','card','items','groups','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  if(t==='card'){ loadPurch(); renderCard(); }
   try{localStorage.setItem('mf-stock-tab-'+CID,t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
-function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); loadFifo(); }
+function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); loadFifo(); if(typeof renderCard==='function') renderCard(); }
 
 renderAll();
 try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(t); }catch(e){}
@@ -1821,6 +2009,7 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   listen('items', rows=>{ S.items=rows; renderAll(); });
   listen('counts', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.cmeta=m; patchCount(true); renderReport(); loadFifo(); });
   listen('closing', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.closings=m; renderAll(); });
+  listen('moves', rows=>{ S.moves=rows; renderCard(); });
   watchLines();
   watchLog();
   setInterval(()=>{ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved

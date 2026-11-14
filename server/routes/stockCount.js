@@ -30,7 +30,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ID = '[A-Za-z0-9_-]{1,80}';
 const MONTH = '\\d{4}-(?:0[1-9]|1[0-2])';
 // every path the page may write (the change log has its own endpoint)
-const PATH_RE = new RegExp(`^(?:(?:groups|items|closing|settings)/${ID}|counts/${MONTH}|counts/${MONTH}/(?:lines|packs)/${ID})$`);
+const PATH_RE = new RegExp(`^(?:(?:groups|items|closing|settings|moves)/${ID}|counts/${MONTH}|counts/${MONTH}/(?:lines|packs)/${ID})$`);
 const MAX_DOC = 600 * 1024;   // one document (a closing snapshot is the biggest)
 
 async function loadSettings(companyId) {
@@ -124,7 +124,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   if (!month || !logMonth) return bad(res, 'month and logMonth are required');
   if (req.query.rev !== undefined && String(s.rev) === String(req.query.rev)) return res.json({ same: true, rev: s.rev, month, logMonth });
 
-  const colls = ['settings', 'groups', 'items', 'counts', 'closing', 'counts/' + month + '/lines', 'counts/' + month + '/packs'];
+  const colls = ['settings', 'groups', 'items', 'counts', 'closing', 'moves', 'counts/' + month + '/lines', 'counts/' + month + '/packs'];
   const { rows } = await pool.query(
     `SELECT path, coll, data FROM stock_count_docs
       WHERE company_id = $1 AND (coll = ANY($2::text[]) OR (coll = 'log' AND data->>'day' >= $3 AND data->>'day' <= $4))`,
@@ -143,7 +143,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   res.json({
     rev: s.rev, month, logMonth, names,
     settings: get('settings'), groups: get('groups'), items: get('items'), counts: get('counts'), closing: get('closing'),
-    lines: get('counts/' + month + '/lines'), packs: get('counts/' + month + '/packs'), log
+    moves: get('moves'), lines: get('counts/' + month + '/lines'), packs: get('counts/' + month + '/packs'), log
   });
 });
 
@@ -271,6 +271,31 @@ router.get(BASE + '/fifo', ...guard(1), async (req, res) => {
     }
   }
   res.json({ from, to, layers, unmapped: unmapped.size });
+});
+
+// Stock card: every purchase-bill line that belongs to a Stock Count item (through the supplier's item list), oldest first, in Stock Count units.
+// The page puts these together with the month-end counts and the hand-entered movements (sold, wastage, transfer, adjustment).
+router.get(BASE + '/stock-card', ...guard(1), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const cid = req.params.companyId;
+  const [bills, maps] = await Promise.all([
+    pool.query(`SELECT supplier, no, to_char(bill_date, 'YYYY-MM-DD') AS d, lines FROM purchase_bukku_bills WHERE company_id = $1 ORDER BY bill_date, id`, [cid]),
+    pool.query('SELECT supplier, alias, stock_item_id, per, unit FROM purchase_bukku_items WHERE company_id = $1', [cid])
+  ]);
+  const map = new Map(maps.rows.map((m) => [m.supplier + '|' + m.alias, m]));
+  const rows = [];
+  for (const b of bills.rows) {
+    const sup = normName(b.supplier);
+    for (const l of b.lines || []) {
+      const m = map.get(sup + '|' + normName(l.desc)) || (l.as ? map.get(sup + '|' + normName(l.as)) : null);
+      const item = (m && m.stock_item_id) || l.item || '';
+      if (!item) continue;
+      const per = Number(l.per) > 0 ? Number(l.per) : (m && Number(m.per) > 0 ? Number(m.per) : 1);
+      const qty = Number(l.qty) > 0 ? Number(l.qty) : 1, price = Number(l.price) || 0;
+      rows.push({ item, d: b.d, no: b.no, sup: b.supplier, q: Math.round(qty / per * 10000) / 10000, c: Math.round(price * per * 1e6) / 1e6, bq: qty, bu: (m && m.unit) || l.unit || '' });
+    }
+  }
+  res.json({ rows: rows.length > 40000 ? rows.slice(-40000) : rows });
 });
 
 // The page builds its Excel files in the browser; this puts the system's print stamp (date + user, in the print footer)

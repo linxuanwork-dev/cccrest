@@ -150,6 +150,8 @@ body.is-mgr .staff-only{display:none!important}
       <button role="tab" data-tab="up" aria-selected="true">上传报告 Upload</button>
       <button role="tab" data-tab="daily" aria-selected="false">每日对账 Daily<span class="ct" id="ctFlags">0</span></button>
       <button role="tab" data-tab="del" aria-selected="false">外卖 Delivery<span class="ct" id="ctDel">0</span></button>
+      <button role="tab" data-tab="tot" aria-selected="false">总销售 Total Sales</button>
+      <button role="tab" data-tab="com" aria-selected="false" class="mgr-only">提成 Commission</button>
       <button role="tab" data-tab="exp" aria-selected="false" class="mgr-only">Bukku 导出 Export</button>
       <button role="tab" data-tab="set" aria-selected="false">设定 Settings</button>
       <button role="tab" data-tab="log" aria-selected="false">变更记录 Log</button>
@@ -248,6 +250,32 @@ body.is-mgr .staff-only{display:none!important}
       </div>
       <div id="expMsg" style="margin-top:12px" hidden></div>
     </div>
+  </section>
+
+  <!-- TOTAL SALES -->
+  <section id="v-tot" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2 id="totTitle">总销售</h2><div class="small muted">每天、每个渠道的销售额。堂食 = 发票总额（含 SST 和服务费，不含 Grab 到店）；Grab Food = 外卖 SALES + 到店 SALES；ShopeeFood、Foodpanda = SALES（含税，未扣折扣和佣金）。</div></div>
+        <button class="btn" id="totCsv">下载总销售 CSV</button></div>
+      <div class="stats" id="totStats"></div>
+    </div>
+    <div class="panel" style="margin-top:14px"><div class="tbl-wrap" style="max-height:72vh"><table>
+      <thead><tr><th>日期</th><th class="r">堂食 Dine-in</th><th class="r">Grab Food</th><th class="r">ShopeeFood</th><th class="r">Foodpanda</th><th class="r">总销售 Total</th></tr></thead>
+      <tbody id="totBody"></tbody></table></div></div>
+  </section>
+
+  <!-- COMMISSION -->
+  <section id="v-com" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2 id="comTitle">提成</h2><div class="small muted">每天的提成基数 = POS Net Sales − 平台金额（FoodPanda + GrabFood + ShopeeFood）× 平台扣除率 − Double Sales。按每天的基数分档计算；那天没上班（考勤里没有打卡）就没有提成。月底把合计送到「薪资」的 Commission 栏。</div></div>
+        <div class="row"><button class="btn" id="comRefresh">重读考勤</button><button class="btn pri" id="comSend">送到薪资</button></div></div>
+      <form class="sets" id="comForm" onsubmit="return false"></form>
+      <div id="comNote" style="margin-top:10px"></div>
+      <div class="stats" id="comStats" style="margin-top:12px"></div>
+    </div>
+    <div class="panel" style="margin-top:14px"><div class="tbl-wrap" style="max-height:72vh"><table>
+      <thead><tr><th>日期</th><th class="r">POS Net Sales</th><th class="r">平台金额</th><th class="r">平台扣除</th><th class="r">Double Sales</th><th class="r">提成基数</th><th class="r">1%</th><th class="r">2%</th><th class="r">3%</th><th>上班</th><th class="r">提成</th></tr></thead>
+      <tbody id="comBody"></tbody></table></div></div>
   </section>
 
   <!-- SETTINGS -->
@@ -351,6 +379,7 @@ body.is-mgr .staff-only{display:none!important}
     var blob = o.data instanceof Blob ? o.data : new Blob([o.data]), url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
   } };
+  REC.http = http;
   REC.user = { profiles: async function(ids){ var o = {}; (ids || []).forEach(function(id){ o[id] = { name: REC.names[id] || '' }; }); return o; } };
   REC.init = async function(){
     if(!CID) throw new Error('缺少公司编号');
@@ -414,6 +443,8 @@ const DEF = {
   fpContact:'C-D0003', fpLegal:'Delivery Hero Malaysia Sdn Bhd', fpPrefix:'FP', fpRcpt:'OFP', fpMethod:'FOOD PANDA', fpDep:'1000-01',
   fpSales:'5001-01F', fpDisc:'5056-01F', fpComm:'6617-02F', fpAds:'6617-01F', fpAdj:'6617-04F'
 };
+/* commission settings (manager): the person, the platform deduction and the daily tiers */
+const DEFC = { staff:'TENG YI LIN', pct:0.26, t1:10000, t2:15000, r1:0.01, r2:0.02, r3:0.03 };
 const SET_FIELDS = [
   ['客户与发票 Customer & Invoice',[['contact','Contact Code'],['legal','Legal Name'],['invPrefix','发票前缀（MF → MF2609-01）'],['taxCode','SST Tax Code'],['taxRate','SST 税率（0.06 = 6%）'],['taxMode','SST 计算：INVOICE = 整张单合计再四舍五入 / LINE = 每行四舍五入'],['classCode','Classification Code（可留空）']]],
   ['营业额科目 Sales accounts',[['accSales','DAILY SALES 科目'],['accDisc','DISCOUNT GIVEN 科目'],['splitDisc','折扣分开记 Y/N（N = 只记 Net）'],['accPkg','PACKAGING FEE 科目'],['accSvc','SERVICE CHARGE 科目'],['accRound','ROUNDING 科目']]],
@@ -430,6 +461,7 @@ const SET_FIELDS = [
 
 const SRC = {
   pos:{name:'POS 每日汇总',need:true,hint:'POS & ONLINE 报表（营业日期 / Business Date）'},
+  posall:{name:'POS 全部渠道（提成用）',need:false,hint:'有外卖栏的 POS 报表：Net Sales 和各平台金额，算提成用'},
   pp:{name:'PingPong 交易明细',need:true,hint:'DuitNow / 电子钱包 / 网关刷卡，每笔交易'},
   bsm:{name:'Public Bank BSM PDF',need:true,hint:'每天一份，VISA / MASTER / MyDebit'},
   wallet:{name:'PingPong 钱包流水',need:true,hint:'Royalty（转给 YONNY）、Settlement、Payout'},
@@ -446,7 +478,7 @@ const SRC = {
 };
 const PLAT = {gb:{name:'Grab Food',srcs:['gf','gft'],main:'gf'},sp:{name:'ShopeeFood',srcs:['sp','sp1','spa','spj'],main:'sp'},fp:{name:'Foodpanda',srcs:['fps','fpa'],main:'fps'}};
 
-const S = { db:null, mem:null, mgr:false, canWrite:true, uid:'', user:null, month:defaultMonth(), src:{}, adj:{}, closings:{}, set:Object.assign({},DEF), sel:'', logs:[], names:{}, unsub:[] };
+const S = { comm:Object.assign({},DEFC), db:null, mem:null, mgr:false, canWrite:true, uid:'', user:null, month:defaultMonth(), src:{}, adj:{}, closings:{}, set:Object.assign({},DEF), sel:'', logs:[], names:{}, unsub:[] };
 let downloads=null;
 
 /* ---------- storage ---------- */
@@ -506,7 +538,19 @@ function parsePOS(aoa){
   const cSvc=pick(['surcharge type','附加费类型'],['Service charges','服务费']), cPkg=pick(['surcharge type','附加费类型'],['Packaging fees','打包费']);
   const payCols=[]; for(let c=0;c<width;c++){ const x=groups[c]; if(x && isG(x,['third-party payment','三方支付']) && !/^(subtotal|小计)$/i.test(x.s)) payCols.push([c,x.s]); }
   const payNames=payCols.map(x=>H(x[1]));
-  if(payNames.some(n=>/takeout|grabfood|foodpanda|shopeefood/.test(n)) || !payNames.some(n=>n==='cash'||n==='现金')) return {key:'_skip',msg:'跳过：不是堂食 POS & ONLINE 表（这是外卖 / 全部渠道的 POS 表）'};
+  if(payNames.some(n=>/takeout|grabfood|foodpanda|shopeefood/.test(n)) && payNames.some(n=>n==='cash'||n==='现金')){
+    // the POS report of ALL channels (dine-in + delivery): not for the dine-in invoice, but its Net Sales and the platform amounts give the commission
+    const rows3=[r1,aoa[hi+1]||[],r3], findC=names=>{ for(const r of rows3){ const i=col(r,names); if(i>=0) return i; } return -1; };
+    const cNet=findC(['Net Sales','净销售额','销售净额']), cDbl=findC(['Double Sales','Double sales','重复销售']);
+    if(cNet<0) throw new Error('全部渠道 POS 报表找不到 Net Sales 这一栏');
+    const plat={fp:[],gb:[],sp:[]}; payCols.forEach(([c,n])=>{ const h=H(n); if(/foodpanda/.test(h)) plat.fp.push(c); else if(/grabfood/.test(h)) plat.gb.push(c); else if(/shopeefood/.test(h)) plat.sp.push(c); });
+    const days={};
+    for(let i=hi+3;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normDate(r[cDate]); if(!d) continue;
+      const sm=cs=>r2(cs.reduce((a,c)=>a+num(r[c]),0));
+      days[d]={net:num(r[cNet]),fp:sm(plat.fp),gb:sm(plat.gb),sp:sm(plat.sp),dbl:cDbl>=0?num(r[cDbl]):0}; }
+    return {key:'posall',days};
+  }
+  if(!payNames.some(n=>n==='cash'||n==='现金')) return {key:'_skip',msg:'跳过：不是堂食 POS & ONLINE 表（没有现金栏）'};
   const miss=[]; [['Gross',cGross],['Discount',cDisc],['SST',cSst],['Rounding',cRnd],['Service',cSvc]].forEach(([n,c])=>{ if(c<0) miss.push(n); });
   if(miss.length) throw new Error('POS 报表少了这些栏：'+miss.join(', ')+'（格式可能改了）');
   const days={};
@@ -1156,6 +1200,103 @@ function renderLog(){
 }
 $('lMonth').addEventListener('change',renderLog);
 
+/* ---------- total sales (every day, every channel) ---------- */
+function totalRows(){
+  const dine={}; rowsNow().forEach(r=>{ if(!r.none) dine[r.d]=r.total||0; });
+  const g={}; delNow('gb').forEach(r=>{ g[r.d]=r2(((r.lines[0]&&r.lines[0].amt)||0)+((r.dout&&r.dout.lines[0]&&r.dout.lines[0].amt)||0)); });
+  const sp={}; delNow('sp').forEach(r=>{ sp[r.d]=r2((r.lines[0]&&r.lines[0].amt)||0); });
+  const fp={}; delNow('fp').forEach(r=>{ fp[r.d]=r2((fp[r.d]||0)+((r.lines[0]&&r.lines[0].amt)||0)); });
+  return daysOf(S.month).map(d=>{ const a=dine[d]||0,b=g[d]||0,c=sp[d]||0,e=fp[d]||0; return {d,dine:a,gb:b,sp:c,fp:e,total:r2(a+b+c+e)}; });
+}
+function renderTot(){
+  if(!$('totBody')) return;
+  const rows=totalRows(), T=k=>r2(rows.reduce((s,r)=>s+r[k],0)), tot=T('total');
+  $('totTitle').textContent='总销售 · '+S.month;
+  $('totStats').innerHTML=[['堂食','dine'],['Grab Food','gb'],['ShopeeFood','sp'],['Foodpanda','fp']].map(([l,k])=>`<div class="stat"><div>${l} RM${tot?' · '+Math.round(T(k)/tot*100)+'%':''}</div><b>${money(T(k))}</b></div>`).join('')+`<div class="stat"><div>总销售 Total RM</div><b>${money(tot)}</b></div>`;
+  $('totBody').innerHTML=rows.map(r=>`<tr><td class="mono">${dmy(r.d)}</td>${['dine','gb','sp','fp','total'].map(k=>`<td class="r num">${r[k]?money(r[k]):'<span class="muted">—</span>'}</td>`).join('')}</tr>`).join('')+
+    `<tr class="tot"><td>合计</td>${['dine','gb','sp','fp','total'].map(k=>`<td class="r num">${money(T(k))}</td>`).join('')}</tr>`;
+}
+$('totCsv').addEventListener('click',async()=>{
+  const rows=totalRows(); const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const lines=[['日期','堂食','Grab Food','ShopeeFood','Foodpanda','总销售']].concat(rows.map(r=>[dmy(r.d),r.dine,r.gb,r.sp,r.fp,r.total]),[['合计',...['dine','gb','sp','fp','total'].map(k=>r2(rows.reduce((s,r)=>s+r[k],0)))]]);
+  if(downloads) await downloads.save({filename:'TOTAL SALES-'+S.month.replace('-','_')+'.csv',data:'﻿'+lines.map(r=>r.map(q).join(',')).join('\n')});
+});
+
+/* ---------- commission ---------- */
+const COMM_FIELDS=[['staff','拿提成的员工（名字要跟考勤一样）'],['pct','平台扣除率（0.26 = 26%）'],['t1','第一档上限 RM（以内用第一档）'],['t2','第二档上限 RM'],['r1','第一档比例（0.01 = 1%）'],['r2','第二档比例'],['r3','超过第二档的比例']];
+let commWork={key:'',days:null,entries:0};
+async function loadWorked(){
+  const C=S.comm, key=S.month+'|'+C.staff; if(!C.staff||!S.mgr||!REC.http) return;
+  try{ const r=await REC.http('GET','/worked-days?month='+encodeURIComponent(S.month)+'&name='+encodeURIComponent(C.staff)); commWork={key,days:r.days||{},entries:r.entries||0}; }
+  catch(e){ commWork={key,days:{},entries:0,err:e&&e.message||String(e)}; }
+  renderCom();
+}
+function commRows(){
+  const C=S.comm, posall=(S.src.posall||{}).days||{}, adj=(S.adj['comm_'+S.month]||{}).days||{};
+  const tier=b=>{ if(!(b>0)) return [0,0,0]; const a=r2(Math.min(b,C.t1)*C.r1), c=r2(b>C.t1?Math.min(b-C.t1,C.t2-C.t1)*C.r2:0), d=r2(b>C.t2?(b-C.t2)*C.r3:0); return [a,c,d]; };
+  const wd=commWork.key===S.month+'|'+C.staff?commWork.days:null;
+  return daysOf(S.month).map(d=>{
+    const p=posall[d]; const a=adj[d]||{};
+    if(!p) return {d,none:true,work:false};
+    const plat=r2(p.fp+p.gb+p.sp), deduct=r2(plat*C.pct), dbl=a.dbl!=null?Number(a.dbl)||0:(p.dbl||0), base=r2(p.net-deduct-dbl);
+    const auto=wd?!!(wd[d]&&wd[d].worked):false, work=a.work!=null?!!a.work:auto;
+    const [t1,t2,t3]=tier(base), day=r2(t1+t2+t3);
+    return {d,p,plat,deduct,dbl,base,t1,t2,t3,day,work,auto,over:a.work!=null,reason:wd&&wd[d]?wd[d].reason:'',comm:work?day:0};
+  });
+}
+function renderCom(){
+  if(!$('comBody')||!S.mgr) return;
+  const C=S.comm;
+  if(commWork.key!==S.month+'|'+C.staff && !commWork._loading){ commWork._loading=true; Promise.resolve().then(()=>loadWorked()).finally(()=>{ commWork._loading=false; }); }
+  $('comTitle').textContent='提成 · '+S.month+' · '+(C.staff||'?');
+  const form=$('comForm');
+  if(!form.contains(document.activeElement)){
+    form.innerHTML=COMM_FIELDS.map(([k,l])=>`<label>${esc(l)}<input data-ck="${k}" value="${esc(C[k])}"></label>`).join('');
+    form.querySelectorAll('input').forEach(i=>i.addEventListener('change',async()=>{
+      const k=i.dataset.ck, v=k==='staff'?i.value.replace(/\s+/g,' ').trim().toUpperCase():Number(i.value);
+      if(k!=='staff'&&!isFinite(v)) return toast('要填数字');
+      try{ await put('settings/comm',Object.assign({},S.comm,{[k]:v})); logIt('settings','提成设定：'+k+' = '+v); }catch(err){ dbErr(err); }
+    }));
+  }
+  const rows=commRows(), have=rows.filter(r=>!r.none);
+  const notes=[];
+  if(!Object.keys((S.src.posall||{}).days||{}).length) notes.push('<div class="check warn">这个月还没有上传「POS 全部渠道」报表（有外卖栏的那种）。到「上传报告」把它放进来，才能算提成。</div>');
+  if(commWork.key===S.month+'|'+C.staff){
+    if(commWork.err) notes.push('<div class="check bad">读不到考勤：'+esc(commWork.err)+'</div>');
+    else if(!commWork.entries) notes.push('<div class="check warn">考勤里这个月没有 '+esc(C.staff)+' 的打卡记录。要么名字跟考勤不一样，要么这家公司没用考勤。可以在下面手动勾「上班」。</div>');
+  }
+  $('comNote').innerHTML=notes.join('');
+  const sum=k=>r2(have.reduce((s,r)=>s+(r[k]||0),0)), commTot=r2(have.reduce((s,r)=>s+r.comm,0)), workN=have.filter(r=>r.work).length;
+  $('comStats').innerHTML=`<div class="stat"><div>POS Net Sales 合计 RM</div><b>${money(have.reduce((s,r)=>s+r.p.net,0))}</b></div><div class="stat"><div>平台扣除 RM</div><b>${money(sum('deduct'))}</b></div><div class="stat"><div>上班天数 / 有资料天数</div><b>${workN} / ${have.length}</b></div><div class="stat"><div>没上班的提成（不算）RM</div><b>${money(r2(have.filter(r=>!r.work).reduce((s,r)=>s+r.day,0)))}</b></div><div class="stat"><div>本月提成 RM</div><b>${money(commTot)}</b></div>`;
+  $('comBody').innerHTML=rows.map(r=>{
+    if(r.none) return `<tr><td class="mono">${dmy(r.d)}</td><td colspan="10" class="muted small">没有 POS 全部渠道资料</td></tr>`;
+    return `<tr${r.work?'':' style="opacity:.55"'}><td class="mono">${dmy(r.d)}</td><td class="r num">${money(r.p.net)}</td><td class="r num">${money(r.plat)}</td><td class="r num">${money(r.deduct)}</td>
+      <td class="r"><input data-dbl="${r.d}" value="${r.dbl?esc(r.dbl):''}" placeholder="0" style="width:80px;text-align:right"></td><td class="r num">${money(r.base)}</td><td class="r num">${r.t1?money(r.t1):'—'}</td><td class="r num">${r.t2?money(r.t2):'—'}</td><td class="r num">${r.t3?money(r.t3):'—'}</td>
+      <td><label class="small row" style="gap:4px;flex-wrap:nowrap"><input type="checkbox" data-work="${r.d}" ${r.work?'checked':''} style="width:auto"> ${r.over?'<span class="pill warn">手动</span>':(r.auto?'<span class="pill ok">考勤</span>':(r.reason?'<span class="pill mute">'+esc(r.reason)+'</span>':'<span class="pill mute">没打卡</span>'))}</label></td><td class="r num"><b>${r.comm?money(r.comm):'—'}</b></td></tr>`;
+  }).join('')+`<tr class="tot"><td colspan="5">合计</td><td class="r num">${money(sum('base'))}</td><td class="r num">${money(sum('t1'))}</td><td class="r num">${money(sum('t2'))}</td><td class="r num">${money(sum('t3'))}</td><td></td><td class="r num">${money(commTot)}</td></tr>`;
+}
+async function saveCommAdj(d,patch){
+  const path='adj/comm_'+S.month; const doc=(await getDoc(path))||{month:S.month,days:{}};
+  doc.days=doc.days||{}; doc.days[d]=Object.assign({},doc.days[d]||{},patch,{by:S.uid||'',at:Date.now()});
+  await put(path,doc);
+}
+$('comBody').addEventListener('change',async e=>{
+  const t=e.target; if(!S.mgr) return;
+  try{
+    if(t.dataset.dbl){ const v=t.value.trim()===''?null:Number(t.value); if(v!=null&&!isFinite(v)) return toast('要填数字'); await saveCommAdj(t.dataset.dbl,{dbl:v}); logIt('comm','Double Sales '+dmy(t.dataset.dbl)+'：'+(v==null?'清除':money(v))); }
+    else if(t.dataset.work){ await saveCommAdj(t.dataset.work,{work:t.checked}); logIt('comm',dmy(t.dataset.work)+(t.checked?' 算上班':' 算没上班')+'（手动）'); }
+  }catch(err){ dbErr(err); }
+});
+$('comRefresh').addEventListener('click',()=>{ commWork={key:'',days:null,entries:0}; loadWorked(); });
+$('comSend').addEventListener('click',async()=>{
+  if(!S.mgr) return;
+  const rows=commRows().filter(r=>!r.none), tot=r2(rows.reduce((s,r)=>s+r.comm,0));
+  if(!rows.length) return toast('这个月没有 POS 全部渠道资料');
+  if(!confirm(`把 ${S.comm.staff} ${S.month} 的提成 RM ${money(tot)} 送到「薪资」的 Commission 栏？`)) return;
+  try{ await REC.http('POST','/commission-to-payroll',{month:S.month,name:S.comm.staff,amount:tot}); logIt('comm','提成送到薪资：'+S.comm.staff+' RM '+money(tot)); toast('已送到薪资'); }
+  catch(err){ dbErr(err); }
+});
+
 /* ---------- month / tabs / boot ---------- */
 function watchMonth(){
   S.unsub.forEach(f=>f()); S.unsub=[]; S.src={}; S.sel='';
@@ -1166,9 +1307,9 @@ $('mSel').addEventListener('change',e=>setMonth(e.target.value));
 $('mPrev').addEventListener('click',()=>setMonth(prevMonth(S.month)));
 $('mNext').addEventListener('click',()=>setMonth(nextMonth(S.month)));
 function setTab(t){
-  if(t==='exp' && !S.mgr) t='daily';
+  if((t==='exp'||t==='com') && !S.mgr) t='daily';
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
-  ['up','daily','del','exp','set','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  ['up','daily','del','tot','com','exp','set','log'].forEach(x=>$('v-'+x).hidden=x!==t);
   try{localStorage.setItem('mf-recon-tab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
@@ -1176,7 +1317,7 @@ function renderAll(){
   const c=S.closings[S.month];
   $('mStatus').innerHTML = c ? '<span class="pill ok">已结账</span>' : '<span class="pill open">未结账</span>';
   $('upTitle').textContent='上传原始报告 · '+S.month;
-  renderUp(); renderDaily(); renderDel(); renderExp(); renderLog();
+  renderUp(); renderDaily(); renderDel(); renderTot(); renderCom(); renderExp(); renderLog();
   if(!document.activeElement || !document.activeElement.closest('#setForm')) renderSet();
 }
 $('mSel').value=S.month; $('lMonth').value=S.month;
@@ -1190,7 +1331,7 @@ try{ const t=localStorage.getItem('mf-recon-tab'); if(t&&$('v-'+t)) setTab(t); }
   const bt=document.querySelector('.brand'); if(bt&&REC.name) bt.firstChild.textContent=REC.name+' 每日营业对账 ';
   document.body.classList.toggle('is-mgr',S.mgr); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
   if(db) S.db=db; else { S.mem={}; $('offline').hidden=false; $('offline').textContent='这个画面连不上资料库：可以试用，但资料不会保存。'; }
-  listen('settings',rows=>{ const s=rows.find(r=>r.id==='bukku'); S.set=Object.assign({},DEF,s||{}); delete S.set.id; renderAll(); });
+  listen('settings',rows=>{ const s=rows.find(r=>r.id==='bukku'); S.set=Object.assign({},DEF,s||{}); delete S.set.id; const c=rows.find(r=>r.id==='comm'); S.comm=Object.assign({},DEFC,c||{}); delete S.comm.id; renderAll(); });
   listen('adj',rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.adj=m; renderAll(); });
   listen('closing',rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.closings=m; resolveNames(rows.map(r=>r.closedBy)); renderAll(); });
   listen('log',rows=>{ const all=[]; rows.forEach(d=>(d.entries||[]).forEach(e=>all.push(Object.assign({by:d.by,day:d.day},e)))); S.logs=all; resolveNames(all.map(e=>e.by)); renderLog(); });

@@ -109,6 +109,48 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   res.json({ rev: s.rev, docs: by, names });
 });
 
+// The days a person has a clock time in the HR Attendance of the company (for the commission: no work that day = no commission)
+router.get(BASE + '/worked-days', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const month = String(req.query.month || ''), name = String(req.query.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !name) return bad(res, 'Invalid request');
+  const { rows } = await pool.query(
+    `SELECT data FROM attendance_docs WHERE company_id = $1 AND coll = 'entries' AND data->>'date' LIKE $2`, [req.params.companyId, month + '-%']);
+  const days = {};
+  let entries = 0;
+  rows.forEach((r) => {
+    const d = r.data || {};
+    if (String(d.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '') !== name) return;
+    entries++;
+    const worked = ['inT', 'in1', 'in2'].some((k) => String(d[k] == null ? '' : d[k]).trim() !== '');
+    days[d.date] = { worked, reason: String(d.reason || '') };
+  });
+  res.json({ days, entries });
+});
+
+// The month's commission of a person goes to the HR Payroll (the payroll page picks it up in its Commission column)
+router.post(BASE + '/commission-to-payroll', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, month = String(b.month || ''), name = String(b.name || '').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 100);
+  const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !name || !(amount >= 0)) return bad(res, 'Invalid request');
+  const slug = name.replace(/[^A-Za-z0-9]+/g, '_');
+  const cid = req.params.companyId;
+  const data = { kind: 'commission', name, month, amount, source: 'sales', at: Date.now(), by: String(req.user.sub) };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO attendance_docs (company_id, path, coll, data, updated_by, updated_at) VALUES ($1,$2,'payroll',$3::jsonb,$4, now())
+       ON CONFLICT (company_id, path) DO UPDATE SET data = EXCLUDED.data, updated_by = $4, updated_at = now()`,
+      [cid, 'payroll/COMM_' + slug + '_' + month, JSON.stringify(data), req.user.sub]);
+    await client.query(
+      `INSERT INTO attendance_settings (company_id, enabled, rev) VALUES ($1,false,1) ON CONFLICT (company_id) DO UPDATE SET rev = attendance_settings.rev + 1`, [cid]);
+    await client.query('COMMIT');
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+  res.json({ ok: true });
+});
+
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
 // Writes: [{op: 'set' | 'delete', path, data}] — all or nothing. A document is replaced as a whole.

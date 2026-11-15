@@ -100,6 +100,7 @@ body.is-mgr .staff-only{display:none!important}
 .drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .drop b{color:var(--ink)}
 .srcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.src.over{outline:2px dashed var(--accent,#2f6f4e);outline-offset:-2px}
 .src{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .src.have{border-color:var(--ok)}
 .src.need{border-color:var(--must-line);background:var(--must)}
@@ -165,8 +166,8 @@ body.is-mgr .staff-only{display:none!important}
   <!-- UPLOAD -->
   <section id="v-up">
     <div class="panel">
-      <div class="ph"><div><h2 id="upTitle">上传原始报告</h2><div class="small muted">把系统 / 平台 / 银行下载的原始文件直接拖进来，不用整理。可以一次放很多个（Excel、CSV、PDF 都可以）。系统会自己认出是哪一种报告，只读这个月的日期。</div></div></div>
-      <div class="drop" id="drop" tabindex="0" role="button" aria-label="选择文件上传"><b>拖文件到这里</b>，或者点这里选择文件<br><span class="small">堂食：POS 每日汇总 · PingPong 交易 / 钱包 · BSM PDF · Grab 三方支付 · Surcharge<br>外卖：Grab Food 交易 / 转账 · ShopeeFood 订单 / 明细 / 钱包 / 调整 · Foodpanda SUMMARY / Appendix A</span></div>
+      <div class="ph"><div><h2 id="upTitle">上传原始报告</h2><div class="small muted">每一种报告分开上传：在下面对应的格子按「上传」（或把文件拖到那个格子上），原始文件不用整理，可以一次放多个（Excel、CSV、PDF 都可以）。放错格子系统会提醒，不会用。只读这个月的日期。</div></div></div>
+      <div class="drop" id="drop" hidden></div>
       <input type="file" id="fileIn" multiple accept=".xlsx,.xls,.csv,.pdf" hidden>
       <div class="prog" id="prog"></div>
       <div id="lockNote" class="check idle" style="margin-top:12px" hidden>这个月已经结账锁定，不能再上传。要改的话请 manager 先「重开」。</div>
@@ -460,21 +461,21 @@ const SET_FIELDS = [
 ];
 
 const SRC = {
-  pos:{name:'POS 每日汇总',need:true,hint:'POS & ONLINE 报表（营业日期 / Business Date）'},
-  posall:{name:'POS 全部渠道（提成用）',need:false,hint:'有外卖栏的 POS 报表：Net Sales 和各平台金额，算提成用'},
-  pp:{name:'PingPong 交易明细',need:true,hint:'DuitNow / 电子钱包 / 网关刷卡，每笔交易'},
+  pos:{name:'POS SYSTEM - POS & ONLINE',need:true,hint:'POS 系统导出的 POS & ONLINE 报表（营业日期 / Business Date）'},
+  posall:{name:'POS SYSTEM - ALL CHANNELS（提成用）',need:false,hint:'有外卖栏的 POS 报表：Net Sales 和各平台金额，算提成用'},
+  pp:{name:'DUITNOW 交易明细',need:true,hint:'DuitNow / 电子钱包 / 网关刷卡，每笔交易'},
   bsm:{name:'Public Bank BSM PDF',need:true,hint:'每天一份，VISA / MASTER / MyDebit'},
-  wallet:{name:'PingPong 钱包流水',need:true,hint:'Royalty（转给 YONNY）、Settlement、Payout'},
-  grab:{name:'Grab 三方支付',need:false,hint:'可选：有 Taxable 栏就用它拆 Grab 单'},
+  wallet:{name:'PINGPONG STATEMENT',need:true,hint:'Royalty（转给 YONNY）、Settlement、Payout'},
+  grab:{name:'Grab 三方支付',need:false,hide:true,hint:'可选：有 Taxable 栏就用它拆 Grab 单'},
   sur:{name:'Surcharge 明细',need:false,hint:'可选：核对服务费 / 打包费'},
-  gf:{name:'Grab Food 交易明细',need:false,grp:'del',plat:'gb',hint:'Grab Merchant → Transactions（每笔 Payment / 广告 / 调整）'},
-  gft:{name:'Grab Food 转账 Transfer',need:false,grp:'del',plat:'gb',hint:'可选：核对每天转进银行的钱'},
-  sp:{name:'ShopeeFood 订单结算',need:false,grp:'del',plat:'sp',hint:'Order Payment 报表（Order Amount / Commission / Net Income）'},
-  sp1:{name:'ShopeeFood 订单明细',need:false,grp:'del',plat:'sp',hint:'有 Flash sale discount 的订单报表'},
-  spa:{name:'ShopeeFood 钱包流水',need:false,grp:'del',plat:'sp',hint:'Ads Top Up 广告费'},
-  spj:{name:'ShopeeFood 调整',need:false,grp:'del',plat:'sp',hint:'Wallet Adjustment（漏单 / 错单扣款）'},
-  fps:{name:'Foodpanda 发票汇总',need:false,grp:'del',plat:'fp',hint:'SUMMARY：每天一张发票、Balance Amount'},
-  fpa:{name:'Foodpanda Appendix A',need:false,grp:'del',plat:'fp',hint:'每笔订单：销售、折扣、佣金'}
+  gf:{name:'GRAB-TRANSACTION',need:false,grp:'del',plat:'gb',hint:'Grab Merchant → Transactions（每笔 Payment / 广告 / 调整）'},
+  gft:{name:'GRAB-TRANSFER（可选）',need:false,grp:'del',plat:'gb',hint:'可选：核对每天转进银行的钱'},
+  sp:{name:'SHOPEE-ORDER MANAGEMENT REPORT（订单结算）',need:false,grp:'del',plat:'sp',hint:'Order Payment 报表（Order Amount / Commission / Net Income）'},
+  sp1:{name:'SHOPEE-ORDER MANAGEMENT REPORT（订单明细）',need:false,grp:'del',plat:'sp',hint:'有 Flash sale discount 的订单报表'},
+  spa:{name:'SHOPEE-TRANSACTION（广告 Ads）',need:false,grp:'del',plat:'sp',hint:'Ads Top Up 广告费'},
+  spj:{name:'SHOPEE-TRANSACTION（调整 Adjustment）',need:false,grp:'del',plat:'sp',hint:'Wallet Adjustment（漏单 / 错单扣款）'},
+  fps:{name:'FOODPANDA-FINANCIAL DOCUMENT',need:false,grp:'del',plat:'fp',hint:'SUMMARY：每天一张发票、Balance Amount'},
+  fpa:{name:'FOODPANDA-ORDER REPORT',need:false,grp:'del',plat:'fp',hint:'Appendix A：每笔订单的销售、折扣、佣金'}
 };
 const PLAT = {gb:{name:'Grab Food',srcs:['gf','gft'],main:'gf'},sp:{name:'ShopeeFood',srcs:['sp','sp1','spa','spj'],main:'sp'},fp:{name:'Foodpanda',srcs:['fps','fpa'],main:'fps'}};
 
@@ -742,7 +743,7 @@ const srcPath = k => 'src/'+S.month+'_'+k;
 const isClosed = () => !!S.closings[S.month];
 function progLine(cls,msg){ const d=document.createElement('div'); d.className=cls; d.textContent=msg; $('prog').appendChild(d); }
 function mergeDays(base,add){ for(const d in add){ const p=base[d], n=add[d]; if(p && n && n.est && !p.est && p.taxable!=null) continue; base[d]=n; } return base; }
-async function handleFiles(files){
+async function handleFiles(files,expect){
   if(isClosed()) return toast('这个月已经结账，不能上传');
   if(!S.canWrite) return toast('你只能看，不能上传');
   $('prog').innerHTML='';
@@ -755,6 +756,7 @@ async function handleFiles(files){
       res.forEach(r=>{
         if(r.key==='_err'){ progLine('bad','✗ '+f.name+' ['+r.sheet+']：'+r.msg); return; }
         if(r.key==='_skip'){ progLine('muted','· '+f.name+' ['+r.sheet+']：'+r.msg); return; }
+        if(expect && r.key!==expect){ progLine('warn','⚠ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+'：这是「'+((SRC[r.key]||{}).name||r.key)+'」，不是「'+SRC[expect].name+'」，没有用到。请放进对的格子。'); return; }
         const all=Object.keys(r.days); const keep=all.filter(inMonth);
         if(r.key==='wallet'){ r.recv=(r.recv||[]).filter(x=>x.at.slice(0,7)===S.month||(x.batch&&inMonth(x.batch))); r.payout=(r.payout||[]).filter(x=>x.at.slice(0,7)===S.month); }
         if(!keep.length && !(r.key==='wallet'&&(r.recv.length||r.payout.length))){ const other=[...new Set(all.map(d=>d.slice(0,7)))].join(', '); progLine('warn','⚠ '+f.name+(r.sheet?' ['+r.sheet+']':'')+' → '+SRC[r.key].name+'：没有 '+S.month+' 的资料'+(other?'（文件是 '+other+'）':'')); return; }
@@ -767,6 +769,7 @@ async function handleFiles(files){
       });
     }catch(err){ console.error(err); progLine('bad','✗ '+f.name+'：'+(err.message||err)); }
   }
+  if(expect && !found[expect]) progLine('warn','⚠ 这一次没有读到可用的「'+SRC[expect].name+'」资料（要检查文件是不是对的报告，或日期是不是 '+S.month+'）。');
   for(const [k,o] of Object.entries(found)){
     try{
       const prev=(await getDoc(srcPath(k)))||{days:{},files:[]};
@@ -782,7 +785,7 @@ async function handleFiles(files){
 }
 $('drop').addEventListener('click',()=>$('fileIn').click());
 $('drop').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); $('fileIn').click(); } });
-$('fileIn').addEventListener('change',e=>{ const fs=[...e.target.files]; e.target.value=''; if(fs.length) handleFiles(fs); });
+$('fileIn').addEventListener('change',e=>{ const fs=[...e.target.files]; e.target.value=''; const k=upKey; upKey=''; if(fs.length&&k) handleFiles(fs,k); });
 ['dragenter','dragover'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('over');}));
 ['dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('over');}));
 $('drop').addEventListener('drop',e=>{ const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])]; if(fs.length) handleFiles(fs); });
@@ -817,8 +820,8 @@ function computeLive(){
     const pays=[];
     const ppd=pp[d];
     if(k.dn||ppd){
-      if(ppd){ pays.push({t:'DN',amt:ppd.amt,fee:ppd.fee}); if(Math.abs(ppd.amt-k.dn)>tol) flags.push({k:'dn',msg:`DuitNow：PingPong ${money(ppd.amt)}，POS ${money(k.dn)}，差 ${money(r2(ppd.amt-k.dn))}`}); }
-      else { pays.push({t:'DN',amt:k.dn,fee:0,est:true}); flags.push({k:'dn',msg:`DuitNow：没有 PingPong 资料，先用 POS ${money(k.dn)}，手续费 0`}); }
+      if(ppd){ pays.push({t:'DN',amt:ppd.amt,fee:ppd.fee}); if(Math.abs(ppd.amt-k.dn)>tol) flags.push({k:'dn',msg:`DuitNow：DUITNOW 交易明细 ${money(ppd.amt)}，POS ${money(k.dn)}，差 ${money(r2(ppd.amt-k.dn))}`}); }
+      else { pays.push({t:'DN',amt:k.dn,fee:0,est:true}); flags.push({k:'dn',msg:`DuitNow：没有 DUITNOW 交易明细，先用 POS ${money(k.dn)}，手续费 0`}); }
     }
     const b=bsm[d]; let cardSum=0;
     if(b){ ['VISA','MASTER','MYDEBIT'].forEach(t=>{ if(b[t]&&b[t].gross){ pays.push({t,amt:b[t].gross,fee:b[t].comm}); cardSum=r2(cardSum+b[t].gross); } }); Object.keys(b).filter(t=>!['VISA','MASTER','MYDEBIT'].includes(t)).forEach(t=>flags.push({k:'card',msg:`BSM 有不认识的 ${t}（${money(b[t].gross)}），请在设定检查 BANK 代码`})); }
@@ -882,7 +885,7 @@ function computeDel(p){
       const lines=[['SALES',C.spSales,sales,1],['DISCOUNT',C.spDisc,disc,1],['COMMISSION',C.spComm,comm],['ADVERTISEMENT CHARGES',C.spAds,ads],['ADJUSTMENT-WRONG/MISSING ITEM',C.spAdj,adjm]];
       const total=r2(sales+disc+comm+ads+adjm);
       const flags=[];
-      if(!have1) flags.push({msg:'没有 ShopeeFood 订单明细（Flash sale discount），SALES 和 DISCOUNT 可能少算'});
+      if(!have1) flags.push({msg:'没有 SHOPEE-ORDER MANAGEMENT REPORT（订单明细，Flash sale discount），SALES 和 DISCOUNT 可能少算'});
       if(!haveW) flags.push({msg:'没有 ShopeeFood 钱包流水，广告费没算'});
       if(Math.abs(total-rec)>tol) flags.push({msg:`发票合计 ${money(total)} 跟实收 ${money(rec)} 差 ${money(r2(total-rec))}`});
       out.push(ack({d,n:o.n||0,lines:lines.map(([desc,acc,amt,tx])=>({desc,acc,amt,tax:tx?C.taxCode:''})),sst:r2(o.tax||0),total,rec,apply:Math.min(rec,total),flags,incl:true}));
@@ -893,7 +896,7 @@ function computeDel(p){
     const byNo={}; Object.entries(a).forEach(([k,v])=>{ const no=k.split('|')[1]; const x=byNo[no]||(byNo[no]={}); for(const q in v) x[q]=r2((x[q]||0)+v[q]); });
     Object.entries(s).sort().forEach(([k,v])=>{ const d=k.slice(0,10), no=v.no, o=byNo[no];
       const flags=[]; let lines=[], total=0;
-      if(!o){ flags.push({msg:`没有 Appendix A（发票 ${no}），拆不出销售 / 折扣 / 佣金`}); }
+      if(!o){ flags.push({msg:`没有 FOODPANDA-ORDER REPORT（发票 ${no}），拆不出销售 / 折扣 / 佣金`}); }
       else {
         const sales=r2(o.sales), disc=r2(o.disc), comm=r2(o.comm), ads=r2(v.b||0);
         const other=r2(v.bal-(sales+disc+comm+ads));
@@ -915,7 +918,7 @@ const pending = rows => rows.filter(r=>!r.none && r.flags.length && !r.ack);
 
 /* ---------- render: upload ---------- */
 function renderUp(){
-  $('lockNote').hidden=!isClosed(); $('drop').hidden=isClosed();
+  $('lockNote').hidden=!isClosed(); $('drop').hidden=true;
   const n=lastDay(S.month);
   const card=([k,m])=>{
     const s=S.src[k]; const days=s?[...new Set(Object.keys(s.days||{}).map(x=>x.slice(0,10)))]:[]; const have=days.length>0||(k==='wallet'&&s&&((s.recv||[]).length));
@@ -935,11 +938,18 @@ function renderUp(){
       <div class="f">${esc(m.hint)}</div>${sum?`<div class="small mono">${esc(sum)}</div>`:''}
       ${last?`<div class="f">最后上传：${esc(last.name)}<br>${esc(tstr(last.at))} · ${esc(who(last.by))}${s.files.length>1?' · 共 '+s.files.length+' 个文件':''}</div>`:''}
       <div class="daysbar">${bar}</div>
-      ${have&&!isClosed()?`<button class="btn sm danger mgr-only" data-clear="${k}" style="align-self:flex-start;margin-top:4px">清除这个来源</button>`:''}</div>`;
+      ${!isClosed()&&S.canWrite?`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-up="${k}">上传</button>${have?`<button class="btn sm danger mgr-only" data-clear="${k}">清除这个来源</button>`:''}</div>`:''}</div>`;
   };
-  $('srcList').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp!=='del').map(card).join('');
+  $('srcList').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp!=='del'&&!m.hide).map(card).join('');
   $('srcList2').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp==='del').map(([k,m])=>{ const pl=PLAT[m.plat]; const any=pl.srcs.some(x=>S.src[x]); return card([k,Object.assign({},m,{need:any&&k!=='gft'})]); }).join('');
 }
+let upKey='';
+['srcList','srcList2'].forEach(id=>{
+  $(id).addEventListener('click',e=>{ const u=e.target.closest('[data-up]'); if(!u) return; upKey=u.dataset.up; $('fileIn').click(); });
+  $(id).addEventListener('dragover',e=>{ const c=e.target.closest('.src'); if(c&&c.querySelector('[data-up]')){ e.preventDefault(); c.classList.add('over'); } });
+  $(id).addEventListener('dragleave',e=>{ const c=e.target.closest('.src'); if(c) c.classList.remove('over'); });
+  $(id).addEventListener('drop',e=>{ const c=e.target.closest('.src'); if(!c) return; e.preventDefault(); c.classList.remove('over'); const u=c.querySelector('[data-up]'); const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])]; if(u&&fs.length) handleFiles(fs,u.dataset.up); });
+});
 ['srcList','srcList2'].forEach(id=>$(id).addEventListener('click',async e=>{
   const b=e.target.closest('[data-clear]'); if(!b) return;
   const k=b.dataset.clear;

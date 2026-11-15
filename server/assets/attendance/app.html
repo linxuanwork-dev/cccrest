@@ -1254,19 +1254,22 @@ function renderSummaries(){
   fillSumTable($("ysMon"),["月份","人数"].concat(SUM_COLS.map(c=>c[0])),d.perMonth.map(x=>[MON3[x.i-1]+" "+d.y+(x.fin?"":" *"),String(x.n)].concat(x.vals.map(n2))),d.perMonth.length?["合计",""].concat(sumVals(all).map(n2)):null);
 }
 const spanOfYear=d=>{const a=d.pick.map(x=>x.i).sort((p,q)=>p-q);return a.length===12?d.y:d.y+"_"+a.map(i=>String(i).padStart(2,"0")).join("_")};
-async function summaryPdf(body,btn,fallback){
+async function summaryPdf(body,btn,fallback,route){
   const msg=$("payNote");if(btn)btn.disabled=true;
   try{
-    const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/summary-pdf",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance"+(route||"/summary-pdf"),{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
     await ATT.downloads.save({filename:decodeURIComponent(res.headers.get("X-File-Name")||fallback),data:await res.blob()});
   }catch(e){msg.append(" ",el("span",{class:"pill bad",text:"汇总下载失败："+(e&&e.message||e)}))}
   if(btn)btn.disabled=false;
 }
 $("msCsv").onclick=async()=>{const {m,rows}=monthSummaryData();if(!rows.length)return;await download("payroll-summary-"+m+".csv",[["姓名"].concat(SUM_COLS.map(c=>c[0]))].concat(rows.map(r=>[r.name].concat(SUM_COLS.map(([,,f])=>n2(Number(f(r.c,r))||0)))),[["合计"].concat(sumVals(rows).map(n2))]))};
+const salaryForm=r=>{const c=r.c,v=k=>Number(c[k])||0;return{basic:r2(v("basic")-v("unpaidDeduction")),ot:v("otPay"),allowance:v("allowance"),incentive:v("incentive"),commission:v("commission"),other:v("other"),gross:v("gross"),
+  epfEmp:v("epfEmployee"),socsoEmp:v("socsoEmployee"),skbbk:v("skbbkEmployee"),eisEmp:v("eisEmployee"),pcb:v("pcb"),deduction:v("totalDeduction"),advance:Number(r.adv)||0,net:v("net"),
+  epfEr:v("epfEmployer"),socsoEr:v("socsoEmployer"),eisEr:v("eisEmployer"),erTotal:v("employerTotal")||r2(v("epfEmployer")+v("socsoEmployer")+v("eisEmployer")),epfWage:v("epfWage")}};
+const salaryGroup=r=>/director/i.test((r.emp&&r.emp.position)||"")?"DIRECTOR SALARY":(r.wages?"WAGES":"SALARIES");
 $("msPdf").onclick=()=>{const {m,rows}=monthSummaryData();if(!rows.length)return;const [y,mo]=m.split("-");
-  summaryPdf({title:"PAYROLL SUMMARY - "+MONTH_NAMES[+mo-1]+" "+y,subtitle:rows.length+" staff"+(rows.every(r=>r.final)?" · confirmed":" · not yet confirmed"),span:y+"_"+mo,
-    sections:[{columns:["Name"].concat(SUM_COLS.map(c=>c[1])),rows:rows.map(r=>[r.name].concat(SUM_COLS.map(([,,f])=>n2(Number(f(r.c,r))||0)))),total:["TOTAL"].concat(sumVals(rows).map(n2))}],notes:["Amounts in RM. Er = employer's contribution (not deducted from the salary). Total cost = gross + employer EPF, SOCSO and EIS."]},$("msPdf"),"PAYROLL SUMMARY-"+y+"_"+mo+".pdf")};
+  summaryPdf({month:m,people:rows.map(r=>({name:r.name,group:salaryGroup(r),v:salaryForm(r)}))},$("msPdf"),"SALARY SUMMARY-"+y+"_"+mo+".pdf","/salary-summary-pdf")};
 $("ysYear").onchange=()=>{ysSel=null;$("ysMonths").replaceChildren();renderSummaries()};
 $("ysAll").onclick=()=>{yearSummaryData();for(let i=1;i<=12;i++)ysSel.set.add(i);renderSummaries()};
 $("ysNone").onclick=()=>{yearSummaryData();ysSel.set.clear();renderSummaries()};

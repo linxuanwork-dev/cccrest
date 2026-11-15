@@ -151,6 +151,7 @@ body.is-mgr .staff-only{display:none!important}
       <button role="tab" data-tab="up" aria-selected="true">上传报告 Upload</button>
       <button role="tab" data-tab="daily" aria-selected="false">每日对账 Daily<span class="ct" id="ctFlags">0</span></button>
       <button role="tab" data-tab="del" aria-selected="false">外卖 Delivery<span class="ct" id="ctDel">0</span></button>
+      <button role="tab" data-tab="bank" aria-selected="false">银行对账 Bank</button>
       <button role="tab" data-tab="tot" aria-selected="false">总销售 Total Sales</button>
       <button role="tab" data-tab="com" aria-selected="false" class="mgr-only">提成 Commission</button>
       <button role="tab" data-tab="exp" aria-selected="false" class="mgr-only">Bukku 导出 Export</button>
@@ -254,6 +255,28 @@ body.is-mgr .staff-only{display:none!important}
   </section>
 
   <!-- TOTAL SALES -->
+  <!-- BANK -->
+  <section id="v-bank" hidden>
+    <div class="panel">
+      <div class="ph"><div><h2 id="bkTitle">银行对账</h2><div class="small muted">Public Bank 对账单里「收到的钱」，跟系统算出来该收的钱一笔一笔对。平台通常晚 1 到 2 天才付款，所以银行日期可以比平台日期晚几天；一天的钱分几天合并转进来也会自动配对。</div></div>
+        <button class="btn" id="bkDown">下载 Excel</button></div>
+      <div id="bkNote"></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>来源</th><th class="r">系统应收 RM</th><th class="r">银行已收（配上）RM</th><th class="r">银行还没收到 RM</th><th class="r">银行多出的 RM</th><th>状态</th></tr></thead>
+        <tbody id="bkSum"></tbody></table></div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <div class="ph"><h2 id="bkDetTitle">明细</h2><select id="bkCat"></select></div>
+      <div class="tbl-wrap" style="max-height:60vh"><table>
+        <thead><tr><th>系统日期</th><th>项目</th><th class="r">应收 RM</th><th>银行入账日</th><th class="r">银行 RM</th><th class="r">晚几天</th><th>状态</th></tr></thead>
+        <tbody id="bkBody"></tbody></table></div>
+      <h3 style="margin:14px 0 6px">银行有、系统没有对上的入账</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>银行日期</th><th class="r">RM</th><th>银行备注</th><th>可能对应（金额差在 RM2 以内）</th></tr></thead>
+        <tbody id="bkExtra"></tbody></table></div>
+    </div>
+  </section>
+
   <section id="v-tot" hidden>
     <div class="panel">
       <div class="ph"><div><h2 id="totTitle">总销售</h2><div class="small muted">每天、每个渠道的销售额。堂食 = 发票总额（含 SST 和服务费，不含 Grab 到店）；Grab Food = 外卖 SALES + 到店 SALES；ShopeeFood、Foodpanda = SALES（含税，未扣折扣和佣金）。</div></div>
@@ -462,6 +485,7 @@ const SET_FIELDS = [
 
 const SRC = {
   pos:{name:'POS SYSTEM - POS & ONLINE',need:true,hint:'POS 系统导出的 POS & ONLINE 报表（营业日期 / Business Date）'},
+  pbb:{name:'PUBLIC BANK STATEMENT',need:false,hint:'Public Bank 对账单（CSV 或 Excel）：只读「收到的钱」，跟卡、Grab、Foodpanda、Shopee、PingPong 的收款对比，看银行有没有收到（平台通常晚 1 到 2 天）'},
   posall:{name:'POS SYSTEM - ALL CHANNELS（提成用）',need:false,hint:'有外卖栏的 POS 报表：Net Sales 和各平台金额，算提成用'},
   pp:{name:'DUITNOW 交易明细',need:true,hint:'DuitNow / 电子钱包 / 网关刷卡，每笔交易'},
   bsm:{name:'Public Bank BSM PDF',need:true,hint:'每天一份，VISA / MASTER / MyDebit'},
@@ -707,6 +731,28 @@ function parseFPO(aoa){
     sumInto(days,d,{n:1,sales:g(r,'Subtotal')+g(r,'Packaging charges')+g(r,'Minimum order value fee'),disc:-(g(r,'Discount Funded by you')+g(r,'Voucher Funded by you')),comm:-(g(r,'Commission')+g(r,'Tax charge')),pay:g(r,'Estimated earnings')}); }
   return {key:'fpo',days};
 }
+function pbbKind(t,ref){
+  const x=(t+' '+ref).toUpperCase();
+  if(/DELIVERY HERO|FOODPANDA/.test(x)) return 'fp';
+  if(/GPAY NETWORK|GRAB/.test(x)) return 'gb';
+  if(/PINGPONG|PING PONG/.test(x)) return 'pp';
+  if(/SHOPEE/.test(x)) return 'sp';
+  if(/VISA/.test(x)) return 'visa';
+  if(/MASTERCARD|MASTER CARD/.test(x)) return 'master';
+  if(/DEP-MERCHANT/.test(String(t).toUpperCase())) return 'mydebit';
+  return 'other';
+}
+function parsePBB(aoa){
+  const hi=findHeader(aoa,[['Trn. Date'],['Credit Amount']],40); if(hi<0) return null;
+  const h=aoa[hi], cD=col(h,['Trn. Date']), cT=col(h,['Transaction Description']), cC=col(h,['Credit Amount']), cR=[col(h,['Reference 1']),col(h,['Reference 2']),col(h,['Reference 3'])].filter(i=>i>=0);
+  const clean=v=>String(v==null?'':v).trim().replace(/^="/,'').replace(/"$/,'').trim();
+  const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normDate(clean(r[cD])); if(!d) continue;
+    const a=num(clean(r[cC])); if(!(a>0)) continue;
+    const t=clean(r[cT]), ref=cR.map(c=>clean(r[c])).filter(Boolean).join(' ').replace(/\s+/g,' ').slice(0,90);
+    (days[d]||(days[d]={items:[]})).items.push({k:pbbKind(t,ref),a:r2(a),t,ref}); }
+  return {key:'pbb',days};
+}
 async function pdfLines(buf){
   const doc=await pdfjsLib.getDocument({data:buf,isEvalSupported:false}).promise;
   const out=[];
@@ -751,7 +797,7 @@ async function readFile(file){
     const wb=XLSX.read(buf,{type:'array',cellDates:false,raw:/\.csv$/i.test(name)});
     for(const sn of wb.SheetNames){
       const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});
-      try{ for(const fn of [parsePOS,parsePP,parseWallet,parseGrab,parseSur,parseGF,parseGFT,parseSP,parseSP1,parseSPA,parseSPJ,parseFPS,parseFPA,parseFPI,parseFPO]){ const r=fn(aoa); if(r){ r.sheet=sn; out.push(r); break; } } }
+      try{ for(const fn of [parsePOS,parsePP,parseWallet,parseGrab,parseSur,parseGF,parseGFT,parseSP,parseSP1,parseSPA,parseSPJ,parseFPS,parseFPA,parseFPI,parseFPO,parsePBB]){ const r=fn(aoa); if(r){ r.sheet=sn; out.push(r); break; } } }
       catch(err){ out.push({key:'_err',sheet:sn,msg:err.message||String(err)}); }
     }
   }
@@ -778,7 +824,7 @@ async function handleFiles(files,expect){
         if(r.key==='_err'){ progLine('bad','✗ '+f.name+' ['+r.sheet+']：'+r.msg); return; }
         if(r.key==='_skip'){ progLine('muted','· '+f.name+' ['+r.sheet+']：'+r.msg); return; }
         if(expect && !(SRC[expect].accept||[expect]).includes(r.key)){ progLine(multi?'muted':'warn','⚠ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+'：这是「'+((SRC[r.key]||{}).name||r.key)+'」，不是「'+SRC[expect].name+'」，没有用到。请放进对的格子。'); return; }
-        const all=Object.keys(r.days); const keep=all.filter(inMonth);
+        const all=Object.keys(r.days); const nextM=addDays(S.month+'-28',5).slice(0,7); const keep=all.filter(d=>inMonth(d)||(r.key==='pbb'&&d.slice(0,7)===nextM&&d.slice(8)<='07'));
         if(r.key==='wallet'){ r.recv=(r.recv||[]).filter(x=>x.at.slice(0,7)===S.month||(x.batch&&inMonth(x.batch))); r.payout=(r.payout||[]).filter(x=>x.at.slice(0,7)===S.month); }
         if(!keep.length && !(r.key==='wallet'&&(r.recv.length||r.payout.length))){ const other=[...new Set(all.map(d=>d.slice(0,7)))].join(', '); progLine('warn','⚠ '+f.name+(r.sheet?' ['+r.sheet+']':'')+' → '+SRC[r.key].name+'：没有 '+S.month+' 的资料'+(other?'（文件是 '+other+'）':'')); return; }
         const days={}; keep.forEach(d=>days[d]=r.days[d]);
@@ -1231,6 +1277,70 @@ function renderLog(){
 }
 $('lMonth').addEventListener('change',renderLog);
 
+/* ---------- bank: what the bank statement shows against what the system says should come in ---------- */
+const BK_CATS=[['visa','VISA'],['master','MASTER'],['mydebit','MY DEBIT'],['gb','Grab'],['fp','Foodpanda（Delivery Hero）'],['sp','ShopeeFood'],['pp','PingPong']];
+const bkDays=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/864e5);
+function bankExpected(k){
+  const inM=d=>d.slice(0,7)===S.month;
+  if(k==='visa'||k==='master'||k==='mydebit'){ const t={visa:'VISA',master:'MASTER',mydebit:'MYDEBIT'}[k], b=(S.src.bsm||{}).days||{};
+    return Object.keys(b).sort().filter(d=>inM(d)&&b[d][t]&&b[d][t].net>0).map(d=>({d,amt:r2(b[d][t].net),label:'BSM '+t})); }
+  if(k==='gb'){ const g=(S.src.gft||{}).days||{}, ks=Object.keys(g).sort().filter(d=>inM(d.slice(0,10)));
+    if(ks.length) return ks.map(d=>({d:d.slice(0,10),amt:r2(g[d].amt),label:'GRAB-INVOICE 转账'}));
+    return delNow('gb').filter(r=>r.rec>0&&inM(r.d)).map(r=>({d:r.d,amt:r2(r.rec),label:'GRAB-TRANSACTION'})); }
+  if(k==='sp') return delNow('sp').filter(r=>r.rec>0&&inM(r.d)).map(r=>({d:r.d,amt:r2(r.rec),label:'Shopee 订单结算'}));
+  if(k==='fp') return delNow('fp').filter(r=>r.rec>0&&inM(r.d)).map(r=>({d:r.d,amt:r2(r.rec),label:'发票 '+(r.ref||'')}));
+  if(k==='pp') return ((S.src.wallet||{}).payout||[]).filter(x=>inM(x.at.slice(0,10))&&x.amt>0).map(x=>({d:x.at.slice(0,10),amt:r2(x.amt),label:'钱包 Payout'}));
+  return [];
+}
+function bankMatch(exp,bank,maxLag){
+  const E=exp.map(x=>Object.assign({},x,{used:false})).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0), B=bank.map(x=>Object.assign({},x,{used:false,exp:[]})).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+  B.forEach(b=>{ let best=-1; E.forEach((e,i)=>{ if(e.used) return; const lag=bkDays(e.d,b.d); if(lag<0||lag>maxLag||Math.abs(e.amt-b.a)>0.011) return; if(best<0||lag<bkDays(E[best].d,b.d)) best=i; });
+    if(best>=0){ E[best].used=true; E[best].bank=b; b.used=true; b.exp=[E[best]]; } });
+  B.filter(b=>!b.used).forEach(b=>{ const cand=E.filter(e=>!e.used&&bkDays(e.d,b.d)>=0&&bkDays(e.d,b.d)<=maxLag+4);
+    for(let n=2;n<=4;n++) for(let st=0;st+n<=cand.length;st++){ const g=cand.slice(st,st+n); if(Math.abs(g.reduce((a,e)=>a+e.amt,0)-b.a)<=0.02){ g.forEach(e=>{e.used=true;e.bank=b;}); b.used=true; b.exp=g; return; } } });
+  return {E,B};
+}
+function bankData(){
+  const pb=(S.src.pbb||{}).days||{}, by={};
+  Object.keys(pb).sort().forEach(d=>pb[d].items.forEach(it=>{ (by[it.k]=by[it.k]||[]).push({d,a:it.a,ref:it.ref||it.t,k:it.k}); }));
+  const cats=BK_CATS.map(([k,name])=>{ const exp=bankExpected(k), m=bankMatch(exp,by[k]||[],6);
+    const expTot=r2(exp.reduce((a,e)=>a+e.amt,0)), got=r2(m.E.filter(e=>e.used).reduce((a,e)=>a+e.amt,0)), miss=r2(m.E.filter(e=>!e.used).reduce((a,e)=>a+e.amt,0)), extra=r2(m.B.filter(b=>!b.used).reduce((a,b)=>a+b.a,0));
+    return {k,name,exp,m,expTot,got,miss,extra,haveExp:exp.length>0,bankN:(by[k]||[]).length};
+  });
+  return {cats,other:by.other||[],has:Object.keys(pb).length>0,bankTot:r2(Object.values(by).flat().reduce((a,b)=>a+b.a,0))};
+}
+function renderBank(){
+  if(!$('bkSum')) return;
+  const D=bankData(); $('bkTitle').textContent='银行对账 · '+S.month;
+  $('bkNote').innerHTML=D.has?'':'<div class="check warn">还没有上传 Public Bank 对账单。到「上传报告」的 PUBLIC BANK STATEMENT 那一格放进来（CSV 或 Excel 都可以）。</div>';
+  $('bkSum').innerHTML=D.cats.map(c=>{
+    const st=!c.haveExp&&!c.bankN?'<span class="pill mute">没有资料</span>':!c.haveExp?'<span class="pill warn">银行有，系统没有这个来源的资料</span>':!D.has?'<span class="pill mute">等对账单</span>':(c.miss<=0.01&&c.extra<=0.01)?'<span class="pill ok">全部对上</span>':c.miss>0.01?`<span class="pill warn">${c.m.E.filter(e=>!e.used).length} 笔还没收到</span>`:'<span class="pill warn">银行多出</span>';
+    return `<tr class="clk" data-bk="${c.k}"><td>${esc(c.name)}</td><td class="r num">${money(c.expTot)}</td><td class="r num">${money(c.got)}</td><td class="r num">${c.miss>0.01?money(c.miss):'—'}</td><td class="r num">${c.extra>0.01?money(c.extra):'—'}</td><td>${st}</td></tr>`;
+  }).join('')+(D.other.length?`<tr><td>其他入账（没有归类）</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r num">${money(r2(D.other.reduce((a,b)=>a+b.a,0)))}</td><td><span class="pill mute">${D.other.length} 笔</span></td></tr>`:'');
+  const sel=$('bkCat'); const keep=sel.value||'visa';
+  if(!sel.options.length) sel.innerHTML=BK_CATS.map(([k,n])=>`<option value="${k}">${esc(n)}</option>`).join('');
+  sel.value=keep;
+  const c=D.cats.find(x=>x.k===sel.value)||D.cats[0];
+  $('bkDetTitle').textContent='明细 · '+c.name;
+  $('bkBody').innerHTML=c.m.E.length?c.m.E.map(e=>{ const lag=e.bank?bkDays(e.d,e.bank.d):null;
+    return `<tr><td class="mono">${dmy(e.d)}</td><td class="small">${esc(e.label)}</td><td class="r num">${money(e.amt)}</td><td class="mono">${e.bank?dmy(e.bank.d):''}</td><td class="r num">${e.bank?money(e.bank.a):''}</td><td class="r">${lag==null?'':lag}</td><td>${e.used?(e.bank.exp.length>1?'<span class="pill ok">合并转入 '+e.bank.exp.length+' 天</span>':'<span class="pill ok">已入账</span>'):(D.has?'<span class="pill warn">银行还没收到</span>':'')}</td></tr>`; }).join('')
+    :'<tr><td colspan="7" class="empty">这个来源这个月没有应收资料（要先在「上传报告」放进对应的报告）</td></tr>';
+  const ex=c.m.B.filter(b=>!b.used);
+  const near=b=>{ const cs=c.m.E.filter(e=>!e.used&&bkDays(e.d,b.d)>=0&&bkDays(e.d,b.d)<=8&&Math.abs(e.amt-b.a)<=2).sort((x,y)=>Math.abs(x.amt-b.a)-Math.abs(y.amt-b.a)); return cs.length?`${dmy(cs[0].d)} ${esc(cs[0].label)} RM ${money(cs[0].amt)}，差 RM ${money(r2(b.a-cs[0].amt))}`:''; };
+  $('bkExtra').innerHTML=ex.length?ex.map(b=>`<tr><td class="mono">${dmy(b.d)}</td><td class="r num">${money(b.a)}</td><td class="small">${esc(b.ref)}</td><td class="small">${near(b)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">没有</td></tr>';
+}
+$('bkSum').addEventListener('click',e=>{ const tr=e.target.closest('[data-bk]'); if(!tr) return; $('bkCat').value=tr.dataset.bk; renderBank(); });
+$('bkCat').addEventListener('change',renderBank);
+$('bkDown').addEventListener('click',async()=>{
+  if(typeof XLSX==='undefined'||!downloads) return toast('这个画面不能下载文件');
+  const D=bankData(), aoa=[['SOURCE','SYSTEM DATE','ITEM','EXPECTED RM','BANK DATE','BANK RM','LAG DAYS','STATUS']];
+  D.cats.forEach(c=>{ c.m.E.forEach(e=>aoa.push([c.name,dmy(e.d),e.label,e.amt,e.bank?dmy(e.bank.d):'',e.bank?e.bank.a:'',e.bank?bkDays(e.d,e.bank.d):'',e.used?'RECEIVED':'NOT RECEIVED'])); c.m.B.filter(b=>!b.used).forEach(b=>aoa.push([c.name,'','BANK ONLY','',dmy(b.d),b.a,'','NOT MATCHED '+b.ref])); });
+  D.other.forEach(b=>aoa.push(['OTHER','','BANK ONLY','',dmy(b.d),b.a,'',b.ref]));
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:26},{wch:12},{wch:26},{wch:12},{wch:12},{wch:12},{wch:9},{wch:50}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'BANK RECON');
+  try{ await downloads.save({filename:'MF-BANK RECON-'+S.month.replace('-','_')+'.xlsx',data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) dbErr(err); }
+});
+
 /* ---------- total sales (every day, every channel) ---------- */
 function totalRows(){
   const dine={}; rowsNow().forEach(r=>{ if(!r.none) dine[r.d]=r.total||0; });
@@ -1340,7 +1450,7 @@ $('mNext').addEventListener('click',()=>setMonth(nextMonth(S.month)));
 function setTab(t){
   if((t==='exp'||t==='com') && !S.mgr) t='daily';
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
-  ['up','daily','del','tot','com','exp','set','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  ['up','daily','del','bank','tot','com','exp','set','log'].forEach(x=>$('v-'+x).hidden=x!==t);
   try{localStorage.setItem('mf-recon-tab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
@@ -1348,7 +1458,7 @@ function renderAll(){
   const c=S.closings[S.month];
   $('mStatus').innerHTML = c ? '<span class="pill ok">已结账</span>' : '<span class="pill open">未结账</span>';
   $('upTitle').textContent='上传原始报告 · '+S.month;
-  renderUp(); renderDaily(); renderDel(); renderTot(); renderCom(); renderExp(); renderLog();
+  renderUp(); renderDaily(); renderDel(); renderBank(); renderTot(); renderCom(); renderExp(); renderLog();
   if(!document.activeElement || !document.activeElement.closest('#setForm')) renderSet();
 }
 $('mSel').value=S.month; $('lMonth').value=S.month;

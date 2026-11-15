@@ -11,6 +11,7 @@ const FEATURES = [
   { key: 'confirmation_letter', label: 'Confirmation letter', builtin: '{COMPANY}-CONFIRMATION-LETTER-{EMP}', ext: 'pdf', letter: true, soon: true },
   { key: 'holiday_notice', label: 'Yearly holiday notice', builtin: '{COMPANY}-HOLIDAY-NOTICE-{YYYY}', ext: 'pdf', letter: true, soon: true },
   { key: 'salary_voucher', label: 'Salary payment voucher (PDF)', builtin: '{PREFIX}-SALARY VOUCHER-{YYYY}_{MM}-{EMP}', ext: 'pdf' },
+  { key: 'salary_summary', label: 'Monthly salary summary (PDF)', builtin: '{PREFIX}-SALARY SUMMARY-{YYYY}_{MM}', ext: 'pdf' },
   { key: 'payroll_summary', label: 'Payroll monthly / yearly summary (PDF)', builtin: '{PREFIX}-PAYROLL SUMMARY-{SPAN}', ext: 'pdf' },
   { key: 'company_report', label: 'Company PDF reports', builtin: '{TITLE}', ext: 'pdf' },
   { key: 'sales_summary_excel', label: 'Sales Summary — Bukku invoice file (Excel)', builtin: '{BRANCH}-BUKKU SALES INV-{YYYY}_{MM}', ext: 'xlsx' },

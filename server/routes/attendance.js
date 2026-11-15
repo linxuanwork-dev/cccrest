@@ -8,6 +8,7 @@ const docs = require('../lib/docs');
 const STAT = require('../lib/statutory');
 const { buildPayslipPdf } = require('../lib/payslipPdf');
 const { buildTablePdf } = require('../lib/tablePdf');
+const { buildSalarySummaryPdf } = require('../lib/salarySummaryPdf');
 const { buildJournalPdf } = require('../lib/journalPdf');
 const { buildEaPdf } = require('../lib/eaPdf');
 
@@ -122,13 +123,13 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
 router.get(BASE + '/employees', ...guard(3), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const { rows } = await pool.query(
-    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, resign_date, active, skbbk_opt_out, employment_type, pay_basis
+    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, resign_date, active, skbbk_opt_out, employment_type, pay_basis, position
        FROM employees WHERE company_id = $1 ORDER BY name`, [req.params.companyId]);
   const hist = (await pool.query(
     `SELECT employee_id, to_char(effective_date, 'YYYY-MM-DD') AS effective, amount::float AS amount FROM employee_salary_history WHERE company_id = $1 ORDER BY effective_date, id`, [req.params.companyId])).rows;
   const hby = {};
   hist.forEach((h) => { (hby[h.employee_id] = hby[h.employee_id] || []).push({ effective: h.effective, amount: h.amount }); });
-  res.json(rows.map((r) => ({ skbbkOptOut: !!r.skbbk_opt_out, empType: r.employment_type || 'FULLTIME', payBasis: r.pay_basis || 'MONTH', history: hby[r.id] || [],
+  res.json(rows.map((r) => ({ skbbkOptOut: !!r.skbbk_opt_out, position: r.position || '', empType: r.employment_type || 'FULLTIME', payBasis: r.pay_basis || 'MONTH', history: hby[r.id] || [],
     id: r.id, name: r.name, ic: r.ic_no || '', basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
     marital: r.marital_status || '', children: r.children, disabled: r.disabled, epfNo: r.epf_no || '', socsoNo: r.socso_no || '', tin: r.tin_no || '',
     start: r.start_date ? String(r.start_date).slice(0, 10) : '', resign: r.resign_date ? String(r.resign_date).slice(0, 10) : '', active: r.active
@@ -216,6 +217,29 @@ router.post(BASE + '/summary-pdf', ...guard(3), async (req, res) => {
   const doc = buildTablePdf({ company: co.name, title: str(b.title), subtitle: str(b.subtitle), sections, notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 6).map((t) => String(t).slice(0, 200)) });
   const base = await docs.fileBase('payroll_summary', req.params.companyId, { SPAN: span }, (await docs.companyInfo(req.params.companyId)).PREFIX + '-PAYROLL SUMMARY-' + span);
   try { await docs.logEvent(req, req.params.companyId, 'payroll_summary', base + '.pdf', 'generated', [{ field: 'summary', from: '', to: str(b.title) }]); } catch (e) { console.error('summary log failed:', e); }
+  docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));
+  doc.pipe(res);
+  doc.end();
+});
+
+// Monthly salary summary in the form the accountant pays EPF / SOCSO / EIS / PCB from: a column per person, grouped, with sub totals and a total.
+router.post(BASE + '/salary-summary-pdf', ...guard(3), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {}, month = String(b.month || ''), list = Array.isArray(b.people) ? b.people : [];
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !list.length || list.length > 120) return bad(res, 'Invalid request');
+  const KEYS = ['basic', 'ot', 'allowance', 'incentive', 'commission', 'other', 'gross', 'epfEmp', 'socsoEmp', 'skbbk', 'eisEmp', 'pcb', 'deduction', 'advance', 'net', 'epfEr', 'socsoEr', 'eisEr', 'erTotal', 'epfWage'];
+  const GROUPS = ['DIRECTOR SALARY', 'SALARIES', 'WAGES'];
+  const people = list.map((p) => {
+    const v = {}; KEYS.forEach((k) => { const n = Number(p && p.v && p.v[k]); v[k] = Number.isFinite(n) ? Math.round(n * 100) / 100 : 0; });
+    return { name: String(p && p.name || '').slice(0, 60), group: GROUPS.includes(p && p.group) ? p.group : 'SALARIES', v };
+  });
+  const [yy, mm] = month.split('-'), last = new Date(Date.UTC(Number(yy), Number(mm), 0)).getUTCDate();
+  const co = (await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
+  const doc = buildSalarySummaryPdf({ company: co.name, month, people, journal: 'JVS-' + yy.slice(2) + mm, date: last + '/' + Number(mm) + '/' + yy });
+  const base = await docs.fileBase('salary_summary', req.params.companyId, { PERIOD: month, YYYY: yy, MM: mm }, (await docs.companyInfo(req.params.companyId)).PREFIX + '-SALARY SUMMARY-' + yy + '_' + mm);
+  try { await docs.logEvent(req, req.params.companyId, 'salary_summary', base + '.pdf', 'generated', [{ field: 'month', from: '', to: month }]); } catch (e) { console.error('summary log failed:', e); }
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('X-File-Name', encodeURIComponent(base + '.pdf'));

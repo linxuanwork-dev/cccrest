@@ -422,7 +422,7 @@ function normDate(v){
   return '';
 }
 const MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-function normMDY(v){ if(typeof v==='string'){ const m=v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+pad(m[1])+'-'+pad(m[2]); } return normDate(v); }
+function normMDY(v){ if(typeof v==='string'){ const m=v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+pad(m[1])+'-'+pad(m[2]); } return normAny(v); }
 function normAny(v){ if(typeof v==='string'){ const m=v.trim().match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/); if(m&&MON[m[2].toLowerCase()]) return m[3]+'-'+pad(MON[m[2].toLowerCase()])+'-'+pad(m[1]); } return normDate(v); }
 const H = s => String(s??'').replace(/\s+/g,' ').trim().toLowerCase();
 
@@ -469,11 +469,11 @@ const SRC = {
   grab:{name:'Grab 三方支付',need:false,hide:true,hint:'可选：有 Taxable 栏就用它拆 Grab 单'},
   sur:{name:'Surcharge 明细',need:false,hint:'可选：核对服务费 / 打包费'},
   gf:{name:'GRAB-TRANSACTION',need:false,grp:'del',plat:'gb',hint:'Grab Merchant → Transactions（每笔 Payment / 广告 / 调整）'},
-  gft:{name:'GRAB-TRANSFER（可选）',need:false,grp:'del',plat:'gb',hint:'可选：核对每天转进银行的钱'},
-  sp:{name:'SHOPEE-ORDER MANAGEMENT REPORT（订单结算）',need:false,grp:'del',plat:'sp',hint:'Order Payment 报表（Order Amount / Commission / Net Income）'},
-  sp1:{name:'SHOPEE-ORDER MANAGEMENT REPORT（订单明细）',need:false,grp:'del',plat:'sp',hint:'有 Flash sale discount 的订单报表'},
-  spa:{name:'SHOPEE-TRANSACTION（广告 Ads）',need:false,grp:'del',plat:'sp',hint:'Ads Top Up 广告费'},
-  spj:{name:'SHOPEE-TRANSACTION（调整 Adjustment）',need:false,grp:'del',plat:'sp',hint:'Wallet Adjustment（漏单 / 错单扣款）'},
+  gft:{name:'GRAB-INVOICE',need:false,grp:'del',plat:'gb',hint:'GrabMerchant Reports（每周一个 Excel，4 到 5 个文件）：每天转进银行的钱，核对用'},
+  sp:{name:'SHOPEE-TRANSACTION',need:false,grp:'del',plat:'sp',accept:['sp','spa','spj'],hint:'Shopee 后台 Transactions 的 Excel：订单结算、广告 Ads、调整 Adjustment 都在这一个文件里，一起读'},
+  sp1:{name:'SHOPEE-ORDER MANAGEMENT REPORT',need:false,grp:'del',plat:'sp',hint:'Shopee 后台 Order Management 导出的订单报表（Food original price / Flash sale discount）'},
+  spa:{name:'Shopee 广告 Ads',need:false,hide:true,grp:'del',plat:'sp',hint:'Ads Top Up 广告费（在 SHOPEE-TRANSACTION 里）'},
+  spj:{name:'Shopee 调整 Adjustment',need:false,hide:true,grp:'del',plat:'sp',hint:'Wallet Adjustment（在 SHOPEE-TRANSACTION 里）'},
   fps:{name:'FOODPANDA-FINANCIAL DOCUMENT',need:false,grp:'del',plat:'fp',accept:['fps','fpa'],hint:'financialDocument 的 Excel（SUMMARY + Appendix A 一起读），或 Foodpanda 后台下载的发票列表 INV（Invoice ID / Total Payout）'},
   fpa:{name:'Foodpanda Appendix A',need:false,hide:true,grp:'del',plat:'fp',hint:'Appendix A：每笔订单的销售、折扣、佣金（在 FINANCIAL DOCUMENT 里）'},
   fpo:{name:'FOODPANDA-ORDER REPORT',need:false,grp:'del',plat:'fp',hint:'Foodpanda 后台下载的 Order report（CSV）：每笔订单的 Subtotal、折扣、佣金、Estimated earnings'}
@@ -647,7 +647,8 @@ function parseGFT(aoa){
 function parseSP(aoa){
   const hi=findHeader(aoa,[['Order Complete/Cancel Time'],['Merchant Prepaid Subsidy'],['Net Income']]); if(hi<0) return null;
   const h=aoa[hi], c=n=>col(h,[n]); const cD=c('Order Complete/Cancel Time'), cSt=c('Order Status'); const days={};
-  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue;
+  const seenRows=new Set();
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue; const rk=JSON.stringify(r); if(seenRows.has(rk)) continue; seenRows.add(rk);
     if(cSt>=0 && /cancel/i.test(String(r[cSt]||''))) continue;
     sumInto(days,d,{n:1,amt:num(r[c('Order Amount')]),tax:num(r[c('Food Tax')]),prepaid:num(r[c('Merchant Prepaid Subsidy')]),direct:num(r[c('Food Direct Discount')]),voucher:num(r[c('Merchant Food Voucher Subsidy')]),comm:num(r[c('Commission')])+num(r[c('Tax on Commission')]),prog:num(r[c('Program Fee')])+num(r[c('Tax on Program Fee')]),net:num(r[c('Net Income')])}); }
   return {key:'sp',days};
@@ -655,7 +656,8 @@ function parseSP(aoa){
 function parseSP1(aoa){
   const hi=findHeader(aoa,[['Food original price'],['Flash sale discount'],['Complete Time']]); if(hi<0) return null;
   const h=aoa[hi], cD=col(h,['Complete Time']), cF=col(h,['Flash sale discount']), cSt=col(h,['Order Status']); const days={};
-  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue; if(cSt>=0 && !/complete/i.test(String(r[cSt]||''))) continue; sumInto(days,d,{flash:num(r[cF]),n:1}); }
+  const seenRows=new Set();
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normMDY(r[cD]); if(!d) continue; const rk=JSON.stringify(r); if(seenRows.has(rk)) continue; seenRows.add(rk); if(cSt>=0 && !/complete/i.test(String(r[cSt]||''))) continue; sumInto(days,d,{flash:num(r[cF]),n:1}); }
   return {key:'sp1',days};
 }
 function parseSPA(aoa){
@@ -771,10 +773,11 @@ async function handleFiles(files,expect){
     try{
       const res=await readFile(f);
       if(!res.length){ progLine('warn','⚠ '+f.name+'：认不出是哪一种报告，没有用到'); continue; }
+      const multi=res.length>1;
       res.forEach(r=>{
         if(r.key==='_err'){ progLine('bad','✗ '+f.name+' ['+r.sheet+']：'+r.msg); return; }
         if(r.key==='_skip'){ progLine('muted','· '+f.name+' ['+r.sheet+']：'+r.msg); return; }
-        if(expect && !(SRC[expect].accept||[expect]).includes(r.key)){ progLine('warn','⚠ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+'：这是「'+((SRC[r.key]||{}).name||r.key)+'」，不是「'+SRC[expect].name+'」，没有用到。请放进对的格子。'); return; }
+        if(expect && !(SRC[expect].accept||[expect]).includes(r.key)){ progLine(multi?'muted':'warn','⚠ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+'：这是「'+((SRC[r.key]||{}).name||r.key)+'」，不是「'+SRC[expect].name+'」，没有用到。请放进对的格子。'); return; }
         const all=Object.keys(r.days); const keep=all.filter(inMonth);
         if(r.key==='wallet'){ r.recv=(r.recv||[]).filter(x=>x.at.slice(0,7)===S.month||(x.batch&&inMonth(x.batch))); r.payout=(r.payout||[]).filter(x=>x.at.slice(0,7)===S.month); }
         if(!keep.length && !(r.key==='wallet'&&(r.recv.length||r.payout.length))){ const other=[...new Set(all.map(d=>d.slice(0,7)))].join(', '); progLine('warn','⚠ '+f.name+(r.sheet?' ['+r.sheet+']':'')+' → '+SRC[r.key].name+'：没有 '+S.month+' 的资料'+(other?'（文件是 '+other+'）':'')); return; }

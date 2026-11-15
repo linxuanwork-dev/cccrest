@@ -881,15 +881,21 @@ function plData(m){
     const st=stByName(o.name),emp=empOf(o.name),id=slug(o.name)+"_"+m,inp=pinp[id]||{};
     const unpaid=(o.leave["无薪假期"]||0)+(o.leave["无故旷工"]||0),adv=advFor(o.name,m);
     const r={name:o.name,id,emp,inp,days:o.days,ot:o.ot,hours:o.reg+o.ot,unpaid,pend:o.pend,adv};
-    if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    if(emp&&emp.payBasis&&emp.payBasis!=="MONTH"){   /* paid per day / per hour: the rate x the days / hours the attendance gives, no separate overtime or unpaid leave */
+      const rate=STAT.salaryOn(emp.history,m,emp.basic),qty=emp.payBasis==="DAY"?o.days:o.reg+o.ot;
+      Object.assign(r,{wages:true,wageBasic:r2(qty*rate),ot:0,unpaid:0,basis:emp.payBasis});
+      r.c=STAT.calc({month:m,basic:r.wageBasic,otHours:0,unpaidDays:0,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    }else if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     return snapOf(r)}).concat(pt.map(snapOf));
 }
 /* a company without attendance: the rows are the HR employees (salaried); the overtime hours, unpaid days and advance are typed in each month */
 function plDataManual(m){
   return emps.filter(e=>e.active!==false).map(emp=>{
     const id=slug(emp.name)+"_"+m,inp=pinp[id]||{},ot=Number(inp.otHours)||0,unpaid=Number(inp.unpaidDays)||0,adv=advFor(emp.name,m);
-    const r={name:emp.name,id,emp,inp,days:null,ot,hours:null,unpaid,pend:0,adv,manual:true};
-    r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(emp.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    const pb=emp.payBasis||"MONTH",wg=pb!=="MONTH",rate=STAT.salaryOn(emp.history,m,emp.basic),q=wg?(Number(pb==="DAY"?inp.workDays:inp.workHours)||0):0;
+    const r={name:emp.name,id,emp,inp,days:wg&&pb==="DAY"?q:null,ot:wg?0:ot,hours:wg&&pb==="HOUR"?q:null,unpaid:wg?0:unpaid,pend:0,adv,manual:true,basis:pb};
+    if(wg)Object.assign(r,{wages:true,wageBasic:r2(q*rate)});
+    r.c=STAT.calc({month:m,basic:wg?r.wageBasic:STAT.salaryOn(emp.history,m,emp.basic),otHours:r.ot,unpaidDays:r.unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(emp.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
     const sn=inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true}
     return r});
 }
@@ -911,14 +917,15 @@ function renderPay(){
   t.append(el("tr",{},["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0]),["工资单"]).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
   const tot={};
   rows.forEach(r=>{
-    const tr=el("tr",{});tr.append(el("td",{text:r.name}));
+    const tr=el("tr",{});const tag=r.emp?[r.emp.empType==="PARTTIME"?"兼职":r.emp.empType==="CASUAL"?"临时工":"",r.emp.payBasis==="DAY"?"按日":r.emp.payBasis==="HOUR"?"按小时":""].filter(Boolean).join(" · "):"";tr.append(el("td",{},r.name,tag?el("span",{class:"sub",text:" "+tag}):""));
     const typed=(k,lab,isInt)=>{const td=el("td",{class:"n"});
       if(r.final){td.textContent=n2(r.inp[k]||0);return td}
       const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab,style:"width:70px"});
       i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
       td.append(i);return td};
     const link=(v,fmtv)=>{const td=el("td",{class:"n"});const a=el("a",{href:"#",text:fmtv,style:"color:var(--accent)"});a.onclick=e=>{e.preventDefault();drill(r.name,m)};td.append(a);return td};
-    if(r.manual)tr.append(el("td",{class:"n",text:"—"}),typed("otHours","OT h"),typed("unpaidDays","无薪天"));
+    if(r.manual&&r.basis&&r.basis!=="MONTH"){const qk=r.basis==="DAY"?"workDays":"workHours",qt=typed(qk,r.basis==="DAY"?"出勤天":"工作小时");const qi=qt.querySelector("input");if(qi)qi.placeholder=r.basis==="DAY"?"天":"小时";tr.append(qt,el("td",{class:"n",text:"—"}),el("td",{class:"n",text:"—"}))}
+    else if(r.manual)tr.append(el("td",{class:"n",text:"—"}),typed("otHours","OT h"),typed("unpaidDays","无薪天"));
     else tr.append(link(r.days,String(r.days)),link(r.ot,n2(r.ot)),link(r.unpaid,String(r.unpaid)));
     PL_COLS.forEach(([lab,k,ed])=>{
       if(!r.c){tr.append(el("td",{class:"n",text:"—"}));return}
@@ -1361,6 +1368,8 @@ if(db){
     db.doc("settings/payacct").onSnapshot(s=>{pacct=s.exists?s.data():{};renderPay()});
     db.doc("settings/ea").onSnapshot(s=>{easet=s.exists?s.data():{};renderPay()});
     loadEmps();
+    /* the staff list is kept in step with Staff Information: a person added there shows up here without reopening the page */
+    setInterval(()=>{if(!document.hidden)loadEmps()},30000);
   }
 }
 })();

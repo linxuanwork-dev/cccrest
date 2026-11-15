@@ -20,6 +20,8 @@ const ID_TYPES = ['B', 'L', 'T', 'P', 'PR', 'SSN', 'passport'];
 const MARITAL = ['single', 'married_spouse_not_working', 'married_working_spouse', 'widow_divorced'];
 const TAX_RESIDENT = ['resident', 'non_resident'];
 const RACES = ['01', '02', '03', '04', '05', '06'];
+const EMP_TYPES = ['FULLTIME', 'PARTTIME', 'CASUAL'];
+const PAY_BASIS = ['MONTH', 'DAY', 'HOUR'];
 
 const str = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 const ymd = (d) => (d instanceof Date ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : d);
@@ -53,12 +55,14 @@ function readFields(body, base) {
     disabled: pick('disabled', 'disabled', (v) => v === true || v === 'true'),
     basic_salary: pick('basicSalary', 'basic_salary', (v) => Math.max(0, Number(v) || 0)),
     skbbk_opt_out: pick('skbbkOptOut', 'skbbk_opt_out', (v) => v === true || v === 'true'),
+    employment_type: pick('employmentType', 'employment_type', (v) => (EMP_TYPES.includes(v) ? v : 'FULLTIME')),
+    pay_basis: pick('payBasis', 'pay_basis', (v) => (PAY_BASIS.includes(v) ? v : 'MONTH')),
     active: typeof body.active === 'boolean' ? body.active : base.active
   };
 }
 
 const COLUMNS = ['name', 'ic_no', 'id_type', 'dob', 'gender', 'race', 'nationality', 'address', 'start_date', 'position', 'bank_name', 'bank_account',
-  'epf_no', 'socso_no', 'tin_no', 'tax_resident', 'marital_status', 'children', 'disabled', 'basic_salary', 'skbbk_opt_out', 'active'];
+  'epf_no', 'socso_no', 'tin_no', 'tax_resident', 'marital_status', 'children', 'disabled', 'basic_salary', 'skbbk_opt_out', 'employment_type', 'pay_basis', 'active'];
 
 // A readable "what changed" list for the history (dates as plain text, no images)
 function changes(before, after) {
@@ -71,7 +75,7 @@ function changes(before, after) {
 }
 
 const baseRow = { name: '', ic_no: null, id_type: 'B', dob: null, gender: null, race: null, nationality: null, address: null, start_date: null, position: null,
-  bank_name: null, bank_account: null, epf_no: null, socso_no: null, tin_no: null, tax_resident: 'resident', marital_status: null, children: 0, disabled: false, basic_salary: 0, skbbk_opt_out: false, active: true };
+  bank_name: null, bank_account: null, epf_no: null, socso_no: null, tin_no: null, tax_resident: 'resident', marital_status: null, children: 0, disabled: false, basic_salary: 0, skbbk_opt_out: false, employment_type: 'FULLTIME', pay_basis: 'MONTH', active: true };
 
 async function addSalaryRecord(companyId, employeeId, effective, amount, reason, userId) {
   await pool.query(

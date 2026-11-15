@@ -122,13 +122,13 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
 router.get(BASE + '/employees', ...guard(3), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const { rows } = await pool.query(
-    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active, skbbk_opt_out
+    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active, skbbk_opt_out, employment_type, pay_basis
        FROM employees WHERE company_id = $1 ORDER BY name`, [req.params.companyId]);
   const hist = (await pool.query(
     `SELECT employee_id, to_char(effective_date, 'YYYY-MM-DD') AS effective, amount::float AS amount FROM employee_salary_history WHERE company_id = $1 ORDER BY effective_date, id`, [req.params.companyId])).rows;
   const hby = {};
   hist.forEach((h) => { (hby[h.employee_id] = hby[h.employee_id] || []).push({ effective: h.effective, amount: h.amount }); });
-  res.json(rows.map((r) => ({ skbbkOptOut: !!r.skbbk_opt_out, history: hby[r.id] || [],
+  res.json(rows.map((r) => ({ skbbkOptOut: !!r.skbbk_opt_out, empType: r.employment_type || 'FULLTIME', payBasis: r.pay_basis || 'MONTH', history: hby[r.id] || [],
     id: r.id, name: r.name, ic: r.ic_no || '', basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
     marital: r.marital_status || '', children: r.children, disabled: r.disabled, epfNo: r.epf_no || '', socsoNo: r.socso_no || '', tin: r.tin_no || '',
     start: r.start_date ? String(r.start_date).slice(0, 10) : '', active: r.active

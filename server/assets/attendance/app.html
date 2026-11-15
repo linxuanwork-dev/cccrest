@@ -280,7 +280,7 @@ tr.wk td{background:color-mix(in srgb,var(--line) 35%,transparent)}
       <div class="hd"><strong>EA 表格 Form EA (C.P.8A)</strong><span class="actions"><label style="display:flex;gap:6px;align-items:center">年份<input id="eaYear" type="number" min="2020" max="2100" style="width:90px"></label><button class="btn" id="eaAll">下载全部 EA PDF</button></span></div>
       <div class="sub">金额 = 已「确认」的月份合计，再加上你补录的「系统以前的月份」。(a) 薪金 = 总收入扣除提成；(b) 佣金 / 奖金 = 提成；PCB、EPF、SOCSO + EIS 都是员工扣的部分。CP38、Zakat、子女减免要手动填。员工的 TIN、EPF / SOCSO 号码、子女数、入职日期来自员工资料。</div>
       <div id="eaBox"></div><div id="eaMsg"></div>
-      <details style="margin-top:8px"><summary class="sub">雇主资料（印在 EA 上，只用设置一次）</summary><div class="row" id="eaSet" style="margin-top:8px"></div></details>
+      <details style="margin-top:8px"><summary class="sub">雇主资料（印在 EA 上，只用设置一次；雇主 E 号码在公司 Profile 里填）</summary><div class="row" id="eaSet" style="margin-top:8px"></div></details>
     </div>
     <div class="card">
       <div class="hd"><strong>进 Bukku（工资算好以后）</strong></div>
@@ -1178,7 +1178,7 @@ function renderEa(){
   const es=$("eaSet");
   if(es&&!es.contains(document.activeElement)){
     es.replaceChildren();
-    [["employerE","雇主 E 号码"],["lhdnState","LHDNM 分行 State"],["officerName","负责人姓名 Name of Officer"],["officerDesignation","职位 Designation"],["phone","雇主电话"]].forEach(([k,lab])=>{
+    [["lhdnState","LHDNM 分行 State"],["officerName","负责人姓名 Name of Officer"],["officerDesignation","职位 Designation"],["phone","雇主电话"]].forEach(([k,lab])=>{
       const i=el("input",{class:"mgr",value:easet[k]||"","aria-label":lab});i.onchange=async()=>{try{await db.doc("settings/ea").set({...easet,[k]:i.value.trim()})}catch(e){}};es.append(el("label",{},lab,i))})}
 }
 async function eaPdf(list,year,btn){

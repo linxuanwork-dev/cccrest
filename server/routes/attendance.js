@@ -322,9 +322,11 @@ router.post(BASE + '/ea', ...guard(3), async (req, res) => {
     `SELECT id, name, position, ic_no, id_type, epf_no, socso_no, tin_no, children, start_date FROM employees WHERE company_id = $1 AND id = ANY($2::int[])`,
     [req.params.companyId, ids]);
   const byId = new Map(emps.map((e) => [e.id, e]));
-  const co = (await pool.query('SELECT name, address FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
+  const co = (await pool.query('SELECT name, address, employer_e_no FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
   const st = (await pool.query("SELECT data FROM attendance_docs WHERE company_id = $1 AND path = 'settings/ea'", [req.params.companyId])).rows[0];
+  // the employer E no. comes from the Company Profile (an older value typed in the EA settings is only the fallback)
   const set = Object.assign({}, st && st.data, { date: new Date().toISOString().slice(0, 10) });
+  if (co.employer_e_no) set.employerE = co.employer_e_no;
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0; };
   const items = [];
   list.forEach((x) => {

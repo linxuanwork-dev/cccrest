@@ -25,7 +25,7 @@ const PAY_BASIS = ['MONTH', 'DAY', 'HOUR'];
 
 const str = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 const ymd = (d) => (d instanceof Date ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : d);
-const out = (r) => Object.assign({}, r, { dob: ymd(r.dob), start_date: ymd(r.start_date) });
+const out = (r) => Object.assign({}, r, { dob: ymd(r.dob), start_date: ymd(r.start_date), resign_date: ymd(r.resign_date) });
 const dateOrNull = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
 // Column values for an employee, read from the request body; anything the body doesn't mention keeps `base`
@@ -43,6 +43,7 @@ function readFields(body, base) {
     nationality: pick('nationality', 'nationality', (v) => str(v, 60).toUpperCase() || null),
     address: pick('address', 'address', (v) => str(v, 400) || null),
     start_date: pick('startDate', 'start_date', dateOrNull),
+    resign_date: pick('resignDate', 'resign_date', dateOrNull),
     position: pick('position', 'position', (v) => str(v, 120) || null),
     bank_name: pick('bankName', 'bank_name', (v) => str(v, 80) || null),
     bank_account: pick('bankAccount', 'bank_account', (v) => str(v, 40) || null),
@@ -61,7 +62,7 @@ function readFields(body, base) {
   };
 }
 
-const COLUMNS = ['name', 'ic_no', 'id_type', 'dob', 'gender', 'race', 'nationality', 'address', 'start_date', 'position', 'bank_name', 'bank_account',
+const COLUMNS = ['name', 'ic_no', 'id_type', 'dob', 'gender', 'race', 'nationality', 'address', 'start_date', 'resign_date', 'position', 'bank_name', 'bank_account',
   'epf_no', 'socso_no', 'tin_no', 'tax_resident', 'marital_status', 'children', 'disabled', 'basic_salary', 'skbbk_opt_out', 'employment_type', 'pay_basis', 'active'];
 
 // A readable "what changed" list for the history (dates as plain text, no images)
@@ -74,7 +75,7 @@ function changes(before, after) {
   return docs.diffObjects(view(before), view(after));
 }
 
-const baseRow = { name: '', ic_no: null, id_type: 'B', dob: null, gender: null, race: null, nationality: null, address: null, start_date: null, position: null,
+const baseRow = { name: '', ic_no: null, id_type: 'B', dob: null, gender: null, race: null, nationality: null, address: null, start_date: null, resign_date: null, position: null,
   bank_name: null, bank_account: null, epf_no: null, socso_no: null, tin_no: null, tax_resident: 'resident', marital_status: null, children: 0, disabled: false, basic_salary: 0, skbbk_opt_out: false, employment_type: 'FULLTIME', pay_basis: 'MONTH', active: true };
 
 async function addSalaryRecord(companyId, employeeId, effective, amount, reason, userId) {

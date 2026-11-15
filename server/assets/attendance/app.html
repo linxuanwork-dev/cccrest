@@ -869,6 +869,28 @@ const hrAvail=()=>emps.filter(e=>e.active!==false&&!roster.some(r=>nkey(r.name)=
 /* the commission of the month sent from the Daily Sales Reconciliation (Sales > 提成); a figure typed in the Commission cell wins */
 function commOf(name,inp,m){ if(inp&&inp.commission!=null)return inp.commission; const d=pinp["COMM_"+String(name).toUpperCase().replace(/[^A-Za-z0-9]+/g,"_")+"_"+m]; return d&&d.amount?d.amount:0 }
 function commSales(name,m){ const d=pinp["COMM_"+String(name).toUpperCase().replace(/[^A-Za-z0-9]+/g,"_")+"_"+m]; return d&&d.amount?d.amount:0 }
+/* ----- joined / left during the month: the basic salary by the calendar days worked (Employment Act s.18A); the pay for the unused annual leave when a person leaves ----- */
+function empPeriod(emp,m){
+  if(!emp)return null;
+  const dd=new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7),0)).getUTCDate(),ms=m+"-01",me=m+"-"+String(dd).padStart(2,"0"),S=emp.start||"",R=emp.resign||"";
+  if(S&&S>me)return null;
+  if(R&&R<ms)return null;
+  const from=S&&S>ms?S:ms,to=R&&R<me?R:me,eligible=Math.round((Date.parse(to)-Date.parse(from))/864e5)+1;
+  return{eligible,cal:dd,partial:eligible<dd,left:!!R&&R<=me&&R>=ms,from,to};
+}
+const proArgs=(emp,m)=>{const p=empPeriod(emp,m);return p&&p.partial?{proDays:p.eligible,calDays:p.cal}:{}};
+/* unused annual leave when the month is the month of leaving: entitlement by service (8 / 12 / 16 days) x the part of the year worked, less the leave taken; paid at the daily rate (monthly salary / 26) */
+function leavePay(emp,m){
+  if(!emp||!emp.resign||emp.resign.slice(0,7)!==m)return null;
+  const pb=emp.payBasis||"MONTH";if(pb==="HOUR")return null;
+  const R=emp.resign,y=R.slice(0,4),from=emp.start&&emp.start>y+"-01-01"?emp.start:y+"-01-01";
+  const yrs=(Date.parse(R)-Date.parse(emp.start||R))/(365.25*864e5),ent=yrs<2?8:yrs<5?12:16;
+  const accrued=r2(ent*((Date.parse(R)-Date.parse(from))/864e5+1)/365);
+  const taken=entries.filter(e=>nkey(e.name)===nkey(emp.name)&&e.reason==="年假"&&e.date>=y+"-01-01"&&e.date<=R).length;
+  const bal=r2(accrued-taken),rate=STAT.salaryOn(emp.history,m,emp.basic),daily=pb==="DAY"?rate:Math.round(rate/26*100)/100;
+  return{ent,accrued,taken,bal:Math.max(0,bal),daily,amount:bal>0?r2(bal*daily):0};
+}
+const otherOf=r=>r.inp.other!=null?r.inp.other:(r.leave?r.leave.amount:0);
 function plData(m){
   if(ATT.payrollOnly)return plDataManual(m);
   const pt=ptData(m).map(o=>{
@@ -884,18 +906,24 @@ function plData(m){
     if(emp&&emp.payBasis&&emp.payBasis!=="MONTH"){   /* paid per day / per hour: the rate x the days / hours the attendance gives, no separate overtime or unpaid leave */
       const rate=STAT.salaryOn(emp.history,m,emp.basic),qty=emp.payBasis==="DAY"?o.days:o.reg+o.ot;
       Object.assign(r,{wages:true,wageBasic:r2(qty*rate),ot:0,unpaid:0,basis:emp.payBasis});
-      r.c=STAT.calc({month:m,basic:r.wageBasic,otHours:0,unpaidDays:0,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
-    }else if(emp)r.c=STAT.calc({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+      r.leave=leavePay(emp,m);r.pro=empPeriod(emp,m);
+      if(r.pro)r.c=STAT.calc({month:m,basic:r.wageBasic,otHours:0,unpaidDays:0,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:otherOf(r),advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    }
+    if(emp&&(!emp.payBasis||emp.payBasis==="MONTH")){
+      r.pro=empPeriod(emp,m);r.leave=leavePay(emp,m);
+      if(r.pro)r.c=STAT.calc(Object.assign({month:m,basic:STAT.salaryOn(emp.history,m,emp.basic),otHours:o.ot,unpaidDays:unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(o.name,inp,m),other:otherOf(r),advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut},proArgs(emp,m)));
+    }
     return snapOf(r)}).concat(pt.map(snapOf));
 }
 /* a company without attendance: the rows are the HR employees (salaried); the overtime hours, unpaid days and advance are typed in each month */
 function plDataManual(m){
-  return emps.filter(e=>e.active!==false).map(emp=>{
+  return emps.filter(e=>(e.active!==false||(e.resign&&e.resign.slice(0,7)>=m))&&empPeriod(e,m)).map(emp=>{
     const id=slug(emp.name)+"_"+m,inp=pinp[id]||{},ot=Number(inp.otHours)||0,unpaid=Number(inp.unpaidDays)||0,adv=advFor(emp.name,m);
     const pb=emp.payBasis||"MONTH",wg=pb!=="MONTH",rate=STAT.salaryOn(emp.history,m,emp.basic),q=wg?(Number(pb==="DAY"?inp.workDays:inp.workHours)||0):0;
     const r={name:emp.name,id,emp,inp,days:wg&&pb==="DAY"?q:null,ot:wg?0:ot,hours:wg&&pb==="HOUR"?q:null,unpaid:wg?0:unpaid,pend:0,adv,manual:true,basis:pb};
     if(wg)Object.assign(r,{wages:true,wageBasic:r2(q*rate)});
-    r.c=STAT.calc({month:m,basic:wg?r.wageBasic:STAT.salaryOn(emp.history,m,emp.basic),otHours:r.ot,unpaidDays:r.unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(emp.name,inp,m),other:inp.other,advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut});
+    r.pro=empPeriod(emp,m);r.leave=leavePay(emp,m);
+    r.c=STAT.calc(Object.assign({month:m,basic:wg?r.wageBasic:STAT.salaryOn(emp.history,m,emp.basic),otHours:r.ot,unpaidDays:r.unpaid,allowance:inp.allowance,incentive:inp.incentive,commission:commOf(emp.name,inp,m),other:otherOf(r),advance:adv,pcb:inp.pcb,dob:emp.dob,nationality:emp.nationality||"MALAYSIAN",skbbkOptOut:emp.skbbkOptOut},wg?{}:proArgs(emp,m)));
     const sn=inp.snap;if(sn&&sn.c){r.c=sn.c;r.final=true}
     return r});
 }
@@ -917,7 +945,7 @@ function renderPay(){
   t.append(el("tr",{},["姓名","出勤天","OT h","无薪天"].concat(PL_COLS.map(c=>c[0]),["工资单"]).map((h,i)=>el("th",{class:i?"n":"",text:h}))));
   const tot={};
   rows.forEach(r=>{
-    const tr=el("tr",{});const tag=r.emp?[r.emp.empType==="PARTTIME"?"兼职":r.emp.empType==="CASUAL"?"临时工":"",r.emp.payBasis==="DAY"?"按日":r.emp.payBasis==="HOUR"?"按小时":""].filter(Boolean).join(" · "):"";tr.append(el("td",{},r.name,tag?el("span",{class:"sub",text:" "+tag}):""));
+    const tr=el("tr",{});const tag=r.emp?[r.emp.empType==="PARTTIME"?"兼职":r.emp.empType==="CASUAL"?"临时工":"",r.emp.payBasis==="DAY"?"按日":r.emp.payBasis==="HOUR"?"按小时":"",r.pro&&r.pro.partial&&!r.wages?(r.pro.left?"离职 ":"入职 ")+r.pro.eligible+"/"+r.pro.cal+" 天":""].filter(Boolean).join(" · "):"";tr.append(el("td",{},r.name,tag?el("span",{class:"sub",text:" "+tag}):""));
     const typed=(k,lab,isInt)=>{const td=el("td",{class:"n"});
       if(r.final){td.textContent=n2(r.inp[k]||0);return td}
       const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab,style:"width:70px"});
@@ -937,6 +965,7 @@ function renderPay(){
         td.append(lab);tr.append(td);return}
       if(ed==="in"&&r.final){tr.append(el("td",{class:"n",text:n2(r.c[k])}));return}
       if(ed==="in"){const i=el("input",{class:"cell mgr",inputmode:"decimal",value:r.inp[k]!=null?String(r.inp[k]):"","aria-label":r.name+" "+lab});
+        if(k==="other"&&r.leave&&r.leave.amount){i.placeholder=n2(r.leave.amount);i.title="离职：未休年假补发（法定 "+r.leave.ent+" 天 × 工作比例 = "+n2(r.leave.accrued)+" 天，已休 "+r.leave.taken+" 天，余 "+n2(r.leave.bal)+" 天 × 日薪 "+n2(r.leave.daily)+"）。这里填数字会盖过它。";i.style.background="var(--mgr)"}
         if(k==="commission"&&commSales(r.name,m)){i.placeholder=n2(commSales(r.name,m));i.title="来自销售（每日营业对账 > 提成）：RM "+n2(commSales(r.name,m))+"。这里填数字会盖过它。";i.style.background="var(--mgr)"}
         i.onchange=async()=>{const x=i.value.trim()===""?null:Number(i.value);if(x!=null&&Number.isNaN(x))return;const doc={...(pinp[r.id]||{}),name:r.name,month:m,ts:Date.now()};if(x==null)delete doc[k];else doc[k]=x;
           try{await db.doc("payroll/"+r.id).set(doc)}catch(e){i.value=r.inp[k]!=null?String(r.inp[k]):""}};
@@ -1171,7 +1200,7 @@ async function payslipPdf(list,m,btn){
   if(!rows.length)return;
   if(btn)btn.disabled=true;
   try{
-    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,snap:r.final?r.c:undefined,wages:!!r.wages,basic:r.wageBasic,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:commOf(r.name,r.inp,m),other:r.inp.other,advance:r.adv,pcb:r.inp.pcb}))};
+    const body={month:m,slips:rows.map(r=>({empId:r.emp.id,snap:r.final?r.c:undefined,wages:!!r.wages,basic:r.wageBasic,days:r.days,hours:r.hours,otHours:r.ot,unpaidDays:r.unpaid,allowance:r.inp.allowance,incentive:r.inp.incentive,commission:commOf(r.name,r.inp,m),other:otherOf(r),advance:r.adv,pcb:r.inp.pcb,proDays:r.pro&&r.pro.partial&&!r.wages?r.pro.eligible:0,calDays:r.pro&&r.pro.partial&&!r.wages?r.pro.cal:0}))};
     const res=await fetch("/api/companies/"+encodeURIComponent(new URLSearchParams(location.search).get("company")||"")+"/attendance/payslips",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.error||("请求失败 ("+res.status+")"))}
     const name=decodeURIComponent(res.headers.get("X-File-Name")||("Salary-Voucher-"+m+".pdf"));

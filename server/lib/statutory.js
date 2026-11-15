@@ -90,6 +90,10 @@
     var unpaid = r2(Math.round((basic / 26) * 100) / 100 * (Number(p.unpaidDays) || 0));
     var otPay = r2((Number(p.otHours) || 0) * rate);
     var allowance = r2(p.allowance), incentive = r2(p.incentive), commission = r2(p.commission), other = r2(p.other);
+    // an incomplete month (joined or left during it): the basic salary is paid by the calendar days worked, days in the month (Employment Act s.18A); the unpaid-leave deduction and the overtime rate stay on the full salary
+    var proDays = Number(p.proDays) || 0, calDays = Number(p.calDays) || 0;
+    var fullBasic = basic;
+    if (proDays > 0 && calDays > 0 && proDays < calDays) basic = r2(basic * proDays / calDays);
     var gross = r2(basic - unpaid + otPay + allowance + incentive + commission + other);
     var epfWage = r2(gross - otPay);
     var e = epf(epfWage, { over60: old, foreign: foreign });
@@ -99,7 +103,7 @@
     var deduction = r2(e.employee + s.employee + s.skbbk + i.employee + pcb);
     var advance = r2(p.advance);
     return {
-      month: month, over60: old, otRate: rate, basic: r2(basic), unpaidDeduction: unpaid, otHours: Number(p.otHours) || 0, otPay: otPay,
+      month: month, over60: old, otRate: rate, basic: r2(basic), fullBasic: r2(fullBasic), proDays: proDays, calDays: calDays, unpaidDeduction: unpaid, otHours: Number(p.otHours) || 0, otPay: otPay,
       allowance: allowance, incentive: incentive, commission: commission, other: other, gross: gross, epfWage: epfWage,
       epfEmployee: e.employee, epfEmployer: e.employer, socsoEmployee: s.employee, skbbkEmployee: s.skbbk, socsoEmployer: s.employer,
       eisEmployee: i.employee, eisEmployer: i.employer, pcb: pcb, totalDeduction: deduction, advance: advance,

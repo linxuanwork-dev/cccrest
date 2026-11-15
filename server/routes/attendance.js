@@ -122,7 +122,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
 router.get(BASE + '/employees', ...guard(3), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const { rows } = await pool.query(
-    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, active, skbbk_opt_out, employment_type, pay_basis
+    `SELECT id, name, ic_no, bank_name, bank_account, basic_salary, dob, nationality, marital_status, children, disabled, epf_no, socso_no, tin_no, start_date, resign_date, active, skbbk_opt_out, employment_type, pay_basis
        FROM employees WHERE company_id = $1 ORDER BY name`, [req.params.companyId]);
   const hist = (await pool.query(
     `SELECT employee_id, to_char(effective_date, 'YYYY-MM-DD') AS effective, amount::float AS amount FROM employee_salary_history WHERE company_id = $1 ORDER BY effective_date, id`, [req.params.companyId])).rows;
@@ -131,7 +131,7 @@ router.get(BASE + '/employees', ...guard(3), async (req, res) => {
   res.json(rows.map((r) => ({ skbbkOptOut: !!r.skbbk_opt_out, empType: r.employment_type || 'FULLTIME', payBasis: r.pay_basis || 'MONTH', history: hby[r.id] || [],
     id: r.id, name: r.name, ic: r.ic_no || '', basic: Number(r.basic_salary) || 0, dob: r.dob ? String(r.dob).slice(0, 10) : '', nationality: r.nationality || '',
     marital: r.marital_status || '', children: r.children, disabled: r.disabled, epfNo: r.epf_no || '', socsoNo: r.socso_no || '', tin: r.tin_no || '',
-    start: r.start_date ? String(r.start_date).slice(0, 10) : '', active: r.active
+    start: r.start_date ? String(r.start_date).slice(0, 10) : '', resign: r.resign_date ? String(r.resign_date).slice(0, 10) : '', active: r.active
   })));
 });
 
@@ -180,7 +180,7 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
     const snap = x.snap && typeof x.snap === 'object' && Number.isFinite(Number(x.snap.net)) && Number.isFinite(Number(x.snap.gross)) ? x.snap : null;   // the month was finalized: its saved numbers
     const c = snap || STAT.calc({
       month, basic: x.wages === true ? num(x.basic) : STAT.salaryOn(hbyEmp.get(e.id), month, num(e.basic_salary)), otHours: num(x.otHours), unpaidDays: num(x.unpaidDays), allowance: num(x.allowance), incentive: num(x.incentive),
-      commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN', skbbkOptOut: !!e.skbbk_opt_out
+      commission: num(x.commission), other: num(x.other), advance: num(x.advance), pcb: num(x.pcb), proDays: num(x.proDays), calDays: num(x.calDays), dob: e.dob ? String(e.dob).slice(0, 10) : '', nationality: e.nationality || 'MALAYSIAN', skbbkOptOut: !!e.skbbk_opt_out
     });
     slips.push({
       company: co, month, c, leave: leaveOf(e), days: x.days, hours: num(x.hours), otHours: num(x.otHours), voucher: 'JVS-' + yymm + '-' + String(i + 1).padStart(3, '0'),

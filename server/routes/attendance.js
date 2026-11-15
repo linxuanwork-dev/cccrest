@@ -189,7 +189,9 @@ router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
   });
   if (!slips.length) return bad(res, '找不到这些员工。 Employees not found.');
   const doc = buildPayslipPdf(slips);
-  const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: month, YYYY: month.slice(0, 4), MM: month.slice(5, 7), EMP: slips.length === 1 ? String(slips[0].emp.name).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim() : 'ALL' }, 'SALARY VOUCHER-' + month.slice(0, 4) + '_' + month.slice(5, 7));
+  const empName = slips.length === 1 ? String(slips[0].emp.name).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim() : 'ALL';
+  const prefix = (await docs.companyInfo(req.params.companyId)).PREFIX;
+  const base = await docs.fileBase('salary_voucher', req.params.companyId, { PERIOD: month, YYYY: month.slice(0, 4), MM: month.slice(5, 7), EMP: empName }, prefix + '-SALARY VOUCHER-' + month.slice(0, 4) + '_' + month.slice(5, 7) + '-' + empName);
   try { await docs.logEvent(req, req.params.companyId, 'salary_voucher', base + '.pdf', 'generated', [{ field: 'payslips', from: '', to: String(slips.length) }]); } catch (e) { console.error('payslip log failed:', e); }
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   res.setHeader('Content-Type', 'application/pdf');
@@ -212,7 +214,7 @@ router.post(BASE + '/summary-pdf', ...guard(3), async (req, res) => {
   }));
   const co = (await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId])).rows[0] || {};
   const doc = buildTablePdf({ company: co.name, title: str(b.title), subtitle: str(b.subtitle), sections, notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 6).map((t) => String(t).slice(0, 200)) });
-  const base = await docs.fileBase('payroll_summary', req.params.companyId, { SPAN: span }, 'PAYROLL SUMMARY-' + span);
+  const base = await docs.fileBase('payroll_summary', req.params.companyId, { SPAN: span }, (await docs.companyInfo(req.params.companyId)).PREFIX + '-PAYROLL SUMMARY-' + span);
   try { await docs.logEvent(req, req.params.companyId, 'payroll_summary', base + '.pdf', 'generated', [{ field: 'summary', from: '', to: str(b.title) }]); } catch (e) { console.error('summary log failed:', e); }
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   res.setHeader('Content-Type', 'application/pdf');

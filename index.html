@@ -1374,7 +1374,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
               <div class="field"><label for="pf-sst" data-i18n="pf_sst">SST No. (if any)</label><input id="pf-sst" type="text" /></div>
               <div class="field"><label for="pf-prefix" data-i18n="pf_prefix">File name prefix</label><input id="pf-prefix" type="text" placeholder="UKL" maxlength="20" /></div>
               <div class="field"></div>
-              <div class="field"><label data-i18n="pf_country">Home Country</label><input type="text" value="Malaysia" disabled /></div>
+              <div class="field"><label data-i18n="pf_country">Home Country</label><input type="text" value="MALAYSIA" disabled /></div>
               <div class="field"><label data-i18n="pf_currency">Home Currency</label><input type="text" value="MYR - Malaysian Ringgit" disabled /></div>
             </div>
           </div>
@@ -6259,7 +6259,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   // ============ COMPANY PROFILE (legal details, contact, addresses, logo, letterhead) ============
   // CC CREST admin / manager edit it; everyone else who can open the company can read it. Changes save automatically.
   var pf = { companyId:null, canEdit:false, data:null, timer:null, saving:false, pending:false, dirty:false, regType:'BRN' };
-  var PF_STATES = ['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Penang','Perak','Perlis','Sabah','Sarawak','Selangor','Terengganu','Kuala Lumpur','Labuan','Putrajaya'];
+  var PF_STATES = ['JOHOR','KEDAH','KELANTAN','MELAKA','NEGERI SEMBILAN','PAHANG','PENANG','PERAK','PERLIS','SABAH','SARAWAK','SELANGOR','TERENGGANU','KUALA LUMPUR','LABUAN','PUTRAJAYA'];
   var PF_TEXT_IDS = ['pf-legal','pf-regno','pf-oldreg','pf-tin','pf-msic','pf-msicdesc','pf-tourism','pf-sst','pf-prefix','pf-contact','pf-email','pf-website'];
   function pfEl(id){ return document.getElementById(id); }
   function pfEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -6267,7 +6267,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   function pfClock(){ var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function pfNormState(s){
     var u = String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
-    var map = { 'W.P. KUALA LUMPUR':'Kuala Lumpur', 'W.P. LABUAN':'Labuan', 'W.P. PUTRAJAYA':'Putrajaya', 'PULAU PINANG':'Penang' };
+    var map = { 'W.P. KUALA LUMPUR':'KUALA LUMPUR', 'W.P. LABUAN':'LABUAN', 'W.P. PUTRAJAYA':'PUTRAJAYA', 'PULAU PINANG':'PENANG' };
     if(map[u]) return map[u];
     var hit = PF_STATES.filter(function(x){ return x.toUpperCase() === u; })[0];
     return hit || '';
@@ -6332,7 +6332,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       '<div class="field full"><label>' + t('pf_street') + '</label><textarea data-f="street">' + pfEsc(a.street) + '</textarea></div>' +
       '<div class="field"><label>' + t('pf_city') + '</label><input data-f="city" value="' + pfEsc(a.city) + '" /></div>' +
       '<div class="field"><label>' + t('pf_postcode') + '</label><input data-f="postcode" value="' + pfEsc(a.postcode) + '" /></div>' +
-      '<div class="field"><label>Country</label><input data-f="country" value="' + pfEsc(a.country || 'Malaysia') + '" /></div>' +
+      '<div class="field"><label>Country</label><input data-f="country" style="text-transform:uppercase;" oninput="var p=this.selectionStart;this.value=this.value.toUpperCase();this.setSelectionRange(p,p);" value="' + pfEsc(String(a.country || 'Malaysia').toUpperCase()) + '" /></div>' +
       '<div class="field"><label>' + t('pf_state') + '</label><select data-f="state">' + stateOpts + '</select></div>' +
       '</div></div>';
   }
@@ -6430,7 +6430,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     b.addEventListener('click', function(){ if(!pf.canEdit) return; pfSetRegType(b.dataset.v); pfMarkDirty(); });
   });
   pfEl('pf-add-address').addEventListener('click', function(){
-    var list = pfCollect().addresses; list.push({ name:'Address ' + (list.length + 1), country:'Malaysia' });
+    var list = pfCollect().addresses; list.push({ name:'Address ' + (list.length + 1), country:'MALAYSIA' });
     pfRenderAddresses(list); pfApplyEditable(); pfMarkDirty();
   });
   pfEl('pf-addresses').addEventListener('click', function(e){

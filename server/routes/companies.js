@@ -123,7 +123,7 @@ router.patch('/companies/:companyId', requireRole('admin'), async (req, res) => 
       // keep the profile's first address in step with the single address typed in this older dialog
       await pool.query(
         `UPDATE companies SET addresses = CASE
-           WHEN jsonb_array_length(addresses) = 0 THEN jsonb_build_array(jsonb_build_object('name','Address 1','street',$1::text,'city','','postcode','','country','Malaysia','state',''))
+           WHEN jsonb_array_length(addresses) = 0 THEN jsonb_build_array(jsonb_build_object('name','Address 1','street',$1::text,'city','','postcode','','country','MALAYSIA','state',''))
            ELSE jsonb_set(addresses, '{0,street}', to_jsonb($1::text)) END
          WHERE id = $2`,
         [newAddress || '', req.params.companyId]
@@ -164,7 +164,7 @@ function cleanAddresses(list) {
   if (!Array.isArray(list)) return [];
   return list.slice(0, 10).map((a, i) => ({
     name: text(a && a.name, 80) || `Address ${i + 1}`, street: text(a && a.street, 400), city: text(a && a.city, 80),
-    postcode: text(a && a.postcode, 10), country: text(a && a.country, 60) || 'Malaysia', state: text(a && a.state, 60)
+    postcode: text(a && a.postcode, 10), country: (text(a && a.country, 60) || 'Malaysia').toUpperCase(), state: text(a && a.state, 60).toUpperCase()
   })).filter((a) => a.street || a.city || a.postcode);
 }
 

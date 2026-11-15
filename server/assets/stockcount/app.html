@@ -181,6 +181,7 @@ body.is-mgr .noman-only{display:none!important}
       <button role="tab" data-tab="count" aria-selected="true">盘点 Stock Count</button>
       <button role="tab" data-tab="report" aria-selected="false">月结报告 Closing Stock</button>
       <button role="tab" data-tab="card" aria-selected="false">库存卡 Stock Card</button>
+      <button role="tab" data-tab="dish" aria-selected="false" class="mgr-only">菜品成本 Dish Costing<span class="ct" id="ctDish">0</span></button>
       <button role="tab" data-tab="items" aria-selected="false">货品 Items<span class="ct" id="ctItems">0</span></button>
       <button role="tab" data-tab="groups" aria-selected="false">分组 Groups<span class="ct" id="ctGroups">0</span></button>
       <button role="tab" data-tab="log" aria-selected="false">变更记录 Log</button>
@@ -335,6 +336,58 @@ body.is-mgr .noman-only{display:none!important}
       <p class="small muted" style="margin:0 0 8px">上传以前从这里下载的 CLOSING STOCK Excel（可以一次选好几个月的文件）。每个月用报告里的数量和<b>当时的旧单价</b>，成为「已结账」的月份。<b>不会改「货品」里的最新单价。</b>先看预览，确认了才会保存。</p>
       <input type="file" id="hiFile" accept=".xlsx,.xls" multiple>
       <div id="hiPrev" class="check" style="margin-top:10px" hidden></div>
+    </div>
+  </section>
+
+  <!-- DISH COSTING -->
+  <section id="v-dish" hidden class="mgr-only">
+    <div class="panel">
+      <div class="ph">
+        <div>
+          <h2>菜品成本 Dish Costing</h2>
+          <div class="small muted">每道菜设配方（用哪些盘点货品、各用多少），系统用货品的进价算出成本，再跟售价比，得出毛利和成本率。售价请填不含 SST / 服务费的净售价。</div>
+        </div>
+        <div class="row"><button class="btn" id="dTpl">下载 Excel（模板 / 全部菜品）</button><button class="btn" id="dUp">导入 Excel</button><button class="btn pri" id="dNew">新增菜品</button><input type="file" id="dFile" accept=".xlsx,.xls" hidden></div>
+      </div>
+      <div class="filters" style="margin-bottom:10px">
+        <input type="search" id="dQ" placeholder="搜菜名或原料" style="width:200px">
+        <select id="dCat"><option value="">全部分类</option></select>
+        <label class="small row" style="gap:4px">成本用<select id="dBasis" style="width:auto"><option value="latest">最新进价（采购单）</option><option value="master">货品资料单价</option></select></label>
+        <label class="small row" style="gap:4px">目标成本率 %<input id="dTarget" inputmode="decimal" style="width:70px"></label>
+      </div>
+      <div class="stats" id="dStats"></div>
+      <div id="dMsg" style="margin-top:10px" hidden></div>
+      <div class="tbl-wrap" style="max-height:60vh;overflow:auto;margin-top:10px">
+        <table>
+          <thead><tr><th>菜名 Dish</th><th>分类</th><th class="r">售价 Price</th><th class="r">成本 Cost</th><th class="r">毛利 GP</th><th class="r">成本率</th><th class="r">原料</th><th></th></tr></thead>
+          <tbody id="dBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" id="dEdit" style="margin-top:14px" hidden>
+      <h2 id="dEditTitle" style="margin-bottom:8px">菜品</h2>
+      <div class="filters">
+        <label class="small">菜名<input id="dfName" autocomplete="off" style="width:260px"></label>
+        <label class="small">分类<input id="dfCat" list="dCatList" autocomplete="off" style="width:140px"></label>
+        <label class="small">售价 RM（净）<input id="dfPrice" inputmode="decimal" autocomplete="off" style="width:90px"></label>
+        <label class="small">这份配方做几份<input id="dfYield" inputmode="decimal" autocomplete="off" style="width:90px"></label>
+        <label class="small">备注<input id="dfNote" autocomplete="off" style="width:200px"></label>
+      </div>
+      <datalist id="dCatList"></datalist><datalist id="dItemList"></datalist>
+      <div class="tbl-wrap" style="margin-top:10px"><table>
+        <thead><tr><th>原料（盘点货品）</th><th class="r">数量</th><th>单位</th><th class="r">单价</th><th class="r">金额 RM</th><th></th></tr></thead>
+        <tbody id="dfLines"></tbody>
+      </table></div>
+      <div class="row" style="margin-top:8px;justify-content:space-between">
+        <div class="row"><button class="btn sm" id="dfAddLine">+ 加一行原料</button></div>
+        <div id="dfTot" class="mono"></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn pri" id="dfSave">保存</button><button class="btn" id="dfCancel">取消</button><button class="btn danger" id="dfDel" hidden>删除这道菜</button></div>
+    </div>
+    <div class="panel" id="dImp" style="margin-top:14px" hidden>
+      <h2 style="margin-bottom:8px">导入预览</h2>
+      <div id="dImpBody"></div>
+      <div class="row" style="margin-top:10px"><button class="btn pri" id="dImpGo">确认导入</button><button class="btn" id="dImpCancel">取消</button></div>
     </div>
   </section>
 
@@ -774,7 +827,7 @@ function listenLog(start,end,cb){
 /* ---------- keep the local copy in step with the server ---------- */
 const stable = v => JSON.stringify(v, (k,x)=>x && typeof x==='object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o,key)=>{ o[key]=x[key]; return o; },{}) : x);
 function applySync(d){
-  const colls = {settings:d.settings, groups:d.groups, items:d.items, counts:d.counts, closing:d.closing, moves:d.moves||[], log:d.log};
+  const colls = {settings:d.settings, groups:d.groups, items:d.items, counts:d.counts, closing:d.closing, moves:d.moves||[], dishes:d.dishes||[], log:d.log};
   colls['counts/'+d.month+'/lines']=d.lines; colls['counts/'+d.month+'/packs']=d.packs;
   Object.keys(colls).forEach(coll=>{
     const pre=coll+'/', cur={}, nxt={};
@@ -1789,7 +1842,7 @@ $('gForm').addEventListener('submit',async e=>{
 });
 
 /* ---------- LOG view ---------- */
-const ACT={count:['盘点数量','count'],pack:['本月箱数','count'],item:['改货品','item'],'item-add':['新增货品','item'],group:['分组','group'],close:['结账','close'],reopen:['重开','close'],move:['出入库','count']};
+const ACT={count:['盘点数量','count'],pack:['本月箱数','count'],item:['改货品','item'],'item-add':['新增货品','item'],group:['分组','group'],close:['结账','close'],reopen:['重开','close'],move:['出入库','count'],dish:['菜品成本','item']};
 const curMonth = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
 $('lMonth').value=curMonth();
 let unsubLog=null;
@@ -1843,7 +1896,7 @@ async function loadPurch(force){
   if(!force && S.purch && Date.now()-S.purchAt<20000) return;
   try{ const d=await http('GET','/stock-card'); const by={}; (d.rows||[]).forEach(r=>(by[r.item]=by[r.item]||[]).push(r)); S.purch=by; S.purchAt=Date.now(); S.purchErr=''; }
   catch(e){ console.error('stock-card',e); if(!S.purch) S.purch={}; S.purchErr=(e&&e.message)||String(e); }
-  renderCard();
+  renderCard(); if(typeof renderDish==='function') renderDish();
 }
 function cardData(it){
   const id=it.id, P=(S.purch&&S.purch[id])||[];
@@ -1970,15 +2023,208 @@ $('scMDown').addEventListener('click',async()=>{
   try{ await downloads.save({filename:`${filePrefix()}-STOCK MOVEMENT-${m.replace('-','_')}.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) dbErr(err); }
 });
 
+
+/* ---------- dish costing: recipe = stock items x quantity, cost from the item prices, against the selling price ---------- */
+S.dishes=[]; S.dish={basis:'latest',target:35}; S.dEdit=null; S.dImp=null;
+const dFmtP = n => n==null||!isFinite(n)?'':(Math.round(n*10)/10)+'%';
+function unitCost(it){
+  if(S.dish.basis==='latest'){ const P=(S.purch&&S.purch[it.id])||[]; if(P.length){ const c=Number(P[P.length-1].c)||0; if(c>0) return c; } }
+  return Number(it.price)||0;
+}
+const lineStockQty = (l,it) => (l.u==='sub'&&it&&Number(it.pack)>1) ? (Number(l.qty)||0)/Number(it.pack) : (Number(l.qty)||0);
+function dishCalc(d){
+  let cost=0, miss=0;
+  const lines=(d.lines||[]).map(l=>{
+    const it=S.items.find(i=>i.id===l.item);
+    if(!it){ miss++; return {l,it:null,uc:0,amt:0}; }
+    const uc=unitCost(it), q=lineStockQty(l,it), amt=q*uc;
+    if(!(uc>0)) miss++;
+    cost+=amt; return {l,it,uc,amt,q};
+  });
+  const y=Number(d.yield)>0?Number(d.yield):1; cost=cost/y;
+  const price=Number(d.price)||0, gp=price-cost;
+  return {lines,cost,price,gp,pct:price>0?cost/price*100:null,miss,y};
+}
+function renderDish(){
+  if(!$('v-dish')||$('v-dish').hidden) return;
+  if(!S.purch) loadPurch();
+  $('dBasis').value=S.dish.basis; if(document.activeElement!==$('dTarget')) $('dTarget').value=S.dish.target;
+  const cats=[...new Set(S.dishes.map(d=>d.category).filter(Boolean))].sort(), cs=$('dCat'), keep=cs.value;
+  cs.innerHTML='<option value="">全部分类</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join(''); cs.value=cats.includes(keep)?keep:'';
+  $('dCatList').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
+  $('dItemList').innerHTML=S.items.filter(i=>i.active!==false).map(i=>`<option value="${esc(i.name)}">`).join('');
+  $('ctDish').textContent=S.dishes.length;
+  const q=norm($('dQ').value), cat=cs.value;
+  const all=S.dishes.map(d=>Object.assign({d},dishCalc(d)));
+  const rows=all.filter(r=>(!cat||r.d.category===cat)&&(!q||norm(r.d.name).includes(q)||r.lines.some(x=>x.it&&norm(x.it.name).includes(q)))).sort((a,b)=>norm(a.d.category).localeCompare(norm(b.d.category))||norm(a.d.name).localeCompare(norm(b.d.name)));
+  const T=Number(S.dish.target)||0, withP=all.filter(r=>r.pct!=null&&r.cost>0), over=T?withP.filter(r=>r.pct>T).length:0;
+  const avg=withP.length?withP.reduce((a,r)=>a+r.pct,0)/withP.length:null, noCost=all.filter(r=>r.miss).length;
+  $('dStats').innerHTML=`<div class="stat"><div>菜品数</div><b>${S.dishes.length}</b></div><div class="stat"><div>平均成本率</div><b>${avg==null?'—':dFmtP(avg)}</b></div><div class="stat"><div>超过目标成本率的菜</div><b>${over}</b></div><div class="stat"><div>有原料缺单价 / 找不到的菜</div><b>${noCost}</b></div>`;
+  $('dBody').innerHTML=rows.length?rows.map(r=>`<tr><td style="min-width:200px">${esc(r.d.name)}${r.d.note?`<div class="small muted">${esc(r.d.note)}</div>`:''}</td><td class="small">${esc(r.d.category||'')}</td><td class="r mono">${r.price?money(r.price):'<span class="muted">没填</span>'}</td><td class="r mono">${money(r.cost)}${r.miss?' <span class="pill warn" title="有原料没有单价或找不到货品">⚠</span>':''}</td><td class="r mono">${r.price?money(r.gp):''}</td><td class="r mono" style="${T&&r.pct!=null&&r.pct>T?'color:var(--bad,#c0392b);font-weight:600':''}">${dFmtP(r.pct)}</td><td class="r mono">${(r.d.lines||[]).length}</td><td><button class="btn sm" data-dedit="${esc(r.d.id)}">改</button></td></tr>`).join('')
+    :`<tr><td colspan="8" class="empty">${S.dishes.length?'找不到':'还没有菜品。按「新增菜品」，或下载 Excel 模板填好后导入。'}</td></tr>`;
+  if(S.dEdit) updateEditorCost();
+}
+/* ----- editor ----- */
+function dOpen(id){
+  const d=id?S.dishes.find(x=>x.id===id):null;
+  S.dEdit={id:id||'',d:d?JSON.parse(JSON.stringify(d)):{name:'',category:'',price:'',yield:1,note:'',lines:[{item:'',text:'',qty:'',u:'main'}]}};
+  S.dEdit.d.lines=(S.dEdit.d.lines||[]).map(l=>{ const it=S.items.find(i=>i.id===l.item); return {item:l.item,text:it?it.name:'',qty:l.qty,u:l.u||'main'}; });
+  if(!S.dEdit.d.lines.length) S.dEdit.d.lines.push({item:'',text:'',qty:'',u:'main'});
+  $('dEdit').hidden=false; $('dEditTitle').textContent=id?'改菜品：'+S.dEdit.d.name:'新增菜品';
+  $('dfName').value=S.dEdit.d.name||''; $('dfCat').value=S.dEdit.d.category||''; $('dfPrice').value=S.dEdit.d.price===''||S.dEdit.d.price==null?'':S.dEdit.d.price; $('dfYield').value=S.dEdit.d.yield||1; $('dfNote').value=S.dEdit.d.note||'';
+  $('dfDel').hidden=!id; renderEditLines(); $('dEdit').scrollIntoView({block:'nearest'});
+}
+function readEditor(){
+  const e=S.dEdit; if(!e) return;
+  e.d.name=$('dfName').value; e.d.category=$('dfCat').value; e.d.price=$('dfPrice').value; e.d.yield=$('dfYield').value; e.d.note=$('dfNote').value;
+  e.d.lines=[...$('dfLines').querySelectorAll('tr')].map(tr=>{
+    const text=tr.querySelector('[data-f=item]').value, it=S.items.find(i=>norm(i.name)===norm(text));
+    return {item:it?it.id:'',text,qty:tr.querySelector('[data-f=qty]').value,u:tr.querySelector('[data-f=u]').value};
+  });
+}
+function renderEditLines(){
+  const e=S.dEdit; if(!e) return;
+  $('dfLines').innerHTML=e.d.lines.map((l,i)=>{
+    const it=S.items.find(x=>x.id===l.item);
+    const units=it?[[`main`,it.unit||'单位']].concat(Number(it.pack)>1?[['sub',it.sub||'PKT']]:[]):[['main','单位']];
+    return `<tr data-i="${i}"><td><input data-f="item" list="dItemList" value="${esc(l.text||'')}" autocomplete="off" style="min-width:260px" placeholder="打货品名字，从清单选"></td><td class="r"><input data-f="qty" inputmode="decimal" value="${esc(l.qty)}" autocomplete="off" style="width:90px;text-align:right"></td><td><select data-f="u">${units.map(([v,t])=>`<option value="${v}"${l.u===v?' selected':''}>${esc(t)}</option>`).join('')}</select></td><td class="r mono" data-c="uc"></td><td class="r mono" data-c="amt"></td><td><button class="btn sm danger" data-rl="${i}">×</button></td></tr>`;
+  }).join('');
+  updateEditorCost();
+}
+function updateEditorCost(){
+  const e=S.dEdit; if(!e) return;
+  let total=0, miss=0;
+  [...$('dfLines').querySelectorAll('tr')].forEach(tr=>{
+    const text=tr.querySelector('[data-f=item]').value, it=S.items.find(i=>norm(i.name)===norm(text));
+    const qty=parseQty(tr.querySelector('[data-f=qty]').value), u=tr.querySelector('[data-f=u]').value;
+    const uc=it?unitCost(it):0, q=it&&qty&&!isNaN(qty)?lineStockQty({qty,u},it):0, amt=q*uc;
+    tr.querySelector('[data-c=uc]').innerHTML=it?(uc>0?money(uc)+' <span class="small muted">/'+esc(it.unit||'')+'</span>':'<span class="pill warn">没单价</span>'):(text?'<span class="pill bad">找不到</span>':'');
+    tr.querySelector('[data-c=amt]').textContent=amt?money(amt):'';
+    total+=amt; if(text&&(!it||!(uc>0))) miss++;
+  });
+  const y=Number($('dfYield').value)>0?Number($('dfYield').value):1, price=Number($('dfPrice').value)||0, cost=total/y;
+  $('dfTot').innerHTML=`成本 <b>RM ${money(cost)}</b>${y!==1?`（${y} 份）`:''}${price?` · 毛利 <b>RM ${money(price-cost)}</b> · 成本率 <b>${dFmtP(cost/price*100)}</b>`:''}${miss?` <span class="pill warn">${miss} 行有问题</span>`:''}`;
+}
+$('dfLines').addEventListener('input',e=>{
+  const tr=e.target.closest('tr'); if(!tr) return;
+  if(e.target.dataset.f==='item'){   // the unit choices follow the item
+    const it=S.items.find(i=>norm(i.name)===norm(e.target.value)), sel=tr.querySelector('[data-f=u]'), cur=sel.value;
+    const units=it?[['main',it.unit||'单位']].concat(Number(it.pack)>1?[['sub',it.sub||'PKT']]:[]):[['main','单位']];
+    if(sel.options.length!==units.length||[...sel.options].some((o,k)=>o.textContent!==units[k][1])){ sel.innerHTML=units.map(([v,t])=>`<option value="${v}">${esc(t)}</option>`).join(''); sel.value=units.some(x=>x[0]===cur)?cur:'main'; }
+  }
+  updateEditorCost();
+});
+$('dfLines').addEventListener('click',e=>{ const b=e.target.closest('[data-rl]'); if(!b) return; readEditor(); S.dEdit.d.lines.splice(Number(b.dataset.rl),1); if(!S.dEdit.d.lines.length) S.dEdit.d.lines.push({item:'',text:'',qty:'',u:'main'}); renderEditLines(); });
+['dfPrice','dfYield'].forEach(id=>$(id).addEventListener('input',updateEditorCost));
+$('dfAddLine').addEventListener('click',()=>{ readEditor(); S.dEdit.d.lines.push({item:'',text:'',qty:'',u:'main'}); renderEditLines(); });
+$('dNew').addEventListener('click',()=>dOpen(''));
+$('dBody').addEventListener('click',e=>{ const b=e.target.closest('[data-dedit]'); if(b) dOpen(b.dataset.dedit); });
+$('dfCancel').addEventListener('click',()=>{ S.dEdit=null; $('dEdit').hidden=true; });
+const dishDesc = d => `${d.category||'-'} · 售价 ${d.price||0} · ${(d.lines||[]).length} 行原料`;
+$('dfSave').addEventListener('click',async()=>{
+  if(!S.mgr) return; readEditor();
+  const e=S.dEdit, d=e.d, name=d.name.trim().replace(/\s+/g,' ');
+  if(!name) return toast('要填菜名');
+  if(S.dishes.some(x=>x.id!==e.id&&norm(x.name)===norm(name))) return toast('已经有同名的菜');
+  const price=d.price===''?0:Number(d.price), yld=Number(d.yield)>0?Number(d.yield):1;
+  if(!isFinite(price)||price<0) return toast('售价要是数字');
+  const lines=[];
+  for(const l of d.lines){
+    if(!l.text.trim()&&!String(l.qty).trim()) continue;
+    if(!l.item) return toast('找不到货品：'+(l.text||'（空）')+'。请从清单里选');
+    const q=parseQty(l.qty); if(q==null||isNaN(q)||!(q>0)) return toast('每行原料的数量要大于 0');
+    const it=S.items.find(i=>i.id===l.item);
+    lines.push({item:l.item,qty:q,u:(l.u==='sub'&&Number(it.pack)>1)?'sub':'main'});
+  }
+  const data={name,category:d.category.trim(),price,yield:yld,note:d.note.trim().slice(0,160),lines,by:S.uid||'',at:Date.now()};
+  const id=e.id||uid(), old=e.id?S.dishes.find(x=>x.id===e.id):null;
+  try{
+    await put('dishes/'+id,data);
+    logIt([{a:'dish',t:name,c:old?[['菜品',dishDesc(old),dishDesc(data)]]:[['新增菜品','',dishDesc(data)]]}]);
+    S.dEdit=null; $('dEdit').hidden=true; toast('已保存 '+name);
+  }catch(err){ dbErr(err); }
+});
+$('dfDel').addEventListener('click',async()=>{
+  const e=S.dEdit; if(!e||!e.id||!S.mgr) return; const d=S.dishes.find(x=>x.id===e.id); if(!d) return;
+  if(!confirm('删除这道菜和它的配方？\n'+d.name)) return;
+  try{ await del('dishes/'+e.id); logIt([{a:'dish',t:d.name,c:[['删除菜品',dishDesc(d),'']]}]); S.dEdit=null; $('dEdit').hidden=true; }catch(err){ dbErr(err); }
+});
+['dQ','dCat'].forEach(id=>$(id).addEventListener('input',renderDish));
+$('dBasis').addEventListener('change',async()=>{ if(!S.mgr) return; try{ await put('settings/dish',Object.assign({},S.dish,{basis:$('dBasis').value})); }catch(err){ dbErr(err); } });
+$('dTarget').addEventListener('change',async()=>{ if(!S.mgr) return; const v=Number($('dTarget').value); if(!isFinite(v)||v<0||v>100) return toast('目标成本率是 0 到 100'); try{ await put('settings/dish',Object.assign({},S.dish,{target:v})); }catch(err){ dbErr(err); } });
+/* ----- Excel: one row per ingredient (DISH, CATEGORY, PRICE, YIELD, INGREDIENT, QTY, UNIT); a blank DISH cell continues the dish above ----- */
+const D_HEAD=['DISH','CATEGORY','PRICE','YIELD','INGREDIENT','QTY','UNIT','NOTE'];
+function dishAoa(){
+  const aoa=[D_HEAD];
+  S.dishes.slice().sort((a,b)=>norm(a.category).localeCompare(norm(b.category))||norm(a.name).localeCompare(norm(b.name))).forEach(d=>{
+    const ls=d.lines&&d.lines.length?d.lines:[null];
+    ls.forEach((l,i)=>{ const it=l&&S.items.find(x=>x.id===l.item); aoa.push([i?'':d.name,i?'':(d.category||''),i?'':(d.price||''),i?'':(d.yield||1),it?it.name:'',l?l.qty:'',it?(l.u==='sub'?(it.sub||'PKT'):(it.unit||'')):'',i?'':(d.note||'')]); });
+  });
+  if(aoa.length===1){ const a=S.items.filter(i=>i.active!==false).slice(0,2); aoa.push(['EXAMPLE DISH 例子','MAIN',12.5,1,a[0]?a[0].name:'ITEM NAME',0.1,a[0]?a[0].unit:'KG','']); aoa.push(['','','','',a[1]?a[1].name:'ITEM NAME',1,a[1]?a[1].unit:'PCS','']); }
+  return aoa;
+}
+$('dTpl').addEventListener('click',async()=>{
+  if(typeof XLSX==='undefined'||!downloads) return toast('这个画面不能下载文件');
+  const ws=XLSX.utils.aoa_to_sheet(dishAoa()); ws['!cols']=[{wch:34},{wch:14},{wch:9},{wch:7},{wch:56},{wch:9},{wch:9},{wch:30}];
+  const sum=[['DISH','CATEGORY','PRICE','COST','GP','COST %']].concat(S.dishes.map(d=>{ const c=dishCalc(d); return [d.name,d.category||'',c.price,Math.round(c.cost*100)/100,Math.round(c.gp*100)/100,c.pct==null?'':Math.round(c.pct*10)/10]; }));
+  const ws2=XLSX.utils.aoa_to_sheet(sum); ws2['!cols']=[{wch:34},{wch:14},{wch:9},{wch:9},{wch:9},{wch:9}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'RECIPES'); XLSX.utils.book_append_sheet(wb,ws2,'COST SUMMARY');
+  try{ await downloads.save({filename:`${filePrefix()}-DISH COSTING.xlsx`,data:new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})])}); }catch(err){ if(!(err&&err.code==='declined')) dbErr(err); }
+});
+$('dUp').addEventListener('click',()=>{ if(S.mgr) $('dFile').click(); });
+$('dFile').addEventListener('change',async()=>{
+  const f=$('dFile').files[0]; $('dFile').value=''; if(!f) return;
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'}), ws=wb.Sheets[wb.SheetNames.find(n=>/recipe/i.test(n))||wb.SheetNames[0]];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+    const hi=arr.findIndex(r=>r.some(c=>norm(c)==='DISH')&&r.some(c=>norm(c)==='INGREDIENT'));
+    if(hi<0) throw new Error('找不到表头（要有 DISH 和 INGREDIENT 两栏）');
+    const H=arr[hi].map(norm), ix=n=>H.indexOf(n);
+    const cD=ix('DISH'), cC=ix('CATEGORY'), cP=ix('PRICE'), cY=ix('YIELD'), cI=ix('INGREDIENT'), cQ=ix('QTY'), cU=ix('UNIT'), cN=ix('NOTE');
+    const by=new Map(), order=[], problems=[]; let cur=null;
+    for(let i=hi+1;i<arr.length;i++){
+      const r=arr[i]; if(r.every(c=>String(c).trim()==='')) continue;
+      const dn=String(r[cD]||'').replace(/\s+/g,' ').trim();
+      if(dn){ const k=norm(dn); if(!by.has(k)){ by.set(k,{name:dn,category:cC>=0?String(r[cC]||'').trim():'',price:cP>=0&&r[cP]!==''?Number(r[cP]):0,yield:cY>=0&&Number(r[cY])>0?Number(r[cY]):1,note:cN>=0?String(r[cN]||'').trim():'',lines:[]}); order.push(k); } cur=by.get(k); }
+      if(!cur) continue;
+      const iname=String(r[cI]||'').trim(); if(!iname) continue;
+      const it=S.items.find(x=>norm(x.name)===norm(iname));
+      if(!it){ problems.push(cur.name+'：找不到货品「'+iname+'」'); continue; }
+      const q=parseQty(r[cQ]); if(q==null||isNaN(q)||!(q>0)){ problems.push(cur.name+' / '+it.name+'：数量不对'); continue; }
+      const un=norm(r[cU]); let u='main';
+      if(un&&un!==norm(it.unit)){ if(Number(it.pack)>1&&un===norm(it.sub||'PKT')) u='sub'; else { problems.push(cur.name+' / '+it.name+'：单位「'+r[cU]+'」不是 '+(it.unit||'')+(Number(it.pack)>1?' 或 '+(it.sub||'PKT'):'')); continue; } }
+      cur.lines.push({item:it.id,qty:q,u});
+    }
+    const list=order.map(k=>by.get(k)).filter(d=>!(d.price>=0)?false:true);
+    if(!list.length) throw new Error('没有读到菜品');
+    S.dImp={list,problems};
+    const nNew=list.filter(d=>!S.dishes.some(x=>norm(x.name)===norm(d.name))).length;
+    $('dImpBody').innerHTML=`<div class="check ok"><strong>${list.length} 道菜</strong><span>新增 ${nNew}，更新 ${list.length-nNew}（同名的菜配方会被这个文件替换；文件里没有的菜不动）。</span></div>`+(problems.length?`<div class="check warn" style="margin-top:8px"><strong>${problems.length} 行没读进来</strong><span>${problems.slice(0,30).map(esc).join('<br>')}${problems.length>30?'<br>…':''}</span></div>`:'');
+    $('dImp').hidden=false; $('dImp').scrollIntoView({block:'nearest'});
+  }catch(err){ S.dImp=null; $('dImp').hidden=true; $('dMsg').hidden=false; $('dMsg').className='check bad'; $('dMsg').textContent='导入失败：'+(err&&err.message||err); }
+});
+$('dImpCancel').addEventListener('click',()=>{ S.dImp=null; $('dImp').hidden=true; });
+$('dImpGo').addEventListener('click',async()=>{
+  if(!S.dImp||!S.mgr) return; const list=S.dImp.list; $('dImpGo').disabled=true;
+  try{
+    const ops=[], logs=[];
+    list.forEach(d=>{ const old=S.dishes.find(x=>norm(x.name)===norm(d.name)), id=old?old.id:uid(); ops.push({op:'set',path:'dishes/'+id,data:Object.assign({},d,{by:S.uid||'',at:Date.now()})}); logs.push({a:'dish',t:d.name,c:old?[['菜品',dishDesc(old),dishDesc(d)]]:[['新增菜品','',dishDesc(d)]],s:'Excel 导入'}); });
+    for(let i=0;i<ops.length;i+=40) await write(ops.slice(i,i+40));
+    logIt(logs); S.dImp=null; $('dImp').hidden=true; $('dMsg').hidden=false; $('dMsg').className='check ok'; $('dMsg').textContent='已导入 '+list.length+' 道菜。';
+  }catch(err){ dbErr(err); }
+  $('dImpGo').disabled=false;
+});
+
 /* ---------- tabs / boot ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
-  ['count','report','card','items','groups','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  ['count','report','card','dish','items','groups','log'].forEach(x=>$('v-'+x).hidden=x!==t);
+  if(t==='dish'){ loadPurch(); renderDish(); }
   if(t==='card'){ loadPurch(); renderCard(); }
   try{localStorage.setItem('mf-stock-tab-'+CID,t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
-function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); loadFifo(); if(typeof renderCard==='function') renderCard(); }
+function renderAll(){ renderCount(); renderReport(); renderItems(); renderGroups(); loadFifo(); if(typeof renderCard==='function') renderCard(); if(typeof renderDish==='function') renderDish(); }
 
 renderAll();
 try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(t); }catch(e){}
@@ -2004,12 +2250,13 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   S.mgr=!!me.mgr; S.add=!!me.canAdd; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name; S.fifoFrom=String(me.fifoFrom||'');
   document.body.classList.toggle('is-mgr',S.mgr); document.body.classList.toggle('can-add',S.add); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
   if(S.cfgName) $('coName').textContent=S.cfgName;
-  listen('settings', rows=>{ const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName){ $('coName').textContent=S.cfgName; setBrand(S.cfgName); } renderReport(); });
+  listen('settings', rows=>{ const ds=rows.find(r=>r.id==='dish'); if(ds) S.dish=Object.assign({basis:'latest',target:35},ds); const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName){ $('coName').textContent=S.cfgName; setBrand(S.cfgName); } renderReport(); });
   listen('groups', rows=>{ S.groups=rows; renderAll(); });
   listen('items', rows=>{ S.items=rows; renderAll(); });
   listen('counts', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.cmeta=m; patchCount(true); renderReport(); loadFifo(); });
   listen('closing', rows=>{ const m={}; rows.forEach(r=>m[r.id]=r); S.closings=m; renderAll(); });
   listen('moves', rows=>{ S.moves=rows; renderCard(); });
+  listen('dishes', rows=>{ S.dishes=rows; renderDish(); });
   watchLines();
   watchLog();
   setInterval(()=>{ if(!document.hidden) syncSoon(); }, 10000);   // pick up what other people saved

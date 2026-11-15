@@ -30,7 +30,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ID = '[A-Za-z0-9_-]{1,80}';
 const MONTH = '\\d{4}-(?:0[1-9]|1[0-2])';
 // every path the page may write (the change log has its own endpoint)
-const PATH_RE = new RegExp(`^(?:(?:groups|items|closing|settings|moves)/${ID}|counts/${MONTH}|counts/${MONTH}/(?:lines|packs)/${ID})$`);
+const PATH_RE = new RegExp(`^(?:(?:groups|items|closing|settings|moves|dishes)/${ID}|counts/${MONTH}|counts/${MONTH}/(?:lines|packs)/${ID})$`);
 const MAX_DOC = 600 * 1024;   // one document (a closing snapshot is the biggest)
 
 async function loadSettings(companyId) {
@@ -124,7 +124,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   if (!month || !logMonth) return bad(res, 'month and logMonth are required');
   if (req.query.rev !== undefined && String(s.rev) === String(req.query.rev)) return res.json({ same: true, rev: s.rev, month, logMonth });
 
-  const colls = ['settings', 'groups', 'items', 'counts', 'closing', 'moves', 'counts/' + month + '/lines', 'counts/' + month + '/packs'];
+  const colls = ['settings', 'groups', 'items', 'counts', 'closing', 'moves', 'dishes', 'counts/' + month + '/lines', 'counts/' + month + '/packs'];
   const { rows } = await pool.query(
     `SELECT path, coll, data FROM stock_count_docs
       WHERE company_id = $1 AND (coll = ANY($2::text[]) OR (coll = 'log' AND data->>'day' >= $3 AND data->>'day' <= $4))`,
@@ -143,7 +143,7 @@ router.get(BASE + '/sync', ...guard(1), async (req, res) => {
   res.json({
     rev: s.rev, month, logMonth, names,
     settings: get('settings'), groups: get('groups'), items: get('items'), counts: get('counts'), closing: get('closing'),
-    moves: get('moves'), lines: get('counts/' + month + '/lines'), packs: get('counts/' + month + '/packs'), log
+    moves: get('moves'), dishes: get('dishes'), lines: get('counts/' + month + '/lines'), packs: get('counts/' + month + '/packs'), log
   });
 });
 
@@ -167,9 +167,9 @@ router.post(BASE + '/batch', ...guard(2), async (req, res) => {
   for (const o of ops) {
     if (!o || !['set', 'update', 'delete'].includes(o.op) || typeof o.path !== 'string' || !PATH_RE.test(o.path)) return bad(res, 'Invalid request');
     const top = o.path.split('/')[0];
-    if (!mgr && ['groups', 'items', 'closing', 'settings'].includes(top)) {
+    if (!mgr && ['groups', 'items', 'closing', 'settings', 'dishes'].includes(top)) {
       // a client manager may add items and groups (a path that does not exist yet), edit and delete items, but never change a price
-      if (top === 'closing' || top === 'settings' || !clientMgr) return deny();
+      if (top === 'closing' || top === 'settings' || top === 'dishes' || !clientMgr) return deny();
       if (top === 'groups' && o.op !== 'set') return deny();
       if (o.op === 'set') mustBeNew.push(o.path);
       if (o.op === 'update') mustExist.push(o.path);

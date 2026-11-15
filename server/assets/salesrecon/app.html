@@ -474,10 +474,11 @@ const SRC = {
   sp1:{name:'SHOPEE-ORDER MANAGEMENT REPORT（订单明细）',need:false,grp:'del',plat:'sp',hint:'有 Flash sale discount 的订单报表'},
   spa:{name:'SHOPEE-TRANSACTION（广告 Ads）',need:false,grp:'del',plat:'sp',hint:'Ads Top Up 广告费'},
   spj:{name:'SHOPEE-TRANSACTION（调整 Adjustment）',need:false,grp:'del',plat:'sp',hint:'Wallet Adjustment（漏单 / 错单扣款）'},
-  fps:{name:'FOODPANDA-FINANCIAL DOCUMENT',need:false,grp:'del',plat:'fp',hint:'SUMMARY：每天一张发票、Balance Amount'},
-  fpa:{name:'FOODPANDA-ORDER REPORT',need:false,grp:'del',plat:'fp',hint:'Appendix A：每笔订单的销售、折扣、佣金'}
+  fps:{name:'FOODPANDA-FINANCIAL DOCUMENT',need:false,grp:'del',plat:'fp',accept:['fps','fpa'],hint:'financialDocument 的 Excel（SUMMARY + Appendix A 一起读），或 Foodpanda 后台下载的发票列表 INV（Invoice ID / Total Payout）'},
+  fpa:{name:'Foodpanda Appendix A',need:false,hide:true,grp:'del',plat:'fp',hint:'Appendix A：每笔订单的销售、折扣、佣金（在 FINANCIAL DOCUMENT 里）'},
+  fpo:{name:'FOODPANDA-ORDER REPORT',need:false,grp:'del',plat:'fp',hint:'Foodpanda 后台下载的 Order report（CSV）：每笔订单的 Subtotal、折扣、佣金、Estimated earnings'}
 };
-const PLAT = {gb:{name:'Grab Food',srcs:['gf','gft'],main:'gf'},sp:{name:'ShopeeFood',srcs:['sp','sp1','spa','spj'],main:'sp'},fp:{name:'Foodpanda',srcs:['fps','fpa'],main:'fps'}};
+const PLAT = {gb:{name:'Grab Food',srcs:['gf','gft'],main:'gf'},sp:{name:'ShopeeFood',srcs:['sp','sp1','spa','spj'],main:'sp'},fp:{name:'Foodpanda',srcs:['fps','fpa','fpo'],main:'fps'}};
 
 const S = { comm:Object.assign({},DEFC), db:null, mem:null, mgr:false, canWrite:true, uid:'', user:null, month:defaultMonth(), src:{}, adj:{}, closings:{}, set:Object.assign({},DEF), sel:'', logs:[], names:{}, unsub:[] };
 let downloads=null;
@@ -577,7 +578,7 @@ function parsePP(aoa){
   return {key:'pp',days,skip};
 }
 function parseWallet(aoa){
-  const hi=findHeader(aoa,[['OrderType'],['RecipientName'],['RequestAmount']],10);
+  const hi=findHeader(aoa,[['OrderType'],['RecipientName'],['RequestAmount']],40);
   if(hi<0) return null;
   const h=aoa[hi], cC=col(h,['CreateTime']), cT=col(h,['OrderType']), cN=col(h,['RecipientName']), cA=col(h,['ReceiveAmount','RequestAmount']), cS=col(h,['Status']), cNote=col(h,['Note']), cId=col(h,['TransactionID']);
   const key=H(S.set.royKey||'YONNY');
@@ -687,6 +688,23 @@ function parseFPA(aoa){
       comm:-(g('foodpanda Commission')+g('SST on foodpanda commission')),pay:g('Payable Amount')}); }
   return {key:'fpa',days};
 }
+function parseFPI(aoa){
+  const hi=findHeader(aoa,[['Invoice ID'],['Total Payout'],['Start date']]); if(hi<0) return null;
+  const h=aoa[hi], cN=col(h,['Invoice ID']), cD=col(h,['Start date']), cP=col(h,['Total Payout']), cAd=col(h,['Additional Charges Total']); const days={};
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const no=String(r[cN]||'').replace(/^'/,'').trim(); const d=normDate(r[cD]); if(!no||!d) continue;
+    days[d+'|'+no]={no,bal:num(r[cP]),a:0,b:cAd>=0?num(r[cAd]):0}; }
+  return {key:'fps',days};
+}
+function parseFPO(aoa){
+  const hi=findHeader(aoa,[['Order ID'],['Order received at'],['Estimated earnings']]); if(hi<0) return null;
+  const h=aoa[hi], c=n=>col(h,[n]); const cD=c('Order received at'), cSt=c('Order status'), cPay=c('Is Payable'); const days={};
+  const g=(r,n)=>{ const k=c(n); return k>=0?num(r[k]):0; };
+  for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const d=normDate(r[cD]); if(!d) continue;
+    if(cSt>=0 && r[cSt] && !/deliver|complete/i.test(String(r[cSt]))) continue;
+    if(cPay>=0 && String(r[cPay]||'').trim() && !/^(yes|y|true)$/i.test(String(r[cPay]).trim())) continue;
+    sumInto(days,d,{n:1,sales:g(r,'Subtotal')+g(r,'Packaging charges')+g(r,'Minimum order value fee'),disc:-(g(r,'Discount Funded by you')+g(r,'Voucher Funded by you')),comm:-(g(r,'Commission')+g(r,'Tax charge')),pay:g(r,'Estimated earnings')}); }
+  return {key:'fpo',days};
+}
 async function pdfLines(buf){
   const doc=await pdfjsLib.getDocument({data:buf,isEvalSupported:false}).promise;
   const out=[];
@@ -731,7 +749,7 @@ async function readFile(file){
     const wb=XLSX.read(buf,{type:'array',cellDates:false,raw:/\.csv$/i.test(name)});
     for(const sn of wb.SheetNames){
       const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});
-      try{ for(const fn of [parsePOS,parsePP,parseWallet,parseGrab,parseSur,parseGF,parseGFT,parseSP,parseSP1,parseSPA,parseSPJ,parseFPS,parseFPA]){ const r=fn(aoa); if(r){ r.sheet=sn; out.push(r); break; } } }
+      try{ for(const fn of [parsePOS,parsePP,parseWallet,parseGrab,parseSur,parseGF,parseGFT,parseSP,parseSP1,parseSPA,parseSPJ,parseFPS,parseFPA,parseFPI,parseFPO]){ const r=fn(aoa); if(r){ r.sheet=sn; out.push(r); break; } } }
       catch(err){ out.push({key:'_err',sheet:sn,msg:err.message||String(err)}); }
     }
   }
@@ -756,7 +774,7 @@ async function handleFiles(files,expect){
       res.forEach(r=>{
         if(r.key==='_err'){ progLine('bad','✗ '+f.name+' ['+r.sheet+']：'+r.msg); return; }
         if(r.key==='_skip'){ progLine('muted','· '+f.name+' ['+r.sheet+']：'+r.msg); return; }
-        if(expect && r.key!==expect){ progLine('warn','⚠ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+'：这是「'+((SRC[r.key]||{}).name||r.key)+'」，不是「'+SRC[expect].name+'」，没有用到。请放进对的格子。'); return; }
+        if(expect && !(SRC[expect].accept||[expect]).includes(r.key)){ progLine('warn','⚠ '+f.name+(r.sheet&&r.key!=='bsm'?' ['+r.sheet+']':'')+'：这是「'+((SRC[r.key]||{}).name||r.key)+'」，不是「'+SRC[expect].name+'」，没有用到。请放进对的格子。'); return; }
         const all=Object.keys(r.days); const keep=all.filter(inMonth);
         if(r.key==='wallet'){ r.recv=(r.recv||[]).filter(x=>x.at.slice(0,7)===S.month||(x.batch&&inMonth(x.batch))); r.payout=(r.payout||[]).filter(x=>x.at.slice(0,7)===S.month); }
         if(!keep.length && !(r.key==='wallet'&&(r.recv.length||r.payout.length))){ const other=[...new Set(all.map(d=>d.slice(0,7)))].join(', '); progLine('warn','⚠ '+f.name+(r.sheet?' ['+r.sheet+']':'')+' → '+SRC[r.key].name+'：没有 '+S.month+' 的资料'+(other?'（文件是 '+other+'）':'')); return; }
@@ -769,7 +787,7 @@ async function handleFiles(files,expect){
       });
     }catch(err){ console.error(err); progLine('bad','✗ '+f.name+'：'+(err.message||err)); }
   }
-  if(expect && !found[expect]) progLine('warn','⚠ 这一次没有读到可用的「'+SRC[expect].name+'」资料（要检查文件是不是对的报告，或日期是不是 '+S.month+'）。');
+  if(expect && !(SRC[expect].accept||[expect]).some(k=>found[k])) progLine('warn','⚠ 这一次没有读到可用的「'+SRC[expect].name+'」资料（要检查文件是不是对的报告，或日期是不是 '+S.month+'）。');
   for(const [k,o] of Object.entries(found)){
     try{
       const prev=(await getDoc(srcPath(k)))||{days:{},files:[]};
@@ -892,11 +910,11 @@ function computeDel(p){
     });
   }
   if(p==='fp'){
-    const s=D('fps'), a=D('fpa');
+    const s=D('fps'), a=D('fpa'), po=D('fpo');
     const byNo={}; Object.entries(a).forEach(([k,v])=>{ const no=k.split('|')[1]; const x=byNo[no]||(byNo[no]={}); for(const q in v) x[q]=r2((x[q]||0)+v[q]); });
-    Object.entries(s).sort().forEach(([k,v])=>{ const d=k.slice(0,10), no=v.no, o=byNo[no];
+    Object.entries(s).sort().forEach(([k,v])=>{ const d=k.slice(0,10), no=v.no, o=byNo[no]||po[d];   // the invoice is a day's orders: no Appendix A -> the Order report of that day
       const flags=[]; let lines=[], total=0;
-      if(!o){ flags.push({msg:`没有 FOODPANDA-ORDER REPORT（发票 ${no}），拆不出销售 / 折扣 / 佣金`}); }
+      if(!o){ flags.push({msg:`没有 FOODPANDA-ORDER REPORT（${dmy(d)}，发票 ${no}），拆不出销售 / 折扣 / 佣金`}); }
       else {
         const sales=r2(o.sales), disc=r2(o.disc), comm=r2(o.comm), ads=r2(v.b||0);
         const other=r2(v.bal-(sales+disc+comm+ads));
@@ -941,7 +959,7 @@ function renderUp(){
       ${!isClosed()&&S.canWrite?`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-up="${k}">上传</button>${have?`<button class="btn sm danger mgr-only" data-clear="${k}">清除这个来源</button>`:''}</div>`:''}</div>`;
   };
   $('srcList').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp!=='del'&&!m.hide).map(card).join('');
-  $('srcList2').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp==='del').map(([k,m])=>{ const pl=PLAT[m.plat]; const any=pl.srcs.some(x=>S.src[x]); return card([k,Object.assign({},m,{need:any&&k!=='gft'})]); }).join('');
+  $('srcList2').innerHTML=Object.entries(SRC).filter(([,m])=>m.grp==='del'&&!m.hide).map(([k,m])=>{ const pl=PLAT[m.plat]; const any=pl.srcs.some(x=>S.src[x]); return card([k,Object.assign({},m,{need:any&&k!=='gft'})]); }).join('');
 }
 let upKey='';
 ['srcList','srcList2'].forEach(id=>{

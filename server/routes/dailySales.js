@@ -46,7 +46,8 @@ function publicAccess(access) {
 }
 
 async function getBranch(companyId, branchId) {
-  const { rows } = await pool.query('SELECT * FROM dsi_branches WHERE id = $1 AND company_id = $2', [branchId, companyId]);
+  const { rows } = await pool.query(
+    'SELECT b.*, (SELECT name FROM companies WHERE id = b.purchase_company_id) AS purchase_company_name FROM dsi_branches b WHERE b.id = $1 AND b.company_id = $2', [branchId, companyId]);
   return rows[0] || null;
 }
 
@@ -91,7 +92,7 @@ function publicBranch(b, menu) {
     id: b.id, code: b.code, reportPrefix: b.report_prefix, companyName: b.company_name,
     regNo: b.reg_no, address: b.address, contactCode: b.contact_code, legalName: b.legal_name,
     invoicePrefix: b.invoice_prefix, invoiceSuffix: b.invoice_suffix, paymentTerm: b.payment_term,
-    tags: b.tags, accountCode: b.account_code, includeZero: b.include_zero,
+    tags: b.tags, accountCode: b.account_code, includeZero: b.include_zero, purchaseCompany: b.purchase_company_id ? (b.purchase_company_name || '') : '',
     menu: menu.map((m) => ({ id: m.id, product: m.product, unitPrice: m.unit_price, accountCode: m.account_code || '' }))
   };
 }
@@ -197,7 +198,8 @@ function diffSettings(before, next) {
 // ============ BRANCHES ============
 
 router.get(`${BASE}/branches`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM dsi_branches WHERE company_id = $1 ORDER BY sort_order, id', [req.params.companyId]);
+  const { rows } = await pool.query(
+    'SELECT b.*, (SELECT name FROM companies WHERE id = b.purchase_company_id) AS purchase_company_name FROM dsi_branches b WHERE b.company_id = $1 ORDER BY b.sort_order, b.id', [req.params.companyId]);
   const branches = [];
   for (const b of rows) branches.push(publicBranch(b, await getMenu(b.id)));
   res.json({ access: publicAccess(req.access), branches });
@@ -684,6 +686,93 @@ router.get(`${BASE}/records/:recordId/report.pdf`, requireAuth, scopeToCompany, 
   docs.stampPdfkitPages(doc, docs.stampText(await docs.userNameFor(req)));
   doc.pipe(res);
   doc.end();
+});
+
+// ============ SEND TO PURCHASES ============
+// The monthly invoices of a branch (Uncle Koh -> its stores) become Purchases Bill entries of the store's company, ready for the Bukku purchase bill import.
+// Safe to repeat: a day's bill is found again by where it came from; a bill already exported to Bukku that has to change goes back to "not exported" (revised).
+const normSup = (s) => String(s == null ? '' : s).toUpperCase().replace(/\s+/g, ' ').trim();
+// jsonb does not keep the key order, so lines are compared by their values
+const lineKey = (ls) => JSON.stringify((ls || []).map((l) => [l.desc, l.account, Number(l.qty), Math.round(Number(l.price) * 100), l.tax || '']));
+const normBillNo = (s) => String(s == null ? '' : s).toUpperCase().replace(/\s+/g, '');
+
+router.post(`${BASE}/records/:recordId/to-purchases`, requireAuth, scopeToCompany, needAccess, async (req, res) => {
+  if (req.access.level < 3) return res.status(403).json({ error: '需要 L3 Create & Update 才能送去采购。' });
+  const ctx = await loadReportContext(req, res);
+  if (!ctx) return;
+  if (ctx.errors.length) return res.status(422).json({ error: ctx.errors.join(' '), errors: ctx.errors });
+  const b = ctx.branch;
+  if (!b.purchase_company_id) return res.status(400).json({ error: '这个分店还没有设定对应的采购公司。' });
+  const tid = b.purchase_company_id;
+  const tc = (await pool.query(
+    'SELECT c.name, s.enabled, s.account FROM companies c LEFT JOIN purchase_bukku_settings s ON s.company_id = c.id WHERE c.id = $1', [tid])).rows[0];
+  if (!tc) return res.status(400).json({ error: '找不到对应的采购公司。' });
+  if (!tc.enabled) return res.status(400).json({ error: `${tc.name} 还没有开通 Purchases Bill（请 Owner 在 Control Panel 打开）。` });
+
+  const supplier = normSup(b.company_name);
+  const ym = `${ctx.year}-${rules.pad2(ctx.month)}`;
+  const client = await pool.connect();
+  const out = { company: tc.name, added: 0, updated: 0, revised: 0, unchanged: 0, removed: 0, conflicts: [], keptExported: [], totalCents: 0 };
+  try {
+    await client.query('BEGIN');
+    const sup = (await client.query('SELECT id, name, code, account FROM purchase_bukku_contacts WHERE company_id = $1', [tid])).rows.find((x) => normSup(x.name) === supplier);
+    if (!sup) await client.query(`INSERT INTO purchase_bukku_contacts (company_id, name, code) VALUES ($1,$2,'') ON CONFLICT (company_id, name) DO NOTHING`, [tid, supplier]);
+    const account = (sup && sup.account) || tc.account || '6000';
+    const all = (await client.query(
+      `SELECT id, source, no, supplier, to_char(bill_date, 'YYYY-MM-DD') AS d, lines, total::float AS total, status FROM purchase_bukku_bills WHERE company_id = $1`, [tid])).rows;
+    const mine = new Map(all.filter((x) => x.source && x.source.startsWith(`dsi:${b.id}:${ym}-`)).map((x) => [x.source, x]));
+    const numbers = new Map(all.filter((x) => normSup(x.supplier) === supplier).map((x) => [normBillNo(x.no), x]));
+    const seen = new Set();
+    for (const inv of ctx.built.invoices) {
+      const source = `dsi:${b.id}:${ym}-${rules.pad2(inv.day)}`;
+      seen.add(source);
+      const date = `${ym}-${rules.pad2(inv.day)}`;
+      const lines = inv.lines.filter((l) => l.qty > 0).map((l) => ({ desc: String(l.product).trim().toUpperCase().slice(0, 200), account, qty: l.qty, price: rules.centsToNumber(l.unitCents), tax: '' }));
+      const totalCents = inv.lines.reduce((a, l) => a + l.amountCents, 0);
+      const total = rules.centsToNumber(totalCents);
+      out.totalCents += totalCents;
+      const old = mine.get(source);
+      const other = numbers.get(normBillNo(inv.no));
+      if (other && (!old || other.id !== old.id)) { out.conflicts.push(inv.no); continue; }   // the same number is already a bill that does not come from this day
+      if (!old) {
+        await client.query(
+          `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, status, created_by, updated_by, source)
+           VALUES ($1,$2,$3,$4,'',$5,'','',$6::jsonb,$7,'draft',$8,$8,$9)`,
+          [tid, supplier, (sup && sup.code) || '', inv.no, date, JSON.stringify(lines), total, req.user.sub, source]);
+        out.added++;
+        continue;
+      }
+      const same = old.no === inv.no && old.d === date && Math.round(old.total * 100) === totalCents && lineKey(old.lines) === lineKey(lines);
+      if (same) { out.unchanged++; continue; }
+      const reopen = old.status === 'exported';
+      await client.query(
+        `UPDATE purchase_bukku_bills SET no = $2, bill_date = $3, lines = $4::jsonb, total = $5, updated_by = $6, updated_at = now(),
+           status = CASE WHEN $7::boolean THEN 'draft' ELSE status END, exported_at = CASE WHEN $7::boolean THEN NULL ELSE exported_at END,
+           revised = revised OR $7::boolean, revised_at = CASE WHEN $7::boolean THEN now() ELSE revised_at END
+         WHERE id = $1`, [old.id, inv.no, date, JSON.stringify(lines), total, req.user.sub, reopen]);
+      out.updated++;
+      if (reopen) out.revised++;
+    }
+    for (const [source, old] of mine) {   // a day that no longer has an invoice
+      if (seen.has(source)) continue;
+      if (old.status === 'exported') { out.keptExported.push(old.no); continue; }
+      await client.query('DELETE FROM purchase_bukku_bills WHERE id = $1', [old.id]);
+      out.removed++;
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  await logActivity(req.user.sub, 'Sent daily-sales invoices to purchases', await companyName(req.params.companyId),
+    `${b.report_prefix} ${ym} -> ${tc.name}: ${out.added} added, ${out.updated} updated, ${out.unchanged} unchanged, ${out.removed} removed`);
+  try {
+    await docs.logEvent(req, tid, 'purchase_bukku_bill', `${supplier} ${ym} (${b.report_prefix})`, 'created',
+      [{ field: 'from sales summary', from: '', to: `${out.added} added, ${out.updated} updated, ${out.removed} removed` }]);
+  } catch (err) { console.error('send-to-purchases history failed:', err); }
+  res.json(out);
 });
 
 router.use((err, req, res, next) => {

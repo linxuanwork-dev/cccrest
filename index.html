@@ -1011,6 +1011,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
               <div class="field" style="margin:0;min-width:220px;"><label for="dsi-prepared-by" data-i18n="dsi_prepared_by">Prepared by</label><input type="text" id="dsi-prepared-by" /></div>
               <button type="button" class="btn-ghost" id="dsi-dl-xlsx" data-i18n="dsi_download_xlsx">Download Excel</button>
               <button type="button" class="btn-ghost" id="dsi-dl-pdf" data-i18n="dsi_download_pdf">Download PDF</button>
+              <button type="button" class="btn-ghost" id="dsi-to-purch" hidden></button>
             </div>
             <div id="dsi-error" hidden style="color:var(--danger);font-size:12.5px;margin-top:12px;"></div>
           </div>
@@ -2609,6 +2610,9 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       dsi_open_existing:"Open existing record", dsi_no_records:"No records yet.", dsi_back_to_records:"← Records",
       dsi_save_btn:"Save", dsi_unsaved:"● Unsaved changes", dsi_saved_now:"Saved ✓", dsi_save_first:"Please save your changes first.",
       dsi_download_xlsx:"Download Excel", dsi_download_pdf:"Download PDF",
+      dsi_to_purchases:"Send to {name} purchases", dsi_pur_done:"Sent to the Purchases Bill page of {name}.", dsi_pur_counts:"New {a}, changed {u}, unchanged {n}, removed {d}.",
+      dsi_pur_revised:"{n} bill(s) had already been exported to Bukku and are marked revised: export them again.", dsi_pur_kept:"Already exported, not removed: {list}.",
+      dsi_pur_conflict:"Not sent, the number is already used by another bill there: {list}.",
       dsi_dl_ready:"Saved ✓ — you can now download the Excel or PDF.", dsi_dl_need_save:"Save first to download.",
       
       dsi_discard_confirm:"You have unsaved changes. Leave without saving?", 
@@ -2900,6 +2904,9 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       dsi_open_existing:"打开现有记录", dsi_no_records:"还没有记录。", dsi_back_to_records:"← 记录",
       dsi_save_btn:"保存", dsi_unsaved:"● 有未保存的更改", dsi_saved_now:"已保存 ✓", dsi_save_first:"请先保存更改。",
       dsi_download_xlsx:"下载 Excel", dsi_download_pdf:"下载 PDF",
+      dsi_to_purchases:"送去 {name} 的采购", dsi_pur_done:"已送到 {name} 的 Purchases Bill 页面。", dsi_pur_counts:"新增 {a}、修改 {u}、没变 {n}、移除 {d}。",
+      dsi_pur_revised:"其中 {n} 张已经导出过 Bukku，已标记为「修改过」，请重新导出。", dsi_pur_kept:"已导出过的单没有移除：{list}。",
+      dsi_pur_conflict:"没有送过去，这些单号在对方已被别的单据使用：{list}。",
       dsi_dl_ready:"已保存 ✓ — 现在可以下载 Excel 或 PDF。", dsi_dl_need_save:"请先保存才能下载。",
       
       dsi_discard_confirm:"有未保存的更改，确定要离开吗？", 
@@ -5068,6 +5075,9 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     var rec = dsi.record;
     dsiById('dsi-title').textContent = dsi.branch.code + ' — ' + t('dsi_title');
     dsiById('dsi-period').textContent = dsiPeriodLabel(rec.year, rec.month);
+    var pur = dsiById('dsi-to-purch');
+    pur.hidden = !(dsi.branch.purchaseCompany && dsi.access && dsi.access.level >= 3);
+    pur.textContent = t('dsi_to_purchases').split('{name}').join(dsi.branch.purchaseCompany || '');
     var badge = dsiById('dsi-status-badge');
     badge.className = 'badge ' + (rec.status === 'checked' ? 'synced' : 'pending');
     badge.textContent = t('dsi_status_' + rec.status);
@@ -5098,6 +5108,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     status.style.color = dirty ? 'var(--danger)' : 'var(--primary-soft)';
     dsiById('dsi-dl-xlsx').disabled = dirty;
     dsiById('dsi-dl-pdf').disabled = dirty;
+    dsiById('dsi-to-purch').disabled = dirty;
     var msg = dsiById('dsi-dl-msg');
     msg.textContent = dirty ? t('dsi_dl_need_save') : (dsi.savedText ? t('dsi_dl_ready') : '');
     msg.style.color = dirty ? 'var(--danger)' : 'var(--accent)';
@@ -5429,6 +5440,26 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
         errEl.hidden = false;
       }).finally(function(){ btn.disabled = dsiIsDirty(); });
     });
+  });
+
+  // Uncle Koh -> its stores: the month's invoices become Purchases Bill entries of the store's company
+  dsiById('dsi-to-purch').addEventListener('click', function(){
+    var errEl = dsiById('dsi-error'), msg = dsiById('dsi-dl-msg'), btn = this;
+    errEl.hidden = true;
+    if(dsiIsDirty()){ errEl.textContent = t('dsi_save_first'); errEl.hidden = false; return; }
+    btn.disabled = true;
+    api(dsiBase() + '/records/' + dsi.record.id + '/to-purchases', { method:'POST', body: JSON.stringify({}) }).then(function(r){
+      var parts = [t('dsi_pur_done').split('{name}').join(r.company), t('dsi_pur_counts').split('{a}').join(r.added).split('{u}').join(r.updated).split('{n}').join(r.unchanged).split('{d}').join(r.removed)];
+      if(r.revised) parts.push(t('dsi_pur_revised').split('{n}').join(r.revised));
+      if(r.keptExported.length) parts.push(t('dsi_pur_kept').split('{list}').join(r.keptExported.join(', ')));
+      msg.textContent = parts.join(' ');
+      msg.style.color = 'var(--accent)';
+      if(r.conflicts.length){ errEl.textContent = t('dsi_pur_conflict').split('{list}').join(r.conflicts.join(', ')); errEl.hidden = false; }
+    }).catch(function(err){
+      if(err.errors && err.errors.length) errEl.innerHTML = '<strong>' + t('dsi_check_failed') + '</strong><ul style="margin:6px 0 0 18px;">' + err.errors.map(function(e){ return '<li>' + dsiEsc(e) + '</li>'; }).join('') + '</ul>';
+      else errEl.textContent = err.message;
+      errEl.hidden = false;
+    }).finally(function(){ btn.disabled = dsiIsDirty(); });
   });
 
   dsiById('dsi-back-btn').addEventListener('click', function(){

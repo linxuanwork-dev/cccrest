@@ -208,6 +208,9 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   .dsi-grid input:focus{ outline:2px solid var(--accent); background:var(--surface-card); }
   .dsi-grid input.dsi-bad{ outline:2px solid var(--danger); }
   .dsi-grid input:disabled{ opacity:0.55; cursor:not-allowed; }
+  .dsi-grid.dsi-amts input{ padding:6px 0 1px; }
+  .dsi-grid .dsi-amt{ font-size:10px; line-height:12px; min-height:12px; padding-bottom:3px; color:var(--primary-soft); pointer-events:none; }
+  .dsi-grid td.dsi-rt, .dsi-grid th.dsi-rt{ min-width:62px; padding:4px 6px; font-weight:600; font-size:11px; }
   .dsi-grid tfoot td{ position:sticky; bottom:0; z-index:2; background:var(--surface-alt); font-weight:700; padding:6px 2px; font-size:11px; }
   .dsi-grid tfoot td.dsi-name{ z-index:3; }
   .nav-item{
@@ -2589,7 +2592,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       dsi_tab_entry:"Daily entry", dsi_tab_specials:"Special prices", dsi_tab_menu:"Menu", dsi_tab_settings:"Settings",
       dsi_entry_hint:"Enter the quantity sold per item per day. Blank = 0. A day with nothing entered gets no invoice. Orange cells use a special price.",
       dsi_specials_title:"Special prices — only fill a cell when that day's price differs; blank = menu price.",
-      dsi_th_product:"Product", dsi_th_price:"Unit price RM", dsi_th_account:"Account (blank = the branch Account Code)", dsi_hf_item_account:"Account", dsi_total_rm:"Total RM",
+      dsi_th_product:"Product", dsi_th_qty:"Qty", dsi_th_price:"Unit price RM", dsi_th_account:"Account (blank = the branch Account Code)", dsi_hf_item_account:"Account", dsi_total_rm:"Total RM",
       dsi_add_item:"+ Add item", dsi_save_menu:"Save menu", dsi_menu_saved:"Menu saved.",
       dsi_delete_item_confirm:"Remove this item? Its saved quantities and special prices will be deleted too.",
       dsi_save_settings:"Save settings", dsi_settings_saved:"Settings saved.",
@@ -2883,7 +2886,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       dsi_tab_entry:"每日进单", dsi_tab_specials:"特价", dsi_tab_menu:"菜单", dsi_tab_settings:"设定",
       dsi_entry_hint:"输入每天每个项目卖出的数量。空白 = 0；整天都没填就不开单。橙色格子表示该日用了特价。",
       dsi_specials_title:"特价 — 某一天价钱不同才填；留空 = 用菜单价",
-      dsi_th_product:"项目", dsi_th_price:"单价 RM", dsi_th_account:"Account（空白 = 用分店的 Account Code）", dsi_hf_item_account:"Account", dsi_total_rm:"合计 RM",
+      dsi_th_product:"项目", dsi_th_qty:"数量", dsi_th_price:"单价 RM", dsi_th_account:"Account（空白 = 用分店的 Account Code）", dsi_hf_item_account:"Account", dsi_total_rm:"合计 RM",
       dsi_add_item:"+ 新增项目", dsi_save_menu:"保存菜单", dsi_menu_saved:"菜单已保存。",
       dsi_delete_item_confirm:"确定删除此项目？它已保存的数量和特价也会一并删除。",
       dsi_save_settings:"保存设定", dsi_settings_saved:"设定已保存。",
@@ -5128,11 +5131,12 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     var rec = dsi.record;
     var days = dsiDaysIn(rec.year, rec.month);
     var editable = kind === 'qty' ? dsi.flags.canEdit : dsi.flags.canEditSpecials;
-    var html = '<table class="dsi-grid"><thead><tr><th class="dsi-name">' + t('dsi_th_product') + '</th>';
+    var html = '<table class="dsi-grid' + (kind === 'qty' ? ' dsi-amts' : '') + '"><thead><tr><th class="dsi-name">' + t('dsi_th_product') + '</th>';
     for(var d = 1; d <= days; d++){
       var wd = new Date(rec.year, rec.month - 1, d).getDay();
       html += '<th class="' + ((wd === 0 || wd === 6) ? 'dsi-weekend' : '') + '">' + d + '<br><span style="font-weight:400;color:var(--primary-soft);">' + dsiWeekdayLabel(wd) + '</span></th>';
     }
+    if(kind === 'qty') html += '<th class="dsi-rt">' + t('dsi_th_qty') + '</th><th class="dsi-rt">RM</th>';
     html += '</tr></thead><tbody>';
     b.menu.forEach(function(it){
       html += '<tr><td class="dsi-name">' + dsiEsc(it.product) + '<div style="font-size:11px;color:var(--primary-soft);">RM ' + Number(it.unitPrice).toFixed(2) + '</div></td>';
@@ -5144,15 +5148,16 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
         var val = kind === 'qty' ? dsi.qty[key] : dsi.specials[key];
         if(kind === 'qty' && hasSpecial) cls += ' dsi-special';
         html += '<td class="' + cls + '"' + ((kind === 'qty' && hasSpecial) ? ' title="RM ' + Number(dsi.specials[key]).toFixed(2) + '"' : '') + '>' +
-          '<input type="number" min="0" step="' + (kind === 'qty' ? 'any' : '0.01') + '" data-dsi-k="' + kind + '" data-dsi-key="' + key + '" value="' + (val == null ? '' : val) + '"' + (editable ? '' : ' disabled') + ' /></td>';
+          '<input type="number" min="0" step="' + (kind === 'qty' ? 'any' : '0.01') + '" data-dsi-k="' + kind + '" data-dsi-key="' + key + '" value="' + (val == null ? '' : val) + '"' + (editable ? '' : ' disabled') + ' />' + (kind === 'qty' ? '<div class="dsi-amt" id="dsi-amt-' + key + '"></div>' : '') + '</td>';
       }
+      if(kind === 'qty') html += '<td class="dsi-rt" id="dsi-rq-' + it.id + '"></td><td class="dsi-rt" id="dsi-ra-' + it.id + '"></td>';
       html += '</tr>';
     });
     html += '</tbody>';
     if(kind === 'qty'){
       html += '<tfoot><tr><td class="dsi-name">' + t('dsi_total_rm') + ' <span id="dsi-month-total"></span></td>';
       for(var dd = 1; dd <= days; dd++) html += '<td id="dsi-total-' + dd + '"></td>';
-      html += '</tr></tfoot>';
+      html += '<td></td><td id="dsi-total-all"></td></tr></tfoot>';
     }
     return html + '</table>';
   }
@@ -5188,6 +5193,18 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     if(!dsi.branch) return;
     var days = dsiDaysIn(dsi.record.year, dsi.record.month);
     var month = 0;
+    // each cell shows quantity x price (the special price when there is one); each item row ends with its month quantity and amount
+    dsi.branch.menu.forEach(function(it){
+      var rq = 0, ra = 0;
+      for(var d2 = 1; d2 <= days; d2++){
+        var k = d2 + ':' + it.id, q = dsi.qty[k] || 0, el2 = dsiById('dsi-amt-' + k), c2 = 0;
+        if(q){ c2 = Math.round(q * Math.round((dsi.specials[k] != null ? dsi.specials[k] : it.unitPrice) * 100)); rq += q; ra += c2; }
+        if(el2) el2.textContent = q ? (c2 / 100).toFixed(2) : '';
+      }
+      var eq = dsiById('dsi-rq-' + it.id), ea = dsiById('dsi-ra-' + it.id);
+      if(eq) eq.textContent = rq ? String(Math.round(rq * 1000) / 1000) : '';
+      if(ea) ea.textContent = ra ? (ra / 100).toFixed(2) : '';
+    });
     for(var d = 1; d <= days; d++){
       var c = dsiDayCents(d);
       month += c;
@@ -5196,6 +5213,8 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     }
     var mt = dsiById('dsi-month-total');
     if(mt) mt.textContent = '(' + dsiFmt(month) + ')';
+    var ta = dsiById('dsi-total-all');
+    if(ta) ta.textContent = (month / 100).toFixed(2);
   }
 
   function dsiOnCellInput(e){

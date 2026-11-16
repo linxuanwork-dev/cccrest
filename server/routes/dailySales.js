@@ -718,8 +718,11 @@ router.post(`${BASE}/records/:recordId/to-purchases`, requireAuth, scopeToCompan
     const sup = (await client.query('SELECT id, name, code, account FROM purchase_bukku_contacts WHERE company_id = $1', [tid])).rows.find((x) => normSup(x.name) === supplier);
     if (!sup) await client.query(`INSERT INTO purchase_bukku_contacts (company_id, name, code) VALUES ($1,$2,'') ON CONFLICT (company_id, name) DO NOTHING`, [tid, supplier]);
     const account = (sup && sup.account) || tc.account || '6000';
+    // a company fed by more than one branch (UK Lua: HP and TN) gets the branch code as the Bukku Tag of each bill
+    const feeders = Number((await client.query('SELECT COUNT(*) AS n FROM dsi_branches WHERE company_id = $1 AND purchase_company_id = $2', [b.company_id, tid])).rows[0].n);
+    const tag = feeders > 1 ? b.code : '';
     const all = (await client.query(
-      `SELECT id, source, no, supplier, to_char(bill_date, 'YYYY-MM-DD') AS d, lines, total::float AS total, status FROM purchase_bukku_bills WHERE company_id = $1`, [tid])).rows;
+      `SELECT id, source, no, supplier, to_char(bill_date, 'YYYY-MM-DD') AS d, tags, lines, total::float AS total, status FROM purchase_bukku_bills WHERE company_id = $1`, [tid])).rows;
     const mine = new Map(all.filter((x) => x.source && x.source.startsWith(`dsi:${b.id}:${ym}-`)).map((x) => [x.source, x]));
     const numbers = new Map(all.filter((x) => normSup(x.supplier) === supplier).map((x) => [normBillNo(x.no), x]));
     const seen = new Set();
@@ -737,19 +740,19 @@ router.post(`${BASE}/records/:recordId/to-purchases`, requireAuth, scopeToCompan
       if (!old) {
         await client.query(
           `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, status, created_by, updated_by, source)
-           VALUES ($1,$2,$3,$4,'',$5,'','',$6::jsonb,$7,'draft',$8,$8,$9)`,
-          [tid, supplier, (sup && sup.code) || '', inv.no, date, JSON.stringify(lines), total, req.user.sub, source]);
+           VALUES ($1,$2,$3,$4,'',$5,$10,'',$6::jsonb,$7,'draft',$8,$8,$9)`,
+          [tid, supplier, (sup && sup.code) || '', inv.no, date, JSON.stringify(lines), total, req.user.sub, source, tag]);
         out.added++;
         continue;
       }
-      const same = old.no === inv.no && old.d === date && Math.round(old.total * 100) === totalCents && lineKey(old.lines) === lineKey(lines);
+      const same = old.no === inv.no && old.d === date && (old.tags || '') === tag && Math.round(old.total * 100) === totalCents && lineKey(old.lines) === lineKey(lines);
       if (same) { out.unchanged++; continue; }
       const reopen = old.status === 'exported';
       await client.query(
-        `UPDATE purchase_bukku_bills SET no = $2, bill_date = $3, lines = $4::jsonb, total = $5, updated_by = $6, updated_at = now(),
+        `UPDATE purchase_bukku_bills SET no = $2, bill_date = $3, lines = $4::jsonb, total = $5, tags = $8, updated_by = $6, updated_at = now(),
            status = CASE WHEN $7::boolean THEN 'draft' ELSE status END, exported_at = CASE WHEN $7::boolean THEN NULL ELSE exported_at END,
            revised = revised OR $7::boolean, revised_at = CASE WHEN $7::boolean THEN now() ELSE revised_at END
-         WHERE id = $1`, [old.id, inv.no, date, JSON.stringify(lines), total, req.user.sub, reopen]);
+         WHERE id = $1`, [old.id, inv.no, date, JSON.stringify(lines), total, req.user.sub, reopen, tag]);
       out.updated++;
       if (reopen) out.revised++;
     }

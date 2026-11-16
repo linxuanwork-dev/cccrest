@@ -118,6 +118,8 @@ router.get('/companies/:companyId/einvoice-info.pdf', requireAuth, scopeToCompan
     ['Registration No. — old', c.old_registration_no || ''],
     ['TIN No.', c.tin || ''],
     ['Company Address', address.toUpperCase()],
+    ['Contact Person', c.contact_person || ''],
+    ['Contact No. (Phone)', c.contact_no || ''],
     ['Email', c.email || ''],
     ['SST No. (if any)', c.sst_no || '-']
   ];
@@ -133,15 +135,50 @@ router.get('/companies/:companyId/einvoice-info.pdf', requireAuth, scopeToCompan
   doc.pipe(res);
 
   const left = doc.page.margins.left, width = doc.page.width - left - doc.page.margins.right;
-  let y = 56;
-  if (c.logo_data_url) {
+  const PW = doc.page.width, PH = doc.page.height;
+  const dataImage = (url, minW, minH) => {
+    if (!url) return null;
     try {
-      const m = c.logo_data_url.match(/^data:([^;]+);base64,(.+)$/);
-      if (m) { doc.image(Buffer.from(m[2], 'base64'), left, y, { fit: [90, 50] }); }
-    } catch (e) { /* unsupported logo image: leave it out */ }
+      const m = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (!m) return null;
+      const buf = Buffer.from(m[2], 'base64');
+      const im = doc.openImage(buf);
+      return im.width >= minW && im.height >= minH ? { buf, w: im.width, h: im.height } : null;
+    } catch (e) { return null; /* unsupported image: leave it out */ }
+  };
+  let y = 56;
+  // the company letterhead: an uploaded full-page image is the page background, a banner goes across the top;
+  // without one: logo + company name / registration no. / address, like the letters
+  const lh = dataImage(c.letterhead_data_url, 200, 60);
+  const logo = lh ? null : dataImage(c.logo_data_url, 20, 20);
+  if (lh) {
+    if (lh.h / lh.w > 0.5) {
+      doc.image(lh.buf, 0, 0, { width: PW, height: PH });
+      y = 120;
+    } else {
+      const bw = PW - 72, bh = Math.min(150, bw * lh.h / lh.w);
+      doc.image(lh.buf, 36, 30, { fit: [bw, bh] });
+      y = 30 + bh + 28;
+    }
+  } else {
+    let tx = left;
+    if (logo) {
+      const lw = Math.min(110, 46 * logo.w / logo.h);
+      doc.image(logo.buf, left, y, { fit: [lw, 46] });
+      tx = left + lw + 14;
+    }
+    const nm = (c.legal_name || c.name || '').toUpperCase();
+    doc.font('Helvetica-Bold').fontSize(16).fillColor('#111111').text(nm, tx, y, { width: PW - doc.page.margins.right - tx });
+    doc.font('Helvetica').fontSize(9).fillColor('#444444');
+    const regLine = [c.registration_no, c.old_registration_no ? '(' + c.old_registration_no + ')' : ''].filter(Boolean).join(' ');
+    if (regLine) doc.text(regLine, tx, doc.y + 1, { width: PW - doc.page.margins.right - tx });
+    if (address) doc.text(address.toUpperCase(), tx, doc.y + 1, { width: PW - doc.page.margins.right - tx });
+    y = Math.max(doc.y, y + 46) + 10;
+    doc.lineWidth(0.7).strokeColor('#bbbbbb').moveTo(left, y).lineTo(left + width, y).stroke();
+    y += 22;
   }
-  doc.font('Helvetica-Bold').fontSize(20).fillColor('#111111').text('e-Invoice Information', left + (c.logo_data_url ? 104 : 0), y + 8, { width: width - (c.logo_data_url ? 104 : 0) });
-  y += 64;
+  doc.font('Helvetica-Bold').fontSize(20).fillColor('#111111').text('e-Invoice Information', left, y, { width });
+  y += 34;
   doc.font('Helvetica').fontSize(10).fillColor('#444444').text('Please use these details when issuing e-Invoices to us.', left, y, { width });
   y += 34;
 

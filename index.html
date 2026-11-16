@@ -1387,6 +1387,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
           <div class="pf-section">
             <div><h3 data-i18n="pf_contact_title">Company Contact</h3><p class="pf-desc" data-i18n="pf_contact_desc">The contact information for the company.</p></div>
             <div class="pf-grid">
+              <div class="field"><label for="pf-contact-person" data-i18n="pf_contact_person">Contact Person</label><input id="pf-contact-person" type="text" placeholder="e.g. Mr Tan" /></div>
               <div class="field"><label for="pf-contact" data-i18n="pf_contact_no">Contact No.</label><input id="pf-contact" type="text" placeholder="+60 16-557 8742" /></div>
               <div class="field"><label for="pf-email" data-i18n="pf_email">Email Address</label><input id="pf-email" type="email" placeholder="general@company.com" /></div>
               <div class="field full"><label for="pf-website" data-i18n="pf_website">Website URL</label><input id="pf-website" type="text" placeholder="https://company.com" /></div>
@@ -1405,7 +1406,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
             <div><h3 data-i18n="pf_logo">Company Logo</h3><p class="pf-desc" data-i18n="pf_logo_desc">The official logo of the business.</p></div>
             <div class="pf-upload">
               <label class="pf-drop" for="pf-logo-input" id="pf-logo-preview"><span data-i18n="pf_upload">Upload</span></label>
-              <input type="file" id="pf-logo-input" accept="image/jpeg,image/png,image/webp" hidden />
+              <input type="file" id="pf-logo-input" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf,.jpg,.jpeg,.png,.webp" hidden />
               <button type="button" class="btn-ghost" id="pf-logo-remove" hidden data-i18n="remove_btn">Remove</button>
             </div>
           </div>
@@ -1415,7 +1416,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
             <div>
               <div class="pf-upload" style="margin-bottom:14px;">
                 <label class="pf-drop" for="pf-lh-input" id="pf-lh-preview"><span data-i18n="pf_upload">Upload</span></label>
-                <input type="file" id="pf-lh-input" accept="image/jpeg,image/png,image/webp" hidden />
+                <input type="file" id="pf-lh-input" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf,.jpg,.jpeg,.png,.webp" hidden />
                 <button type="button" class="btn-ghost" id="pf-lh-remove" hidden data-i18n="remove_btn">Remove</button>
               </div>
               <div id="pf-lh-auto-wrap">
@@ -2655,9 +2656,9 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       letterhead_removed_success:"Letterhead removed.", company_updated_success:"Company updated.",
       nav_payroll:"Payroll", nav_sales_recon:"Daily Sales Reconciliation", srx_title:"Daily Sales Reconciliation", srx_desc:"Switch the daily sales reconciliation (POS, PingPong, bank, Grab, ShopeeFood, Foodpanda to Bukku files) on for a restaurant company. It appears in the Bookkeeping menu.", nav_staff_info:"Staff Information", emp_sal_eff:"Salary effective from", emp_skbbk:"SKBBK (from 1 Jun 2026)", emp_resign:"Last working day (resigned)", emp_type:"Employment type", emp_type_full:"Full time", emp_type_part:"Part time", emp_type_casual:"Casual", emp_basis:"Salary basis", emp_basis_month:"Per month", emp_basis_day:"Per day", emp_basis_hour:"Per hour", emp_sal_month:"Basic Salary (RM per month)", emp_sal_day:"Basic Salary (RM per day)", emp_sal_hour:"Basic Salary (RM per hour)", per_month:"month", per_day:"day", per_hour:"hour", emp_skbbk_on:"Deduct", emp_skbbk_off:"Opted out (not deducted)", emp_sal_reason:"Reason (e.g. annual increment)", emp_sal_hist:"Salary history", staff_sub:"Employee details used by Payroll, Attendance and the KWSP & PERKESO forms", nav_attendance:"Attendance", att_title:"HR Attendance", att_desc:"Switch the staff attendance (clock times, approvals, foreign / local / part-time reports) on for a company. It appears under HR.", att_sub:"Clock times · approvals · foreign / local / part-time reports", att_payonly:"Payroll only (no attendance: days, overtime and advances are typed in)", nav_kwsp:"KWSP & PERKESO", kwsp_sub:"Employer registration forms · fill once, print 8 official forms", nav_profile:"Company Profile", pf_sub:"Legal details, contact, addresses, logo and letterhead", pf_choose:"Choose a company first.", pf_readonly:"You can view this profile; only CC CREST admin / manager can change it.",
       pf_info:"Company Information", pf_info_desc:"Information related to the company.", pf_legal:"Legal Name", pf_friendly:"Friendly Name (as shown in this system)", pf_regtype:"Registration No. Type", pf_regno:"Registration No.", pf_oldreg:"Old Registration No.", pf_tin:"TIN (e-Invoice)", pf_eno:"Company E No. (LHDN employer no., printed on Form EA)", pf_msic:"MSIC Code", pf_msicdesc:"MSIC Description", pf_tourism:"Tourism Tax Registration No.", pf_country:"Home Country", pf_currency:"Home Currency",
-      pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
+      pf_contact_title:"Company Contact", pf_contact_desc:"The contact information for the company.", pf_contact_person:"Contact Person", pf_contact_no:"Contact No.", pf_email:"Email Address", pf_website:"Website URL",
       pf_addr_title:"Company Addresses", pf_addr_desc:"The addresses of the company. The first one is used on letters.", pf_addr_name:"Address Name", pf_street:"Street Address", pf_city:"City", pf_postcode:"Postcode", pf_state:"State", pf_addr_add:"+ Add address",
-      pf_logo:"Company Logo", pf_logo_desc:"The official logo of the business.", pf_upload:"Upload", pf_letterhead:"Letterhead", pf_lh_desc:"Used on letters. A full-page image becomes the page background; a banner image goes across the top.", pf_lh_auto:"No letterhead uploaded — letters use this one, built from the company name, registration no. and address:",
+      pf_img_err_word:"A Word file cannot be used directly — in Word choose Save As PDF (or take a screenshot / save as JPG or PNG) and upload that.", pf_img_err_type:"Use a JPG, PNG, WEBP image or a PDF.", pf_img_err_read:"This image could not be read — try saving it again as JPG or PNG.", pf_img_err_pdf:"This PDF could not be read — try another PDF or a JPG / PNG image.", pf_img_err_perm:"Only an admin or manager can change the logo / letterhead.", pf_logo:"Company Logo", pf_logo_desc:"The official logo of the business (JPG / PNG / PDF; big files are shrunk automatically).", pf_upload:"Upload", pf_letterhead:"Letterhead", pf_lh_desc:"Used on letters. A full-page image becomes the page background; a banner image goes across the top.", pf_lh_auto:"No letterhead uploaded — letters use this one, built from the company name, registration no. and address:",
       pf_ssm_title:"From SSM documents", pf_ssm_desc:"Saved when the SSM Certificate / Section 14 is read on the KWSP & PERKESO page.", pf_directors:"Directors", pf_inc_date:"Incorporation date", pf_nature:"Business",
       nav_docs:"Documents & History", dh_sub:"Every file made for this company and every change to its records", dh_type:"Type", dh_event:"Event", dh_when:"When", dh_ref:"File / record", dh_who:"By", dh_details:"What changed", dh_all:"All", dh_none:"Nothing yet.",
       dh_ev_generated:"Generated", dh_ev_downloaded:"Downloaded", dh_ev_created:"Created", dh_ev_updated:"Updated", dh_ev_deleted:"Deleted", dh_changes:"changes",
@@ -2949,9 +2950,9 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       letterhead_removed_success:"信头已移除。", company_updated_success:"公司信息已更新。",
       nav_payroll:"薪资", nav_sales_recon:"每日营业对账", srx_title:"每日营业对账", srx_desc:"为餐厅公司开通每日营业对账（POS、PingPong、银行、Grab、ShopeeFood、Foodpanda 对账并导出 Bukku 文件）。开通后会出现在 Bookkeeping 菜单里。", nav_staff_info:"员工资料", emp_sal_eff:"新工资从哪天开始", emp_skbbk:"SKBBK（2026 年 6 月起）", emp_resign:"最后工作日（离职日）", emp_type:"雇佣类型", emp_type_full:"全职 Full time", emp_type_part:"兼职 Part time", emp_type_casual:"临时工 Casual", emp_basis:"薪资计算方式", emp_basis_month:"按月 Per month", emp_basis_day:"按日 Per day", emp_basis_hour:"按小时 Per hour", emp_sal_month:"基本薪资（RM / 每月）", emp_sal_day:"基本薪资（RM / 每日）", emp_sal_hour:"基本薪资（RM / 每小时）", per_month:"月", per_day:"日", per_hour:"小时", emp_skbbk_on:"扣", emp_skbbk_off:"选择不扣（已退出）", emp_sal_reason:"原因（例：年度调薪）", emp_sal_hist:"工资调整记录", staff_sub:"员工资料：薪资、考勤和 KWSP & PERKESO 表格都用这里的资料", nav_attendance:"考勤", att_title:"HR 考勤", att_desc:"为公司开通员工考勤（打卡时间、店长审批、外劳 / 本地 / 兼职报告）。开通后会出现在 HR 里面。", att_sub:"打卡时间 · 审批 · 外劳 / 本地 / 兼职报告", att_payonly:"只开薪资（不用考勤：OT、无薪假、预支每月手动填）", nav_kwsp:"KWSP & PERKESO 开户", kwsp_sub:"雇主注册表格 · 填一次资料，自动填好 8 份官方表格", nav_profile:"公司资料", pf_sub:"法定资料、联络方式、地址、Logo 和信头", pf_choose:"请先选择公司。", pf_readonly:"你可以查看公司资料；只有 CC CREST 管理员 / 经理能修改。",
       pf_info:"公司信息", pf_info_desc:"公司的基本资料。", pf_legal:"法定名称", pf_friendly:"简称（系统内显示的名称）", pf_regtype:"注册号类型", pf_regno:"注册号", pf_oldreg:"旧注册号", pf_tin:"TIN（电子发票）", pf_eno:"公司 E 号码（LHDN 雇主号，印在 EA 表上）", pf_msic:"MSIC 行业代码", pf_msicdesc:"行业说明", pf_tourism:"旅游税注册号", pf_country:"所在国家", pf_currency:"本位币",
-      pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
+      pf_contact_title:"公司联络", pf_contact_desc:"公司的联络方式。", pf_contact_person:"联络人", pf_contact_no:"联络电话", pf_email:"电邮", pf_website:"网站",
       pf_addr_title:"公司地址", pf_addr_desc:"公司的地址。第一个地址会用在信件上。", pf_addr_name:"地址名称", pf_street:"街道地址", pf_city:"城市", pf_postcode:"邮区", pf_state:"州", pf_addr_add:"+ 新增地址",
-      pf_logo:"公司 Logo", pf_logo_desc:"公司的正式 Logo。", pf_upload:"上传", pf_letterhead:"信头（Letterhead）", pf_lh_desc:"信件使用。整页图片会当作整页底图；横幅图片放在信件顶部。", pf_lh_auto:"没有上传信头 — 信件会用下面这个，由公司名称、注册号和地址自动生成：",
+      pf_img_err_word:"Word 文件不能直接上传 — 请在 Word 里「另存为 PDF」（或截图 / 另存为 JPG、PNG）再上传。", pf_img_err_type:"请使用 JPG、PNG、WEBP 图片或 PDF。", pf_img_err_read:"这张图片读取不了 — 请另存为 JPG 或 PNG 再试。", pf_img_err_pdf:"这个 PDF 读取不了 — 请换一个 PDF 或用 JPG / PNG 图片。", pf_img_err_perm:"只有管理员或经理可以更改 Logo / 信头。", pf_logo:"公司 Logo", pf_logo_desc:"公司的正式 Logo（JPG / PNG / PDF，文件太大会自动缩小）。", pf_upload:"上传", pf_letterhead:"信头（Letterhead）", pf_lh_desc:"信件使用。整页图片会当作整页底图；横幅图片放在信件顶部。", pf_lh_auto:"没有上传信头 — 信件会用下面这个，由公司名称、注册号和地址自动生成：",
       pf_ssm_title:"来自 SSM 文件", pf_ssm_desc:"在 KWSP & PERKESO 页读取 SSM Certificate / Section 14 后自动保存。", pf_directors:"董事", pf_inc_date:"成立日期", pf_nature:"业务",
       nav_docs:"文件与记录", dh_sub:"这间公司做过的所有文件，以及资料的每一次更改", dh_type:"类型", dh_event:"动作", dh_when:"时间", dh_ref:"文件 / 资料", dh_who:"操作人", dh_details:"更改了什么", dh_all:"全部", dh_none:"暂时没有记录。",
       dh_ev_generated:"生成", dh_ev_downloaded:"下载", dh_ev_created:"新建", dh_ev_updated:"修改", dh_ev_deleted:"删除", dh_changes:"项更改",
@@ -6312,7 +6313,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   // CC CREST admin / manager edit it; everyone else who can open the company can read it. Changes save automatically.
   var pf = { companyId:null, canEdit:false, data:null, timer:null, saving:false, pending:false, dirty:false, regType:'BRN' };
   var PF_STATES = ['JOHOR','KEDAH','KELANTAN','MELAKA','NEGERI SEMBILAN','PAHANG','PENANG','PERAK','PERLIS','SABAH','SARAWAK','SELANGOR','TERENGGANU','KUALA LUMPUR','LABUAN','PUTRAJAYA'];
-  var PF_TEXT_IDS = ['pf-legal','pf-regno','pf-oldreg','pf-tin','pf-eno','pf-msic','pf-msicdesc','pf-tourism','pf-sst','pf-prefix','pf-contact','pf-email','pf-website'];
+  var PF_TEXT_IDS = ['pf-legal','pf-regno','pf-oldreg','pf-tin','pf-eno','pf-msic','pf-msicdesc','pf-tourism','pf-sst','pf-prefix','pf-contact-person','pf-contact','pf-email','pf-website'];
   function pfEl(id){ return document.getElementById(id); }
   function pfEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function pfStatus(msg, err){ var el = pfEl('pf-status'); el.textContent = msg || ''; el.style.color = err ? 'var(--danger)' : 'var(--primary-soft)'; }
@@ -6360,6 +6361,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     pfEl('pf-tourism').value = p.tourismTaxNo || '';
     pfEl('pf-sst').value = p.sstNo || '';
     pfEl('pf-prefix').value = p.filePrefix || '';
+    pfEl('pf-contact-person').value = p.contactPerson || '';
     pfEl('pf-contact').value = p.contactNo || '';
     pfEl('pf-email').value = p.email || '';
     pfEl('pf-website').value = p.website || '';
@@ -6401,7 +6403,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     });
     var v = function(id){ return pfEl(id).value; };
     return { legalName:v('pf-legal'), regType:pf.regType, registrationNo:v('pf-regno'), oldRegistrationNo:v('pf-oldreg'), tin:v('pf-tin'), employerENo:v('pf-eno'),
-      msicCode:v('pf-msic'), msicDescription:v('pf-msicdesc'), tourismTaxNo:v('pf-tourism'), sstNo:v('pf-sst'), filePrefix:v('pf-prefix'), contactNo:v('pf-contact'), email:v('pf-email'),
+      msicCode:v('pf-msic'), msicDescription:v('pf-msicdesc'), tourismTaxNo:v('pf-tourism'), sstNo:v('pf-sst'), filePrefix:v('pf-prefix'), contactPerson:v('pf-contact-person'), contactNo:v('pf-contact'), email:v('pf-email'),
       website:v('pf-website'), addresses:addrs };
   }
 
@@ -6505,15 +6507,96 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   });
 
   // logo / letterhead images
+  // The chosen file is prepared in the browser first: phone photos / big scans are shrunk, a PDF has its first page turned into an image;
+  // a Word file cannot be used directly (save it as PDF or an image from Word).
+  var pfPdfLib = null;
+  function pfLoadPdfJs(){
+    if(window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/api/kwsp/assets/vendor/pdf.worker.min.js'; return Promise.resolve(window.pdfjsLib); }
+    if(pfPdfLib) return pfPdfLib;
+    pfPdfLib = new Promise(function(resolve, reject){
+      var sc = document.createElement('script');
+      sc.src = '/api/kwsp/assets/vendor/pdf.min.js';
+      sc.onload = function(){
+        if(!window.pdfjsLib){ reject(new Error(t('pf_img_err_pdf'))); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/api/kwsp/assets/vendor/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      sc.onerror = function(){ pfPdfLib = null; reject(new Error(t('pf_img_err_pdf'))); };
+      document.head.appendChild(sc);
+    });
+    return pfPdfLib;
+  }
+  function pfBlobOf(canvas, type, q){
+    return new Promise(function(resolve){ canvas.toBlob(function(b){ resolve(b); }, type, q); });
+  }
+  function pfFromCanvas(canvas, keepPng, limit){
+    // PNG keeps transparency (logos); too big -> JPEG on white
+    var steps = keepPng ? [['image/png'], ['image/jpeg', 0.92], ['image/jpeg', 0.8], ['image/jpeg', 0.65]] : [['image/jpeg', 0.92], ['image/jpeg', 0.8], ['image/jpeg', 0.65], ['image/jpeg', 0.5]];
+    var i = 0;
+    function next(){
+      var st = steps[i++], c = canvas;
+      if(st[0] === 'image/jpeg' && keepPng){
+        c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height;
+        var cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(canvas, 0, 0);
+      }
+      return pfBlobOf(c, st[0], st[1]).then(function(b){
+        if(!b) throw new Error(t('pf_img_err_read'));
+        if(b.size <= limit || i >= steps.length) return b;
+        return next();
+      });
+    }
+    return next();
+  }
+  function pfPrepareImage(file, kind){
+    var name = (file.name || '').toLowerCase(), type = (file.type || '').toLowerCase();
+    var isPdf = type === 'application/pdf' || /\.pdf$/.test(name);
+    var isWord = /\.(docx?|dotx?|rtf|odt)$/.test(name) || /word|msword|officedocument/.test(type);
+    var isImg = /^image\/(jpeg|jpg|pjpeg|png|webp)$/.test(type) || /\.(jpe?g|png|webp)$/.test(name);
+    var isLh = kind === 'letterhead';
+    var maxDim = isLh ? 2480 : 1000, limit = (isLh ? 2.5 : 1.2) * 1024 * 1024;
+    if(isWord) return Promise.reject(new Error(t('pf_img_err_word')));
+    if(!isPdf && !isImg) return Promise.reject(new Error(t('pf_img_err_type')));
+    if(isPdf){
+      return pfLoadPdfJs().then(function(lib){
+        return file.arrayBuffer().then(function(buf){ return lib.getDocument({ data: new Uint8Array(buf) }).promise; });
+      }).then(function(pdf){ return pdf.getPage(1); }).then(function(page){
+        var v1 = page.getViewport({ scale: 1 });
+        var sc = maxDim / Math.max(v1.width, v1.height);
+        var vp = page.getViewport({ scale: sc });
+        var canvas = document.createElement('canvas'); canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+        var ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function(){ return pfFromCanvas(canvas, false, limit); });
+      }).then(function(b){ return new File([b], 'upload.jpg', { type: b.type }); }, function(err){
+        throw new Error(t('pf_img_err_pdf'));
+      });
+    }
+    return new Promise(function(resolve, reject){
+      var url = URL.createObjectURL(file), im = new Image();
+      im.onload = function(){
+        URL.revokeObjectURL(url);
+        var w = im.naturalWidth, h = im.naturalHeight, sc = Math.min(1, maxDim / Math.max(w, h));
+        if(sc === 1 && file.size <= limit && /^image\/(jpeg|png)$/.test(type)){ resolve(file); return; }
+        var canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(w * sc)); canvas.height = Math.max(1, Math.round(h * sc));
+        canvas.getContext('2d').drawImage(im, 0, 0, canvas.width, canvas.height);
+        var png = /png/.test(type) || /\.png$/.test(name);
+        pfFromCanvas(canvas, png, limit).then(function(b){ resolve(new File([b], 'upload.' + (b.type === 'image/png' ? 'png' : 'jpg'), { type: b.type })); }, reject);
+      };
+      im.onerror = function(){ URL.revokeObjectURL(url); reject(new Error(t('pf_img_err_read'))); };
+      im.src = url;
+    });
+  }
   function pfUpload(inputId, path){
     var input = pfEl(inputId);
     input.addEventListener('change', function(){
       if(!pf.companyId || !input.files[0]) return;
-      var fd = new FormData(); fd.append('file', input.files[0]);
+      var picked = input.files[0];
       input.disabled = true;
       pfStatus(t('pf_saving'));
-      fetch('/api/companies/' + pf.companyId + '/' + path, { method:'POST', body:fd, credentials:'same-origin' })
-        .then(function(res){ return res.json().catch(function(){ return {}; }).then(function(b){ if(!res.ok) throw new Error(b.error || ('HTTP ' + res.status)); return b; }); })
+      pfPrepareImage(picked, path).then(function(file){
+        var fd = new FormData(); fd.append('file', file, file.name || 'upload.jpg');
+        return fetch('/api/companies/' + pf.companyId + '/' + path, { method:'POST', body:fd, credentials:'same-origin' });
+      })
+        .then(function(res){ return res.json().catch(function(){ return {}; }).then(function(b){ if(!res.ok) throw new Error(b.error || (res.status === 403 ? t('pf_img_err_perm') : ('HTTP ' + res.status))); return b; }); })
         .then(function(){ pfStatus(t('pf_saved') + ' ' + pfClock()); return pfFlushThenReload(); })
         .catch(function(err){ pfStatus(t('pf_save_failed') + err.message, true); })
         .finally(function(){ input.value = ''; input.disabled = !pf.canEdit; });

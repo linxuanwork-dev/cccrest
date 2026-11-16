@@ -20,10 +20,10 @@ const PERIOD = '2026-08';
 
 const letterheadUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 3 * 1024 * 1024 },
+  limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.mimetype)) return cb(new Error('Unsupported file type — use JPG, PNG, or WEBP.'));
+    if (!allowed.includes(file.mimetype)) return cb(new Error('Unsupported file type — use JPG, PNG, WEBP (a PDF is converted by the page before upload).'));
     cb(null, true);
   }
 });
@@ -149,7 +149,7 @@ function profileJson(r, canEdit) {
     registration_no: r.registration_no, address: r.address, letterhead_data_url: r.letterhead_data_url,
     legalName: r.legal_name || '', regType: r.reg_type, registrationNo: r.registration_no || '', oldRegistrationNo: r.old_registration_no || '',
     tin: r.tin || '', employerENo: r.employer_e_no || '', msicCode: r.msic_code || '', msicDescription: r.msic_description || '', tourismTaxNo: r.tourism_tax_no || '',
-    contactNo: r.contact_no || '', email: r.email || '', website: r.website || '', sstNo: r.sst_no || '', filePrefix: r.file_prefix || '',
+    contactPerson: r.contact_person || '', contactNo: r.contact_no || '', email: r.email || '', website: r.website || '', sstNo: r.sst_no || '', filePrefix: r.file_prefix || '',
     addresses: Array.isArray(r.addresses) ? r.addresses : [],
     logoDataUrl: r.logo_data_url || null, letterheadDataUrl: r.letterhead_data_url || null, ssm: r.ssm_data || null
   };
@@ -184,12 +184,12 @@ router.put('/companies/:companyId/profile', requireAuth, scopeToCompany, require
   const { rows } = await pool.query(
     `UPDATE companies SET legal_name = $1, reg_type = $2, registration_no = $3, old_registration_no = $4, tin = $5, msic_code = $6,
        msic_description = $7, tourism_tax_no = $8, contact_no = $9, email = $10, website = $11, addresses = $12, address = $13,
-       sst_no = $14, file_prefix = $15, employer_e_no = $16
-     WHERE id = $17 RETURNING *`,
+       sst_no = $14, file_prefix = $15, employer_e_no = $16, contact_person = $17
+     WHERE id = $18 RETURNING *`,
     [text(b.legalName, 200) || null, regType, registrationNo, text(b.oldRegistrationNo, 40) || null, text(b.tin, 40) || null,
       text(b.msicCode, 10) || null, text(b.msicDescription, 200) || null, text(b.tourismTaxNo, 40) || null, text(b.contactNo, 40) || null,
       text(b.email, 120) || null, text(b.website, 200) || null, JSON.stringify(addresses), addresses[0] ? formatAddress(addresses[0]) : null,
-      text(b.sstNo, 40) || null, text(b.filePrefix, 20).toUpperCase().replace(/[^A-Z0-9_-]/g, '') || null, text(b.employerENo, 40) || null, req.params.companyId]
+      text(b.sstNo, 40) || null, text(b.filePrefix, 20).toUpperCase().replace(/[^A-Z0-9_-]/g, '') || null, text(b.employerENo, 40) || null, text(b.contactPerson, 120) || null, req.params.companyId]
   );
   await logActivity(req.user.sub, 'Updated company profile', rows[0].name, null);
   const SKIP = ['id', 'name', 'type', 'canEdit', 'registration_no', 'address', 'letterhead_data_url', 'letterheadDataUrl', 'logoDataUrl', 'ssm'];
@@ -199,9 +199,9 @@ router.put('/companies/:companyId/profile', requireAuth, scopeToCompany, require
 
 const logoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) return cb(new Error('Unsupported file type — use JPG, PNG, or WEBP.'));
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) return cb(new Error('Unsupported file type — use JPG, PNG, WEBP (a PDF is converted by the page before upload).'));
     cb(null, true);
   }
 });
@@ -264,6 +264,14 @@ router.get('/companies/:companyId', requireAuth, scopeToCompany, async (req, res
   const { rows } = await pool.query(baseCompanyQuery('WHERE c.id = $1'), [req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);
+});
+
+// a rejected upload (wrong file type / too large) is the user's mistake, not a server error
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || /^Unsupported file type/.test(err.message || '')) {
+    return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'The file is too large (8 MB at most).' : err.message });
+  }
+  next(err);
 });
 
 module.exports = router;

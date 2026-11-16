@@ -69,7 +69,7 @@ function monthRange(year, month) {
 async function getMonthData(branchId, year, month) {
   const { start, end } = monthRange(year, month);
   const qtyRes = await pool.query(
-    `SELECT q.item_id, EXTRACT(DAY FROM q.entry_date)::int AS day, q.qty
+    `SELECT q.item_id, EXTRACT(DAY FROM q.entry_date)::int AS day, q.qty::float AS qty
      FROM dsi_quantities q JOIN dsi_menu_items i ON i.id = q.item_id
      WHERE i.branch_id = $1 AND q.entry_date >= $2 AND q.entry_date < $3`,
     [branchId, start, end]
@@ -480,8 +480,9 @@ function parseCells(cells, kind, ym, itemIds) {
     if (raw === '' || raw == null) { ops.push({ date, itemId, value: null }); continue; }
     const num = Number(raw);
     if (kind === 'qty') {
-      if (!Number.isInteger(num) || num < 0) return { error: '数量只能是 0 或正整数。' };
-      ops.push({ date, itemId, value: num === 0 ? null : num });
+      if (!Number.isFinite(num) || num < 0 || num > 1000000 || Math.abs(num * 1000 - Math.round(num * 1000)) > 1e-6) return { error: '数量只能是 0 或正数（最多 3 位小数，例如 0.5）。' };
+      const rounded = Math.round(num * 1000) / 1000;
+      ops.push({ date, itemId, value: rounded === 0 ? null : rounded });
     } else {
       if (isNaN(num) || num < 0) return { error: '特价必须是 ≥ 0 的数字。' };
       ops.push({ date, itemId, value: Math.round(num * 100) / 100 });

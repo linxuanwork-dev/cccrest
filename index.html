@@ -5144,7 +5144,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
         var val = kind === 'qty' ? dsi.qty[key] : dsi.specials[key];
         if(kind === 'qty' && hasSpecial) cls += ' dsi-special';
         html += '<td class="' + cls + '"' + ((kind === 'qty' && hasSpecial) ? ' title="RM ' + Number(dsi.specials[key]).toFixed(2) + '"' : '') + '>' +
-          '<input type="number" min="0" step="' + (kind === 'qty' ? '1' : '0.01') + '" data-dsi-k="' + kind + '" data-dsi-key="' + key + '" value="' + (val == null ? '' : val) + '"' + (editable ? '' : ' disabled') + ' /></td>';
+          '<input type="number" min="0" step="' + (kind === 'qty' ? 'any' : '0.01') + '" data-dsi-k="' + kind + '" data-dsi-key="' + key + '" value="' + (val == null ? '' : val) + '"' + (editable ? '' : ' disabled') + ' /></td>';
       }
       html += '</tr>';
     });
@@ -5179,7 +5179,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       var q = dsi.qty[key] || 0;
       if(!q) return;
       var price = dsi.specials[key] != null ? dsi.specials[key] : it.unitPrice;
-      sum += q * Math.round(price * 100);
+      sum += Math.round(q * Math.round(price * 100));
     });
     return sum;
   }
@@ -5207,7 +5207,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     var ok = true;
     var val = null;
     if(v !== ''){
-      ok = kind === 'qty' ? /^\d+$/.test(v) : /^\d+(\.\d{1,2})?$/.test(v);
+      ok = kind === 'qty' ? /^\d+(\.\d{1,3})?$/.test(v) : /^\d+(\.\d{1,2})?$/.test(v);
       if(ok) val = Number(v);
     }
     inp.classList.toggle('dsi-bad', !ok);

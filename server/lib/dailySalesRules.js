@@ -71,10 +71,10 @@ function buildMonth(branch, menu, qtyMap, specialMap, year, month, seqMap) {
       const menuCents = toCents(item.unit_price);
       const hasSpecial = specialMap[key] != null;
       const unitCents = hasSpecial ? toCents(specialMap[key]) : menuCents;
-      const amountCents = qty * unitCents;
+      const amountCents = Math.round(qty * unitCents);   // quantities can be fractions (0.5 kg)
       if (qty > 0) {
         dayTotalCents += amountCents;
-        itemTotals[idx].qty += qty;
+        itemTotals[idx].qty = Math.round((itemTotals[idx].qty + qty) * 1000) / 1000;
         itemTotals[idx].amountCents += amountCents;
         if (hasSpecial) {
           specialRecords.push({
@@ -157,7 +157,7 @@ function runChecks(branch, menu, built, year, month) {
 
   // Checks 6 & 7 run against the exact row model that will be written to Excel.
   const rows = buildExcelRows(branch, built);
-  const rowsCents = rows.reduce((s, r) => s + r.qty * r._unitCents, 0);
+  const rowsCents = rows.reduce((s, r) => s + Math.round(r.qty * r._unitCents), 0);
   if (rowsCents !== built.monthTotalCents) errors.push('Excel 总额与每日进单总额不一致。');
 
   const nos = new Set();

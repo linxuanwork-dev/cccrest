@@ -108,7 +108,7 @@ function buildReportPdf(branch, menu, built, preparedBy, approvedBy) {
   // ---- Part 2: monthly item summary ----
   sectionTitle(doc, '2. 项目月总表');
   const itemRows = built.itemTotals.map((t, i) => [String(i + 1), t.product, String(t.qty), rules.formatCents(t.amountCents)]);
-  const totalQty = built.itemTotals.reduce((s, t) => s + t.qty, 0);
+  const totalQty = Math.round(built.itemTotals.reduce((s, t) => s + t.qty, 0) * 1000) / 1000;
   itemRows.push(['', '合计', String(totalQty), rules.formatCents(built.monthTotalCents)]);
   drawTable(doc, [
     { label: 'No.', width: 1 }, { label: 'Product', width: 6 },

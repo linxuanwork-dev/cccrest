@@ -1093,9 +1093,15 @@ function mtUsersCard(){
     <select id="mu_mt"><option value="">— 选 MT —</option>${names.map(x=>`<option>${esc(x)}</option>`).join('')}</select>
     <input id="mu_user" placeholder="用户名（不填就自动）" style="width:190px"><button class="b" onclick="mtuAdd()">开账号</button></div></div>`;
 }
+function mtMsg(r){
+  const u=claimUrl();
+  return `MT Claim (DIDIK MULIA)\n\nLink / Pautan / 网址: ${u}\nUsername / Nama pengguna / 用户名: ${r.user.username}\nTemporary password / Kata laluan sementara / 临时密码: ${r.password}\n\nEN: Please sign in and change your password first. Do not share it with others.\nBM: Sila log masuk dan tukar kata laluan anda dahulu. Jangan kongsi dengan orang lain.\n中文：请先登录并自己改密码，不要告诉别人。`;
+}
+function copyMt(){ copyText(window._mtMsg||''); }
 function pwModal(r,what){
+  window._mtMsg=mtMsg(r);
   modal(`<h3>${what}</h3><div class="f"><label>MT</label><div>${esc(r.user.mt)} (${esc(r.user.branch)})</div><label>网址</label><div><b>${esc(claimUrl())}</b></div><label>用户名</label><div><b>${esc(r.user.username)}</b></div><label>临时密码</label><div><b style="font-size:18px;letter-spacing:1px">${esc(r.password)}</b></div></div>
-   <div class="msg warn" style="margin-top:10px">这个密码只显示这一次，请现在抄下来给 MT。MT 第一次登录要自己改密码。</div><button class="b" onclick="closeModal()">我抄好了</button>`);
+   <div class="msg warn" style="margin-top:10px">这个密码只显示这一次，请现在抄下来给 MT。MT 第一次登录要自己改密码。</div><div class="row"><button class="b" onclick="copyMt()">复制给 MT（贴到 WhatsApp）</button> <button class="g" onclick="window._mtMsg='';closeModal()">我抄好了</button></div>`);
 }
 async function mtuAdd(){ const mt=$('#mu_mt').value, br=UI.uBranch||BRANCHES[0]; if(!mt) return toast('请选 MT');
   try{ const r=await http('POST','/mt-users',{branch:br,mt,username:$('#mu_user').value.trim()}); await loadMtUsers(); pwModal(r,'已开账号'); }catch(e){ toast(e.message,5000); } }

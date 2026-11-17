@@ -449,11 +449,14 @@ async function http(method, url, body){
 // the suppliers of this company in Bukku are added to the supplier list by themselves (a manager opens the page; once a day)
 async function autoBukkuSuppliers(){
   if(!S.mgr) return;
-  try{ const k='pbBkSup:'+S.cid, d=new Date().toISOString().slice(0,10); if(localStorage.getItem(k)===d) return; localStorage.setItem(k,d); }catch(e){ /* no storage: just run */ }
+  // once a day - but always when the supplier list is still empty (the first time, or when the contacts were read from Bukku after the page was opened)
+  const k='pbBkSup:'+S.cid, d=new Date().toISOString().slice(0,10);
+  try{ if(localStorage.getItem(k)===d && S.suppliers.length) return; }catch(e){ /* no storage: just run */ }
   try{
     const r=await fetch('/api/companies/'+encodeURIComponent(S.cid)+'/bukku/refresh-contacts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});
     if(!r.ok) return;   // not connected to Bukku: nothing to do
     const j=await http('POST','/suppliers/from-bukku');
+    try{ localStorage.setItem(k,d); }catch(e){ /* fine */ }
     if(j.added||j.coded){ toast('已从 Bukku 加入 '+j.added+' 家供应商'+(j.coded?'，补上 '+j.coded+' 个 Contact Code':'')); refreshSoon(); }
   }catch(e){ /* quiet: the button in the Suppliers tab shows problems */ }
 }

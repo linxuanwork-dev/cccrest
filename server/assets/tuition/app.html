@@ -800,9 +800,10 @@ async function confirmRoster(){
 // ---------- 银行 ----------
 function bankDocId(bank,month){ return bank+'_'+month; }
 function poolFor(bank){ return (cfg().bankBranches[bank]||BRANCHES).flatMap(b=>stuList(b)); }
-// a payment that is not the fee (nor 2-6 months of it) for the one student it was matched to: returns the fee, else 0
+// a payment the system matched BY ITSELF that is not the fee (nor 2-6 months of it) for the one student: returns the fee, else 0.
+// Once a person has confirmed it (status 'manual') it is handled and no longer flagged.
 function feeMismatch(t){
-  if(!(t.status==='auto'||t.status==='manual')||!t.alloc||t.alloc.length!==1||t.alloc[0].invoice) return 0;
+  if(t.status!=='auto'||!t.alloc||t.alloc.length!==1||t.alloc[0].invoice) return 0;
   const s=findStu(S,t.alloc[0].uid); if(!s) return 0; const fee=studentFee(S,s); if(!(fee>0)) return 0; const a=+t.alloc[0].amt;
   for(let k=1;k<=6;k++) if(Math.abs(fee*k-a)<0.01) return 0;
   return fee;
@@ -837,7 +838,7 @@ function vBank(){
    ${[['need','待处理',cnt.review+cnt.unmatched,'bad'],['auto','自动配对',cnt.auto,'ok'],['manual','手动确认',cnt.manual,'info'],['mismatch','金额≠学费',cnt.mismatch,cnt.mismatch?'warn':'grey'],['ignore','非学费',cnt.ignore,'grey'],['all','全部',tx.length,'grey']].map(([k,t,n,c])=>`<button class="${f===k&&!bq?'b':'g'}" onclick="UI.bFilter='${k}';UI.bQ='';render()">${t} <span class="tag ${c}">${n}</span></button>`).join('')}
    <input id="bankq" placeholder="搜付款人 / 备注 / 金额 / 学生 / code（所有月份）" value="${esc(UI.bQ||'')}" oninput="UI.bQ=this.value;render()" style="width:300px">
    <span style="flex:1"></span><span class="small">本月入账（学费）：<b>RM ${money(tot)}</b></span></div>
-  ${!bq&&f==='mismatch'&&cnt.mismatch?`<div class="msg warn" style="margin-bottom:8px">这些入账的金额不是学费（也不是 2–6 个月的学费）。核对后，「自动配对」的可以一次改成待处理再逐笔处理；你手动确认过的不会动。<button class="b" onclick="bankToReview('${thisDid}',${JSON.stringify(show.filter(t=>t.status==='auto').map(t=>t.id)).replace(/"/g,'&quot;')})">把自动配对的 ${show.filter(t=>t.status==='auto').length} 笔改成待处理</button></div>`:''}
+  ${!bq&&f==='mismatch'&&cnt.mismatch?`<div class="msg warn" style="margin-bottom:8px">这些入账是系统自己配对的，金额却不是学费（也不是 2–6 个月的学费）。逐笔按「改」检查并按「确认」，确认过的就不会再出现在这里；也可以一次全部改成待处理再逐笔处理。<button class="b" onclick="bankToReview('${thisDid}',${JSON.stringify(show.filter(t=>t.status==='auto').map(t=>t.id)).replace(/"/g,'&quot;')})">把自动配对的 ${show.filter(t=>t.status==='auto').length} 笔改成待处理</button></div>`:''}
   ${bq?`<div class="small mute" style="margin-bottom:6px">搜索结果：${show.length} 笔（${esc(bank)} 所有月份）</div>`:''}
   <div class="tw"><table><tr><th>日期</th><th>付款人</th><th>备注</th><th class="n">金额</th><th>状态</th><th>学生</th><th></th></tr>
   ${rows.map(({t,did})=>`<tr><td>${t.date}<div class="small mute">${esc(t.time)}</div></td><td>${esc(t.payer)}</td><td class="small">${esc(t.ref)}</td><td class="n">${money(t.amount)}</td>

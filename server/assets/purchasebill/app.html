@@ -272,13 +272,22 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <option value="exported">已导出</option>
             <option value="dup">只看重复</option>
           </select>
+          <select id="flFlow">
+            <option value="">全部流程</option>
+            <option value="approve">待 Approve</option>
+            <option value="noorig">缺正式单据</option>
+            <option value="tobukku">已 Approve，待确认导入 Bukku</option>
+            <option value="unpaid">已在 Bukku，还没发去付款</option>
+            <option value="paying">付款中</option>
+            <option value="paid">已付款</option>
+          </select>
           <select id="flSup"><option value="">全部供应商</option></select>
           <input type="search" id="flQ" placeholder="搜单号 / 项目">
         </div>
       </div>
       <div class="tbl-wrap" style="max-height:62vh;overflow:auto">
         <table>
-          <thead><tr><th><input type="checkbox" id="selAll" aria-label="全选"></th><th>日期</th><th>供应商</th><th>单号 No.</th><th>项目</th><th class="r">金额</th><th>状态</th><th></th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="selAll" aria-label="全选"></th><th>日期</th><th>供应商</th><th>单号 No.</th><th>项目</th><th class="r">金额</th><th>状态</th><th>流程</th><th></th></tr></thead>
           <tbody id="billBody"></tbody>
         </table>
       </div>
@@ -292,6 +301,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
           <button class="btn pri" id="exportBtn" disabled>导出 Bukku Excel</button>
         </div>
       </div>
+      <div class="bar mgr-only" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+        <span class="small muted">流程：</span>
+        <button class="btn" id="stApprove" disabled>Approve</button>
+        <button class="btn" id="stUnapprove" disabled>取消 Approve</button>
+        <button class="btn" id="stInBukku" disabled>已在 Bukku ✓</button>
+        <button class="btn" id="stNotInBukku" disabled>取消「已在 Bukku」</button>
+        <span style="width:12px"></span>
+        <button class="btn" id="stNoOrig" disabled>缺正式单据</button>
+        <button class="btn" id="stHasOrig" disabled>已拿到正式单据</button>
+        <span style="width:12px"></span>
+        <label class="small">还款日 <input type="date" id="payDue"></label>
+        <button class="btn pri" id="stPay" disabled>要付款 → 发到工作列表</button>
+      </div>
+      <div class="bar staff-only" style="margin-top:8px"><button class="btn" id="stNoOrig2" disabled>缺正式单据</button><button class="btn" id="stHasOrig2" disabled>已拿到正式单据</button></div>
       <div id="exportMsg" style="margin-top:12px" hidden></div>
     </div>
   </section>
@@ -808,9 +831,27 @@ function filteredBills(){
     if(st==='exported' && b.status!=='exported') return false;
     if(st==='dup' && !dups.has(b.id)) return false;
     if(sup && normName(b.supplier)!==normName(sup)) return false;
+    const fl=$('flFlow').value;
+    if(fl==='approve' && (b.approved || b.status==='exported')) return false;
+    if(fl==='noorig' && !b.noOriginal) return false;
+    if(fl==='tobukku' && !(b.approved && !b.inBukku)) return false;
+    if(fl==='unpaid' && !(b.inBukku && !b.payStatus)) return false;
+    if(fl==='paying' && !(b.payStatus==='todo' || b.payStatus==='done')) return false;
+    if(fl==='paid' && b.payStatus!=='checked') return false;
     if(q && !(normName(b.no).includes(q) || (b.lines||[]).some(l=>normName(l.desc).includes(q)) || normName(b.supplier).includes(q))) return false;
     return true;
   }).sort((a,b)=>(a.date||'').localeCompare(b.date||'') || normName(a.supplier).localeCompare(normName(b.supplier)) || String(a.no).localeCompare(String(b.no)));
+}
+function flowPills(b){
+  const p=[];
+  if(b.noOriginal) p.push('<span class="pill dup">缺正式单据</span>');
+  if(b.payStatus==='checked') p.push('<span class="pill done">已付款</span>');
+  else if(b.payStatus==='done') p.push('<span class="pill draft">已付款 · 等 Owner 检查</span>');
+  else if(b.payStatus==='todo') p.push('<span class="pill draft">付款中 · 等 manager 去银行</span>');
+  else if(b.inBukku) p.push('<span class="pill draft">已在 Bukku · 未付款</span>');
+  else if(b.approved) p.push('<span class="pill draft">已 Approve</span>');
+  else if(b.status!=='exported') p.push('<span class="pill draft">待 Approve</span>');
+  return p.join(' ')||'<span class="muted">—</span>';
 }
 function renderBills(){
   $('ctBills').textContent=S.bills.filter(b=>b.status!=='exported').length;
@@ -823,8 +864,9 @@ function renderBills(){
       <td class="small" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((b.lines||[]).map(l=>l.desc).join(' / '))}</td>
       <td class="r mono">${money(b.total)}</td>
       <td>${b.status==='exported'?'<span class="pill done">已导出</span>':b.revised?'<span class="pill draft">未导出 · 已修改，要重新导出</span>':'<span class="pill draft">未导出</span>'}</td>
+      <td class="small">${flowPills(b)}</td>
       <td class="r">${(S.mgr||b.status!=='exported')?`<button class="btn sm" data-edit="${esc(b.id)}">改</button>`:''}</td></tr>`;}).join('')
-    : `<tr><td colspan="8" class="empty">${S.bills.length?('这个筛选没有单据。'+($('flStatus').value!=='all'?'可以把状态改成「全部状态」看看。':'')):'还没有单据。到「快速录入」开始输入，记得按「保存全部」。'}</td></tr>`;
+    : `<tr><td colspan="9" class="empty">${S.bills.length?('这个筛选没有单据。'+($('flStatus').value!=='all'?'可以把状态改成「全部状态」看看。':'')):'还没有单据。到「快速录入」开始输入，记得按「保存全部」。'}</td></tr>`;
   $('selAll').checked = rows.length>0 && rows.every(b=>S.selected.has(b.id));
   updateSel();
 }
@@ -832,10 +874,10 @@ function updateSel(){
   const sel=S.bills.filter(b=>S.selected.has(b.id));
   const done=sel.filter(b=>b.status==='exported').length;
   $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>${done?` · <span style="color:#b45309">其中 ${done} 张已经导出过，不能再导出</span>`:''}` : '未选择（勾选要导出的单据）';
-  ['markDone','markDraft','delSel'].forEach(id=>$(id).disabled=!sel.length);
+  ['markDone','markDraft','delSel','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stNoOrig2','stHasOrig2'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
   $('exportBtn').disabled=!sel.length||done>0;
 }
-['flMonth','flStatus','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
+['flMonth','flStatus','flFlow','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
 $('selAll').addEventListener('change',e=>{ const onlyDone=$('flStatus').value==='exported'; filteredBills().forEach(b=>{ if(e.target.checked){ if(onlyDone||b.status!=='exported') S.selected.add(b.id); } else S.selected.delete(b.id); }); renderBills(); });
 $('billBody').addEventListener('change',e=>{ const c=e.target.closest('[data-sel]'); if(c){ c.checked?S.selected.add(c.dataset.sel):S.selected.delete(c.dataset.sel); updateSel(); }});
 $('billBody').addEventListener('click',e=>{ const b=e.target.closest('[data-edit]'); if(b) editBill(b.dataset.edit); });
@@ -845,6 +887,27 @@ async function setStatus(ids,status){
   toast((status==='exported'?'已标记已导出 ':'已改回未导出 ')+ids.length+' 张');
 }
 $('markDone').addEventListener('click',()=>setStatus([...S.selected],'exported'));
+async function stage(action,value,okMsg){
+  const ids=[...S.selected].map(Number);
+  if(!ids.length) return;
+  try{ const r=await http('POST','/bills/stage',{ids,action,value}); toast((okMsg||'已更新')+'：'+r.changed+' 张'); await refresh(); }catch(err){ dbErr(err); }
+}
+$('stApprove').addEventListener('click',()=>stage('approve',true,'已 Approve'));
+$('stUnapprove').addEventListener('click',()=>stage('unapprove',true,'已取消 Approve（已在 Bukku 的不受影响）'));
+$('stInBukku').addEventListener('click',()=>stage('in-bukku',true,'已标记「已在 Bukku」'));
+$('stNotInBukku').addEventListener('click',()=>stage('not-in-bukku',true,'已取消「已在 Bukku」（已发去付款的不受影响）'));
+['stNoOrig','stNoOrig2'].forEach(id=>$(id).addEventListener('click',()=>stage('no-original',true,'已标记缺正式单据')));
+['stHasOrig','stHasOrig2'].forEach(id=>$(id).addEventListener('click',()=>stage('no-original',false,'已拿到正式单据')));
+$('stPay').addEventListener('click',async()=>{
+  const ids=[...S.selected].map(Number), due=$('payDue').value;
+  if(!ids.length) return;
+  if(!due){ toast('请先选「还款日」'); return; }
+  try{
+    const r=await http('POST','/bills/request-payment',{ids,due});
+    let m='已发到工作列表：'+r.created+' 张'; if(r.notInBukku) m+='；'+r.notInBukku+' 张还没标记「已在 Bukku」，没有发出'; if(r.already) m+='；'+r.already+' 张之前已经发过';
+    toast(m); await refresh();
+  }catch(err){ dbErr(err); }
+});
 $('markDraft').addEventListener('click',()=>setStatus([...S.selected],'draft'));
 $('delSel').addEventListener('click',async e=>{
   const btn=e.currentTarget;

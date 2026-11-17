@@ -267,6 +267,35 @@ router.post('/work/tasks/:id/check', requireAuth, requireRole('admin'), async (r
   res.json({ ok: true, status: checked ? 'checked' : 'done' });
 });
 
+// ============ purchase bills that need someone's attention (shown in My Jobs) ============
+
+router.get('/work/purchase-reminders', requireAuth, requireRole(...TEAM), async (req, res) => {
+  const params = [];
+  let scope = 'TRUE';
+  if (req.user.role !== 'admin') {
+    const staffIds = [];
+    if (req.user.staffId) staffIds.push(req.user.staffId);
+    if (req.user.role === 'manager') {
+      const { rows } = await pool.query('SELECT staff_id FROM manager_staff WHERE manager_user_id = $1', [req.user.sub]);
+      rows.forEach((r) => staffIds.push(r.staff_id));
+    }
+    params.push(staffIds);
+    scope = 'c.id IN (SELECT company_id FROM company_staff WHERE staff_id = ANY($1::int[]))';
+  }
+  const { rows } = await pool.query(
+    `SELECT c.id, c.name,
+       COUNT(*) FILTER (WHERE b.approved_at IS NULL AND NOT b.imported AND b.status <> 'exported')::int AS to_approve,
+       COUNT(*) FILTER (WHERE b.no_original)::int AS no_original,
+       COUNT(*) FILTER (WHERE b.approved_at IS NOT NULL AND b.in_bukku_at IS NULL)::int AS to_bukku,
+       COUNT(*) FILTER (WHERE b.in_bukku_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b.id AND t.kind = 'pay'))::int AS to_pay
+     FROM companies c
+     JOIN purchase_bukku_settings s ON s.company_id = c.id AND s.enabled
+     JOIN purchase_bukku_bills b ON b.company_id = c.id
+     WHERE ${scope}
+     GROUP BY c.id, c.name ORDER BY c.name`, params);
+  res.json({ companies: rows.filter((r) => r.to_approve || r.no_original || r.to_bukku || r.to_pay).map((r) => ({ id: r.id, name: r.name, toApprove: r.to_approve, noOriginal: r.no_original, toBukku: r.to_bukku, toPay: r.to_pay })) });
+});
+
 // ============ monthly bills (Owner) ============
 
 const recOut = (r) => ({

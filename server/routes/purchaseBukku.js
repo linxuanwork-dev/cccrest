@@ -230,10 +230,13 @@ const needMgr = (req, res) => { if (isMgr(req)) return true; res.status(403).jso
 const billOut = (r) => ({
   id: String(r.id), supplier: r.supplier, code: r.code, no: r.no, ref: r.ref, date: r.bill_date || '', tags: r.tags, desc: r.description,
   lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised, hq: r.hq || null,
-  createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime()
+  createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime(),
+  approved: !!r.approved_at, noOriginal: !!r.no_original, inBukku: !!r.in_bukku_at, payDue: r.pay_due || '', payStatus: r.pay_task_status || ''
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
-const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at`;
+const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at,
+  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due,
+  (SELECT t.status FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay' ORDER BY t.id DESC LIMIT 1) AS pay_task_status`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
 async function stockOf(companyId) {
@@ -483,6 +486,72 @@ router.delete(BASE + '/suppliers/:id', ...guard(2), async (req, res) => {
   if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
   await pool.query('DELETE FROM purchase_bukku_contacts WHERE id = $1 AND company_id = $2', [Number(req.params.id) || 0, req.params.companyId]);
   res.json({ ok: true });
+});
+
+// ---- the flow of a bill: Approve -> in Bukku (ticked by a person) -> pay at the bank (a task in the work list) ----
+router.post(BASE + '/bills/stage', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  const b = req.body || {};
+  const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
+  if (!ids.length || ids.length > 500) return bad(res, 'Invalid request');
+  const cid = req.params.companyId, uid = req.user.sub;
+  let r;
+  if (b.action === 'no-original') {
+    // anyone who enters bills can flag a bill that still has no official document (or clear the flag)
+    r = await pool.query('UPDATE purchase_bukku_bills SET no_original = $3 WHERE company_id = $1 AND id = ANY($2::int[])', [cid, ids, b.value !== false]);
+  } else {
+    if (!needMgr(req, res)) return;
+    if (b.action === 'approve') {
+      r = await pool.query('UPDATE purchase_bukku_bills SET approved_at = now(), approved_by = $3 WHERE company_id = $1 AND id = ANY($2::int[]) AND approved_at IS NULL', [cid, ids, uid]);
+    } else if (b.action === 'unapprove') {
+      r = await pool.query('UPDATE purchase_bukku_bills SET approved_at = NULL, approved_by = NULL WHERE company_id = $1 AND id = ANY($2::int[]) AND in_bukku_at IS NULL', [cid, ids]);
+    } else if (b.action === 'in-bukku') {
+      r = await pool.query('UPDATE purchase_bukku_bills SET in_bukku_at = now(), in_bukku_by = $3, approved_at = COALESCE(approved_at, now()), approved_by = COALESCE(approved_by, $3) WHERE company_id = $1 AND id = ANY($2::int[]) AND in_bukku_at IS NULL', [cid, ids, uid]);
+    } else if (b.action === 'not-in-bukku') {
+      r = await pool.query('UPDATE purchase_bukku_bills SET in_bukku_at = NULL, in_bukku_by = NULL WHERE company_id = $1 AND id = ANY($2::int[]) AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = \'pay\')', [cid, ids]);
+    } else return bad(res, 'Invalid request');
+  }
+  res.json({ ok: true, changed: r.rowCount });
+});
+
+// "This bill must be paid": a "pay at the bank" task goes to the work list (a manager does it, the Owner checks it)
+router.post(BASE + '/bills/request-payment', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  const b = req.body || {};
+  const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
+  if (!ids.length || ids.length > 200) return bad(res, 'Invalid request');
+  const due = String(b.due || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || isNaN(new Date(due + 'T00:00:00Z'))) return bad(res, '请选还款日。 Choose the day the bill must be paid.');
+  const cid = req.params.companyId;
+  // who goes to the bank: the one chosen, else a manager of this company's staff, else the one asking
+  let assignee = Number(b.assigneeId) || 0;
+  if (assignee) {
+    const { rows } = await pool.query("SELECT id FROM users WHERE id = $1 AND active AND role IN ('admin','manager','staff')", [assignee]);
+    if (!rows[0]) return bad(res, '不能把事项交给这个人。 You cannot give work to this person.');
+  } else {
+    const { rows } = await pool.query(
+      `SELECT ms.manager_user_id AS id FROM company_staff cs JOIN manager_staff ms ON ms.staff_id = cs.staff_id
+         JOIN users u ON u.id = ms.manager_user_id AND u.active WHERE cs.company_id = $1 ORDER BY (ms.manager_user_id = $2) DESC, ms.manager_user_id LIMIT 1`,
+      [cid, req.user.sub]
+    );
+    assignee = rows[0] ? rows[0].id : req.user.sub;
+  }
+  const { rows: bills } = await pool.query(
+    `SELECT id, supplier, no, total, in_bukku_at,
+       EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay') AS has_task
+       FROM purchase_bukku_bills WHERE company_id = $1 AND id = ANY($2::int[]) ORDER BY bill_date, id`, [cid, ids]);
+  const out = { created: 0, notInBukku: 0, already: 0 };
+  for (const x of bills) {
+    if (!x.in_bukku_at) { out.notInBukku++; continue; }
+    if (x.has_task) { out.already++; continue; }
+    await pool.query(
+      `INSERT INTO work_tasks (company_id, title, kind, assignee_user_id, due_date, purchase_bill_id, created_by) VALUES ($1,$2,'pay',$3,$4,$5,$6)`,
+      [cid, ('去银行付款 Pay at bank: ' + x.supplier + ' ' + (x.no || '') + ' · RM ' + Number(x.total).toFixed(2)).slice(0, 200), assignee, due, x.id, req.user.sub]
+    );
+    await pool.query('UPDATE purchase_bukku_bills SET pay_due = $2 WHERE id = $1', [x.id, due]);
+    out.created++;
+  }
+  res.json({ ok: true, ...out });
 });
 
 // ---- bills ----

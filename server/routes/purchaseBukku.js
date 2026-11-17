@@ -7,6 +7,7 @@ const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
+const bukkuApi = require('./bukkuApi').bukku;
 
 const router = express.Router();
 
@@ -231,11 +232,12 @@ const billOut = (r) => ({
   id: String(r.id), supplier: r.supplier, code: r.code, no: r.no, ref: r.ref, date: r.bill_date || '', tags: r.tags, desc: r.description,
   lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised, hq: r.hq || null,
   createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime(),
-  approved: !!r.approved_at, noOriginal: !!r.no_original, inBukku: !!r.in_bukku_at, payDue: r.pay_due || '', payStatus: r.pay_task_status || ''
+  approved: !!r.approved_at, noOriginal: !!r.no_original, inBukku: !!r.in_bukku_at, payDue: r.pay_due || '', payStatus: r.pay_task_status || '',
+  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || ''
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
 const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at,
-  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due,
+  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status,
   (SELECT t.status FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay' ORDER BY t.id DESC LIMIT 1) AS pay_task_status`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
@@ -552,6 +554,167 @@ router.post(BASE + '/bills/request-payment', ...guard(2), async (req, res) => {
     out.created++;
   }
   res.json({ ok: true, ...out });
+});
+
+// ---- send bills to Bukku through the API: a bill is first made and checked here (Approve + preview + confirm); the Owner decides per company
+//     whether Bukku gets it as a draft or as a finished bill ----
+async function bukkuCtx(companyId, defaultAccount) {
+  const [acc, con, tag, sup] = await Promise.all([
+    pool.query('SELECT bukku_id, code, name, type FROM bukku_accounts WHERE company_id = $1', [companyId]),
+    pool.query('SELECT bukku_key, legal_name, contact_code, types FROM bukku_contacts WHERE company_id = $1 AND NOT is_archived', [companyId]),
+    pool.query('SELECT bukku_id, name FROM bukku_tags WHERE company_id = $1', [companyId]),
+    pool.query('SELECT name, code FROM purchase_bukku_contacts WHERE company_id = $1', [companyId])
+  ]);
+  return { accounts: acc.rows, contacts: con.rows, tags: tag.rows, suppliers: sup.rows, defaultAccount: defaultAccount || '' };
+}
+function bukkuFindContact(ctx, supplierName) {
+  const n = normName(supplierName);
+  const sup = ctx.suppliers.find((s) => normName(s.name) === n);
+  const code = sup && sup.code ? String(sup.code).toUpperCase() : '';
+  return (code && ctx.contacts.find((c) => String(c.contact_code || '').toUpperCase() === code)) || ctx.contacts.find((c) => normName(c.legal_name) === n) || null;
+}
+const bukkuAccountByCode = (ctx, raw) => {
+  const code = String(raw || '').trim().split(/\s+/)[0].toUpperCase();
+  return code ? ctx.accounts.find((a) => String(a.code || '').toUpperCase() === code) || null : null;
+};
+
+// What a bill becomes in Bukku (payment_mode credit / cash / claim). Returns the payload and everything that is wrong with it.
+function buildBukkuBill(bill, ctx, opt) {
+  const problems = [];
+  const mode = ['credit', 'cash', 'claim'].includes(opt.mode) ? opt.mode : 'credit';
+  const contact = bukkuFindContact(ctx, bill.supplier);
+  let supplierId = null;
+  if (!contact) problems.push('供应商「' + bill.supplier + '」在 Bukku 的联络人里找不到（看 Contact Code 或名称是否一样，再按 Control Panel 的「重新同步」）。');
+  else if (!Number.isInteger(Number(contact.bukku_key))) problems.push('Bukku 的联络人「' + contact.legal_name + '」没有可用的 id，请重新同步。');
+  else if (!(contact.types || []).includes('supplier')) problems.push('Bukku 里「' + contact.legal_name + '」不是供应商类型的联络人。');
+  else supplierId = Number(contact.bukku_key);
+
+  const lines = Array.isArray(bill.lines) ? bill.lines : [];
+  if (!lines.length) problems.push('这张单没有明细行。');
+  const items = [];
+  const codes = [];
+  let sum = 0;
+  lines.forEach((l, i) => {
+    const n = i + 1;
+    const qty = Number(l.qty), price = Number(l.price);
+    if (!(qty > 0) || !Number.isFinite(price) || price < 0) { problems.push('第 ' + n + ' 行的数量或单价不对。'); return; }
+    if (String(l.tax || '').trim()) { problems.push('第 ' + n + ' 行有税码「' + l.tax + '」，这个版本还不支持带税码的单，请先手动处理。'); return; }
+    const acc = bukkuAccountByCode(ctx, l.account || ctx.defaultAccount);
+    if (!acc) { problems.push('第 ' + n + ' 行的科目「' + (l.account || ctx.defaultAccount || '空') + '」在 Bukku 的科目表里找不到。'); return; }
+    codes.push(acc.code);
+    sum += qty * price;
+    items.push({ type: null, account_id: Number(acc.bukku_id), description: String(l.desc || '').slice(0, 255), unit_price: price, quantity: qty });
+  });
+  if (items.length === lines.length && Math.abs(sum - Number(bill.total)) > 0.011) problems.push('明细合计 ' + sum.toFixed(2) + ' 和单据总额 ' + Number(bill.total).toFixed(2) + ' 不一样。');
+
+  const tagNames = String(bill.tags || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+  const tagIds = [];
+  tagNames.forEach((tn) => {
+    const g = ctx.tags.find((x) => String(x.name).trim().toUpperCase() === tn.toUpperCase());
+    if (g) tagIds.push(Number(g.bukku_id)); else problems.push('Tag「' + tn + '」在 Bukku 里找不到（先在 Bukku 建好，再按「重新同步」）。');
+  });
+
+  const payload = {
+    payment_mode: mode, contact_id: supplierId, number: bill.no || undefined, number2: bill.ref || undefined, date: bill.bill_date,
+    currency_code: 'MYR', exchange_rate: 1, tax_mode: 'exclusive', form_items: items, status: opt.status === 'ready' ? 'ready' : 'draft'
+  };
+  // a finished bill is a purchase we received: it is not sent on to MyInvois from here
+  if (payload.status === 'ready') payload.myinvois_action = 'NORMAL';
+  if (tagIds.length) payload.tag_ids = tagIds;
+  if (bill.description) payload.description = String(bill.description).slice(0, 255);
+  if (mode === 'credit') {
+    payload.due_date = bill.pay_due || bill.bill_date;
+  } else if (mode === 'cash') {
+    const dep = ctx.accounts.find((a) => String(a.bukku_id) === String(opt.accountId));
+    if (!dep) problems.push('现付：请选付款的银行 / 现金账户。');
+    else payload.deposit_items = [{ line: 1, account_id: Number(dep.bukku_id), amount: Number(bill.total) }];
+  } else {
+    const emp = ctx.contacts.find((c) => String(c.bukku_key) === String(opt.employeeKey));
+    if (!emp || !(emp.types || []).includes('employee')) problems.push('员工代付（claim）：请选 Bukku 里的员工联络人。');
+    else { payload.contact2_id = supplierId; payload.contact_id = Number(emp.bukku_key); }
+  }
+  return { payload, problems, summary: { contact: contact ? contact.legal_name : '', accounts: [...new Set(codes)], tags: tagNames, mode } };
+}
+
+router.get(BASE + '/bukku-options', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  const cid = req.params.companyId;
+  const conn = await bukkuApi.loadConn(cid);
+  const [cash, emp, sent] = await Promise.all([
+    pool.query(`SELECT bukku_id, code, name FROM bukku_accounts WHERE company_id = $1 AND type IN ('current_assets','bank','cash') ORDER BY code`, [cid]),
+    pool.query(`SELECT bukku_key, legal_name FROM bukku_contacts WHERE company_id = $1 AND NOT is_archived AND 'employee' = ANY(types) ORDER BY legal_name`, [cid]),
+    pool.query('SELECT COUNT(*)::int AS n FROM purchase_bukku_bills WHERE company_id = $1 AND bukku_txn_id IS NOT NULL', [cid])
+  ]);
+  res.json({
+    connected: !!conn, sendEnabled: !!(conn && conn.send_enabled), sendStatus: conn && conn.send_status === 'ready' ? 'ready' : 'draft', sentCount: sent.rows[0].n,
+    cashAccounts: cash.rows.map((r) => ({ id: String(r.bukku_id), label: (r.code ? r.code + ' ' : '') + r.name })),
+    employees: emp.rows.map((r) => ({ key: r.bukku_key, name: r.legal_name }))
+  });
+});
+
+async function loadBillsForBukku(cid, ids) {
+  const { rows } = await pool.query(`SELECT ${BILL_COLS}, bukku_txn_id FROM purchase_bukku_bills WHERE company_id = $1 AND id = ANY($2::int[]) ORDER BY bill_date, id`, [cid, ids]);
+  return rows;
+}
+const idsOf = (b, max) => (Array.isArray(b && b.ids) ? [...new Set(b.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, max) : []);
+
+// Show what would be sent (nothing is sent)
+router.post(BASE + '/bills/bukku-preview', ...guard(2), async (req, res) => {
+  const s = await enabledSettings(req, res);
+  if (!s || !needMgr(req, res)) return;
+  const ids = idsOf(req.body, 50);
+  if (!ids.length) return bad(res, 'Invalid request');
+  const ctx = await bukkuCtx(req.params.companyId, s.account);
+  const pconn = await bukkuApi.loadConn(req.params.companyId);
+  const popt = Object.assign({}, req.body || {}, { status: pconn && pconn.send_status === 'ready' ? 'ready' : 'draft' });
+  const out = (await loadBillsForBukku(req.params.companyId, ids)).map((r) => {
+    const built = buildBukkuBill(r, ctx, popt);
+    const problems = built.problems.slice();
+    if (r.bukku_txn_id) problems.unshift('这张单已经送进 Bukku（' + (r.bukku_txn_no || '') + '）。');
+    else if (!r.approved_at) problems.unshift('这张单还没有 Approve。');
+    return { id: String(r.id), no: r.no, supplier: r.supplier, total: Number(r.total), ok: problems.length === 0, problems, summary: built.summary };
+  });
+  res.json({ bills: out });
+});
+
+router.post(BASE + '/bills/send-bukku', ...guard(2), async (req, res) => {
+  const s = await enabledSettings(req, res);
+  if (!s || !needMgr(req, res)) return;
+  const cid = req.params.companyId;
+  const conn = await bukkuApi.loadConn(cid);
+  if (!conn) return bad(res, '这家公司还没有连接 Bukku（Control Panel > Bukku API）。');
+  if (!conn.send_enabled) return bad(res, 'Owner 还没有在 Control Panel 打开「把采购单送进 Bukku」。');
+  const ids = idsOf(req.body, 20);
+  if (!ids.length) return bad(res, 'Invalid request');
+  const { rows: cnt } = await pool.query('SELECT COUNT(*)::int AS n FROM purchase_bukku_bills WHERE company_id = $1 AND bukku_txn_id IS NOT NULL', [cid]);
+  if (cnt[0].n === 0 && ids.length > 1) return bad(res, '第一次只送 1 张，到 Bukku 里确认草稿没问题，再批量送。 Send just one bill the first time and check the draft in Bukku.');
+  const ctx = await bukkuCtx(cid, s.account);
+  const status = conn.send_status === 'ready' ? 'ready' : 'draft';
+  const sopt = Object.assign({}, req.body || {}, { status });
+  const results = [];
+  for (const r of await loadBillsForBukku(cid, ids)) {
+    const base = { id: String(r.id), no: r.no, supplier: r.supplier };
+    if (r.bukku_txn_id) { results.push({ ...base, status: 'skipped', message: '已经送过（' + (r.bukku_txn_no || '') + '）。' }); continue; }
+    if (!r.approved_at) { results.push({ ...base, status: 'skipped', message: '还没有 Approve。' }); continue; }
+    const built = buildBukkuBill(r, ctx, sopt);
+    if (built.problems.length) { results.push({ ...base, status: 'problem', message: built.problems.join(' ') }); continue; }
+    try {
+      const resp = await bukkuApi.post(conn, '/purchases/bills', built.payload);
+      const tx = resp && resp.transaction;
+      if (!tx || tx.id == null) throw new Error('Bukku 没有回传单据 id。');
+      await pool.query(
+        `UPDATE purchase_bukku_bills SET bukku_txn_id = $2, bukku_txn_no = $3, bukku_sent_at = now(), bukku_sent_by = $4, bukku_send_error = NULL, pay_mode = $5, bukku_sent_status = $6,
+           in_bukku_at = COALESCE(in_bukku_at, now()), in_bukku_by = COALESCE(in_bukku_by, $4) WHERE id = $1`,
+        [r.id, tx.id, String(tx.number || '').slice(0, 60), req.user.sub, built.summary.mode, status]
+      );
+      await logActivity(req.user.sub, 'Sent a purchase bill to Bukku (' + (status === 'ready' ? 'finished bill' : 'draft') + ')', s.name, (r.supplier + ' ' + (r.no || '') + ' -> ' + (tx.number || tx.id)).slice(0, 300));
+      results.push({ ...base, status: 'sent', message: (status === 'ready' ? '已送进 Bukku（正式）' : '已送进 Bukku 草稿') + (tx.number ? '（' + tx.number + '）' : '') + '。' });
+    } catch (e) {
+      await pool.query('UPDATE purchase_bukku_bills SET bukku_send_error = $2 WHERE id = $1', [r.id, String(e.message).slice(0, 400)]);
+      results.push({ ...base, status: 'error', message: e.message });
+    }
+  }
+  res.json({ results });
 });
 
 // ---- bills ----

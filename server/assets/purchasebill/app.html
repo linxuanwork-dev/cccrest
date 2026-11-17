@@ -313,7 +313,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <span style="width:12px"></span>
         <label class="small">还款日 <input type="date" id="payDue"></label>
         <button class="btn pri" id="stPay" disabled>要付款 → 发到工作列表</button>
+        <span style="width:12px"></span>
+        <button class="btn" id="bkOpen" disabled title="用 API 把选中的、已 Approve 的单送进 Bukku">送进 Bukku</button>
       </div>
+      <div id="bkPanel" class="panel" style="margin-top:8px" hidden></div>
       <div class="bar staff-only" style="margin-top:8px"><button class="btn" id="stNoOrig2" disabled>缺正式单据</button><button class="btn" id="stHasOrig2" disabled>已拿到正式单据</button></div>
       <div id="exportMsg" style="margin-top:12px" hidden></div>
     </div>
@@ -845,6 +848,8 @@ function filteredBills(){
 function flowPills(b){
   const p=[];
   if(b.noOriginal) p.push('<span class="pill dup">缺正式单据</span>');
+  if(b.bukkuSent) p.push('<span class="pill done">'+(b.bukkuStatus==='ready'?'已送进 Bukku':'已送 Bukku 草稿')+(b.bukkuNo?' '+esc(b.bukkuNo):'')+'</span>');
+  else if(b.bukkuError) p.push('<span class="pill dup" title="'+esc(b.bukkuError)+'">送 Bukku 失败</span>');
   if(b.payStatus==='checked') p.push('<span class="pill done">已付款</span>');
   else if(b.payStatus==='done') p.push('<span class="pill draft">已付款 · 等 Owner 检查</span>');
   else if(b.payStatus==='todo') p.push('<span class="pill draft">付款中 · 等 manager 去银行</span>');
@@ -874,7 +879,7 @@ function updateSel(){
   const sel=S.bills.filter(b=>S.selected.has(b.id));
   const done=sel.filter(b=>b.status==='exported').length;
   $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>${done?` · <span style="color:#b45309">其中 ${done} 张已经导出过，不能再导出</span>`:''}` : '未选择（勾选要导出的单据）';
-  ['markDone','markDraft','delSel','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stNoOrig2','stHasOrig2'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
+  ['markDone','markDraft','delSel','bkOpen','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stNoOrig2','stHasOrig2'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
   $('exportBtn').disabled=!sel.length||done>0;
 }
 ['flMonth','flStatus','flFlow','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
@@ -898,6 +903,43 @@ $('stInBukku').addEventListener('click',()=>stage('in-bukku',true,'已标记「�
 $('stNotInBukku').addEventListener('click',()=>stage('not-in-bukku',true,'已取消「已在 Bukku」（已发去付款的不受影响）'));
 ['stNoOrig','stNoOrig2'].forEach(id=>$(id).addEventListener('click',()=>stage('no-original',true,'已标记缺正式单据')));
 ['stHasOrig','stHasOrig2'].forEach(id=>$(id).addEventListener('click',()=>stage('no-original',false,'已拿到正式单据')));
+/* ---------- send to Bukku (drafts) ---------- */
+let BK=null;
+function bkBody(){ return { ids:[...S.selected].map(Number), mode:$('bkMode').value, accountId:$('bkAcc')?$('bkAcc').value:'', employeeKey:$('bkEmp')?$('bkEmp').value:'' }; }
+function bkResult(list, kind){
+  const box=$('bkResult'); if(!box) return;
+  box.innerHTML = list.map(r=>{
+    const ok = kind==='preview' ? r.ok : r.status==='sent';
+    const msg = kind==='preview' ? (r.ok ? '可以送：供应商 '+esc(r.summary.contact)+'；科目 '+esc((r.summary.accounts||[]).join(', ')||'—')+(r.summary.tags.length?'；Tag '+esc(r.summary.tags.join(', ')):'')+'；RM '+money(r.total) : esc(r.problems.join(' '))) : esc(r.message);
+    return '<div style="margin:6px 0;padding:6px 8px;border-left:3px solid '+(ok?'#16a34a':'#dc2626')+'"><b class="mono">'+esc(r.no||'')+'</b> · '+esc(r.supplier)+'<div class="small">'+msg+'</div></div>';
+  }).join('');
+}
+$('bkOpen').addEventListener('click',async()=>{
+  const p=$('bkPanel');
+  if(!p.hidden){ p.hidden=true; return; }
+  p.hidden=false; p.innerHTML='读取中…';
+  try{
+    BK=await http('GET','/bukku-options');
+    if(!BK.connected){ p.innerHTML='<p class="small">这家公司还没有连接 Bukku。请 Owner 到 Control Panel &gt; Bukku API 连接。</p>'; return; }
+    if(!BK.sendEnabled){ p.innerHTML='<p class="small">Owner 还没有打开「把采购单送进 Bukku」（Control Panel &gt; Bukku API）。</p>'; return; }
+    const ready=BK.sendStatus==='ready';
+    p.innerHTML='<h3 style="margin:0 0 8px">送进 Bukku（'+(ready?'正式':'草稿')+'）</h3>'
+      +'<p class="small muted" style="margin:0 0 8px">先按「预览」看将要送进 Bukku 的内容，没问题再「确认送进」。'+(ready?'<b>确认后这张单直接进入 Bukku 的正式账目</b>（在 Bukku 里修改或删除要到 Bukku 操作）。':'确认后只会在 Bukku 里新增<b>草稿</b>，不会进入正式账目。')+'只送已 Approve 的单，送过的不会重复送。'+(BK.sentCount===0?'<br><b>第一次只能送 1 张，请到 Bukku 里确认没问题，再批量送。</b>':'')+'</p>'
+      +'<div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">'
+      +'<label class="small">付款方式 <select id="bkMode"><option value="credit">赊账（之后还款）</option><option value="cash">现付</option><option value="claim">员工 / 老板代付（claim）</option></select></label>'
+      +'<label class="small" id="bkAccL" hidden>付款账户 <select id="bkAcc"><option value="">— 选 —</option>'+BK.cashAccounts.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.label)+'</option>').join('')+'</select></label>'
+      +'<label class="small" id="bkEmpL" hidden>代付的员工 <select id="bkEmp"><option value="">— 选 —</option>'+BK.employees.map(a=>'<option value="'+esc(a.key)+'">'+esc(a.name)+'</option>').join('')+'</select></label>'
+      +'<button class="btn" id="bkPrev">预览</button><button class="btn pri" id="bkSend">确认送进 Bukku（'+(ready?'正式':'草稿')+'）</button></div>'
+      +'<div id="bkResult" style="margin-top:8px"></div>';
+    $('bkMode').addEventListener('change',()=>{ $('bkAccL').hidden=$('bkMode').value!=='cash'; $('bkEmpL').hidden=$('bkMode').value!=='claim'; });
+    $('bkPrev').addEventListener('click',async()=>{ try{ const r=await http('POST','/bills/bukku-preview',bkBody()); bkResult(r.bills,'preview'); }catch(e){ $('bkResult').textContent=e.message; } });
+    $('bkSend').addEventListener('click',async()=>{
+      const b=$('bkSend'); b.disabled=true;
+      try{ const r=await http('POST','/bills/send-bukku',bkBody()); bkResult(r.results,'send'); await refresh(); }catch(e){ $('bkResult').innerHTML='<div class="small" style="color:#dc2626">'+esc(e.message)+'</div>'; }
+      finally{ b.disabled=false; }
+    });
+  }catch(e){ p.innerHTML='<p class="small">'+esc(e.message)+'</p>'; }
+});
 $('stPay').addEventListener('click',async()=>{
   const ids=[...S.selected].map(Number), due=$('payDue').value;
   if(!ids.length) return;

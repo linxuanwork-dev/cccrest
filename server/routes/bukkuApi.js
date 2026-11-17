@@ -47,13 +47,15 @@ function cleanSubdomain(v) {
   return /^[a-z0-9][a-z0-9-]{0,62}$/.test(s) ? s : '';
 }
 
-async function bukkuGet(conn, path, query) {
+async function bukkuGet(conn, path, query, jsonBody) {
   const url = new URL(BUKKU_API + path);
   Object.entries(query || {}).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   let r;
   try {
     r = await fetch(url, {
-      headers: { Authorization: 'Bearer ' + decrypt(conn.token_enc), 'Company-Subdomain': conn.subdomain, Accept: 'application/json' },
+      method: jsonBody === undefined ? 'GET' : 'POST',
+      headers: Object.assign({ Authorization: 'Bearer ' + decrypt(conn.token_enc), 'Company-Subdomain': conn.subdomain, Accept: 'application/json' }, jsonBody === undefined ? {} : { 'Content-Type': 'application/json' }),
+      body: jsonBody === undefined ? undefined : JSON.stringify(jsonBody),
       signal: AbortSignal.timeout(20000)
     });
   } catch (e) {
@@ -67,7 +69,7 @@ async function bukkuGet(conn, path, query) {
       : r.status === 403 ? 'This access token is not allowed to read this (403).'
         : r.status === 404 ? 'Bukku company not found - check the subdomain.'
           : r.status === 429 ? 'Too many requests to Bukku - wait a minute and try again.'
-            : 'Bukku returned an error (' + r.status + ')' + (body && (body.message || body.error) ? ': ' + String(body.message || body.error).slice(0, 200) : '.');
+            : 'Bukku returned an error (' + r.status + ')' + (body && (body.message || body.error || body.errors) ? ': ' + (typeof (body.message || body.error) === 'string' ? String(body.message || body.error) : JSON.stringify(body.message || body.error || body.errors)).slice(0, 400) : '.');
     throw new Error(why);
   }
   return body;
@@ -88,11 +90,13 @@ router.get('/bukku/connections', requireAuth, requireRole('admin'), async (req, 
     `SELECT c.id, c.name, b.subdomain, b.last_sync_at, b.last_error,
        (b.company_id IS NOT NULL) AS connected,
        (SELECT COUNT(*) FROM bukku_accounts a WHERE a.company_id = c.id)::int AS accounts,
-       (SELECT COUNT(*) FROM bukku_contacts k WHERE k.company_id = c.id)::int AS contacts
+       (SELECT COUNT(*) FROM bukku_contacts k WHERE k.company_id = c.id)::int AS contacts,
+       COALESCE(b.send_enabled, false) AS send_enabled, COALESCE(b.send_status, 'draft') AS send_status,
+       (SELECT COUNT(*) FROM bukku_tags g WHERE g.company_id = c.id)::int AS tags
      FROM companies c LEFT JOIN bukku_connections b ON b.company_id = c.id
      ORDER BY (b.company_id IS NOT NULL) DESC, c.name`
   );
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts, tags: r.tags, sendEnabled: r.send_enabled, sendStatus: r.send_status })));
 });
 
 router.put('/bukku/connections/:companyId', requireAuth, requireRole('admin'), async (req, res) => {
@@ -120,6 +124,7 @@ router.delete('/bukku/connections/:companyId', requireAuth, requireRole('admin')
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await pool.query('DELETE FROM bukku_accounts WHERE company_id = $1', [req.params.companyId]);
   await pool.query('DELETE FROM bukku_contacts WHERE company_id = $1', [req.params.companyId]);
+  await pool.query('DELETE FROM bukku_tags WHERE company_id = $1', [req.params.companyId]);
   const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Removed Bukku API connection', co[0] ? co[0].name : String(req.params.companyId), null);
   res.json({ ok: true });
@@ -186,13 +191,23 @@ router.post(['/bukku/connections/:companyId/sync', '/bukku/connections/:companyI
     contacts = list.length;
   } catch (e) { errors.push('Contacts: ' + e.message); }
 
-  if (accounts == null && contacts == null) {
+  let tags = null;
+  try {
+    const body = await bukkuGet(conn, '/tags');
+    const list = (body && Array.isArray(body.tags) ? body.tags : []).filter((g) => g && g.id != null && !g.is_archived);
+    await replaceCopy(conn.company_id, 'DELETE FROM bukku_tags WHERE company_id = $1', list,
+      'INSERT INTO bukku_tags (company_id, bukku_id, name) VALUES ($1,$2,$3) ON CONFLICT (company_id, bukku_id) DO NOTHING',
+      (g) => [conn.company_id, g.id, String(g.name || '').slice(0, 100)]);
+    tags = list.length;
+  } catch (e) { errors.push('Tags: ' + e.message); }
+
+  if (accounts == null && contacts == null && tags == null) {
     await pool.query('UPDATE bukku_connections SET last_error = $1 WHERE company_id = $2', [errors.join(' | ').slice(0, 300), conn.company_id]);
     return bad(res, errors.join(' '));
   }
   await pool.query('UPDATE bukku_connections SET last_sync_at = now(), last_error = $1 WHERE company_id = $2', [errors.length ? errors.join(' | ').slice(0, 300) : null, conn.company_id]);
-  await logActivity(req.user.sub, 'Synced Bukku chart of accounts & contacts', conn.name, (accounts == null ? 'accounts failed' : accounts + ' accounts') + ', ' + (contacts == null ? 'contacts failed' : contacts + ' contacts'));
-  res.json({ ok: true, accounts: accounts || 0, contacts: contacts || 0, errors });
+  await logActivity(req.user.sub, 'Synced Bukku chart of accounts & contacts', conn.name, (accounts == null ? 'accounts failed' : accounts + ' accounts') + ', ' + (contacts == null ? 'contacts failed' : contacts + ' contacts') + ', ' + (tags == null ? 'tags failed' : tags + ' tags'));
+  res.json({ ok: true, accounts: accounts || 0, contacts: contacts || 0, tags: tags || 0, errors });
 });
 
 // ============ anyone who can open the company: the accounts to pick from ============
@@ -217,4 +232,20 @@ router.get('/companies/:companyId/bukku/contacts', requireAuth, scopeToCompany, 
   res.json({ contacts: rows.map((r) => ({ legalName: r.legal_name, otherName: r.other_name || '', code: r.contact_code, regNo: r.reg_no || '', types: r.types, email: r.email || '', phone: r.phone_no || '' })) });
 });
 
+// The Owner switches "send purchase bills to Bukku (as drafts)" on or off for a company.
+router.put('/bukku/connections/:companyId/send', requireAuth, requireRole('admin'), async (req, res) => {
+  const on = !!(req.body && req.body.enabled);
+  const status = req.body && req.body.status === 'ready' ? 'ready' : 'draft';
+  const { rows } = await pool.query('UPDATE bukku_connections SET send_enabled = $2, send_status = $3 WHERE company_id = $1 RETURNING company_id', [req.params.companyId, on, status]);
+  if (!rows[0]) return bad(res, 'Save the Bukku subdomain and Access Token first.');
+  const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  await logActivity(req.user.sub, on ? 'Switched on sending purchase bills to Bukku' : 'Switched off sending purchase bills to Bukku', co[0] ? co[0].name : String(req.params.companyId), on ? ('as ' + (status === 'ready' ? 'finished bills' : 'drafts')) : null);
+  res.json({ ok: true, enabled: on, status });
+});
+
 module.exports = router;
+// used by the purchase bill routes: the saved connection of a company, and a POST to the Bukku API
+module.exports.bukku = {
+  loadConn: async (companyId) => (await pool.query('SELECT * FROM bukku_connections WHERE company_id = $1', [companyId])).rows[0] || null,
+  post: (conn, path, body) => bukkuGet(conn, path, {}, body)
+};

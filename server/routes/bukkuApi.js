@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
+const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 
 const router = express.Router();
@@ -232,6 +233,22 @@ router.get('/companies/:companyId/bukku/contacts', requireAuth, scopeToCompany, 
   res.json({ contacts: rows.map((r) => ({ legalName: r.legal_name, otherName: r.other_name || '', code: r.contact_code, regNo: r.reg_no || '', types: r.types, email: r.email || '', phone: r.phone_no || '' })) });
 });
 
+// A person who works on the company's tuition (a CC CREST manager) reads the Bukku contacts again right now (read only).
+router.post('/companies/:companyId/bukku/refresh-contacts', requireAuth, scopeToCompany, requirePage('tuition', 2), async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM bukku_connections WHERE company_id = $1', [req.params.companyId]);
+  const conn = rows[0];
+  if (!conn) return bad(res, '这家公司还没有连接 Bukku（请 Owner 到 Control Panel > Bukku API 连接）。');
+  const list = await fetchContacts(conn);
+  await replaceCopy(conn.company_id, 'DELETE FROM bukku_contacts WHERE company_id = $1', list,
+    `INSERT INTO bukku_contacts (company_id, bukku_key, legal_name, other_name, contact_code, reg_no, types, email, phone_no, is_archived)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (company_id, bukku_key) DO NOTHING`,
+    (c) => [conn.company_id, String(c.id != null ? c.id : (c.contact_code || c.legal_name || '')).slice(0, 120), String(c.legal_name || '').slice(0, 200),
+      c.other_name || null, String(c.contact_code || '').slice(0, 60), c.reg_no || null, Array.isArray(c.types) ? c.types.map(String) : [],
+      c.email || null, c.phone_no || null, !!c.is_archived]);
+  await pool.query('UPDATE bukku_connections SET last_sync_at = now() WHERE company_id = $1', [conn.company_id]);
+  res.json({ ok: true, contacts: list.length });
+});
+
 // The Owner switches "send purchase bills to Bukku (as drafts)" on or off for a company.
 router.put('/bukku/connections/:companyId/send', requireAuth, requireRole('admin'), async (req, res) => {
   const on = !!(req.body && req.body.enabled);
@@ -247,5 +264,6 @@ module.exports = router;
 // used by the purchase bill routes: the saved connection of a company, and a POST to the Bukku API
 module.exports.bukku = {
   loadConn: async (companyId) => (await pool.query('SELECT * FROM bukku_connections WHERE company_id = $1', [companyId])).rows[0] || null,
-  post: (conn, path, body) => bukkuGet(conn, path, {}, body)
+  post: (conn, path, body) => bukkuGet(conn, path, {}, body),
+  get: (conn, path, query) => bukkuGet(conn, path, query)
 };

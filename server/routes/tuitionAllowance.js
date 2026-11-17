@@ -5,6 +5,7 @@ const docs = require('../lib/docs');
 const { pool } = require('../db');
 const { requireRole, requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
+const bukkuApi = require('./bukkuApi').bukku;
 const { logActivity } = require('../lib/activity');
 const tuitionLang = require('../lib/tuitionLang');
 const hqBill = require('../lib/hqBill');
@@ -88,6 +89,50 @@ async function enabledSettings(req, res) {
 }
 
 // Whether the feature is on for this company, and what this user may do on the page
+// What Bukku says each customer still owes (read only): the invoices that are not fully paid, added up per contact.
+// The tuition page lines this up with what the system itself works out and lists what differs.
+router.get(BASE + '/bukku-receivables', ...guard(2), async (req, res) => {
+  if (!isMgr(req)) return res.status(403).json({ error: '只有 manager 可以做这个操作。 Only a manager can do this.' });
+  const conn = await bukkuApi.loadConn(req.params.companyId);
+  if (!conn) return bad(res, '这家公司还没有连接 Bukku（请 Owner 到 Control Panel > Bukku API 连接）。');
+  const invoices = [];
+  let total = null;
+  for (let page = 1; page <= 100; page++) {
+    const body = await bukkuApi.get(conn, '/sales/invoices', { payment_status: 'OUTSTANDING', page, page_size: 100 });
+    const list = (body && body.transactions) || [];
+    invoices.push(...list);
+    if (body && body.paging && body.paging.total != null) total = Number(body.paging.total);
+    if (!list.length || list.length < 100 || (total != null && invoices.length >= total)) break;
+  }
+  // only finished invoices count (not draft / void)
+  const live = invoices.filter((t) => !t.status || t.status === 'ready');
+  // the list may not carry the balance: ask for the invoice itself (a few at a time)
+  const need = live.filter((t) => t.balance == null);
+  const CAP = 1200;
+  let partial = false;
+  const todo = need.slice(0, CAP);
+  if (need.length > CAP) partial = true;
+  for (let i = 0; i < todo.length; i += 8) {
+    await Promise.all(todo.slice(i, i + 8).map(async (t) => {
+      try {
+        const d = await bukkuApi.get(conn, '/sales/invoices/' + encodeURIComponent(t.id));
+        const tx = d && d.transaction;
+        if (tx && tx.balance != null) t.balance = tx.balance;
+      } catch (e) { partial = true; }
+    }));
+  }
+  const by = new Map();
+  live.forEach((t) => {
+    const bal = t.balance != null ? Number(t.balance) : null;
+    if (bal == null || !Number.isFinite(bal)) { partial = true; return; }
+    const code = String(t.contact_code || '');
+    const k = code || ('#' + t.contact_id);
+    if (!by.has(k)) by.set(k, { code, name: String(t.contact_name || ''), outstanding: 0, count: 0 });
+    const e = by.get(k); e.outstanding = Math.round((e.outstanding + bal) * 100) / 100; e.count++;
+  });
+  res.json({ asOf: new Date().toISOString(), invoices: live.length, partial, contacts: [...by.values()].filter((c) => c.outstanding > 0.004).sort((a, b) => b.outstanding - a.outstanding) });
+});
+
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await loadSettings(req.params.companyId);
   if (!s) return res.status(404).json({ error: 'Not found' });

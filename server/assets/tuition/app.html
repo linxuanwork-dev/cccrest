@@ -453,6 +453,7 @@ async function init(){
   db.collection('claims').onSnapshot(s=>{ S.claims={}; s.docs.forEach(d=>S.claims[d.id]=d.data()); done('claims'); });
   db.collection('hqbills').onSnapshot(s=>{ S.hqbills={}; s.docs.forEach(d=>S.hqbills[d.id]=d.data()); done('hqbills'); });
   await sync();
+  if(MGR&&canWrite) setTimeout(autoContacts,4000);   // the student codes come from Bukku by themselves
   setInterval(()=>{ if(!document.hidden) syncSoon(); },10000);   // pick up what other people saved
 }
 let _rt=null; function render(){ clearTimeout(_rt); _rt=setTimeout(renderNow,30); }
@@ -537,6 +538,8 @@ function vStu(){
    <button class="g" title="没有 Bukku code 的学生 → Bukku Contacts import 文件" onclick="exportContacts()">导出 Bukku Contacts（新联系人）</button>
    <button class="g" title="这个 branch、这个状态筛选下的学生名单" onclick="exportStudentsExcel()">下载 Excel（学生名单）</button>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="把 Bukku 的 Contacts 导出文件读回来，核对并填上 code">导入 Bukku Contacts（核对 / 填 code）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importContacts(this)"></label>
+   <button class="b" title="直接从 Bukku 读取联络人：没有 code 的学生自动填上 code，对不上的列出来提醒你" onclick="bukkuContactsSync(false)">从 Bukku 同步 Contacts（自动填 code）</button>
+   <button class="b" title="直接从 Bukku 读取每位学生还欠多少，和系统算出来的对一对，不一样的列出来" onclick="bukkuReceivables()">核对 Bukku 欠款</button>
    <label class="g" style="padding:5px 10px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer" title="Bukku → Aged Receivables（日期 = 系统第一个月的前一天），会取代这个 branch 所有学生的期初欠款">导入 Bukku 欠款（期初）<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAging(this)"></label>
   </div>
   ${noMt?`<div class="msg warn">${noMt} 个 Active 学生没有填 MT 或 package</div>`:''}
@@ -1638,6 +1641,10 @@ async function importContacts(input){
   const rows=sheetRows(wbk.Sheets[wbk.SheetNames[0]]); const hi=rows.findIndex(r=>String((r&&r[1])||'').startsWith('Contact Code'));
   if(hi<0) return toast('这不是 Bukku 的 Contacts 文件（找不到 Contact Code 栏）');
   const bk={}; rows.slice(hi+1).forEach(r=>{ const m=String((r&&r[3])||'').match(/^([ABT]\d{3})\s*-\s*(.*)$/i); if(m&&r[1]) bk[m[1].toUpperCase()]={code:String(r[1]).trim(),name:String(m[2]).toUpperCase().replace(/\s+/g,' ').trim(),n:norm(m[2])}; });
+  return contactsCheck(bk,false);
+}
+// the contact check: the same for a Bukku Contacts file and for what the Bukku API gave. auto = fill the empty codes straight away and only speak up when something is wrong
+async function contactsCheck(bk,auto){
   const docs={}, fill=[], diffCode=[], diffName=[], missing=[]; BRANCHES.forEach(b=>{ docs[b]=JSON.parse(JSON.stringify(S.students[b]||{list:{}})); });
   const seen=new Set();
   for(const b of BRANCHES) for(const [no,st] of Object.entries(docs[b].list||{})){ const k=no.toUpperCase(), x=bk[k]; seen.add(k);
@@ -1648,10 +1655,57 @@ async function importContacts(input){
   const notInSys=Object.keys(bk).filter(k=>!seen.has(k));
   const box=(t,a)=>a.length?`<details ${t.startsWith('不一样')?'open':''}><summary class="small"><b>${t}：${a.length}</b></summary><div class="small">${a.slice(0,60).map(esc).join('<br>')}${a.length>60?'<br>…':''}</div></details>`:'';
   window._contactsFill=docs;
+  if(auto){
+    if(fill.length) await contactsApply();
+    if(!diffCode.length&&!diffName.length&&!missing.length&&!notInSys.length){ toast(fill.length?'已从 Bukku 填上 '+fill.length+' 个 code，其他都一致':'Bukku Contacts 核对完毕：全部一致',4000); return; }
+  }
   modal(`<h3>核对 Bukku Contacts</h3><div class="small mute">Bukku 里 ${Object.keys(bk).length} 位学生联系人。没有 code 的学生会填上 Bukku 的 code；已经有 code 但不一样的，不会自动改，列在下面请你确认。</div>
-   ${box('会填上 code',fill)}${box('不一样：code',diffCode)}${box('不一样：名字',diffName)}${box('系统里没有 code、Bukku 里也找不到',missing)}${box('Bukku 里有、系统里没有',notInSys)}
-   <div class="row" style="margin-top:12px">${fill.length?`<button class="b" onclick="contactsApply()">填上 ${fill.length} 个 code</button>`:''}<button class="g" onclick="closeModal()">关闭</button></div>`);
+   ${box(auto?'已自动填上 code':'会填上 code',fill)}${box('不一样：code',diffCode)}${box('不一样：名字',diffName)}${box('系统里没有 code、Bukku 里也找不到',missing)}${box('Bukku 里有、系统里没有',notInSys)}
+   <div class="row" style="margin-top:12px">${fill.length&&!auto?`<button class="b" onclick="contactsApply()">填上 ${fill.length} 个 code</button>`:''}<button class="g" onclick="closeModal()">关闭</button></div>`);
 }
+function bukkuContactMap(list){
+  const bk={};
+  list.forEach(c=>{ const m=String(c.legalName||'').match(/^([ABT]\d{3})\s*-\s*(.*)$/i); if(m&&c.code) bk[m[1].toUpperCase()]={code:String(c.code).trim(),name:String(m[2]).toUpperCase().replace(/\s+/g,' ').trim(),n:norm(m[2])}; });
+  return bk;
+}
+// read the contacts from Bukku right now (through the API), then fill / check the codes
+async function bukkuContactsSync(auto){
+  try{
+    const r0=await fetch('/api/companies/'+encodeURIComponent(CID)+'/bukku/refresh-contacts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});
+    const j0=await r0.json().catch(()=>({}));
+    if(!r0.ok) throw new Error(j0.error||('请求失败 ('+r0.status+')'));
+    const r=await fetch('/api/companies/'+encodeURIComponent(CID)+'/bukku/contacts?type=customer',{credentials:'same-origin'});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('请求失败 ('+r.status+')'));
+    const bk=bukkuContactMap(j.contacts||[]);
+    if(!Object.keys(bk).length){ if(!auto) toast('Bukku 里没有读到「A001 - 学生名字」这样的学生联络人。',6000); return; }
+    await contactsCheck(bk,!!auto);
+  }catch(e){ if(!auto) toast('从 Bukku 读取失败：'+(e&&e.message||e),7000); }
+}
+// once a day, when a manager opens the page: fill the empty codes, and remind when something does not match
+async function autoContacts(){
+  try{ const k='dmBkContacts:'+CID, d=today(); if(localStorage.getItem(k)===d) return; localStorage.setItem(k,d); }catch(e){ /* no storage: just run */ }
+  await bukkuContactsSync(true);
+}
+// what Bukku says each student still owes, next to what the system works out; only the differences are listed
+async function bukkuReceivables(){
+  toast('正在从 Bukku 读取欠款，请稍等…',4000);
+  let j; try{ j=await http('GET','/bukku-receivables'); }catch(e){ return toast('从 Bukku 读取失败：'+(e&&e.message||e),7000); }
+  const L=ledger(), o=outstanding(S,L,today()), sys={}, noCode=[];
+  o.forEach(r=>{ const code=r.s.code||''; if(!code){ noCode.push(r.s.no+' '+r.s.name+'：系统欠 RM '+money(r.owe)); return; } const e=sys[code]||(sys[code]={code,name:r.s.no+' '+r.s.name,owe:0}); e.owe=r2(e.owe+r.owe); });
+  const bk={}; j.contacts.forEach(c=>{ if(c.code) bk[c.code]=c; });
+  const codes=new Set([...Object.keys(sys),...Object.keys(bk)]), diffs=[]; let same=0;
+  codes.forEach(code=>{ const a=sys[code]?sys[code].owe:0, b=bk[code]?bk[code].outstanding:0, d=r2(a-b); if(Math.abs(d)<0.01){ if(a>0) same++; return; } diffs.push({code,name:sys[code]?sys[code].name:(bk[code].name||''),sys:a,bk:b,d}); });
+  diffs.sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
+  window._bkDiffs=diffs;
+  modal(`<h3>核对 Bukku 欠款</h3><div class="small mute">Bukku 读取时间 ${esc(String(j.asOf).slice(0,16).replace('T',' '))}（UTC）· ${j.invoices} 张还没收齐的发票${j.partial?' · <b style="color:#b45309">有些发票读不到余额，数字可能少算</b>':''}。</div>
+   <div class="msg ${diffs.length?'warn':'ok'}" style="margin:8px 0">一致 ${same} 位 · <b>不一样 ${diffs.length} 位</b>${noCode.length?' · 没有 Bukku code 的欠款学生 '+noCode.length+' 位':''}</div>
+   ${diffs.length?`<div class="tw" style="max-height:46vh;overflow:auto"><table><tr><th>Bukku code</th><th>学生</th><th class="r">系统欠款</th><th class="r">Bukku 欠款</th><th class="r">差</th></tr>${diffs.slice(0,150).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td class="r">${money(x.sys)}</td><td class="r">${money(x.bk)}</td><td class="r"><b>${x.d>0?'+':''}${money(x.d)}</b></td></tr>`).join('')}</table></div>${diffs.length>150?'<div class="small mute">只列出差最多的 150 位，其余请下载 Excel。</div>':''}`:''}
+   ${noCode.length?`<details><summary class="small"><b>没有 Bukku code：${noCode.length}</b></summary><div class="small">${noCode.slice(0,60).map(esc).join('<br>')}</div></details>`:''}
+   <div class="small mute" style="margin-top:8px">差是正数 = 系统比 Bukku 多算：常见是这个月的学费还没导入 Bukku，或 Bukku 里有预收款 / credit note。差是负数 = Bukku 比系统多：常见是付款系统里已经确认、但还没导入 Bukku，或系统漏了一笔发票。这里只是提醒，不会改动任何资料。</div>
+   <div class="row" style="margin-top:10px">${diffs.length?'<button class="g" onclick="bkDiffExcel()">下载 Excel</button>':''}<button class="g" onclick="closeModal()">关闭</button></div>`);
+}
+function bkDiffExcel(){ const d=window._bkDiffs||[]; saveXlsx(`Bukku欠款核对_${today()}.xlsx`,[['不一样',[['Bukku code','学生','系统欠款 RM','Bukku 欠款 RM','差 RM']].concat(d.map(x=>[x.code,x.name,x.sys,x.bk,x.d]))]]); }
 async function contactsApply(){ const docs=window._contactsFill; if(!docs) return; for(const b of BRANCHES){ if(JSON.stringify(docs[b])!==JSON.stringify(S.students[b]||{list:{}})) await save('students/'+b,docs[b]); } window._contactsFill=null; closeModal(); toast('已填上 Bukku code'); }
 // ---- invoice numbers: the system writes the real number (Bukku is not asked to number them), so a payment can name the invoice it pays ----
 function usedNumbers(){ const a=[]; for(const d of Object.values(S.hqbills||{})){ if(d.kind==='fee') Object.values(d.nums||{}).forEach(n=>a.push(n)); else if(d.kind==='fast') (d.items||[]).forEach(i=>{ if(i.invNo) a.push(i.invNo); }); else (d.lines||[]).forEach(l=>{ if(l.invNo) a.push(l.invNo); }); } return a; }

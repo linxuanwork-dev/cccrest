@@ -1166,7 +1166,8 @@ function vClaim(){
   const cnt=k=>rows.filter(r=>(r.c?r.c.status:'none')===k).length;
   return tallyCard(b,m)+`<div class="card"><h2>MT Claim</h2><div class="row"><select onchange="UI.cBranch=this.value;render()">${brOpts(b,true)}</select>
    <input type="month" value="${m}" onchange="UI.cMonth=this.value;render()">
-   <span class="small mute">待批准 ${cnt('submitted')} · 草稿 ${cnt('draft')} · 退回 ${cnt('returned')} · 已批准 ${cnt('approved')} · 还没开始 ${cnt('none')}</span></div>
+   <span class="small mute">待批准 ${cnt('submitted')} · 草稿 ${cnt('draft')} · 退回 ${cnt('returned')} · 已批准 ${cnt('approved')} · 还没开始 ${cnt('none')}</span>
+   <span style="flex:1"></span><button class="g" title="这个月所有 MT claim：总表、每位学生一行（含系统对照）、Active 学生对照" onclick="claimExcel()">下载 Excel（检查用）</button></div>
    <div class="small mute" style="margin:6px 0">MT 用自己的账号在 <b>${esc(claimUrl())}</b> 填表。提交后你在这里对照系统（付款、deadline、master 名单），批准后会更新老师名单；有错就退回。</div>
    <div class="tw"><table><tr><th>Branch</th><th>MT</th><th>状态</th><th class="n">学生</th><th class="n">堂数</th><th>提交时间</th><th></th></tr>
    ${rows.map(r=>{ const c=r.c, k=c?c.status:'none', t=CST[k]||CST.none, n=c?(c.lines||[]).length:0, cl=c?(c.lines||[]).reduce((a,l)=>a+(l.dates||[]).length,0):0;
@@ -1247,6 +1248,21 @@ function tallyCard(b,m){
     ${t.dups.length?`<details open><summary class="small"><b style="color:#b91c1c">同时在两位 MT 的 claim 里：${t.dups.length}</b></summary><div class="small">${t.dups.map(a=>`${esc(a.label)} <button class="g" onclick="claimReview('${esc(a.claim)}')">处理</button>`).join('<br>')}</div></details>`:''}
     ${t.missing.length?`<details><summary class="small">还没出现在任何 claim 里的 Active 学生：${t.missing.length}</summary><div class="small">${t.missing.map(esc).join('<br>')}</div></details>`:''}
     ${t.news.length?`<details><summary class="small">新学生（等批准后加进名单）：${t.news.length}</summary><div class="small">${t.news.map(esc).join('<br>')}</div></details>`:''}</div>`; }).join('')}</div>`;
+}
+// the MT Claims of the month on screen as an Excel file for checking: the list, every student line with what the system says, and the Active-student tally
+function claimExcel(){
+  const m=UI.cMonth, b=UI.cBranch||'ALL';
+  const claims=Object.entries(S.claims||{}).map(([id,c])=>Object.assign({id},c)).filter(c=>c.month===m&&(b==='ALL'||c.branch===b)).sort((x,y)=>BRANCHES.indexOf(x.branch)-BRANCHES.indexOf(y.branch)||x.mt.localeCompare(y.mt));
+  if(!claims.length) return toast('这个月没有 MT Claim');
+  const stName={submitted:'待批准',draft:'草稿',returned:'退回',approved:'已批准'};
+  const list=[['Branch','MT','状态','学生数','堂数','提交时间']].concat(claims.map(c=>[c.branch,c.mt,stName[c.status]||c.status,(c.lines||[]).length,(c.lines||[]).reduce((a,l)=>a+(l.dates||[]).length,0),c.submittedAt?String(c.submittedAt).slice(0,16).replace('T',' '):'']));
+  const det=[['Branch','MT','Claim 状态','#','学生编号','学生','Package','上课日期','堂数','MT 写（学费）','系统状态','付款日期','Deadline','Rate','Allowance','产品','备注','要检查的地方']];
+  claims.forEach(c=>{ let A; try{ A=claimAnalysis(c); }catch(e){ A=null; }
+    (c.lines||[]).forEach((l,i)=>{ const r=A?A.rows[i]:null, sys=r&&r.sys;
+      det.push([c.branch,c.mt,stName[c.status]||c.status,i+1,(r&&r.s)?r.s.no:'',l.name||'',l.pkg||'',(l.dates||[]).map(d=>String(d).slice(8)).join(', '),(l.dates||[]).length,l.fee||'',sys?({payable:'已付，可出 allowance',pending:'还没付',forfeit:'迟付，不出 allowance'}[sys.status]||sys.status):'',sys&&sys.paidDate?sys.paidDate:'',sys&&sys.deadline?sys.deadline:'',r?r.rate:'',r&&!l.dropped?r.amount:'',(l.products||[]).join(', '),l.remark||'',(r?r.flags.map(f=>f.x).join('；'):'')+(l.dropped?'；这份 claim 不算':'')]); }); });
+  const tal=[['Branch','类别','学生']];
+  (b==='ALL'?BRANCHES:[b]).forEach(x=>{ const t=claimTally(x,m); t.noMt.forEach(a=>tal.push([x,'Active 学生没有 MT',a.label])); t.extra.forEach(a=>tal.push([x,'在 claim 里但 Master 不是 Active',a.label])); t.dups.forEach(a=>tal.push([x,'同时在两位 MT 的 claim 里',a.label])); t.missing.forEach(a=>tal.push([x,'Active 但没在任何 claim 里',a])); t.news.forEach(a=>tal.push([x,'新学生（等批准）',a])); });
+  saveXlsx(`DM-MT-Claim-${b}-${m.replace('-','_')}.xlsx`,[['MT Claim',list],['学生明细',det],['Active 学生对照',tal]]);
 }
 function claimReview(id){
   const c=S.claims[id]; if(!c) return; const A=claimAnalysis(c), sub=c.status==='submitted', tot=r2(A.rows.reduce((a,r)=>a+r.amount,0));

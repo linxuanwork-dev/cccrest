@@ -60,6 +60,7 @@ app.use('/api', require('./routes/mtClaim'));
 app.use('/api', require('./routes/kwsp'));
 app.use('/api', require('./routes/docs'));
 app.use('/api', require('./routes/bukkuApi'));
+app.use('/api', require('./routes/workTasks'));
 
 // MT Claim form (DIDIK MULIA): its own page and login, outside the CC CREST app
 app.get('/mt-claim', (req, res) => res.sendFile(path.join(ROOT, 'server', 'assets', 'mtclaim', 'app.html')));

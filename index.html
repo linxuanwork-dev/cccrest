@@ -1628,6 +1628,37 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
           </table>
         </div>
 
+        <div class="section-title" style="margin-top:28px;" data-i18n="wkp_title">Work progress this month</div>
+        <div class="table-card" style="padding:14px 16px;margin-bottom:28px;" id="wkp-body"></div>
+
+        <div class="section-title" style="margin-top:0;" data-i18n="wkr_title">Monthly bills</div>
+        <p class="recon-caption" style="margin-top:-2px;" data-i18n="wkr_desc">Bills paid every month (rent, utilities, instalments...). Each month the system makes two tasks: collect the bill, then pay it. Tick them in My Jobs.</p>
+        <div class="table-card" style="margin-bottom:14px;overflow-x:auto;">
+          <table>
+            <thead><tr><th data-i18n="th_company">Company</th><th data-i18n="wkr_th_bill">Bill</th><th data-i18n="wkr_th_day">Pay on day</th><th data-i18n="wkr_th_collect">Collect the bill</th><th data-i18n="wkr_th_payer">Pays</th><th data-i18n="th_status">Status</th><th></th></tr></thead>
+            <tbody id="wkr-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-card" style="padding:14px 16px;margin-bottom:28px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;" id="wkr-form-title" data-i18n="wkr_add_title">Add a monthly bill</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="field" style="margin:0;min-width:180px;flex:1;"><label for="wkr-company" data-i18n="th_company">Company</label><select id="wkr-company"></select></div>
+            <div class="field" style="margin:0;min-width:180px;flex:1;"><label for="wkr-title" data-i18n="wkr_th_bill">Bill</label><input type="text" id="wkr-title" maxlength="150" placeholder="Rent / TNB / Instalment" /></div>
+            <div class="field" style="margin:0;width:110px;"><label for="wkr-day" data-i18n="wkr_th_day">Pay on day</label><input type="number" id="wkr-day" min="1" max="31" placeholder="5" /></div>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding-bottom:10px;"><input type="checkbox" id="wkr-collect" checked style="width:15px;height:15px;accent-color:var(--accent);" /><span data-i18n="wkr_need_collect">Someone collects the bill first</span></label>
+            <div class="field" style="margin:0;width:150px;"><label for="wkr-before" data-i18n="wkr_before">Collect how many days before</label><input type="number" id="wkr-before" min="0" max="28" value="5" /></div>
+            <div class="field" style="margin:0;min-width:150px;"><label for="wkr-collect-user" data-i18n="wkr_collect_person">Who collects</label><select id="wkr-collect-user"></select></div>
+            <div class="field" style="margin:0;min-width:150px;"><label for="wkr-pay-user" data-i18n="wkr_pay_person">Who pays</label><select id="wkr-pay-user"></select></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <button type="button" class="btn-primary" id="wkr-save" style="width:auto;padding:10px 20px;" data-i18n="save_btn">Save</button>
+            <button type="button" class="btn-ghost" id="wkr-cancel" hidden data-i18n="wkr_cancel">Cancel editing</button>
+            <span id="wkr-msg" style="font-size:12.5px;"></span>
+          </div>
+        </div>
+
         <div class="section-title" style="margin-top:28px;" data-i18n="acct_title">Team logins</div>
         <p class="recon-caption" style="margin-top:-2px;" data-i18n="acct_sub">Reset a password, switch a login off or on, or delete it. Owner only.</p>
         <div class="table-card" style="overflow-x:auto;">
@@ -1643,6 +1674,34 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
         <div class="content-header">
           <h2 data-i18n="nav_my_jobs">My Jobs</h2>
           <span class="sub" data-i18n="sub_my_jobs">Your outstanding work and reminders</span>
+        </div>
+
+        <div id="wk-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+            <div class="section-title" style="margin:0;" data-i18n="wk_title">Tasks</div>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+              <input type="month" id="wk-month" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;background:var(--surface-alt);color:inherit;font-family:var(--font-data);" />
+              <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><input type="checkbox" id="wk-show-checked" checked style="width:15px;height:15px;accent-color:var(--accent);" /><span data-i18n="wk_show_checked">Show checked tasks</span></label>
+            </div>
+          </div>
+          <div id="wk-progress" style="font-size:12.5px;color:var(--primary-soft);margin-bottom:8px;line-height:1.7;"></div>
+          <div class="table-card" style="margin-bottom:14px;overflow-x:auto;">
+            <table>
+              <thead><tr><th data-i18n="wk_th_done">Done</th><th data-i18n="wk_th_due">Due</th><th data-i18n="th_company">Company</th><th data-i18n="wk_th_task">Task</th><th data-i18n="wk_th_person">Person</th><th data-i18n="th_status">Status</th><th class="wk-admin-col" data-i18n="wk_th_checked">Checked</th><th></th></tr></thead>
+              <tbody id="wk-tbody"></tbody>
+            </table>
+          </div>
+          <div id="wk-add" data-roles="admin manager" class="table-card" style="padding:14px 16px;margin-bottom:28px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px;" data-i18n="wk_add_title">Add a task</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field" style="margin:0;min-width:220px;flex:2;"><label for="wk-new-title" data-i18n="wk_th_task">Task</label><input type="text" id="wk-new-title" maxlength="200" /></div>
+              <div class="field" style="margin:0;min-width:180px;flex:1;"><label for="wk-new-company" data-i18n="th_company">Company</label><select id="wk-new-company"></select></div>
+              <div class="field" style="margin:0;min-width:150px;"><label for="wk-new-person" data-i18n="wk_th_person">Person</label><select id="wk-new-person"></select></div>
+              <div class="field" style="margin:0;width:150px;"><label for="wk-new-due" data-i18n="wk_th_due">Due</label><input type="date" id="wk-new-due" /></div>
+              <button type="button" class="btn-primary" id="wk-new-btn" style="width:auto;padding:10px 20px;" data-i18n="wk_add_btn">Add</button>
+            </div>
+            <div id="wk-new-msg" style="font-size:12.5px;margin-top:8px;"></div>
+          </div>
         </div>
 
         <div class="section-title" style="margin-top:0;" data-i18n="my_outstanding_jobs">My outstanding jobs</div>
@@ -2849,7 +2908,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       h_workflow:"Workflow & Progress", sub_workflow:"Staff and manager progress across all clients · Owner only",
       staff_progress:"Staff progress", th_outstanding:"Outstanding", th_completed:"Completed",
       managers:"Managers", th_manager:"Manager", th_team:"Team", th_team_outstanding:"Team Outstanding",
-      sub_my_jobs:"Your outstanding work and reminders", my_outstanding_jobs:"My outstanding jobs", th_reminders:"Reminders",
+      sub_my_jobs:"Your outstanding work and reminders", wk_title:"Tasks", wk_show_checked:"Show checked tasks", wk_th_done:"Done", wk_th_due:"Due", wk_th_task:"Task", wk_th_person:"Person", wk_th_checked:"Checked by Owner", wk_add_title:"Add a task", wk_add_btn:"Add", wk_none:"No tasks for this month.", wk_confirm_del:"Delete this task?", wk_st_todo:"To do", wk_st_late:"Late", wk_st_done:"Done - to check", wk_st_checked:"Checked", wk_progress:"Done {d} of {t} · checked {c}", wk_mine_open:"You still have {n} to do", wk_mine_late:"{n} late", wk_to_check:"{n} waiting for your check", wkp_title:"Work progress this month", wkr_title:"Monthly bills", wkr_desc:"Bills paid every month (rent, utilities, instalments...). Each month the system makes two tasks: collect the bill, then pay it. The team ticks them in My Jobs and you check them there.", wkr_th_bill:"Bill", wkr_th_day:"Pay on day", wkr_th_collect:"Collect the bill", wkr_th_payer:"Pays", wkr_add_title:"Add a monthly bill", wkr_edit_title:"Edit the monthly bill", wkr_need_collect:"Someone collects the bill first", wkr_before:"Collect how many days before", wkr_collect_person:"Who collects", wkr_pay_person:"Who pays", wkr_cancel:"Cancel editing", wkr_none:"No monthly bills yet.", wkr_days_before:"{n} days before", wkr_off:"Switch off", wkr_on:"Switch on", wkr_confirm_del:"Delete this monthly bill? Its tasks that are not done yet are removed; done ones stay in the history.", my_outstanding_jobs:"My outstanding jobs", th_reminders:"Reminders",
       my_team:"My team", team_outstanding_jobs:"Team outstanding jobs",
       field_display_name:"Display Name", field_login_id:"Login ID", create_btn:"Create",
       edit_team_title:"Edit Team", edit_team_sub:"Select which staff report to this manager.",
@@ -3137,7 +3196,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       h_workflow:"工作流程与进度", sub_workflow:"所有客户的员工与经理进度 · 仅限东主查看",
       staff_progress:"员工进度", th_outstanding:"未完成", th_completed:"已完成",
       managers:"经理", th_manager:"经理", th_team:"团队", th_team_outstanding:"团队未完成",
-      sub_my_jobs:"您的未完成工作与提醒", my_outstanding_jobs:"我的未完成工作", th_reminders:"提醒",
+      sub_my_jobs:"您的未完成工作与提醒", wk_title:"待办事项", wk_show_checked:"显示已检查的", wk_th_done:"已做", wk_th_due:"到期日", wk_th_task:"事项", wk_th_person:"负责人", wk_th_checked:"Owner 已检查", wk_add_title:"新增事项", wk_add_btn:"新增", wk_none:"这个月没有事项。", wk_confirm_del:"删除这项事项？", wk_st_todo:"待做", wk_st_late:"逾期", wk_st_done:"已做，待检查", wk_st_checked:"已检查", wk_progress:"已做 {d}/{t} · 已检查 {c}", wk_mine_open:"你还有 {n} 项没做", wk_mine_late:"其中 {n} 项逾期", wk_to_check:"{n} 项等你检查", wkp_title:"本月工作进度", wkr_title:"每月固定还款", wkr_desc:"每个月都要还的单（租金、水电、分期等）。每个月系统会生成两项事项：先「拿单」，再「付款」。同事在 My Jobs 里勾「已做」，你在那里检查。", wkr_th_bill:"单据", wkr_th_day:"每月几号还", wkr_th_collect:"拿单", wkr_th_payer:"付款", wkr_add_title:"新增每月固定还款", wkr_edit_title:"修改每月固定还款", wkr_need_collect:"要先有人去拿单", wkr_before:"提前几天拿单", wkr_collect_person:"谁拿单", wkr_pay_person:"谁付款", wkr_cancel:"取消修改", wkr_none:"还没有每月固定还款。", wkr_days_before:"提前 {n} 天", wkr_off:"停用", wkr_on:"启用", wkr_confirm_del:"删除这个每月固定还款？还没做的事项会一起删除，已经做了的会保留在记录里。", my_outstanding_jobs:"我的未完成工作", th_reminders:"提醒",
       my_team:"我的团队", team_outstanding_jobs:"团队未完成工作",
       field_display_name:"显示名称", field_login_id:"登录账号", create_btn:"创建",
       edit_team_title:"编辑团队", edit_team_sub:"选择向该经理汇报的员工。",
@@ -7195,6 +7254,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     var staffTbody = document.getElementById('workflow-staff-tbody');
     if(!staffTbody || CURRENT_ROLE !== 'admin') return;
     renderAccounts();
+    renderWorkRecurring();
     api('/workflow/overview').then(function(data){
       staffTbody.innerHTML = data.staff.length === 0 ? emptyRowSafe(7, '—') : data.staff.map(function(s){
         return '<tr>' +
@@ -7876,10 +7936,10 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   function renderMyJobs(){
     var mineTbody = document.getElementById('myjobs-mine-tbody');
     if(!mineTbody) return;
+    renderWork();
     api('/workflow/my-jobs').then(function(data){
-      var badge = document.getElementById('myjobs-nav-badge');
       var unackCount = data.mine.reduce(function(n, j){ return n + j.reminders.filter(function(r){ return !r.acknowledged_at; }).length; }, 0);
-      if(unackCount > 0){ badge.hidden = false; badge.textContent = unackCount; } else { badge.hidden = true; }
+      MYJOBS_UNACK = unackCount; updateMyJobsBadge();
 
       if(data.mine.length === 0){
         mineTbody.innerHTML = emptyRowSafe(4, t('no_outstanding_jobs'));
@@ -7958,6 +8018,180 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       });
     }).catch(function(){ mineTbody.innerHTML = emptyRowSafe(4, t('could_not_load_home')); });
   }
+
+  // ============ WORK LIST: tasks (My Jobs) and monthly bills (Workflow) ============
+  var WK = { month:'', tasks:[], me:0, people:[], loadedPeople:false };
+  var WK_BADGE = 0, MYJOBS_UNACK = 0, WKR = { rows:[], editing:null };
+  function wkEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function wkDmy(iso){ return iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '—'; }
+  function wkSay(id, text, isErr){ var el = document.getElementById(id); if(!el) return; el.textContent = text || ''; el.style.color = isErr ? 'var(--danger)' : 'var(--primary-soft)'; }
+  function updateMyJobsBadge(){
+    var badge = document.getElementById('myjobs-nav-badge'), n = MYJOBS_UNACK + WK_BADGE;
+    if(!badge) return;
+    if(n > 0){ badge.hidden = false; badge.textContent = n; } else badge.hidden = true;
+  }
+  function wkPeopleOptions(sel, keep){
+    var el = document.getElementById(sel); if(!el) return;
+    var cur = keep == null ? el.value : keep;
+    el.innerHTML = '<option value="">—</option>' + WK.people.map(function(p){ return '<option value="' + p.id + '">' + wkEsc(p.name) + '</option>'; }).join('');
+    if(cur) el.value = String(cur);
+  }
+  function wkCompanyOptions(sel){
+    var el = document.getElementById(sel); if(!el) return;
+    var cur = el.value;
+    el.innerHTML = '<option value="">—</option>' + COMPANIES.map(function(c){ return '<option value="' + c.id + '">' + wkEsc(c.name) + '</option>'; }).join('');
+    if(cur) el.value = cur;
+  }
+  function wkLoadPeople(){
+    if(CURRENT_ROLE !== 'admin' && CURRENT_ROLE !== 'manager') return Promise.resolve();
+    return api('/work/people').then(function(rows){
+      WK.people = rows;
+      ['wk-new-person', 'wkr-collect-user', 'wkr-pay-user'].forEach(function(id){ wkPeopleOptions(id); });
+    }).catch(function(){});
+  }
+  function wkStatusBadge(x){
+    if(x.status === 'checked') return '<span class="badge completed">' + t('wk_st_checked') + '</span>';
+    if(x.status === 'done') return '<span class="badge inprogress">' + t('wk_st_done') + '</span>';
+    return x.overdue ? '<span class="badge review">' + t('wk_st_late') + '</span>' : '<span class="badge notstarted">' + t('wk_st_todo') + '</span>';
+  }
+  function wkSummaryLine(d){
+    var p = d.progress, bits = [t('wk_progress').replace('{d}', p.done).replace('{t}', p.total).replace('{c}', p.checked)];
+    var mineOpen = d.tasks.filter(function(x){ return x.status === 'todo' && x.assigneeId === d.me; });
+    var late = mineOpen.filter(function(x){ return x.overdue; }).length;
+    if(mineOpen.length) bits.push(t('wk_mine_open').replace('{n}', mineOpen.length) + (late ? ' · ' + t('wk_mine_late').replace('{n}', late) : ''));
+    if(CURRENT_ROLE === 'admin'){ var tc = d.tasks.filter(function(x){ return x.status === 'done'; }).length; if(tc) bits.push(t('wk_to_check').replace('{n}', tc)); }
+    return bits.join(' · ');
+  }
+  function renderWork(){
+    var tb = document.getElementById('wk-tbody');
+    if(!tb) return;
+    var monthEl = document.getElementById('wk-month');
+    var admin = CURRENT_ROLE === 'admin';
+    document.querySelectorAll('.wk-admin-col').forEach(function(el){ el.hidden = !admin; });
+    wkCompanyOptions('wk-new-company');
+    if(!WK.loadedPeople){ WK.loadedPeople = true; wkLoadPeople(); }
+    api('/work/tasks' + (monthEl.value ? '?month=' + encodeURIComponent(monthEl.value) : '')).then(function(d){
+      WK.month = d.month; WK.tasks = d.tasks; WK.me = d.me;
+      if(!monthEl.value) monthEl.value = d.month;
+      var showChecked = document.getElementById('wk-show-checked').checked;
+      var rows = d.tasks.filter(function(x){ return showChecked || x.status !== 'checked'; });
+      document.getElementById('wk-progress').textContent = wkSummaryLine(d);
+      var cols = admin ? 8 : 7;
+      tb.innerHTML = rows.length === 0 ? emptyRowSafe(cols, t('wk_none')) : rows.map(function(x){
+        var canTick = x.status !== 'checked' && (CURRENT_ROLE !== 'staff' || x.assigneeId === d.me);
+        var canDelete = !x.recurringId && (admin || (CURRENT_ROLE === 'manager' && x.createdBy === d.me));
+        return '<tr' + (x.status === 'checked' ? ' style="opacity:0.6;"' : '') + '>' +
+          '<td><input type="checkbox" data-wk-done="' + x.id + '" ' + (x.status !== 'todo' ? 'checked' : '') + (canTick ? '' : ' disabled') + ' style="width:16px;height:16px;accent-color:var(--accent);" /></td>' +
+          '<td class="num"' + (x.overdue ? ' style="color:var(--danger);font-weight:700;"' : '') + '>' + wkDmy(x.due) + '</td>' +
+          '<td>' + wkEsc(x.company || '—') + '</td>' +
+          '<td>' + wkEsc(x.title) + (x.note ? '<div style="font-size:11.5px;color:var(--primary-soft);">' + wkEsc(x.note) + '</div>' : '') + '</td>' +
+          '<td>' + wkEsc(x.assignee || '—') + '</td>' +
+          '<td>' + wkStatusBadge(x) + (x.status !== 'todo' && x.doneBy ? '<div style="font-size:11px;color:var(--primary-soft);">' + wkEsc(x.doneBy) + '</div>' : '') + '</td>' +
+          (admin ? '<td><input type="checkbox" data-wk-check="' + x.id + '" ' + (x.status === 'checked' ? 'checked' : '') + (x.status === 'todo' ? ' disabled' : '') + ' style="width:16px;height:16px;accent-color:var(--accent);" /></td>' : '') +
+          '<td>' + (canDelete ? '<button type="button" class="btn-row" data-wk-del="' + x.id + '">✕</button>' : '') + '</td>' +
+        '</tr>';
+      }).join('');
+      tb.querySelectorAll('[data-wk-done]').forEach(function(el){
+        el.addEventListener('change', function(){
+          api('/work/tasks/' + el.dataset.wkDone + '/done', { method:'POST', body: JSON.stringify({ done: el.checked }) })
+            .then(function(){ renderWork(); }).catch(function(err){ alert(err.message); renderWork(); });
+        });
+      });
+      tb.querySelectorAll('[data-wk-check]').forEach(function(el){
+        el.addEventListener('change', function(){
+          api('/work/tasks/' + el.dataset.wkCheck + '/check', { method:'POST', body: JSON.stringify({ checked: el.checked }) })
+            .then(function(){ renderWork(); }).catch(function(err){ alert(err.message); renderWork(); });
+        });
+      });
+      tb.querySelectorAll('[data-wk-del]').forEach(function(el){
+        el.addEventListener('click', function(){
+          if(!window.confirm(t('wk_confirm_del'))) return;
+          api('/work/tasks/' + el.dataset.wkDel, { method:'DELETE' }).then(function(){ renderWork(); }).catch(function(err){ alert(err.message); });
+        });
+      });
+      renderWorkProgress(d.progress);
+      api('/work/summary').then(function(s){ WK_BADGE = s.mineOpen + s.toCheck; updateMyJobsBadge(); }).catch(function(){});
+    }).catch(function(err){ tb.innerHTML = emptyRowSafe(admin ? 8 : 7, err.message); });
+  }
+  function renderWorkProgress(p){
+    var box = document.getElementById('wkp-body');
+    if(!box || CURRENT_ROLE !== 'admin') return;
+    if(!p || !p.byPerson.length){ box.innerHTML = '<div style="font-size:12.5px;color:var(--primary-soft);">' + t('wk_none') + '</div>'; return; }
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--primary-soft);margin-bottom:10px;">' + wkEsc(WK.month) + ' · ' + t('wk_progress').replace('{d}', p.done).replace('{t}', p.total).replace('{c}', p.checked) + '</div>' +
+      p.byPerson.map(function(x){
+        var dp = x.total ? Math.round(x.done * 100 / x.total) : 0, cp = x.total ? Math.round(x.checked * 100 / x.total) : 0;
+        return '<div style="display:flex;align-items:center;gap:12px;margin:6px 0;font-size:12.5px;"><div style="width:150px;">' + wkEsc(x.name) + '</div>' +
+          '<div style="flex:1;height:10px;border-radius:5px;background:var(--surface-alt);position:relative;overflow:hidden;"><div style="position:absolute;inset:0 auto 0 0;width:' + dp + '%;background:var(--warning);"></div><div style="position:absolute;inset:0 auto 0 0;width:' + cp + '%;background:var(--success);"></div></div>' +
+          '<div style="width:170px;text-align:right;font-family:var(--font-data);">' + x.done + '/' + x.total + ' · ' + t('wk_st_checked') + ' ' + x.checked + '</div></div>';
+      }).join('');
+  }
+  document.getElementById('wk-month').addEventListener('change', renderWork);
+  document.getElementById('wk-show-checked').addEventListener('change', renderWork);
+  document.getElementById('wk-new-btn').addEventListener('click', function(){
+    var btn = this, title = document.getElementById('wk-new-title').value.trim();
+    btn.disabled = true;
+    api('/work/tasks', { method:'POST', body: JSON.stringify({ title: title, companyId: document.getElementById('wk-new-company').value, assigneeId: document.getElementById('wk-new-person').value, due: document.getElementById('wk-new-due').value }) })
+      .then(function(){ document.getElementById('wk-new-title').value = ''; wkSay('wk-new-msg', t('pbk_saved')); renderWork(); })
+      .catch(function(err){ wkSay('wk-new-msg', err.message, true); })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  // monthly bills (Owner, in Workflow)
+  function wkrReset(){
+    WKR.editing = null;
+    document.getElementById('wkr-title').value = ''; document.getElementById('wkr-day').value = '';
+    document.getElementById('wkr-collect').checked = true; document.getElementById('wkr-before').value = '5';
+    ['wkr-company', 'wkr-collect-user', 'wkr-pay-user'].forEach(function(id){ document.getElementById(id).value = ''; });
+    document.getElementById('wkr-cancel').hidden = true;
+    document.getElementById('wkr-form-title').textContent = t('wkr_add_title');
+    wkSay('wkr-msg', '');
+  }
+  function renderWorkRecurring(){
+    var tb = document.getElementById('wkr-tbody');
+    if(!tb || CURRENT_ROLE !== 'admin') return;
+    wkCompanyOptions('wkr-company');
+    wkLoadPeople().then(function(){ return api('/work/recurring'); }).then(function(rows){
+      WKR.rows = rows;
+      tb.innerHTML = rows.length === 0 ? emptyRowSafe(7, t('wkr_none')) : rows.map(function(r){
+        return '<tr' + (r.active ? '' : ' style="opacity:0.55;"') + '><td>' + wkEsc(r.company || '—') + '</td><td>' + wkEsc(r.title) + '</td><td class="num">' + r.dueDay + '</td>' +
+          '<td>' + (r.needsCollect ? wkEsc(r.collectUser || '—') + ' · ' + t('wkr_days_before').replace('{n}', r.collectDaysBefore) : '—') + '</td>' +
+          '<td>' + wkEsc(r.payUser || '—') + '</td>' +
+          '<td>' + (r.active ? t('status_active') : t('status_suspended')) + '</td>' +
+          '<td style="white-space:nowrap;"><button type="button" class="btn-row" data-wkr-edit="' + r.id + '">' + t('edit_btn') + '</button> <button type="button" class="btn-row" data-wkr-toggle="' + r.id + '">' + (r.active ? t('wkr_off') : t('wkr_on')) + '</button> <button type="button" class="btn-row" data-wkr-del="' + r.id + '">✕</button></td></tr>';
+      }).join('');
+      function find(id){ return WKR.rows.filter(function(r){ return String(r.id) === String(id); })[0]; }
+      function body(r, active){ return JSON.stringify({ title: r.title, companyId: r.companyId, dueDay: r.dueDay, needsCollect: r.needsCollect, collectDaysBefore: r.collectDaysBefore, collectUserId: r.collectUserId, payUserId: r.payUserId, active: active }); }
+      tb.querySelectorAll('[data-wkr-edit]').forEach(function(b){ b.addEventListener('click', function(){
+        var r = find(b.dataset.wkrEdit); if(!r) return;
+        WKR.editing = r.id;
+        document.getElementById('wkr-company').value = r.companyId || ''; document.getElementById('wkr-title').value = r.title; document.getElementById('wkr-day').value = r.dueDay;
+        document.getElementById('wkr-collect').checked = r.needsCollect; document.getElementById('wkr-before').value = r.collectDaysBefore;
+        document.getElementById('wkr-collect-user').value = r.collectUserId || ''; document.getElementById('wkr-pay-user').value = r.payUserId || '';
+        document.getElementById('wkr-cancel').hidden = false; document.getElementById('wkr-form-title').textContent = t('wkr_edit_title');
+        document.getElementById('wkr-title').focus();
+      }); });
+      tb.querySelectorAll('[data-wkr-toggle]').forEach(function(b){ b.addEventListener('click', function(){
+        var r = find(b.dataset.wkrToggle); if(!r) return;
+        api('/work/recurring/' + r.id, { method:'PUT', body: body(r, !r.active) }).then(function(){ renderWorkRecurring(); renderWork(); }).catch(function(err){ alert(err.message); });
+      }); });
+      tb.querySelectorAll('[data-wkr-del]').forEach(function(b){ b.addEventListener('click', function(){
+        if(!window.confirm(t('wkr_confirm_del'))) return;
+        api('/work/recurring/' + b.dataset.wkrDel, { method:'DELETE' }).then(function(){ renderWorkRecurring(); renderWork(); }).catch(function(err){ alert(err.message); });
+      }); });
+    }).catch(function(err){ tb.innerHTML = emptyRowSafe(7, err.message); });
+  }
+  document.getElementById('wkr-cancel').addEventListener('click', wkrReset);
+  document.getElementById('wkr-save').addEventListener('click', function(){
+    var btn = this;
+    var payload = JSON.stringify({ title: document.getElementById('wkr-title').value, companyId: document.getElementById('wkr-company').value, dueDay: document.getElementById('wkr-day').value,
+      needsCollect: document.getElementById('wkr-collect').checked, collectDaysBefore: document.getElementById('wkr-before').value,
+      collectUserId: document.getElementById('wkr-collect-user').value, payUserId: document.getElementById('wkr-pay-user').value, active: true });
+    btn.disabled = true;
+    api(WKR.editing ? '/work/recurring/' + WKR.editing : '/work/recurring', { method: WKR.editing ? 'PUT' : 'POST', body: payload })
+      .then(function(){ wkrReset(); wkSay('wkr-msg', t('pbk_saved')); renderWorkRecurring(); renderWork(); renderActivityLog(); })
+      .catch(function(err){ wkSay('wkr-msg', err.message, true); })
+      .finally(function(){ btn.disabled = false; });
+  });
 
   // ============ REPORT DOWNLOADS (letterhead PDF exports) ============
   function downloadReport(reportType){

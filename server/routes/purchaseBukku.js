@@ -117,6 +117,112 @@ function parseCellDate(v) {
   return m ? m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') : '';
 }
 
+// ---- import a SUMMARY workbook (the APEX Excel: sheets SUPPLIER and EXPENSES, header row "DATE ... INVOICE/RECEIPT NO. ... AMOUNT ... PAID BY / HARDCOPY / SOFTCOPY",
+//      and a LIST sheet with the account list and the supplier codes). Every row becomes a not-yet-approved bill; ?dry=1 only counts. ----
+router.post('/purchase-bukku/companies/:id/import-summary', requireRole('admin'), (req, res, next) => {
+  importUpload.single('file')(req, res, (err) => (err ? bad(res, err.message) : next()));
+}, async (req, res) => {
+  const s = await loadSettings(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  if (!s.enabled) return bad(res, '请先在这家公司打开「Purchase Bill entry」。 Switch Purchase Bill entry on for this company first.');
+  if (!req.file) return bad(res, '请选择一个 .xlsx 文件。 Choose an .xlsx file.');
+  const dry = String(req.query.dry || '') === '1';
+  const wb = new ExcelJS.Workbook();
+  try { await wb.xlsx.load(req.file.buffer); } catch (e) { return bad(res, '读不了这个 Excel 文件。 Cannot read this Excel file.'); }
+  const sheetOf = (re) => wb.worksheets.find((w) => re.test(w.name));
+  const sheets = [['SUPPLIER', sheetOf(/^supplier$/i)], ['EXPENSES', sheetOf(/^expenses?$/i)]].filter((x) => x[1]);
+  if (!sheets.length) return bad(res, '找不到名叫 SUPPLIER 或 EXPENSES 的分页。 No sheet named SUPPLIER or EXPENSES.');
+  const normNo2 = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return Number.isFinite(n) ? n : NaN; };
+
+  // the supplier codes and the account names of the LIST sheet
+  const codeByName = new Map(), accByName = new Map();
+  const list = sheetOf(/^list$/i);
+  if (list) list.eachRow({ includeEmpty: false }, (row, i) => {
+    if (i < 2) return;
+    const acc = textOf(cellValue(row.getCell(1))), accName = textOf(cellValue(row.getCell(2)));
+    if (acc && accName) accByName.set(normName(accName), acc);
+    const code = textOf(cellValue(row.getCell(7))), name = textOf(cellValue(row.getCell(8)));
+    if (code && name) codeByName.set(normName(name), code.toUpperCase());
+  });
+
+  const bills = [], bad2 = [], seen = new Map(), dupInFile = [];
+  for (const [label, ws] of sheets) {
+    let hdr = 0;
+    ws.eachRow({ includeEmpty: false }, (row, i) => { if (!hdr && /^DATE/i.test(textOf(cellValue(row.getCell(2))))) hdr = i; });
+    if (!hdr) { bad2.push({ sheet: label, row: 0, why: '找不到表头（DATE 栏）。' }); continue; }
+    for (let i = hdr + 1; i <= Math.min(ws.rowCount, hdr + 3000); i++) {
+      const row = ws.getRow(i);
+      const amount = num(cellValue(row.getCell(7)));
+      const date = parseCellDate(cellValue(row.getCell(2)));
+      const supplier = normName(textOf(cellValue(row.getCell(4))) || textOf(cellValue(row.getCell(5))));
+      if (!supplier && !(amount > 0)) continue;   // an empty row (the template has date / formula cells filled far down)
+      if (!supplier) { bad2.push({ sheet: label, row: i, why: '没有公司名字。' }); continue; }
+      if (!date) { bad2.push({ sheet: label, row: i, why: '日期看不懂：' + textOf(cellValue(row.getCell(2))) }); continue; }
+      if (!(amount > 0)) { bad2.push({ sheet: label, row: i, why: '金额不对。' }); continue; }
+      let no = textOf(cellValue(row.getCell(6))).toUpperCase();
+      if (!no || no === '0') no = 'NO-' + label[0] + i;
+      const desc = (textOf(cellValue(row.getCell(8))).toUpperCase() || 'ITEM').slice(0, 200);
+      const accName = textOf(cellValue(row.getCell(13)));
+      const key = supplier + '|' + normNo2(no);
+      if (seen.has(key)) { dupInFile.push({ sheet: label, row: i, supplier, no, first: seen.get(key) }); continue; }
+      seen.set(key, label + ' 第 ' + i + ' 行');
+      bills.push({
+        sheet: label, row: i, supplier, no, date, desc, amount: Math.round(amount * 100) / 100,
+        account: accName ? (accByName.get(normName(accName)) || '') : '',
+        paidBy: textOf(cellValue(row.getCell(9))).toUpperCase().slice(0, 60),
+        hard: !!textOf(cellValue(row.getCell(10))), soft: !!textOf(cellValue(row.getCell(11)))
+      });
+    }
+  }
+
+  const client = await pool.connect();
+  let added = 0, existing = 0, addedSup = 0;
+  const existingList = [];
+  try {
+    await client.query('BEGIN');
+    const supRows = (await client.query('SELECT id, name, code FROM purchase_bukku_contacts WHERE company_id = $1', [req.params.id])).rows;
+    const supByName = new Map(supRows.map((x) => [normName(x.name), x]));
+    const have = (await client.query("SELECT supplier, no, to_char(bill_date, 'YYYY-MM-DD') AS d FROM purchase_bukku_bills WHERE company_id = $1", [req.params.id])).rows;
+    const haveKeys = new Set(have.map((x) => normName(x.supplier) + '|' + normNo2(x.no)));
+    const ensureSupplier = async (name) => {
+      if (supByName.has(name)) return supByName.get(name);
+      const code = codeByName.get(name) || '';
+      addedSup++;
+      const row = dry ? { name, code } : (await client.query(
+        `INSERT INTO purchase_bukku_contacts (company_id, name, code, account, tags) VALUES ($1,$2,$3,'','') ON CONFLICT (company_id, name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name, code`,
+        [req.params.id, name, code])).rows[0];
+      supByName.set(name, row);
+      return row;
+    };
+    // the suppliers of the LIST sheet are the company's supplier list
+    for (const [name] of codeByName) if (name.length <= 150) await ensureSupplier(name);
+    for (const b of bills) {
+      if (haveKeys.has(b.supplier + '|' + normNo2(b.no))) { existing++; existingList.push(b.sheet + ' 第 ' + b.row + ' 行 ' + b.supplier + ' ' + b.no); continue; }
+      const sup = await ensureSupplier(b.supplier);
+      if (!dry) {
+        await client.query(
+          `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by, paid_by, hardcopy, softcopy)
+           VALUES ($1,$2,$3,$4,'',$5,'','',$6::jsonb,$7,false,$8,$8,$9,$10,$11)`,
+          [req.params.id, b.supplier, (sup && sup.code) || '', b.no.slice(0, 60), b.date, JSON.stringify([{ desc: b.desc, account: b.account, qty: 1, price: b.amount, tax: '' }]), b.amount, req.user.sub, b.paidBy || null, b.hard, b.soft]
+        );
+      }
+      added++;
+    }
+    await client.query(dry ? 'ROLLBACK' : 'COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+  if (!dry) await logActivity(req.user.sub, 'Imported a summary workbook into Purchases Bill', s.name, added + ' bills, ' + addedSup + ' suppliers');
+  res.json({
+    dry, added, existing, addedSup, rows: bills.length, bad: bad2.slice(0, 50), badCount: bad2.length,
+    dupInFile: dupInFile.slice(0, 50), dupCount: dupInFile.length, existingList: existingList.slice(0, 20), sheets: sheets.map((x) => x[0])
+  });
+});
+
 router.post('/purchase-bukku/companies/:id/import', requireRole('admin'), (req, res, next) => {
   importUpload.single('file')(req, res, (err) => (err ? bad(res, err.message) : next()));
 }, async (req, res) => {

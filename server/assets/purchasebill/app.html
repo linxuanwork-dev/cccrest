@@ -165,6 +165,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 </header>
 
 <main class="wrap">
+  <div id="payBanner" class="notice" hidden style="cursor:pointer"></div>
   <div id="offline" class="notice" hidden>正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。</div>
 
   <!-- QUICK GRID -->
@@ -912,7 +913,18 @@ function flowPills(b){
   else if(b.status!=='exported') p.push('<span class="pill draft">待 Approve</span>');
   return p.join(' ')||'<span class="muted">—</span>';
 }
+// the company's approver (the boss) is told what waits for a decision: approved bills nobody has asked a payment for yet
+function renderPayBanner(){
+  const el=$('payBanner'); if(!el) return;
+  if(!S.canPay||S.mgr){ el.hidden=true; return; }
+  const open=S.bills.filter(b=>b.approved&&!b.payStatus), tot=open.reduce((a,b)=>a+(b.total||0),0);
+  if(!open.length){ el.hidden=true; return; }
+  el.hidden=false;
+  el.innerHTML='<b>有 '+open.length+' 张已审核的单，等你选哪些要还</b> · 合计 RM '+money(tot)+' · <u>点这里查看</u>';
+  el.onclick=()=>{ $('flFlow').value='unpaid'; $('flStatus').value='all'; $('flMonth').value=''; $('flSup').value=''; $('flQ').value=''; S.selected.clear(); renderBills(); setTab('bills'); };
+}
 function renderBills(){
+  renderPayBanner();
   $('ctBills').textContent=S.bills.filter(b=>b.status!=='exported').length;
   const rows=filteredBills(), dups=dupIds();
   const ids=new Set(rows.map(b=>b.id)); [...S.selected].forEach(i=>{ if(!ids.has(i)) S.selected.delete(i); });

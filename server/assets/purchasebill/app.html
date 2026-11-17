@@ -592,6 +592,12 @@ function fillUnit(tr){
   sel.innerHTML=opts.map(o=>`<option value="${esc(o.label)}|${o.per}">${esc(o.label)}${o.per!==1?` （1 ${esc(si.unit)} = ${o.per}）`:''}</option>`).join('')+'<option value="__other">其他单位…</option>';
   sel.value=st.unit+'|'+st.per;
 }
+// a line that is not goods (a service, rent, an expense): ticked "not goods", or an account other than the goods account
+function isNgLine(tr){
+  if(tr._st&&tr._st.ng) return true;
+  const a=tr.querySelector('.l-acc').value.trim(), g=String((S.company&&S.company.account)||'').trim();
+  return !!(a&&g&&a!==g);
+}
 function updateNote(tr){
   const st=tr._st, note=tr.querySelector('.lnote'), si=st.item?stockById(st.item):null, desc=tr.querySelector('.l-desc').value.trim();
   if(!S.hasStock){ note.textContent=''; return; }
@@ -601,7 +607,9 @@ function updateNote(tr){
     if(!isNaN(price) && st.per>0) t+=' · 成本 RM '+money(price*st.per)+' / '+si.unit+(qty?' · 进货 '+(Math.round(qty/st.per*1000)/1000)+' '+si.unit:'');
     note.className='lnote small'; note.textContent=t;
   } else if(desc){
-    if(!note.querySelector('.l-map')){ note.className='lnote small warn'; note.innerHTML='⚠ 还没对应盘点货品（不会算进 FIFO）：<input class="l-map" list="stockList" placeholder="打系统里的货品名，选一个" autocomplete="off">'; }
+    const ng=isNgLine(tr), box=`<label class="small" style="white-space:nowrap"><input type="checkbox" class="l-ng"${tr._st.ng?' checked':''}> 不是货品（费用 / 服务，只写上面的 Description，不进 stock card）</label>`;
+    if(ng){ note.className='lnote small'; note.innerHTML=(tr._st.ng?'':'非货品账户：')+box; }
+    else if(!note.querySelector('.l-map')){ note.className='lnote small warn'; note.innerHTML='⚠ 还没对应盘点货品（不会算进 stock card）：<input class="l-map" list="stockList" placeholder="打系统里的货品名，选一个" autocomplete="off"> '+box; }
   } else { note.className='lnote small'; note.textContent=''; }
 }
 function applyDefaults(tr, m, si){
@@ -631,7 +639,7 @@ function resolveLine(tr){
 }
 function lineRow(l={}){
   const tr=document.createElement('tr');
-  tr._st={item:l.item||'', as:l.as||'', unit:l.unit||'', per:Number(l.per)>0?Number(l.per):1};
+  tr._st={item:l.item||'', as:l.as||'', unit:l.unit||'', per:Number(l.per)>0?Number(l.per):1, ng:!!l.ng};
   tr.innerHTML=`<td><input class="must l-desc" list="itemList" value="${esc(l.desc||'')}" required><div class="lnote small"></div></td>
    <td class="c-unit"><select class="l-unit" aria-label="买的单位"></select></td>
    <td class="c-acc"><input class="mono l-acc" value="${esc(l.account||'')}"></td>
@@ -668,7 +676,7 @@ function readLines(){
     const st=tr._st||{}, linked=!!(st.item && stockById(st.item));
     return {
       desc:tr.querySelector('.l-desc').value.trim().toUpperCase(),
-      as:linked?(st.as||''):'', item:linked?st.item:'', unit:linked?(st.unit||''):'', per:linked?(st.per||1):1,
+      as:linked?(st.as||''):'', item:linked?st.item:'', unit:linked?(st.unit||''):'', per:linked?(st.per||1):1, ng:(!linked&&!!st.ng)||undefined,
       account:tr.querySelector('.l-acc').value.trim(),
       qty:parseFloat(tr.querySelector('.l-qty').value)||1,
       price:parseFloat(String(tr.querySelector('.l-price').value).replace(/,/g,'')),
@@ -747,6 +755,7 @@ $('fNo').addEventListener('input',checkDup);
 $('fDate').addEventListener('input',checkDup);
 $('addLine').addEventListener('click',()=>{ const tr=lineRow({account:defaultAccount(supByName($('fSup').value))}); tr.querySelector('.l-acc').dataset.auto='1'; tr.querySelector('.l-desc').focus(); });
 $('lineBody').addEventListener('input',e=>{ if(e.target.classList.contains('l-acc')) e.target.dataset.auto=''; });
+$('lineBody').addEventListener('change',e=>{ if(e.target.classList.contains('l-ng')){ const tr=e.target.closest('tr'); tr._st.ng=e.target.checked; tr.querySelector('.lnote').innerHTML=''; updateNote(tr); } });
 
 function resetForm(){
   S.editingId=null; S.pendingHq=null; $('billForm').reset(); $('fDate').value=todayISO();
@@ -798,8 +807,9 @@ $('billForm').addEventListener('submit', async e=>{
   const lines=readLines().filter(l=>l.desc||!isNaN(l.price));
   if(!lines.length || lines.some(l=>!l.desc||isNaN(l.price))) return toast('每一行都要有项目和单价');
   if([...$('lineBody').children].some(tr=>tr.querySelector('.l-desc').value.trim() && tr.querySelector('.l-qty').value.trim()==='')) return toast('每一行都要填数量');
-  const unlinked=S.hasStock ? lines.filter(l=>!l.item).length : 0;
-  if(unlinked && !confirm(unlinked+' 行还没对应盘点货品，不会算进 FIFO（以后可以在「货品对应」补上）。照样保存吗？')) return;
+  const rowsNow=[...$('lineBody').children].filter(tr=>tr.querySelector('.l-desc').value.trim());
+  const unlinked=S.hasStock ? lines.filter((l,i)=>!l.item&&!(rowsNow[i]&&isNgLine(rowsNow[i]))).length : 0;
+  if(unlinked && !confirm(unlinked+' 行还没对应盘点货品，不会进 stock card（以后可以在「货品对应」补上）。如果这几行不是货品，请先勾「不是货品」。照样保存吗？')) return;
   const sup=supByName(supName);
   if(!sup && !S.mgr) return toast('供应商不在名单，请从下拉选择或通知 manager 新增');
   lines.forEach(l=>{ if(!l.account) l.account=defaultAccount(sup); });
@@ -880,7 +890,7 @@ function unlinkedGoods(b){
   if(!S.hasStock) return 0;
   const acc=String((S.company&&S.company.account)||'').trim();
   return (b.lines||[]).filter(l=>{
-    if(l.item) return false;
+    if(l.item||l.ng) return false;
     const a=String(l.account||'').trim(); if(a&&a!==acc) return false;
     const m=mapFor(b.supplier,l.desc)||(l.as?mapFor(b.supplier,l.as):null);
     return !(m&&m.item);

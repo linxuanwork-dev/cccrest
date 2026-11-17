@@ -871,6 +871,7 @@ function cleanBill(b) {
     const rawPer = Number(l && l.per);
     const as = String((l && l.as) || '').trim().toUpperCase().slice(0, 200);
     if (item) line.item = item;
+    if (l && l.ng === true && !item) line.ng = true;   // not goods (a service, an expense): only the description, no Stock Count item needed
     if (unit) { line.unit = unit; line.per = Number.isFinite(rawPer) && rawPer > 0 ? Math.round(rawPer * 10000) / 10000 : 1; }
     if (as && as !== desc) line.as = as;
     lines.push(line);

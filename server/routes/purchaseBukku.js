@@ -226,6 +226,7 @@ async function enabledSettings(req, res) {
   if (!s || !s.enabled) { bad(res, '这家公司还没有开通这个功能。 This feature is not switched on for this company.'); return null; }
   return s;
 }
+const canPayReq = (req) => !!(req.pageAccess && (req.pageAccess.ccCrest || req.pageAccess.canApprove));
 const needMgr = (req, res) => { if (isMgr(req)) return true; res.status(403).json({ error: '只有 manager 可以做这个操作。 Only a manager can do this.' }); return false; };
 
 const billOut = (r) => ({
@@ -233,11 +234,11 @@ const billOut = (r) => ({
   lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised, hq: r.hq || null,
   createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime(),
   approved: !!r.approved_at, noOriginal: !!r.no_original, inBukku: !!r.in_bukku_at, payDue: r.pay_due || '', payStatus: r.pay_task_status || '',
-  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || ''
+  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || '', hardcopy: !!r.hardcopy, softcopy: !!r.softcopy, paidBy: r.paid_by || ''
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
 const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at,
-  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status,
+  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status, hardcopy, softcopy, paid_by,
   (SELECT t.status FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay' ORDER BY t.id DESC LIMIT 1) AS pay_task_status`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
@@ -322,7 +323,7 @@ router.get(BASE, ...guard(1), async (req, res) => {
     stockOf(req.params.companyId)
   ]);
   res.json({
-    mgr: isMgr(req), company: { name: s.name, short: s.short, account: s.account }, suppliers: sup.rows.map(supOut), bills: bills.rows.map(billOut),
+    mgr: isMgr(req), canPay: canPayReq(req), company: { name: s.name, short: s.short, account: s.account }, suppliers: sup.rows.map(supOut), bills: bills.rows.map(billOut),
     items: items.rows.map(itemOut), hasStock: !!stock, stock: stock || []
   });
 });
@@ -498,7 +499,13 @@ router.post(BASE + '/bills/stage', ...guard(2), async (req, res) => {
   if (!ids.length || ids.length > 500) return bad(res, 'Invalid request');
   const cid = req.params.companyId, uid = req.user.sub;
   let r;
-  if (b.action === 'no-original') {
+  if (b.action === 'hardcopy' || b.action === 'softcopy') {
+    // the hard copy / soft copy of the bill has arrived (or not)
+    r = await pool.query(`UPDATE purchase_bukku_bills SET ${b.action} = $3 WHERE company_id = $1 AND id = ANY($2::int[])`, [cid, ids, b.value !== false]);
+  } else if (b.action === 'paid-by') {
+    // someone paid out of pocket: the money goes back to them (empty = the company pays the supplier)
+    r = await pool.query('UPDATE purchase_bukku_bills SET paid_by = $3 WHERE company_id = $1 AND id = ANY($2::int[]) AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = \'pay\')', [cid, ids, String(b.text || '').trim().toUpperCase().slice(0, 60) || null]);
+  } else if (b.action === 'no-original') {
     // anyone who enters bills can flag a bill that still has no official document (or clear the flag)
     r = await pool.query('UPDATE purchase_bukku_bills SET no_original = $3 WHERE company_id = $1 AND id = ANY($2::int[])', [cid, ids, b.value !== false]);
   } else {
@@ -518,7 +525,8 @@ router.post(BASE + '/bills/stage', ...guard(2), async (req, res) => {
 
 // "This bill must be paid": a "pay at the bank" task goes to the work list (a manager does it, the Owner checks it)
 router.post(BASE + '/bills/request-payment', ...guard(2), async (req, res) => {
-  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  if (!await enabledSettings(req, res)) return;
+  if (!canPayReq(req)) return res.status(403).json({ error: '只有公司的审批人（老板）或 CC CREST 的 manager 可以点「要付款」。 Only the company approver or a CC CREST manager can ask for a payment.' });
   const b = req.body || {};
   const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
   if (!ids.length || ids.length > 200) return bad(res, 'Invalid request');
@@ -526,7 +534,7 @@ router.post(BASE + '/bills/request-payment', ...guard(2), async (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || isNaN(new Date(due + 'T00:00:00Z'))) return bad(res, '请选还款日。 Choose the day the bill must be paid.');
   const cid = req.params.companyId;
   // who goes to the bank: the one chosen, else a manager of this company's staff, else the one asking
-  let assignee = Number(b.assigneeId) || 0;
+  let assignee = isMgr(req) ? (Number(b.assigneeId) || 0) : 0;   // a company user cannot choose who goes to the bank
   if (assignee) {
     const { rows } = await pool.query("SELECT id FROM users WHERE id = $1 AND active AND role IN ('admin','manager','staff')", [assignee]);
     if (!rows[0]) return bad(res, '不能把事项交给这个人。 You cannot give work to this person.');
@@ -536,21 +544,33 @@ router.post(BASE + '/bills/request-payment', ...guard(2), async (req, res) => {
          JOIN users u ON u.id = ms.manager_user_id AND u.active WHERE cs.company_id = $1 ORDER BY (ms.manager_user_id = $2) DESC, ms.manager_user_id LIMIT 1`,
       [cid, req.user.sub]
     );
-    assignee = rows[0] ? rows[0].id : req.user.sub;
+    if (rows[0]) assignee = rows[0].id;
+    else if (isMgr(req)) assignee = req.user.sub;
+    else { const { rows: ad } = await pool.query("SELECT id FROM users WHERE role = 'admin' AND active ORDER BY id LIMIT 1"); assignee = ad[0] ? ad[0].id : 0; }
+    if (!assignee) return bad(res, '找不到负责去银行的人。 Nobody is set to go to the bank.');
   }
   const { rows: bills } = await pool.query(
-    `SELECT id, supplier, no, total, in_bukku_at,
+    `SELECT id, supplier, no, total, approved_at, paid_by,
        EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay') AS has_task
        FROM purchase_bukku_bills WHERE company_id = $1 AND id = ANY($2::int[]) ORDER BY bill_date, id`, [cid, ids]);
-  const out = { created: 0, notInBukku: 0, already: 0 };
+  const out = { created: 0, notApproved: 0, already: 0, duplicate: 0 };
+  const normNo2 = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   for (const x of bills) {
-    if (!x.in_bukku_at) { out.notInBukku++; continue; }
+    if (!x.approved_at) { out.notApproved++; continue; }
     if (x.has_task) { out.already++; continue; }
+    // the same bill entered twice must not be paid twice: another bill of this supplier with the same number that already has a payment
+    const { rows: twin } = await pool.query(
+      `SELECT b2.id, b2.no, b2.supplier FROM purchase_bukku_bills b2 WHERE b2.company_id = $1 AND b2.id <> $2
+         AND EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b2.id AND t.kind = 'pay')`, [cid, x.id]);
+    if (twin.some((t) => normName(t.supplier) === normName(x.supplier) && normNo2(t.no) === normNo2(x.no) && normNo2(x.no))) { out.duplicate++; continue; }
+    const title = x.paid_by
+      ? '报销 Reimburse ' + x.paid_by + ': ' + x.supplier + ' ' + (x.no || '') + ' · RM ' + Number(x.total).toFixed(2)
+      : '去银行付款 Pay at bank: ' + x.supplier + ' ' + (x.no || '') + ' · RM ' + Number(x.total).toFixed(2);
     await pool.query(
       `INSERT INTO work_tasks (company_id, title, kind, assignee_user_id, due_date, purchase_bill_id, created_by) VALUES ($1,$2,'pay',$3,$4,$5,$6)`,
-      [cid, ('去银行付款 Pay at bank: ' + x.supplier + ' ' + (x.no || '') + ' · RM ' + Number(x.total).toFixed(2)).slice(0, 200), assignee, due, x.id, req.user.sub]
+      [cid, title.slice(0, 200), assignee, due, x.id, req.user.sub]
     );
-    await pool.query('UPDATE purchase_bukku_bills SET pay_due = $2 WHERE id = $1', [x.id, due]);
+    await pool.query('UPDATE purchase_bukku_bills SET pay_due = $2, pay_requested_by = $3, pay_requested_at = now() WHERE id = $1', [x.id, due, req.user.sub]);
     out.created++;
   }
   res.json({ ok: true, ...out });
@@ -750,7 +770,9 @@ function cleanBill(b) {
     lines.push(line);
   }
   const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
-  return { supplier, no, date: b.date, lines, total, code: String(b.code || '').trim().toUpperCase().slice(0, 30), ref: String(b.ref || '').trim().slice(0, 60), tags: String(b.tags || '').trim().slice(0, 100), desc: String(b.desc || '').trim().slice(0, 200), dupAck: b.dupAck === true, hq: cleanHq(b.hq) };
+  return { supplier, no, date: b.date, lines, total, code: String(b.code || '').trim().toUpperCase().slice(0, 30), ref: String(b.ref || '').trim().slice(0, 60), tags: String(b.tags || '').trim().slice(0, 100), desc: String(b.desc || '').trim().slice(0, 200), dupAck: b.dupAck === true, hq: cleanHq(b.hq),
+    paidBy: b.paidBy === undefined ? undefined : String(b.paidBy || '').trim().toUpperCase().slice(0, 60),
+    hardcopy: typeof b.hardcopy === 'boolean' ? b.hardcopy : undefined, softcopy: typeof b.softcopy === 'boolean' ? b.softcopy : undefined };
 }
 async function staffSupplierProblem(req, supplier) {
   if (isMgr(req)) return null;
@@ -765,9 +787,9 @@ router.post(BASE + '/bills', ...guard(2), async (req, res) => {
   const problem = await staffSupplierProblem(req, b.supplier) || await stockIdsProblem(req.params.companyId, b.lines.map((l) => l.item));
   if (problem) return bad(res, problem);
   const { rows } = await pool.query(
-    `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by, hq)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$12,$13::jsonb) RETURNING ${BILL_COLS}`,
-    [req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, b.hq ? JSON.stringify(b.hq) : null]
+    `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, dup_ack, created_by, updated_by, hq, paid_by, hardcopy, softcopy)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$12,$13::jsonb,$14,$15,$16) RETURNING ${BILL_COLS}`,
+    [req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, b.hq ? JSON.stringify(b.hq) : null, b.paidBy || null, b.hardcopy === true, b.softcopy === true]
   );
   try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, true); } catch (err) { console.error('purchase items learn failed:', err); }
   try { await docs.logEvent(req, req.params.companyId, 'purchase_bukku_bill', b.no, 'created', [{ field: 'supplier', from: '', to: b.supplier }, { field: 'total', from: '', to: String(b.total) }]); } catch (err) { console.error('purchase bill history failed:', err); }
@@ -791,9 +813,10 @@ router.put(BASE + '/bills/:id', ...guard(2), async (req, res) => {
     `UPDATE purchase_bukku_bills SET supplier = $3, code = $4, no = $5, ref = $6, bill_date = $7, tags = $8, description = $9, lines = $10::jsonb, total = $11,
        dup_ack = $12, updated_by = $13, updated_at = now(),
        status = CASE WHEN $14::boolean THEN 'draft' ELSE status END, exported_at = CASE WHEN $14::boolean THEN NULL ELSE exported_at END,
-       revised = revised OR $14::boolean, revised_at = CASE WHEN $14::boolean THEN now() ELSE revised_at END, hq = COALESCE($15::jsonb, hq)
+       revised = revised OR $14::boolean, revised_at = CASE WHEN $14::boolean THEN now() ELSE revised_at END, hq = COALESCE($15::jsonb, hq),
+       paid_by = CASE WHEN $16::text IS NULL THEN paid_by ELSE NULLIF($16::text, '') END, hardcopy = COALESCE($17::boolean, hardcopy), softcopy = COALESCE($18::boolean, softcopy)
      WHERE id = $1 AND company_id = $2 RETURNING ${BILL_COLS}`,
-    [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, reopen, b.hq ? JSON.stringify(b.hq) : null]
+    [id, req.params.companyId, b.supplier, b.code, b.no, b.ref, b.date, b.tags, b.desc, JSON.stringify(b.lines), b.total, b.dupAck, req.user.sub, reopen, b.hq ? JSON.stringify(b.hq) : null, b.paidBy === undefined ? null : b.paidBy, b.hardcopy === undefined ? null : b.hardcopy, b.softcopy === undefined ? null : b.softcopy]
   );
   try { await learn(pool, req.params.companyId, b.supplier, b.date, b.lines, false); } catch (err) { console.error('purchase items learn failed:', err); }
   if (reopen) changes.push({ field: 'status', from: 'exported', to: 'not exported (revised: export to Bukku again)' });

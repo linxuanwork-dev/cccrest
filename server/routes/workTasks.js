@@ -287,7 +287,7 @@ router.get('/work/purchase-reminders', requireAuth, requireRole(...TEAM), async 
        COUNT(*) FILTER (WHERE b.approved_at IS NULL AND NOT b.imported AND b.status <> 'exported')::int AS to_approve,
        COUNT(*) FILTER (WHERE b.no_original)::int AS no_original,
        COUNT(*) FILTER (WHERE b.approved_at IS NOT NULL AND b.in_bukku_at IS NULL)::int AS to_bukku,
-       COUNT(*) FILTER (WHERE b.in_bukku_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b.id AND t.kind = 'pay'))::int AS to_pay
+       COUNT(*) FILTER (WHERE b.approved_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b.id AND t.kind = 'pay'))::int AS to_pay
      FROM companies c
      JOIN purchase_bukku_settings s ON s.company_id = c.id AND s.enabled
      JOIN purchase_bukku_bills b ON b.company_id = c.id

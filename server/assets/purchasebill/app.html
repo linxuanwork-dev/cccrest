@@ -277,7 +277,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <option value="approve">待 Approve</option>
             <option value="noorig">缺正式单据</option>
             <option value="tobukku">已 Approve，待确认导入 Bukku</option>
-            <option value="unpaid">已在 Bukku，还没发去付款</option>
+            <option value="unpaid">已 Approve，还没发去付款</option>
+            <option value="nocopy">没有纸本也没有电子档</option>
+            <option value="paidby">垫付的（要报销）</option>
             <option value="paying">付款中</option>
             <option value="paid">已付款</option>
           </select>
@@ -308,16 +310,24 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <button class="btn" id="stInBukku" disabled>已在 Bukku ✓</button>
         <button class="btn" id="stNotInBukku" disabled>取消「已在 Bukku」</button>
         <span style="width:12px"></span>
-        <button class="btn" id="stNoOrig" disabled>缺正式单据</button>
-        <button class="btn" id="stHasOrig" disabled>已拿到正式单据</button>
-        <span style="width:12px"></span>
-        <label class="small">还款日 <input type="date" id="payDue"></label>
-        <button class="btn pri" id="stPay" disabled>要付款 → 发到工作列表</button>
-        <span style="width:12px"></span>
         <button class="btn" id="bkOpen" disabled title="用 API 把选中的、已 Approve 的单送进 Bukku">送进 Bukku</button>
       </div>
       <div id="bkPanel" class="panel" style="margin-top:8px" hidden></div>
-      <div class="bar staff-only" style="margin-top:8px"><button class="btn" id="stNoOrig2" disabled>缺正式单据</button><button class="btn" id="stHasOrig2" disabled>已拿到正式单据</button></div>
+      <div class="bar" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+        <span class="small muted">标记：</span>
+        <button class="btn" id="stHard" disabled>有纸本 ✓</button><button class="btn" id="stNoHard" disabled>没有纸本</button>
+        <button class="btn" id="stSoft" disabled>有电子档 ✓</button><button class="btn" id="stNoSoft" disabled>没有电子档</button>
+        <button class="btn" id="stNoOrig" disabled>缺正式单据</button><button class="btn" id="stHasOrig" disabled>已拿到正式单据</button>
+        <span style="width:12px"></span>
+        <label class="small">垫付人 <input id="paidBy" placeholder="例如 CARRIE（空 = 公司付）" style="width:170px"></label>
+        <button class="btn" id="stPaidBy" disabled>设定</button>
+      </div>
+      <div class="bar" id="payBar" style="flex-wrap:wrap;gap:8px;margin-top:8px" hidden>
+        <span class="small muted">付款：</span>
+        <label class="small">还款日 <input type="date" id="payDue"></label>
+        <button class="btn pri" id="stPay" disabled>要付款 → 发到工作列表</button>
+        <span class="small muted">只能选已 Approve 的单；垫付的单会变成「报销」。同一张单、同一个单号只会发一次。</span>
+      </div>
       <div id="exportMsg" style="margin-top:12px" hidden></div>
     </div>
   </section>
@@ -440,7 +450,7 @@ function refreshSoon(){ clearTimeout(refreshT); refreshT = setTimeout(refresh, 3
 async function refresh(){
   try{
     const d = await http('GET','');
-    S.mgr = !!d.mgr; document.body.classList.toggle('is-mgr', S.mgr); $('roleTag').textContent = S.mgr ? 'Manager' : '员工';
+    S.mgr = !!d.mgr; S.canPay = !!d.canPay; document.body.classList.toggle('is-mgr', S.mgr); $('payBar').hidden = !S.canPay; $('roleTag').textContent = S.mgr ? 'Manager' : '员工';
     S.company = d.company;
     $('offline').hidden = true;
     S.hasStock = !!d.hasStock; S.stock = d.stock || []; applyStockMode();
@@ -838,7 +848,9 @@ function filteredBills(){
     if(fl==='approve' && (b.approved || b.status==='exported')) return false;
     if(fl==='noorig' && !b.noOriginal) return false;
     if(fl==='tobukku' && !(b.approved && !b.inBukku)) return false;
-    if(fl==='unpaid' && !(b.inBukku && !b.payStatus)) return false;
+    if(fl==='unpaid' && !(b.approved && !b.payStatus)) return false;
+    if(fl==='nocopy' && (b.hardcopy || b.softcopy)) return false;
+    if(fl==='paidby' && !(b.paidBy && b.payStatus!=='checked')) return false;
     if(fl==='paying' && !(b.payStatus==='todo' || b.payStatus==='done')) return false;
     if(fl==='paid' && b.payStatus!=='checked') return false;
     if(q && !(normName(b.no).includes(q) || (b.lines||[]).some(l=>normName(l.desc).includes(q)) || normName(b.supplier).includes(q))) return false;
@@ -848,6 +860,8 @@ function filteredBills(){
 function flowPills(b){
   const p=[];
   if(b.noOriginal) p.push('<span class="pill dup">缺正式单据</span>');
+  p.push('<span class="pill '+(b.hardcopy?'done':'draft')+'" title="纸本">纸本'+(b.hardcopy?' ✓':' ✗')+'</span><span class="pill '+(b.softcopy?'done':'draft')+'" title="电子档">电子档'+(b.softcopy?' ✓':' ✗')+'</span>');
+  if(b.paidBy) p.push('<span class="pill draft">垫付 '+esc(b.paidBy)+'</span>');
   if(b.bukkuSent) p.push('<span class="pill done">'+(b.bukkuStatus==='ready'?'已送进 Bukku':'已送 Bukku 草稿')+(b.bukkuNo?' '+esc(b.bukkuNo):'')+'</span>');
   else if(b.bukkuError) p.push('<span class="pill dup" title="'+esc(b.bukkuError)+'">送 Bukku 失败</span>');
   if(b.payStatus==='checked') p.push('<span class="pill done">已付款</span>');
@@ -879,7 +893,7 @@ function updateSel(){
   const sel=S.bills.filter(b=>S.selected.has(b.id));
   const done=sel.filter(b=>b.status==='exported').length;
   $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>${done?` · <span style="color:#b45309">其中 ${done} 张已经导出过，不能再导出</span>`:''}` : '未选择（勾选要导出的单据）';
-  ['markDone','markDraft','delSel','bkOpen','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stNoOrig2','stHasOrig2'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
+  ['markDone','markDraft','delSel','bkOpen','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stHard','stNoHard','stSoft','stNoSoft','stPaidBy'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
   $('exportBtn').disabled=!sel.length||done>0;
 }
 ['flMonth','flStatus','flFlow','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
@@ -901,8 +915,16 @@ $('stApprove').addEventListener('click',()=>stage('approve',true,'已 Approve'))
 $('stUnapprove').addEventListener('click',()=>stage('unapprove',true,'已取消 Approve（已在 Bukku 的不受影响）'));
 $('stInBukku').addEventListener('click',()=>stage('in-bukku',true,'已标记「已在 Bukku」'));
 $('stNotInBukku').addEventListener('click',()=>stage('not-in-bukku',true,'已取消「已在 Bukku」（已发去付款的不受影响）'));
-['stNoOrig','stNoOrig2'].forEach(id=>$(id).addEventListener('click',()=>stage('no-original',true,'已标记缺正式单据')));
-['stHasOrig','stHasOrig2'].forEach(id=>$(id).addEventListener('click',()=>stage('no-original',false,'已拿到正式单据')));
+$('stNoOrig').addEventListener('click',()=>stage('no-original',true,'已标记缺正式单据'));
+$('stHasOrig').addEventListener('click',()=>stage('no-original',false,'已拿到正式单据'));
+$('stHard').addEventListener('click',()=>stage('hardcopy',true,'已标记有纸本'));
+$('stNoHard').addEventListener('click',()=>stage('hardcopy',false,'已标记没有纸本'));
+$('stSoft').addEventListener('click',()=>stage('softcopy',true,'已标记有电子档'));
+$('stNoSoft').addEventListener('click',()=>stage('softcopy',false,'已标记没有电子档'));
+$('stPaidBy').addEventListener('click',async()=>{
+  const ids=[...S.selected].map(Number); if(!ids.length) return;
+  try{ const r=await http('POST','/bills/stage',{ids,action:'paid-by',text:$('paidBy').value}); toast(($('paidBy').value.trim()?'已标记垫付人：':'已清除垫付人：')+r.changed+' 张（已发去付款的不能改）'); await refresh(); }catch(err){ dbErr(err); }
+});
 /* ---------- send to Bukku (drafts) ---------- */
 let BK=null;
 function bkBody(){ return { ids:[...S.selected].map(Number), mode:$('bkMode').value, accountId:$('bkAcc')?$('bkAcc').value:'', employeeKey:$('bkEmp')?$('bkEmp').value:'' }; }
@@ -946,7 +968,7 @@ $('stPay').addEventListener('click',async()=>{
   if(!due){ toast('请先选「还款日」'); return; }
   try{
     const r=await http('POST','/bills/request-payment',{ids,due});
-    let m='已发到工作列表：'+r.created+' 张'; if(r.notInBukku) m+='；'+r.notInBukku+' 张还没标记「已在 Bukku」，没有发出'; if(r.already) m+='；'+r.already+' 张之前已经发过';
+    let m='已发到工作列表：'+r.created+' 张'; if(r.notApproved) m+='；'+r.notApproved+' 张还没有 Approve，没有发出'; if(r.already) m+='；'+r.already+' 张之前已经发过'; if(r.duplicate) m+='；'+r.duplicate+' 张和已经付款的单重复（同一个供应商、同一个单号），没有发出';
     toast(m); await refresh();
   }catch(err){ dbErr(err); }
 });

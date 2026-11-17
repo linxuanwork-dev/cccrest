@@ -438,6 +438,34 @@ router.post(BASE + '/suppliers', ...guard(2), async (req, res) => {
   if (s.error) return bad(res, s.error);
   res.status(201).json(supOut(await saveSupplier(req.params.companyId, null, s)));
 });
+// the Bukku suppliers (read through the Bukku API, Control Panel > Bukku API) become suppliers here: new names are added with their
+// Contact Code, existing ones only get a code when they have none (their Account / Tags are left alone)
+router.post(BASE + '/suppliers/from-bukku', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  const { rows: src } = await pool.query(
+    `SELECT legal_name, contact_code FROM bukku_contacts WHERE company_id = $1 AND NOT is_archived AND 'supplier' = ANY(types) ORDER BY legal_name`,
+    [req.params.companyId]
+  );
+  if (!src.length) return bad(res, '还没有从 Bukku 读到供应商。请 Owner 先在 Control Panel > Bukku API 同步。 No Bukku suppliers yet - the Owner syncs them in Control Panel > Bukku API.');
+  const { rows: have } = await pool.query('SELECT name, code FROM purchase_bukku_contacts WHERE company_id = $1', [req.params.companyId]);
+  const byName = new Map(have.map((r) => [normName(r.name), r]));
+  let added = 0, coded = 0, same = 0;
+  for (const r of src) {
+    const name = normName(r.legal_name);
+    if (!name || name.length > 150) continue;
+    const code = /\s/.test(r.contact_code || '') ? '' : String(r.contact_code || '').trim().toUpperCase().slice(0, 30);
+    const ex = byName.get(name);
+    if (!ex) {
+      await pool.query('INSERT INTO purchase_bukku_contacts (company_id, name, code, account, tags) VALUES ($1,$2,$3,\'\',\'\') ON CONFLICT (company_id, name) DO NOTHING', [req.params.companyId, name, code]);
+      byName.set(name, { name, code });
+      added++;
+    } else if (!ex.code && code) {
+      await pool.query('UPDATE purchase_bukku_contacts SET code = $3 WHERE company_id = $1 AND name = $2', [req.params.companyId, ex.name, code]);
+      coded++;
+    } else same++;
+  }
+  res.json({ ok: true, total: src.length, added, coded, same });
+});
 router.put(BASE + '/suppliers/:id', ...guard(2), async (req, res) => {
   if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
   const s = cleanSupplier(req.body);

@@ -87,11 +87,12 @@ router.get('/bukku/connections', requireAuth, requireRole('admin'), async (req, 
   const { rows } = await pool.query(
     `SELECT c.id, c.name, b.subdomain, b.last_sync_at, b.last_error,
        (b.company_id IS NOT NULL) AS connected,
-       (SELECT COUNT(*) FROM bukku_accounts a WHERE a.company_id = c.id)::int AS accounts
+       (SELECT COUNT(*) FROM bukku_accounts a WHERE a.company_id = c.id)::int AS accounts,
+       (SELECT COUNT(*) FROM bukku_contacts k WHERE k.company_id = c.id)::int AS contacts
      FROM companies c LEFT JOIN bukku_connections b ON b.company_id = c.id
      ORDER BY (b.company_id IS NOT NULL) DESC, c.name`
   );
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts })));
 });
 
 router.put('/bukku/connections/:companyId', requireAuth, requireRole('admin'), async (req, res) => {
@@ -118,38 +119,33 @@ router.delete('/bukku/connections/:companyId', requireAuth, requireRole('admin')
   const { rows } = await pool.query('DELETE FROM bukku_connections WHERE company_id = $1 RETURNING company_id', [req.params.companyId]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   await pool.query('DELETE FROM bukku_accounts WHERE company_id = $1', [req.params.companyId]);
+  await pool.query('DELETE FROM bukku_contacts WHERE company_id = $1', [req.params.companyId]);
   const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, 'Removed Bukku API connection', co[0] ? co[0].name : String(req.params.companyId), null);
   res.json({ ok: true });
 });
 
-// Read the company's chart of accounts from Bukku (read only - nothing is written to Bukku) and keep a copy here.
-router.post('/bukku/connections/:companyId/sync-accounts', requireAuth, requireRole('admin'), async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT b.*, c.name FROM bukku_connections b JOIN companies c ON c.id = b.company_id WHERE b.company_id = $1', [req.params.companyId]
-  );
-  const conn = rows[0];
-  if (!conn) return bad(res, 'Save the Bukku subdomain and Access Token first.');
-  let list;
-  try {
-    const body = await bukkuGet(conn, '/accounts', { is_archived: 'false' });
-    list = flattenAccounts(body && body.accounts, []);
-    if (!list.length) throw new Error('Bukku returned no accounts.');
-  } catch (e) {
-    await pool.query('UPDATE bukku_connections SET last_error = $1 WHERE company_id = $2', [e.message.slice(0, 300), conn.company_id]);
-    return bad(res, e.message);
+// All the contacts of the company (paged: 100 per request).
+async function fetchContacts(conn) {
+  const out = [];
+  for (let page = 1; page <= 200; page++) {
+    const body = await bukkuGet(conn, '/contacts', { page, page_size: 100, status: 'ACTIVE' });
+    const raw = body && body.contacts;
+    const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    out.push(...list);
+    const total = body && body.paging && Number(body.paging.total);
+    if (!list.length || (total && out.length >= total) || list.length < 100) break;
   }
+  return out;
+}
+
+// Replace the saved copy of one kind of Bukku data (all or nothing).
+async function replaceCopy(companyId, deleteSql, rows, insertSql, toParams) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('DELETE FROM bukku_accounts WHERE company_id = $1', [conn.company_id]);
-    for (const a of list) {
-      await client.query(
-        'INSERT INTO bukku_accounts (company_id, bukku_id, code, name, type, parent_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (company_id, bukku_id) DO NOTHING',
-        [conn.company_id, a.id, a.code.slice(0, 40), a.name.slice(0, 200), a.type, a.parentId]
-      );
-    }
-    await client.query('UPDATE bukku_connections SET last_sync_at = now(), last_error = NULL WHERE company_id = $1', [conn.company_id]);
+    await client.query(deleteSql, [companyId]);
+    for (const r of rows) await client.query(insertSql, toParams(r));
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -157,8 +153,46 @@ router.post('/bukku/connections/:companyId/sync-accounts', requireAuth, requireR
   } finally {
     client.release();
   }
-  await logActivity(req.user.sub, 'Synced Bukku chart of accounts', conn.name, list.length + ' accounts');
-  res.json({ ok: true, accounts: list.length });
+}
+
+// Read the company's chart of accounts and contacts from Bukku (read only - nothing is written to Bukku) and keep a copy here.
+router.post(['/bukku/connections/:companyId/sync', '/bukku/connections/:companyId/sync-accounts'], requireAuth, requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT b.*, c.name FROM bukku_connections b JOIN companies c ON c.id = b.company_id WHERE b.company_id = $1', [req.params.companyId]
+  );
+  const conn = rows[0];
+  if (!conn) return bad(res, 'Save the Bukku subdomain and Access Token first.');
+  const errors = [];
+  let accounts = null, contacts = null;
+
+  try {
+    const body = await bukkuGet(conn, '/accounts', { is_archived: 'false' });
+    const list = flattenAccounts(body && body.accounts, []);
+    if (!list.length) throw new Error('Bukku returned no accounts.');
+    await replaceCopy(conn.company_id, 'DELETE FROM bukku_accounts WHERE company_id = $1', list,
+      'INSERT INTO bukku_accounts (company_id, bukku_id, code, name, type, parent_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (company_id, bukku_id) DO NOTHING',
+      (a) => [conn.company_id, a.id, a.code.slice(0, 40), a.name.slice(0, 200), a.type, a.parentId]);
+    accounts = list.length;
+  } catch (e) { errors.push('Chart of accounts: ' + e.message); }
+
+  try {
+    const list = await fetchContacts(conn);
+    await replaceCopy(conn.company_id, 'DELETE FROM bukku_contacts WHERE company_id = $1', list,
+      `INSERT INTO bukku_contacts (company_id, bukku_key, legal_name, other_name, contact_code, reg_no, types, email, phone_no, is_archived)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (company_id, bukku_key) DO NOTHING`,
+      (c) => [conn.company_id, String(c.id != null ? c.id : (c.contact_code || c.legal_name || '')).slice(0, 120), String(c.legal_name || '').slice(0, 200),
+        c.other_name || null, String(c.contact_code || '').slice(0, 60), c.reg_no || null, Array.isArray(c.types) ? c.types.map(String) : [],
+        c.email || null, c.phone_no || null, !!c.is_archived]);
+    contacts = list.length;
+  } catch (e) { errors.push('Contacts: ' + e.message); }
+
+  if (accounts == null && contacts == null) {
+    await pool.query('UPDATE bukku_connections SET last_error = $1 WHERE company_id = $2', [errors.join(' | ').slice(0, 300), conn.company_id]);
+    return bad(res, errors.join(' '));
+  }
+  await pool.query('UPDATE bukku_connections SET last_sync_at = now(), last_error = $1 WHERE company_id = $2', [errors.length ? errors.join(' | ').slice(0, 300) : null, conn.company_id]);
+  await logActivity(req.user.sub, 'Synced Bukku chart of accounts & contacts', conn.name, (accounts == null ? 'accounts failed' : accounts + ' accounts') + ', ' + (contacts == null ? 'contacts failed' : contacts + ' contacts'));
+  res.json({ ok: true, accounts: accounts || 0, contacts: contacts || 0, errors });
 });
 
 // ============ anyone who can open the company: the accounts to pick from ============
@@ -171,6 +205,16 @@ router.get('/companies/:companyId/bukku/accounts', requireAuth, scopeToCompany, 
     syncedAt: rows[0] ? rows[0].synced_at : null,
     accounts: rows.map((r) => ({ code: r.code, name: r.name, type: r.type, label: (r.code ? r.code + ' ' : '') + r.name }))
   });
+});
+
+router.get('/companies/:companyId/bukku/contacts', requireAuth, scopeToCompany, async (req, res) => {
+  const type = ['customer', 'supplier', 'employee'].includes(req.query.type) ? req.query.type : null;
+  const { rows } = await pool.query(
+    `SELECT legal_name, other_name, contact_code, reg_no, types, email, phone_no FROM bukku_contacts
+      WHERE company_id = $1 AND NOT is_archived AND ($2::text IS NULL OR $2 = ANY(types)) ORDER BY legal_name`,
+    [req.params.companyId, type]
+  );
+  res.json({ contacts: rows.map((r) => ({ legalName: r.legal_name, otherName: r.other_name || '', code: r.contact_code, regNo: r.reg_no || '', types: r.types, email: r.email || '', phone: r.phone_no || '' })) });
 });
 
 module.exports = router;

@@ -300,7 +300,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   <section id="v-suppliers" hidden>
     <div class="grid">
       <div class="panel">
-        <div class="ph"><h2>供应商 Contacts</h2><input type="search" id="supQ" placeholder="搜索" style="width:200px"></div>
+        <div class="ph"><h2>供应商 Contacts</h2><button type="button" class="btn sm mgr-only" id="supBukku" title="把 Bukku 里的供应商（名称 + Contact Code）加进来">从 Bukku 导入</button><input type="search" id="supQ" placeholder="搜索" style="width:200px"></div>
         <div class="tbl-wrap" style="max-height:62vh;overflow:auto">
           <table>
             <thead><tr><th>Legal Name</th><th>Contact Code</th><th>Account</th><th>预设 Tags</th><th class="mgr-only"></th></tr></thead>
@@ -471,6 +471,15 @@ function renderSuppliers(){
     : `<tr><td colspan="5" class="empty">${S.suppliers.length?'找不到':'还没有供应商。用右边表格新增，或从 Excel 贴上。'}</td></tr>`;
 }
 $('supQ').addEventListener('input',renderSuppliers);
+$('supBukku').addEventListener('click', async ()=>{
+  const btn=$('supBukku'); btn.disabled=true;
+  try{
+    const r=await http('POST','/suppliers/from-bukku');
+    toast('Bukku 供应商 '+r.total+' 个：新增 '+r.added+'，补上 Contact Code '+r.coded+'，原来就有 '+r.same);
+    refreshSoon();
+  }catch(e){ toast(e && e.message || '导入失败'); }
+  finally{ btn.disabled=false; }
+});
 $('supBody').addEventListener('click', async e=>{
   const ed=e.target.closest('[data-edit-sup]'), dl=e.target.closest('[data-del-sup]');
   if(ed){ const s=S.suppliers.find(x=>x.id===ed.dataset.editSup); S.editingSup=s.id;

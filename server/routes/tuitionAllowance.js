@@ -127,9 +127,11 @@ router.get(BASE + '/bukku-receivables', ...guard(2), async (req, res) => {
     if (bal == null || !Number.isFinite(bal)) { partial = true; return; }
     const code = String(t.contact_code || '');
     const k = code || ('#' + t.contact_id);
-    if (!by.has(k)) by.set(k, { code, name: String(t.contact_name || ''), outstanding: 0, count: 0 });
+    if (!by.has(k)) by.set(k, { code, name: String(t.contact_name || ''), outstanding: 0, count: 0, invoices: [] });
     const e = by.get(k); e.outstanding = Math.round((e.outstanding + bal) * 100) / 100; e.count++;
+    e.invoices.push({ no: String(t.number || ''), date: String(t.date || '').slice(0, 10), balance: bal });
   });
+  by.forEach((e) => { e.invoices.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)); e.invoices = e.invoices.slice(0, 24); });
   res.json({ asOf: new Date().toISOString(), invoices: live.length, partial, contacts: [...by.values()].filter((c) => c.outstanding > 0.004).sort((a, b) => b.outstanding - a.outstanding) });
 });
 

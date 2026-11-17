@@ -202,7 +202,9 @@ function matchTx(state, tx, pool, paidSet){
   if(!fam.length) return {status:'unmatched', how:'找不到', alloc:[], sugg:[]};
   const active=fam.filter(s=>s.status==='Active'); if(active.length) fam=active;
   if(fam.length===1 && Math.abs(feeOf(fam[0])-amt)>=0.01){ const eh=extraHits([fam[0].uid]); if(eh.length===1) return {status:'auto', how: how+'+单', alloc:[{uid:fam[0].uid,amt,invoice:eh[0].key}], sugg:[fam[0].uid]}; }
-  if(fam.length===1 && how!=='备注里的学生名') return {status:'auto', how, alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]};
+  // the amount has to be the fee (or 2-6 months of it); otherwise a person looks at it (it used to be accepted without a word)
+  const fitsFee=s=>{ const f=feeOf(s); if(!(f>0)) return true; for(let k=1;k<=6;k++) if(Math.abs(f*k-amt)<0.01) return true; return false; };
+  if(fam.length===1 && how!=='备注里的学生名'){ const ok=fitsFee(fam[0]); return {status:ok?'auto':'review', how: ok?how:how+'（收到 RM '+amt.toFixed(2)+'，学费 RM '+feeOf(fam[0]).toFixed(2)+'：金额对不上）', alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]}; }
   if(fam.length===1) return {status: how==='备注里的学生名'?(Math.abs(feeOf(fam[0])-amt)<0.01?'auto':'review'):'auto', how, alloc:[{uid:fam[0].uid,amt}], sugg:[fam[0].uid]};
   // several kids: choose by amount
   let cs=combos(fam,amt,feeOf), mult=1;
@@ -918,18 +920,71 @@ function stmt(uid){ const s=findStu(S,uid); if(!s) return; const LG=ledger(); co
 async function setPayMonth(did,txid,uid,k){ const doc=JSON.parse(JSON.stringify(S.bank[did])); const al=doc.tx[txid].alloc.find(x=>x.uid===uid); const mv=monVal(k); if(mv) al.months=mv; else delete al.months; if(doc.tx[txid].status==='auto') doc.tx[txid].status='manual';
   await save('bank/'+did,doc); setTimeout(()=>stmt(uid),150); toast('已改，重新计算'); }
 // ---------- 欠款 ----------
+// ---- the outstanding list straight from Bukku ----
+function oweSrc(){ return UI.oSrc||'bukku'; }
+async function loadBkOwe(){
+  UI._bkLoading=true; UI._bkErr='';
+  try{ UI._bk=await http('GET','/bukku-receivables'); }catch(e){ UI._bkErr=(e&&e.message)||String(e); UI._bk=null; }
+  UI._bkLoading=false; render();
+}
+function oweBkRows(){
+  const bk=UI._bk; if(!bk) return [];
+  const byCode={}; BRANCHES.forEach(b=>stuList(b).forEach(s=>{ if(s.code) byCode[s.code]=s; }));
+  const L=ledger(), sysBy={}; outstanding(S,L,today()).forEach(r=>{ sysBy[r.uid]=r2((sysBy[r.uid]||0)+r.owe); });
+  let rows=bk.contacts.map(c=>{ const s=byCode[c.code]; return {branch:s?s.branch:'',mt:s?(s.mt||''):'',no:s?s.no:'',name:s?s.name:(c.name||'(系统里找不到这个 code)'),parents:s?(s.parents||[]):[],code:c.code,uid:s?s.uid:'',count:c.count,oldest:(c.invoices[0]||{}).date||'',invoices:c.invoices,owe:c.outstanding,sys:s?(sysBy[s.uid]||0):null,status:s?s.status:'',found:!!s}; });
+  if(UI.oBranch!=='ALL') rows=rows.filter(x=>x.branch===UI.oBranch);
+  if(UI.oMt!=='ALL') rows=rows.filter(x=>x.mt===UI.oMt);
+  const oq=normA(UI.oQ||''); if(oq) rows=rows.filter(x=>normA(x.name+x.no+x.code+x.parents.join(' ')+x.mt).includes(oq));
+  return rows.sort((a,b)=>(a.branch+a.mt+a.no).localeCompare(b.branch+b.mt+b.no));
+}
+function vOweBukku(){
+  if(!UI._bk&&!UI._bkLoading&&!UI._bkErr) loadBkOwe();
+  const b=UI.oBranch, head=`<div class="card"><div class="row">
+   <select onchange="UI.oSrc=this.value;render()"><option value="bukku" selected>来源：Bukku（直接读取）</option><option value="system">来源：系统自己算的</option></select>
+   <select onchange="UI.oBranch=this.value;UI.oMt='ALL';render()">${brOpts(b,true)}</select>
+   <input id="oweq" placeholder="搜学生 / 编号 / code / 父母 / MT" value="${esc(UI.oQ||'')}" oninput="UI.oQ=this.value;render()" style="width:230px">
+   <button class="g" onclick="UI._bk=null;UI._bkErr='';render()">重新读取 Bukku</button>
+   <span style="flex:1"></span>
+   <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>`;
+  if(UI._bkErr) return head+`<div class="msg bad" style="margin-top:8px">从 Bukku 读取失败：${esc(UI._bkErr)}</div></div>`;
+  if(!UI._bk) return head+`<div class="small mute" style="margin-top:8px">正在从 Bukku 读取欠款，请稍等…</div></div>`;
+  const rows=oweBkRows(), tot=r2(rows.reduce((a,x)=>a+x.owe,0));
+  const mts=[...new Set(oweBkRows().map(x=>x.mt))];
+  return head+`<div class="small mute" style="margin-top:6px">Bukku 读取时间 ${esc(String(UI._bk.asOf).slice(0,16).replace('T',' '))}（UTC）· 这是 Bukku 里还没收齐的发票。付款导入 Bukku 之后，这里才会减少。${UI._bk.partial?' <b style="color:#b45309">有些发票读不到余额，数字可能少算。</b>':''}</div></div>
+  <div class="card"><h2>${rows.length} 位，共 RM ${money(tot)}</h2><div class="tw"><table><tr><th>Branch</th><th>MT</th><th>编号</th><th>学生</th><th>Bukku code</th><th class="n">发票数</th><th>最旧发票</th><th class="n">Bukku 欠款</th><th class="n">系统自己算</th><th>发票</th></tr>
+  ${rows.map(x=>`<tr${x.found?'':' style="background:#fff7ed"'}><td>${x.branch}</td><td>${esc(x.mt)}</td><td>${esc(x.no)}</td><td>${x.found?`<a href="#" onclick="stmt('${x.uid}');return false">${esc(x.name)}</a> ${x.status&&x.status!=='Active'?stTag(x.status):''}`:esc(x.name)}</td><td>${esc(x.code)}</td><td class="n">${x.count}</td><td>${x.oldest||'—'}</td><td class="n"><b>${money(x.owe)}</b></td><td class="n">${x.sys==null?'':(Math.abs(x.sys-x.owe)<0.01?'<span class="tag ok">一样</span>':money(x.sys))}</td><td class="small">${esc(x.invoices.slice(0,4).map(i=>i.no+' '+money(i.balance)).join(' · '))}${x.invoices.length>4?' …':''}</td></tr>`).join('')||'<tr><td colspan="10" class="mute">Bukku 里没有欠款 🎉</td></tr>'}
+  </table></div></div>`;
+}
+// the opening balances came from an aging report that had mistakes: take them out (what was there is kept in settings/openingBackup)
+async function removeOpening(){
+  if(!MGR||!canWrite) return toast('只有 manager 可以做这个操作');
+  let n=0,sum=0; const backup={};
+  BRANCHES.forEach(b=>{ const l=(S.students[b]||{}).list||{}; for(const no in l){ const o=+l[no].opening||0; if(o){ backup[b+':'+no]=o; n++; sum+=o; } } });
+  if(!n) return toast('没有期初欠款可以移除');
+  if(!confirm('移除 '+n+' 位学生的期初欠款（合计 RM '+money(sum)+'）？\n\n之后欠款以 Bukku 为准（欠款清单选「来源：Bukku」）。\n注意：学生的付款会改成直接对每个月的学费，所以 allowance 的「已付」状态可能因此改变。\n移除前的数字会备份在系统里。')) return;
+  try{
+    await save('settings/openingBackup',{at:new Date().toISOString(),count:n,total:r2(sum),list:backup});
+    for(const b of BRANCHES){ const d=S.students[b]; if(!d||!d.list) continue; const doc=JSON.parse(JSON.stringify(d)); let ch=false; for(const no in doc.list){ if(+doc.list[no].opening){ histAdd(doc.list[no],'opening',doc.list[no].opening,0,'移除期初欠款（改用 Bukku）'); doc.list[no].opening=0; ch=true; } } if(ch) await save('students/'+b,doc); }
+    toast('已移除 '+n+' 位学生的期初欠款',5000);
+  }catch(e){ toast('移除失败：'+(e&&e.message||e),6000); }
+}
 function vOwe(){
+  if(oweSrc()==='bukku') return vOweBukku();
   const L=ledger(); const t=today(); let o=outstanding(S,L,t);
   const b=UI.oBranch; if(b!=='ALL') o=o.filter(x=>x.branch===b);
   const mts=[...new Set(o.map(x=>x.mt))].sort(); if(UI.oMt!=='ALL') o=o.filter(x=>x.mt===UI.oMt);
   if(!UI.oLate) o=o.filter(x=>!x.late);
+  const oq=normA(UI.oQ||''); if(oq) o=o.filter(x=>stuHit(x,oq));
   const tot=o.reduce((a,x)=>a+x.owe,0);
   const upd=b==='BBU'?'Affin '+(lastBankDate('AFFIN')||'—'):b==='ALL'?'Affin '+(lastBankDate('AFFIN')||'—')+' / Public Bank '+(lastBankDate('PBB')||'—'):'Public Bank '+(lastBankDate('PBB')||'—');
   return `<div class="card"><div class="row">
+   <select onchange="UI.oSrc=this.value;render()"><option value="bukku">来源：Bukku（直接读取）</option><option value="system" selected>来源：系统自己算的</option></select>
    <select onchange="UI.oBranch=this.value;UI.oMt='ALL';render()">${brOpts(b,true)}</select>
    <select onchange="UI.oMt=this.value;render()"><option value="ALL">全部 MT</option>${mts.map(m=>`<option ${m===UI.oMt?'selected':''}>${esc(m)}</option>`).join('')}</select>
    <label class="small"><input type="checkbox" ${UI.oLate?'checked':''} onchange="UI.oLate=this.checked;render()"> 包括已过期</label>
+   <input id="oweq" placeholder="搜学生 / 编号 / 父母 / MT" value="${esc(UI.oQ||'')}" oninput="UI.oQ=this.value;render()" style="width:200px">
    <span style="flex:1"></span>
+   ${MGR&&canWrite?'<button class="g" title="期初欠款来自有错的 aging：全部清零，欠款以 Bukku 为准（会先备份）" onclick="removeOpening()">移除期初欠款</button>':''}
    <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>
    <div class="small mute" style="margin-top:6px">银行资料更新至：${upd}。只算已确认的老师名单和已配对的入账；「待处理」的银行入账还没算进去（现在 ${reviewCount()} 笔）。</div></div>
   <div class="card"><h2>${o.length} 笔，共 RM ${money(tot)}</h2><div class="tw"><table><tr><th>Branch</th><th>MT</th><th>编号</th><th>学生</th><th>父母</th><th>月份</th><th class="n">应付</th><th class="n">已付</th><th class="n">欠</th><th>期限</th><th>状态</th></tr>
@@ -937,9 +992,15 @@ function vOwe(){
    <td>${x.deadline?(x.late?'<span class="tag bad">过期，不出 allowance</span>':x.daysLeft<=14?`<span class="tag warn">还剩 ${x.daysLeft} 天</span>`:`<span class="tag grey">还剩 ${x.daysLeft} 天</span>`):'<span class="tag grey">期初</span>'}</td></tr>`).join('')||'<tr><td colspan="11" class="mute">没有欠款 🎉</td></tr>'}
   </table></div></div>`;
 }
-function oweRows(){ const L=ledger(); let o=outstanding(S,L,today()); if(UI.oBranch!=='ALL') o=o.filter(x=>x.branch===UI.oBranch); if(UI.oMt!=='ALL') o=o.filter(x=>x.mt===UI.oMt); if(!UI.oLate) o=o.filter(x=>!x.late); return o; }
-function oweExcel(){ const o=oweRows(); saveXlsx(`欠款清单_${UI.oBranch}_${today()}.xlsx`,[['欠款',[['欠款清单 '+UI.oBranch+'（更新 '+today()+'）'],[],['Branch','MT','编号','学生','父母','月份','应付','已付','欠','期限','状态'],...o.map(x=>[x.branch,x.mt,x.s.no,x.s.name,(x.s.parents||[]).join(' / '),x.month,x.amount,x.paid,x.owe,x.deadline||'',x.deadline?(x.late?'过期':'还剩 '+x.daysLeft+' 天'):'期初'])]]]); }
-function oweText(){ const o=oweRows(); const by={}; o.forEach(x=>{ const k=x.branch+' · '+x.mt; (by[k]=by[k]||[]).push(x); });
+function oweRows(){ const L=ledger(); let o=outstanding(S,L,today()); if(UI.oBranch!=='ALL') o=o.filter(x=>x.branch===UI.oBranch); if(UI.oMt!=='ALL') o=o.filter(x=>x.mt===UI.oMt); if(!UI.oLate) o=o.filter(x=>!x.late); const oq=normA(UI.oQ||''); if(oq) o=o.filter(x=>stuHit(x,oq)); return o; }
+function oweExcel(){
+  if(oweSrc()==='bukku'){ const o=oweBkRows(); return saveXlsx(`Bukku欠款_${UI.oBranch}_${today()}.xlsx`,[['Bukku 欠款',[['Bukku 欠款 '+UI.oBranch+'（读取 '+today()+'）'],[],['Branch','MT','编号','学生','父母','Bukku code','发票数','最旧发票','Bukku 欠款','系统自己算','发票'],...o.map(x=>[x.branch,x.mt,x.no,x.name,x.parents.join(' / '),x.code,x.count,x.oldest,x.owe,x.sys==null?'':x.sys,x.invoices.map(i=>i.no+' '+i.balance).join(' · ')])]]]); }
+  const o=oweRows(); saveXlsx(`欠款清单_${UI.oBranch}_${today()}.xlsx`,[['欠款',[['欠款清单 '+UI.oBranch+'（更新 '+today()+'）'],[],['Branch','MT','编号','学生','父母','月份','应付','已付','欠','期限','状态'],...o.map(x=>[x.branch,x.mt,x.s.no,x.s.name,(x.s.parents||[]).join(' / '),x.month,x.amount,x.paid,x.owe,x.deadline||'',x.deadline?(x.late?'过期':'还剩 '+x.daysLeft+' 天'):'期初'])]]]); }
+function oweText(){
+  if(oweSrc()==='bukku'){ const o=oweBkRows(), by={}; o.forEach(x=>{ const k=(x.branch||'?')+' · '+(x.mt||'?'); (by[k]=by[k]||[]).push(x); });
+    let t=`*欠款清单（Bukku）*（读取 ${today()}）\n`; for(const k of Object.keys(by).sort()){ t+=`\n*${k}*\n`; by[k].forEach((x,i)=>{ t+=`${i+1}. ${x.no} ${x.name} – RM${money(x.owe)}（${x.count} 张）\n`; }); }
+    t+=`\n总共：RM ${money(o.reduce((a,x)=>a+x.owe,0))}`; return copyText(t); }
+  const o=oweRows(); const by={}; o.forEach(x=>{ const k=x.branch+' · '+x.mt; (by[k]=by[k]||[]).push(x); });
   let t=`*欠款清单*（更新至 ${today()}）\n`; for(const k of Object.keys(by).sort()){ t+=`\n*${k}*\n`; by[k].forEach((x,i)=>{ t+=`${i+1}. ${x.s.no} ${x.s.name} – ${x.month} RM${money(x.owe)}${x.deadline?(x.late?' ❗过期':' (期限 '+x.deadline+')'):''}\n`; }); }
   t+=`\n总共：RM ${money(o.reduce((a,x)=>a+x.owe,0))}`; copyText(t); }
 
@@ -952,9 +1013,12 @@ function trainSched(k){ const t=trainOf(k); if(!t||t.exempt) return null; const 
 // how many instalments were already deducted before payout p (recorded by hand, or scheduled and not skipped): after 6 nothing more is deducted
 function trainDoneBefore(k,p){ const rec=(S.mts.list||{})[k]||{}, ded=rec.deductions||[]; let n=ded.filter(d=>d.payout<p&&!d.skip).length; (trainSched(k)||[]).forEach(m=>{ if(m&&m+'-05'<p&&!ded.some(d=>d.payout===m+'-05')) n++; }); return n; }
 function trainDue(k,p){ const t=trainOf(k); if(!t||t.exempt||p.slice(8)!=='05'||trainDoneBefore(k,p)>=6) return null; const sch=trainSched(k), i=sch.indexOf(p.slice(0,7)); if(i<0||!(+t.amt>0)) return null; return {n:i+1,amt:+t.amt,bill:t.bill||''}; }
+// a student is found by name, number, Bukku code, parent or MT
+const stuHit=(x,q)=>!q||normA(x.s.name+x.s.no+x.s.code+(x.s.parents||[]).join(' ')+(x.mt||'')).includes(q);
 function vAllow(){
   const pl=payoutList(); if(!UI.payout){ UI.payout=pl.find(p=>p>=today())||pl[pl.length-1]; }
-  const p=UI.payout; const w=payoutWindow(p); const L=ledger(); const all=allowanceLines(S,L);
+  const aq=normA(UI.allowQ||'');
+  const p=UI.payout; const w=payoutWindow(p); const L=ledger(); const all=allowanceLines(S,L).filter(x=>stuHit(x,aq));
   const pay=all.filter(x=>x.status==='payable'&&x.payout===p);
   const pend=all.filter(x=>x.status==='pending'); const forf=all.filter(x=>x.status==='forfeit'||(x.status==='pending'&&today()>x.deadline));
   const byMt={}; pay.forEach(x=>{ const k=mtKey(x.branch,x.mt); (byMt[k]=byMt[k]||[]).push(x); });
@@ -973,6 +1037,7 @@ function vAllow(){
      ${pd.length?`<details style="margin-top:6px"><summary class="small">⏳ 暂扣 ${pd.length} 个学生（还没付，期限内付了就会出）RM ${money(pd.reduce((a,x)=>a+x.amount,0))}</summary><div class="small">${pd.map(x=>`${esc(x.s.no+' '+x.s.name)} – ${x.month} – RM ${money(x.amount)}（期限 ${x.deadline}）`).join('<br>')}</div></details>`:''}
     </div>`; }).join('');
   return `<div class="card"><div class="row"><span>发放日期</span><select onchange="UI.payout=this.value;render()">${pl.map(x=>`<option ${x===p?'selected':''}>${x}</option>`).join('')}</select>
+   <input id="allowq" placeholder="搜学生 / 编号 / 父母 / MT" value="${esc(UI.allowQ||'')}" oninput="UI.allowQ=this.value;render()" style="width:220px">
    <span class="tag info">${w.label}</span><span style="flex:1"></span><span>这期总共实发 <b>RM ${money(grand)}</b></span>
    <button class="g" onclick="allowExcel()">下载 Excel</button><button class="g" onclick="allowPdfAll()">下载全部 PDF</button></div>
    ${Object.values(S.hqbills||{}).filter(d=>d.kind==='payout'&&d.payout===p).map(d=>`<div class="msg info" style="margin-top:6px">${esc(d.branch)} ${esc((d.months||[]).join(', '))} 这一次是特别安排：所有 Active 学生的 allowance 都发了，不看学费有没有付（测试期，只此一次）。以后照规则。</div>`).join('')}

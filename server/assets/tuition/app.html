@@ -891,6 +891,14 @@ function openTx(did,id){
   UI._tx={did,id,sel:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,a.amt])),mon:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,monKey(a)])),extra:sug.filter(u=>!(t.alloc||[]).some(a=>a.uid===u))};
   drawTx();
 }
+// under the amount of a student: still due / paid too much compared with the fee (a whole number of months is fine)
+function dueNote(s,a){
+  const fee=studentFee(S,s); if(!(fee>0)||!(a>0)) return '';
+  for(let k=1;k<=6;k++) if(Math.abs(fee*k-a)<0.01) return '<div class="small" style="color:#15803d">= '+(k>1?k+' 个月 ':'')+'学费 RM '+money(fee*k)+' ✔</div>';
+  const k=Math.max(1,Math.round(a/fee)), d=r2(fee*k-a);
+  return d>0?'<div class="small" style="color:#b45309"><b>还欠 RM '+money(d)+'</b><br>学费 RM '+money(fee*k)+'，收到 RM '+money(a)+'</div>'
+    :'<div class="small" style="color:#b45309"><b>多收 RM '+money(-d)+'</b><br>学费 RM '+money(fee*k)+'，收到 RM '+money(a)+'</div>';
+}
 function drawTx(){
   const {did,id,sel,extra}=UI._tx; const LG=ledger(); const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
   const shown=[...new Set([...Object.keys(sel),...extra])];
@@ -899,7 +907,7 @@ function drawTx(){
    <h3>这笔钱是哪个学生的？</h3>
    <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}</div>
    <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th><th></th></tr>
-   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td><td><button class="g" title="从这个列表拿掉" onclick="txRemove('${u}')">✕</button></td></tr>`; }).join('')}
+   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">${dueNote(s,+sel[u])}`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td><td><button class="g" title="从这个列表拿掉" onclick="txRemove('${u}')">✕</button></td></tr>`; }).join('')}
    </table>
    <div class="row" style="margin:8px 0"><input id="txq" placeholder="搜其他学生（名字 / 编号 / 父母）" style="width:300px" oninput="txSearch(this.value)"><div id="txres" class="small"></div></div>
    <div class="${Math.abs(sum-t.amount)<0.01?'msg ok':'msg warn'}">已分配 RM ${money(sum)} / RM ${money(t.amount)}${Math.abs(sum-t.amount)>=0.01?'（差 RM '+money(t.amount-sum)+'）':''}</div>

@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
-const { requirePage } = require('../lib/access');
+const { requirePage, requireAnyPage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 
 const router = express.Router();
@@ -234,7 +234,7 @@ router.get('/companies/:companyId/bukku/contacts', requireAuth, scopeToCompany, 
 });
 
 // A person who works on the company's tuition (a CC CREST manager) reads the Bukku contacts again right now (read only).
-router.post('/companies/:companyId/bukku/refresh-contacts', requireAuth, scopeToCompany, requirePage('tuition', 2), async (req, res) => {
+router.post('/companies/:companyId/bukku/refresh-contacts', requireAuth, scopeToCompany, requireAnyPage(['tuition', 'purchases'], 2), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM bukku_connections WHERE company_id = $1', [req.params.companyId]);
   const conn = rows[0];
   if (!conn) return bad(res, '这家公司还没有连接 Bukku（请 Owner 到 Control Panel > Bukku API 连接）。');

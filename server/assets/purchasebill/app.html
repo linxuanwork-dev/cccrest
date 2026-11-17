@@ -279,6 +279,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <option value="tobukku">已 Approve，待确认导入 Bukku</option>
             <option value="unpaid">已 Approve，还没发去付款</option>
             <option value="nocopy">没有纸本也没有电子档</option>
+            <option value="unlinked">有行没链到 Stock Count 货品</option>
             <option value="paidby">垫付的（要报销）</option>
             <option value="paying">付款中</option>
             <option value="paid">已付款</option>
@@ -445,6 +446,17 @@ async function http(method, url, body){
   if(!r.ok){ const err = new Error(j.error || ('请求失败 ('+r.status+')')); err.code = r.status; throw err; }
   return j;
 }
+// the suppliers of this company in Bukku are added to the supplier list by themselves (a manager opens the page; once a day)
+async function autoBukkuSuppliers(){
+  if(!S.mgr) return;
+  try{ const k='pbBkSup:'+S.cid, d=new Date().toISOString().slice(0,10); if(localStorage.getItem(k)===d) return; localStorage.setItem(k,d); }catch(e){ /* no storage: just run */ }
+  try{
+    const r=await fetch('/api/companies/'+encodeURIComponent(S.cid)+'/bukku/refresh-contacts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(!r.ok) return;   // not connected to Bukku: nothing to do
+    const j=await http('POST','/suppliers/from-bukku');
+    if(j.added||j.coded){ toast('已从 Bukku 加入 '+j.added+' 家供应商'+(j.coded?'，补上 '+j.coded+' 个 Contact Code':'')); refreshSoon(); }
+  }catch(e){ /* quiet: the button in the Suppliers tab shows problems */ }
+}
 let refreshT;
 function refreshSoon(){ clearTimeout(refreshT); refreshT = setTimeout(refresh, 300); }
 async function refresh(){
@@ -455,6 +467,7 @@ async function refresh(){
     $('offline').hidden = true;
     S.hasStock = !!d.hasStock; S.stock = d.stock || []; applyStockMode();
     L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills)); L.items.forEach(cb=>cb(d.items || []));
+    if(!S._autoSup){ S._autoSup=true; setTimeout(autoBukkuSuppliers,1500); }
   }catch(e){
     $('offline').hidden = false;
     $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
@@ -850,6 +863,7 @@ function filteredBills(){
     if(fl==='tobukku' && !(b.approved && !b.inBukku)) return false;
     if(fl==='unpaid' && !(b.approved && !b.payStatus)) return false;
     if(fl==='nocopy' && (b.hardcopy || b.softcopy)) return false;
+    if(fl==='unlinked' && !unlinkedGoods(b)) return false;
     if(fl==='paidby' && !(b.paidBy && b.payStatus!=='checked')) return false;
     if(fl==='paying' && !(b.payStatus==='todo' || b.payStatus==='done')) return false;
     if(fl==='paid' && b.payStatus!=='checked') return false;
@@ -857,8 +871,21 @@ function filteredBills(){
     return true;
   }).sort((a,b)=>(a.date||'').localeCompare(b.date||'') || normName(a.supplier).localeCompare(normName(b.supplier)) || String(a.no).localeCompare(String(b.no)));
 }
+// a line of a Stock Count company that is not linked to a Stock Count item: only the lines on the goods account are mentioned
+// (a purchase that is not goods - a service, rent... - is just written in the Item Description and needs no link)
+function unlinkedGoods(b){
+  if(!S.hasStock) return 0;
+  const acc=String((S.company&&S.company.account)||'').trim();
+  return (b.lines||[]).filter(l=>{
+    if(l.item) return false;
+    const a=String(l.account||'').trim(); if(a&&a!==acc) return false;
+    const m=mapFor(b.supplier,l.desc)||(l.as?mapFor(b.supplier,l.as):null);
+    return !(m&&m.item);
+  }).length;
+}
 function flowPills(b){
   const p=[];
+  const ul=unlinkedGoods(b); if(ul) p.push('<span class="pill draft" title="这几行是货品账户（'+esc((S.company&&S.company.account)||'')+'）却没有链到 Stock Count 货品，不会进 stock card。如果买的不是货品，只写 Description 就可以，不用管。">'+ul+' 行没链到 stock</span>');
   if(b.noOriginal) p.push('<span class="pill dup">缺正式单据</span>');
   p.push('<span class="pill '+(b.hardcopy?'done':'draft')+'" title="纸本">纸本'+(b.hardcopy?' ✓':' ✗')+'</span><span class="pill '+(b.softcopy?'done':'draft')+'" title="电子档">电子档'+(b.softcopy?' ✓':' ✗')+'</span>');
   if(b.paidBy) p.push('<span class="pill draft">垫付 '+esc(b.paidBy)+'</span>');

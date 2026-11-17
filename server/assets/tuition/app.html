@@ -174,7 +174,7 @@ function combos(arr, target, feeOf){
 // (not even by a remembered payer): a person decides which student it is for. The MT names come from the MT profiles (legal name; the bank may cut it short).
 function isMtPayer(state,payer){ const p=norm(payer); if(p.length<10) return false; if(state&&state.rules&&state.rules.notMt&&state.rules.notMt[p]) return false;   // a person said: this name is not an MT (a parent with a similar name)
     return Object.values((state&&state.mtp)||{}).some(m=>{ const n=m&&m.name?norm(m.name):''; return n.length>=8&&(n===p||(p.length>=14&&(n.startsWith(p)||p.startsWith(n)))); }); }
-function matchTx(state, tx, pool, paidSet){
+function matchTxCore(state, tx, pool, paidSet){
   if(isMtPayer(state,tx.payer)) return {status:'review', how:'MT 代收', alloc:[], sugg:[]};
   const p=norm(tx.payer); const amt=+tx.amount;
   const feeOf=s=>studentFee(state,s);
@@ -222,6 +222,18 @@ function matchTx(state, tx, pool, paidSet){
   const pick=named.length?named:fam;
   return {status:'review', how: how+'（金额对不上）', alloc:splitAlloc(pick,amt,feeOf), sugg:fam.map(s=>s.uid)};
 }
+function firstRosterMonth(state){ return Object.values((state&&state.rosters)||{}).filter(r=>r&&r.confirmed&&r.month).map(r=>r.month).sort()[0]||''; }
+// Old debts are in Bukku, not in this system: a payment that is for one (the remark names a month before the system starts, or the amount is exactly the opening balance)
+// goes to "to handle" - the fees are paid as usual even when old invoices are still open, so a person decides.
+function matchTx(state, tx, pool, paidSet){
+  const r=matchTxCore(state,tx,pool,paidSet);
+  if(r.status!=='auto'||/已记住的付款人/.test(r.how||'')) return r;
+  const firstM=firstRosterMonth(state), olds=firstM?monthHint(tx.ref,tx.date).filter(h=>h<firstM):[];
+  if(olds.length) return Object.assign({},r,{status:'review',how:(r.how||'')+'（备注写的是旧月份 '+olds.join('、')+'：可能是旧欠款，请人工处理）'});
+  const open=(r.alloc||[]).some(a=>{ const st=pool.find(x=>x.uid===a.uid); return st&&+st.opening>0&&Math.abs(+st.opening-(+a.amt))<0.01; });
+  if(open) return Object.assign({},r,{status:'review',how:(r.how||'')+'（金额等于期初欠款：可能是旧欠款，请人工处理）'});
+  return r;
+}
 function splitAlloc(list, amt, feeOf){
   if(list.length===1) return [{uid:list[0].uid, amt}];
   const fees=list.map(feeOf); const tot=fees.reduce((a,b)=>a+b,0);
@@ -252,7 +264,7 @@ function buildLedger(state){
     if(t.status==='review') continue; // not confirmed yet
     for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:((state.config&&state.config.remarkMonths==='use')?monthHint(t.ref,t.date):[]),explicit:Array.isArray(a.months),inv:a.invoice||null});
   }
-  const tuitionFirst = state.config && state.config.payOrder==='tuitionFirst';
+  const tuitionFirst = !(state.config && state.config.payOrder==='fifo');   // the fees are paid as usual: old debts (opening) come last
   for(const uid in L){ const e=L[uid];
     if(tuitionFirst) e.charges.sort((a,b)=>(a.opening?1:0)-(b.opening?1:0));
     e.payments.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
@@ -265,7 +277,10 @@ function buildLedger(state){
     // phase 1: payments that say which month they are for (monthly fee / opening balance only)
     for(const p of e.payments){ if(p.inv) continue; for(const m of (p.months||[])){ let c=e.charges.find(x=>!x.extra&&x.month===m);
         if(!c && (!firstMonth || m<firstMonth)) c=e.charges.find(x=>x.opening);
-        if(c) apply(p,c); } }
+        if(c) apply(p,c);
+        else if(m==='REG'||m==='0000-00'||(firstMonth&&m<firstMonth)){   // an older debt (Bukku has it) or a registration fee: not the monthly fee of this system
+          const st=findStu(state,uid), fee=st?studentFee(state,st):0, take=p.explicit?p.rem:Math.min(p.rem,fee||p.rem);
+          if(take>0.001){ p.rem=r2(p.rem-take); p.applied.push({month:m==='REG'?'报名费':'旧欠款',label:m==='REG'?'报名费 / 其他（不是学费）':'旧欠款（以 Bukku 为准）',key:'',opening:false,amt:r2(take)}); } } } }
     // phase 2: the rest, oldest charge first (monthly fee / opening balance only)
     for(const p of e.payments){ if(p.inv) continue; for(const c of e.charges){ if(p.rem<=0.001) break; if(!c.extra) apply(p,c); } }
     for(const c of e.charges){ if(c.amount<=0){ c.paidDate=c.opening?null:'n/a'; } else if(c.paidDate){ c.paidDate=c.cov.reduce((a,x)=>x.date>a?x.date:a,''); } }
@@ -834,9 +849,11 @@ function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return 
 function monthOpts(uid,cur,LG){ LG=LG||ledger(); const ch=(LG[uid]||{charges:[]}).charges;
   const opts=[['hint',(cfg().remarkMonths==='use'?'自动（看备注写的月份，没写就先还最旧的）':'自动（先还最旧的，不看备注）')],['auto','自动（先还最旧的）']];
   for(const c of ch){ if(c.extra) opts.push(['inv|'+c.key,'单：'+c.month+' '+c.label+'（'+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'；不算 allowance）']); else opts.push([c.opening?'期初':c.month, (c.opening?'期初 / 以前的欠款':c.month)+'（应付 '+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'）']); }
+  if(!ch.some(c=>c.opening)) opts.push(['期初','旧欠款（以 Bukku 为准，不占用当月学费）']);
+  opts.push(['REG','报名费 / 其他费用（不是学费）']);
   if(cur&&!opts.some(o=>o[0]===cur)) opts.push([cur,cur+'（这个月没有应付）']);
   return opts.map(([v,l])=>`<option value="${v}" ${v===cur?'selected':''}>${l}</option>`).join(''); }
-function monKey(a){ if(a.invoice) return 'inv|'+a.invoice; return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]):'auto'; }
+function monKey(a){ if(a.invoice) return 'inv|'+a.invoice; return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]==='0000-00'?'期初':a.months[0]):'auto'; }
 function monVal(k){ return k==='hint'?undefined:k==='auto'?[]:[k==='期初'?'0000-00':k]; }
 function txTag(t){ return {auto:'<span class="tag ok">自动</span>',manual:'<span class="tag info">已确认</span>',review:'<span class="tag warn">待确认</span>',unmatched:'<span class="tag bad">找不到</span>',ignore:'<span class="tag grey">非学费</span>'}[t.status]||t.status; }
 function paidSetFor(month){ const s=new Set(); for(const d of Object.values(S.bank)) if(d.month===month) for(const t of Object.values(d.tx||{})) if(t.status==='auto'||t.status==='manual') (t.alloc||[]).forEach(a=>s.add(a.uid)); return s; }
@@ -1136,8 +1153,8 @@ function vSet(){
    ${pk.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n"><input type="number" step="0.01" value="${v.fee||0}" onchange="pkSet('${esc(k)}','fee',+this.value)"></td><td class="n"><input type="number" step="0.01" value="${v.rate||0}" onchange="pkSet('${esc(k)}','rate',+this.value)"></td><td class="n"><input type="number" value="${stdClasses(S,k)}" onchange="pkSet('${esc(k)}','classes',+this.value)"></td><td><button class="r" onclick="pkDel('${esc(k)}')">删</button></td></tr>`).join('')}
    <tr><td><input id="pk_n" placeholder="新 package" style="width:100px"></td><td class="n"><input id="pk_f" type="number"></td><td class="n"><input id="pk_r" type="number"></td><td class="n"><input id="pk_c" type="number" value="4"></td><td><button class="b" onclick="pkSet($('#pk_n').value.trim(),null)">加</button></td></tr></table></div>
   <div class="card"><h2>付款先还哪一笔</h2><div class="row">
-   <label><input type="radio" name="po" ${c.payOrder!=='tuitionFirst'?'checked':''} onchange="cfgTop('payOrder','fifo')"> 先还旧欠款（期初 / 模块），再还每月学费 — 跟 Bukku 一样按先后</label>
-   <label><input type="radio" name="po" ${c.payOrder==='tuitionFirst'?'checked':''} onchange="cfgTop('payOrder','tuitionFirst')"> 先还每月学费（allowance 先出），旧欠款最后还</label></div>
+   <label><input type="radio" name="po" ${c.payOrder==='fifo'?'checked':''} onchange="cfgTop('payOrder','fifo')"> 先还旧欠款（期初 / 模块），再还每月学费 — 跟 Bukku 一样按先后</label>
+   <label><input type="radio" name="po" ${c.payOrder!=='fifo'?'checked':''} onchange="cfgTop('payOrder','tuitionFirst')"> 先还每月学费（allowance 先出），旧欠款最后还</label></div>
    <div class="small mute" style="margin-top:6px">影响：哪个月份算"已付"，所以会影响 allowance 和欠款清单的月份，总欠款不变。</div>
    <h3 style="margin-top:12px">银行备注里写的月份</h3><div class="row">
    <label><input type="radio" name="rm" ${c.remarkMonths!=='use'?'checked':''} onchange="cfgTop('remarkMonths','ignore')"> 不看备注：一律先还最旧的（家长写的备注常常不对）；要指定月份，在银行入账的处理窗口选「付哪个月」</label>

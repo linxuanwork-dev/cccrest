@@ -155,6 +155,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       </div>
     </div>
     <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="upload" aria-selected="false">上传单据（自动读取）</button>
       <button role="tab" data-tab="quick" aria-selected="true">快速录入<span class="ct" id="ctQ" hidden></span></button>
       <button role="tab" data-tab="entry" aria-selected="false">单张录入（多项目）</button>
       <button role="tab" data-tab="bills" aria-selected="false">单据列表 / 导出<span class="ct" id="ctBills">0</span></button>
@@ -169,6 +170,18 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   <div id="offline" class="notice" hidden>正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。</div>
 
   <!-- QUICK GRID -->
+  <section id="v-upload" hidden>
+    <div class="panel">
+      <div class="ph"><h2>上传单据 · 自动读取</h2></div>
+      <p class="small muted" style="margin:0 0 10px">把单据的 PDF 或照片丢进来（可以一次选很多张）。系统在你的浏览器里读出供应商、单号、日期和金额，放在下面等你<b>检查</b>；对了再按「保存」，才会变成采购单。<b>读错或读不到是正常的</b>（照片不清楚、折痕、手写）：改一改，或按「转到手动录入」自己填。单据文件不会上传到任何地方，也不会被保存。</p>
+      <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+        <label class="btn pri" style="cursor:pointer">选择文件（PDF / 照片）<input type="file" id="upFiles" multiple accept="application/pdf,image/*" hidden></label>
+        <span class="small muted" id="upStat"></span>
+      </div>
+      <div id="upList" style="margin-top:12px"></div>
+    </div>
+  </section>
+
   <section id="v-quick">
     <div class="panel">
       <div class="ph">
@@ -977,6 +990,172 @@ $('stPaidBy').addEventListener('click',async()=>{
   const ids=[...S.selected].map(Number); if(!ids.length) return;
   try{ const r=await http('POST','/bills/stage',{ids,action:'paid-by',text:$('paidBy').value}); toast(($('paidBy').value.trim()?'已标记垫付人：':'已清除垫付人：')+r.changed+' 张（已发去付款的不能改）'); await refresh(); }catch(err){ dbErr(err); }
 });
+/* ---------- upload bills: read them (the text of a PDF, or OCR for photos / scanned PDFs) and show what was read, for checking ---------- */
+const UP={busy:false};
+const upPad=n=>String(n).padStart(2,'0');
+const upNum=v=>{ const n=parseFloat(String(v==null?'':v).replace(/[, ]/g,'')); return Number.isFinite(n)?n:NaN; };
+function upOnce(src,key){ return window[key]?Promise.resolve():new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=()=>rej(new Error('读不到 '+src)); document.head.appendChild(sc); }); }
+async function upLibs(ocr){
+  await upOnce('/api/kwsp/assets/vendor/pdf.min.js','pdfjsLib'); window.pdfjsLib.GlobalWorkerOptions.workerSrc='/api/kwsp/assets/vendor/pdf.worker.min.js';
+  if(ocr) await upOnce('/api/kwsp/assets/ocr.js','SSMOcr');
+}
+function upRows(items){   // text pieces {str,x,y,h} -> text lines, top to bottom
+  if(!items.length) return [];
+  const hs=items.map(i=>i.h).sort((a,b)=>a-b), tol=Math.max(2.5,(hs[hs.length>>1]||8)*0.55), rows=[];
+  items.slice().sort((a,b)=>a.y-b.y||a.x-b.x).forEach(it=>{ const r=rows.find(r=>Math.abs(r.y-it.y)<tol); if(r) r.items.push(it); else rows.push({y:it.y,items:[it]}); });
+  return rows.map(r=>r.items.sort((a,b)=>a.x-b.x).map(i=>i.str.trim()).filter(Boolean).join(' ')).filter(Boolean);
+}
+async function upPdfText(bytes){
+  const doc=await pdfjsLib.getDocument({data:bytes.slice()}).promise, lines=[]; let chars=0;
+  for(let p=1;p<=Math.min(doc.numPages,5);p++){
+    const pg=await doc.getPage(p), vp=pg.getViewport({scale:1}), tc=await pg.getTextContent();
+    const items=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({str:i.str,x:i.transform[4],y:vp.height-i.transform[5],h:Math.abs(i.transform[3])||8}));
+    chars+=items.reduce((a,i)=>a+i.str.length,0); lines.push(...upRows(items));
+  }
+  return {lines,chars};
+}
+async function upReadFile(file){
+  const isPdf=/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name);
+  if(isPdf){
+    const bytes=new Uint8Array(await file.arrayBuffer()); await upLibs(false);
+    const r=await upPdfText(bytes); if(r.chars>=40) return {lines:r.lines,how:'PDF 里的文字'};
+    await upLibs(true); const pages=await SSMOcr.pagesFromScannedPdf(pdfjsLib,bytes.slice(),()=>{});
+    return {lines:pages.flatMap(pg=>upRows(pg.items)),how:'OCR（扫描的 PDF）'};
+  }
+  await upLibs(true); const pages=await SSMOcr.pagesFromImage(file,()=>{});
+  return {lines:pages.flatMap(pg=>upRows(pg.items)),how:'OCR（照片）'};
+}
+const UP_MON={JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12,OGO:8,MEI:5,OKT:10,DIS:12};
+function upDate(text){
+  const c=[]; let m;
+  const re1=/\b(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{2,4})\b/g;
+  while((m=re1.exec(text))){ let d=+m[1],mo=+m[2],y=+m[3]; if(y<100) y+=2000; if(mo>12&&d<=12){ const t=d; d=mo; mo=t; } if(mo>=1&&mo<=12&&d>=1&&d<=31&&y>=2000&&y<=2100) c.push(y+'-'+upPad(mo)+'-'+upPad(d)); }
+  const re2=/\b(\d{1,2})\s*([A-Za-z]{3,9})\.?,?\s*(\d{2,4})\b/g;
+  while((m=re2.exec(text))){ const mo=UP_MON[m[2].slice(0,3).toUpperCase()]; let y=+m[3]; if(y<100) y+=2000; const d=+m[1]; if(mo&&d>=1&&d<=31&&y>=2000&&y<=2100) c.push(y+'-'+upPad(mo)+'-'+upPad(d)); }
+  const limit=new Date(Date.now()+2*86400000).toISOString().slice(0,10);
+  return c.find(x=>x<=limit)||'';
+}
+function upNo(lines){
+  const re=/(?:INVOICE|INV|BILL|BIL|RECEIPT|RESIT|CASH\s*SALES?|DELIVERY\s*ORDER|D\.?O\.?|DOC(?:UMENT)?)\s*(?:NO|NUM(?:BER)?|#)?\s*[:.\-#]?\s*([A-Z0-9][A-Z0-9\-\/]{2,24})/i;
+  for(const l of lines.slice(0,45)){ const m=l.match(re); if(m&&/\d/.test(m[1])) return m[1].toUpperCase(); }
+  for(const l of lines){ const m=l.match(/\bNO\.?\s*[:.]?\s*([A-Z]{0,4}[\-\/]?\d{3,}[A-Z0-9\-\/]*)/i); if(m) return m[1].toUpperCase(); }
+  return '';
+}
+function upTotal(lines){
+  const re=/(GRAND\s*TOTAL|NET\s*TOTAL|TOTAL\s*(?:AMOUNT|DUE|PAYABLE|RM)?|AMOUNT\s*DUE|BALANCE\s*DUE|JUMLAH)/i; let best=NaN;
+  lines.forEach(l=>{ if(re.test(l)){ const nums=(l.match(/\d[\d,]*\.\d{2}/g)||[]).map(upNum); if(nums.length) best=nums[nums.length-1]; } });
+  return best;
+}
+function upSupplier(lines){
+  const clean=x=>normName(x).replace(/[^A-Z0-9 &]/g,' ').replace(/\s+/g,' ').trim(), text=' '+clean(lines.join(' '))+' ';
+  let best=null; S.suppliers.forEach(sp=>{ const n=clean(sp.name); if(n.length>=5&&text.includes(' '+n+' ')&&(!best||n.length>best.n.length)) best={n,name:sp.name}; });
+  if(best) return {name:best.name,known:true};
+  const l=lines.slice(0,8).find(x=>/\b(SDN\.?\s*BHD|ENTERPRISE|TRADING|RESOURCES|HARDWARE|MARKETING|PLT|S\/B)\b/i.test(x));
+  return {name:l?normName(l).slice(0,150):'',known:false};
+}
+function upItems(lines){
+  const strong=[], weak=[], skip=/TOTAL|JUMLAH|SUBTOTAL|TAX|SST|GST|ROUND|CHANGE|CASH|PAID|BALANCE|DISCOUNT|DUE/i;
+  lines.forEach(l=>{
+    let m=l.match(/^(?:\d{1,3}[.)]?\s+)?(.{3,}?)\s+(\d+(?:\.\d+)?)\s*(?:[A-Za-z]{0,5})?\s+(?:RM\s*)?(\d[\d,]*\.\d{2})\s+(?:RM\s*)?(\d[\d,]*\.\d{2})\s*$/);
+    if(m&&!skip.test(m[1])){ const q=+m[2], pr=upNum(m[3]), am=upNum(m[4]); if(q>0&&Math.abs(q*pr-am)<=0.06*Math.max(1,am)){ strong.push({desc:m[1].trim().toUpperCase(),qty:q,price:pr}); return; } }
+    m=l.match(/^(?:\d{1,3}[.)]?\s+)?(.{3,}?)\s+(?:RM\s*)?(\d[\d,]*\.\d{2})\s*$/);
+    if(m&&!skip.test(m[1])&&/[A-Za-z]{3}/.test(m[1])) weak.push({desc:m[1].trim().toUpperCase(),qty:1,price:upNum(m[2])});
+  });
+  return strong.length?strong:weak;
+}
+function upParse(lines,how){
+  const text=lines.join('\n'), sup=upSupplier(lines), no=upNo(lines), date=upDate(text), total=upTotal(lines);
+  let items=upItems(lines); const flags=[];
+  const sum=items.reduce((a,i)=>a+i.qty*i.price,0);
+  if(!items.length&&Number.isFinite(total)){ items=[{desc:'ITEM（请改成单上的项目）',qty:1,price:total}]; flags.push('没读到明细行，只放了一行总额，请改成单上的项目。'); }
+  else if(items.length&&Number.isFinite(total)&&Math.abs(sum-total)>0.05) flags.push('读到的明细合计 RM '+money(sum)+' 和单上的总额 RM '+money(total)+' 不一样：可能漏了行或读错了数字，请对照原单。');
+  if(!items.length&&!Number.isFinite(total)) flags.push('没读到金额。');
+  if(!sup.name) flags.push('没读到供应商。'); else if(!sup.known) flags.push('供应商不在名单里：请从下拉选一个，或确认是新供应商。');
+  if(!no) flags.push('没读到单号。');
+  if(!date) flags.push('没读到日期。');
+  return {lines,how,supplier:sup.name,no,date,total,items,flags,ok:!!(sup.name&&no&&date&&items.length)};
+}
+function upCardHtml(c,id){
+  const rows=c.items.map(i=>upRowHtml(i)).join('');
+  return `<div class="panel up-card" id="${id}" style="margin:0 0 12px;border-left:4px solid ${c.ok?'#d97706':'#dc2626'}">
+   <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(c.file.name)}</b><span class="small muted">${esc(c.how)}</span></div>
+   <div class="small" style="margin:4px 0;color:#b45309">${c.flags.map(esc).join('<br>')||'读到了，请对照原单检查。'}</div>
+   <div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-start">
+    <div style="flex:1 1 420px;min-width:300px">
+     <div class="row" style="gap:8px;flex-wrap:wrap">
+      <label class="f must" style="flex:2 1 220px"><span>供应商</span><input class="up-sup" list="supList" value="${esc(c.supplier)}"></label>
+      <label class="f must" style="flex:1 1 120px"><span>单号 No.</span><input class="up-no" value="${esc(c.no)}"></label>
+      <label class="f must" style="flex:1 1 130px"><span>日期</span><input class="up-date" type="date" value="${esc(c.date)}"></label></div>
+     <table class="lines" style="margin-top:6px"><thead><tr><th>Item Description</th><th>Account</th><th>Qty</th><th>Unit Price</th><th></th></tr></thead><tbody class="up-lines">${rows}</tbody></table>
+     <div class="row" style="gap:8px;margin-top:6px;align-items:center"><button type="button" class="btn sm up-add">＋ 加一行</button><span class="small">合计 RM <b class="mono up-total">0.00</b>${Number.isFinite(c.total)?' · 单上的总额 RM '+money(c.total):''}</span></div>
+    </div>
+    <div style="flex:0 0 220px">${c.url&&c.isImg?`<a href="${c.url}" target="_blank" rel="noopener"><img src="${c.url}" alt="" style="max-width:220px;max-height:260px;border:1px solid #cbd5e1;border-radius:6px"></a>`:(c.url?`<a class="btn sm" href="${c.url}" target="_blank" rel="noopener">打开原文件（对照）</a>`:'')}</div>
+   </div>
+   <details style="margin-top:6px"><summary class="small muted">读到的原文</summary><pre class="small" style="white-space:pre-wrap;max-height:180px;overflow:auto">${esc(c.lines.join('\n'))}</pre></details>
+   <label class="small up-dupl" hidden style="display:block;margin-top:6px;color:#b91c1c"><input type="checkbox" class="up-dup"> 系统里已经有这个供应商的这个单号，我确认还是要保存</label>
+   <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn pri up-save">保存为采购单</button><button type="button" class="btn up-manual">转到手动录入</button><button type="button" class="btn up-del">不要这张</button></div>
+  </div>`;
+}
+function upRowHtml(i){
+  const acc=(co()&&co().account)||'';
+  return `<tr><td><input class="up-d" value="${esc(i.desc||'')}" style="width:100%"></td><td><input class="mono up-a" value="${esc(i.account||acc)}" style="width:80px"></td><td><input class="mono up-q" inputmode="decimal" value="${esc(i.qty??1)}" style="width:60px;text-align:right"></td><td><input class="mono up-p" inputmode="decimal" value="${esc(i.price==null||isNaN(i.price)?'':i.price)}" style="width:90px;text-align:right"></td><td><button type="button" class="btn sm up-x">×</button></td></tr>`;
+}
+function upRead(card){
+  const g=q=>card.querySelector(q), lines=[...card.querySelectorAll('.up-lines tr')].map(tr=>({desc:tr.querySelector('.up-d').value.trim().toUpperCase(),account:tr.querySelector('.up-a').value.trim(),qty:parseFloat(tr.querySelector('.up-q').value)||1,price:parseFloat(String(tr.querySelector('.up-p').value).replace(/,/g,'')),tax:''})).filter(l=>l.desc||!isNaN(l.price));
+  return {supName:normName(g('.up-sup').value),no:g('.up-no').value.trim().toUpperCase(),date:g('.up-date').value,lines};
+}
+function upCalc(card){ const v=upRead(card); card.querySelector('.up-total').textContent=money(v.lines.reduce((a,l)=>a+(isNaN(l.price)?0:l.price*l.qty),0)); upDup(card); }
+function upDup(card){
+  const v=upRead(card), k=normNo(v.no), dup=!!(v.supName&&k&&S.bills.some(b=>normName(b.supplier)===v.supName&&normNo(b.no)===k));
+  card.querySelector('.up-dupl').hidden=!dup; if(!dup) card.querySelector('.up-dup').checked=false; return dup;
+}
+async function upSave(card){
+  const v=upRead(card), sup=supByName(v.supName);
+  if(!v.supName||!v.no||!v.date) return toast('供应商、单号和日期都要有');
+  if(!v.lines.length||v.lines.some(l=>!l.desc||isNaN(l.price))) return toast('每一行都要有项目和单价');
+  if(!sup&&!S.mgr) return toast('供应商不在名单，请从下拉选择或通知 manager 新增');
+  const dup=upDup(card); if(dup&&!card.querySelector('.up-dup').checked) return toast('单号重复：请核对，或勾选确认');
+  v.lines.forEach(l=>{ if(!l.account) l.account=defaultAccount(sup); });
+  if(v.lines.some(l=>!l.account)) return toast('Account 不能空');
+  const total=Math.round(v.lines.reduce((a,l)=>a+l.price*l.qty,0)*100)/100;
+  const doc={supplier:v.supName,code:sup?(sup.code||''):'',no:v.no,ref:'',date:v.date,tags:'',desc:'',lines:v.lines,total,status:'draft',createdAt:Date.now(),updatedAt:Date.now(),dupAck:dup};
+  const btn=card.querySelector('.up-save'); btn.disabled=true;
+  try{
+    await put('companies/'+S.cid+'/bills/'+uid(),doc);
+    if(!sup&&v.supName) await put('org/'+S.cid+'/suppliers/'+uid(),{name:v.supName,code:'',account:'',tags:''});
+    toast('已保存 '+v.no+(sup?'':'（新供应商已加入名单，记得补 Contact Code）')); card.remove(); upStat();
+  }catch(err){ btn.disabled=false; dbErr(err); }
+}
+function upManual(card){
+  const v=upRead(card); setTab('entry'); resetForm();
+  $('fSup').value=v.supName; $('fNo').value=v.no; $('fDate').value=v.date||$('fDate').value;
+  $('lineBody').innerHTML=''; (v.lines.length?v.lines:[{desc:'',qty:1}]).forEach(l=>{ const tr=lineRow({desc:l.desc,account:l.account,qty:l.qty,price:isNaN(l.price)?'':l.price}); if(S.hasStock) resolveLine(tr); });
+  onSupplierInput(false); calcTotal(); checkDup(); card.remove(); upStat(); toast('已放进手动录入，请核对后保存');
+}
+function upStat(){ const n=$('upList').children.length; $('upStat').textContent=UP.busy?UP.msg||'读取中…':(n?'待检查 '+n+' 张':''); }
+async function upFiles(files){
+  if(UP.busy||!files.length) return; UP.busy=true;
+  const list=[...files];
+  for(let i=0;i<list.length;i++){
+    const f=list[i]; UP.msg='读取 '+(i+1)+' / '+list.length+'：'+f.name+'（照片第一次要载入读取程序，会慢一点）'; upStat();
+    const c={file:f,url:URL.createObjectURL(f),isImg:/^image\//.test(f.type)};
+    try{ const r=await upReadFile(f); Object.assign(c,upParse(r.lines,r.how)); }
+    catch(e){ console.error(e); Object.assign(c,{lines:[],how:'读不到',supplier:'',no:'',date:'',total:NaN,items:[{desc:'',qty:1,price:NaN}],flags:['读不到这个文件（'+((e&&e.message)||e)+'）。请按「转到手动录入」自己填，或用更清楚的照片。'],ok:false}); }
+    const id='upc'+Date.now().toString(36)+i, wrap=document.createElement('div'); wrap.innerHTML=upCardHtml(c,id); const card=wrap.firstElementChild; $('upList').appendChild(card);
+    card.addEventListener('input',()=>upCalc(card));
+    card.addEventListener('click',e=>{
+      if(e.target.closest('.up-x')){ const tr=e.target.closest('tr'); if(card.querySelectorAll('.up-lines tr').length>1){ tr.remove(); upCalc(card); } }
+      else if(e.target.closest('.up-add')){ card.querySelector('.up-lines').insertAdjacentHTML('beforeend',upRowHtml({qty:1})); }
+      else if(e.target.closest('.up-save')) upSave(card);
+      else if(e.target.closest('.up-manual')) upManual(card);
+      else if(e.target.closest('.up-del')){ card.remove(); upStat(); }
+    });
+    upCalc(card);
+  }
+  UP.busy=false; upStat(); $('upFiles').value='';
+}
+$('upFiles').addEventListener('change',e=>upFiles(e.target.files));
+
 /* ---------- send to Bukku (drafts) ---------- */
 let BK=null;
 function bkBody(){ return { ids:[...S.selected].map(Number), mode:$('bkMode').value, accountId:$('bkAcc')?$('bkAcc').value:'', employeeKey:$('bkEmp')?$('bkEmp').value:'' }; }
@@ -1285,7 +1464,7 @@ $('itemPasteBtn').addEventListener('click',async ()=>{
 /* ---------- tabs ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false'));
-  ['quick','entry','bills','suppliers','items'].forEach(x=>$('v-'+x).hidden = x!==t);
+  ['upload','quick','entry','bills','suppliers','items'].forEach(x=>$('v-'+x).hidden = x!==t);
   try{localStorage.setItem('bk-tab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });

@@ -802,7 +802,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
           <input type="text" id="topbar-search-input" class="company-search-input" data-i18n-placeholder="search_company" placeholder="Search company…" autocomplete="off" data-i18n-aria="search_company" aria-label="Search company" />
           <div class="company-search-results" id="topbar-search-results" hidden></div>
         </div>
-        <span class="topbar-date">Saturday, 8 Aug 2026</span>
+        <span class="topbar-date" id="topbar-date">Saturday, 8 Aug 2026</span>
       </div>
       <div class="topbar-right">
         <button class="lang-toggle" id="lang-toggle-app" type="button" aria-label="Switch language">EN</button>
@@ -8079,6 +8079,8 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   }
 
   // ============ WORK LIST: tasks (My Jobs) and monthly bills (Workflow) ============
+  // the date in the top bar is today's date (Malaysia time), not a fixed text
+  (function(){ var el = document.getElementById('topbar-date'); if(!el) return; try { el.textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'short', year:'numeric', timeZone:'Asia/Kuala_Lumpur' }).replace(/^(\w+) /, '$1, '); } catch(e) { /* keep the text */ } })();
   var WK = { month:'', tasks:[], me:0, people:[], loadedPeople:false };
   var WK_BADGE = 0, MYJOBS_UNACK = 0, WKR = { rows:[], editing:null };
   function wkEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }

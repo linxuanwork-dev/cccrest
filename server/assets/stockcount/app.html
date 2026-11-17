@@ -1575,7 +1575,9 @@ function renderItemOptions(){
   $('iGroup').value=ig;
   const units=[...new Set(S.items.map(i=>i.unit).filter(Boolean).map(u=>u.toUpperCase()))].sort();
   $('unitList').innerHTML=units.map(u=>`<option value="${esc(u)}">`).join('');
-  const accs=[...new Set([...S.items.map(i=>i.account),...S.groups.map(g=>g.account)].filter(Boolean))].sort();
+  // the company's Bukku chart of accounts (Control Panel > Bukku API) first, then anything typed before that is not in it
+  const chart=(S.chart||[]).map(a=>a.label), inChart=new Set(chart);
+  const accs=[...chart,...[...new Set([...S.items.map(i=>i.account),...S.groups.map(g=>g.account)].filter(a=>a&&!inChart.has(a)))].sort()];
   $('accList').innerHTML=accs.map(a=>`<option value="${esc(a)}">`).join('');
 }
 function renderItems(){
@@ -2250,6 +2252,7 @@ try{ const t=localStorage.getItem('mf-stock-tab-'+CID); if(t&&$('v-'+t)) setTab(
   S.mgr=!!me.mgr; S.add=!!me.canAdd; S.canWrite=!!me.canWrite; S.uid=String(me.uid||''); S.cfgName=me.name; S.fifoFrom=String(me.fifoFrom||'');
   document.body.classList.toggle('is-mgr',S.mgr); document.body.classList.toggle('can-add',S.add); $('roleTag').textContent=S.mgr?'Manager':(S.canWrite?'员工':'只能看');
   if(S.cfgName) $('coName').textContent=S.cfgName;
+  try{ const ch=await fetch('/api/companies/'+encodeURIComponent(CID)+'/bukku/accounts',{credentials:'same-origin'}); if(ch.ok){ S.chart=(await ch.json()).accounts||[]; } }catch(e){ /* no chart of accounts: free typing as before */ }
   listen('settings', rows=>{ const ds=rows.find(r=>r.id==='dish'); if(ds) S.dish=Object.assign({basis:'latest',target:35},ds); const c=rows.find(r=>r.id==='company'); if(c&&c.name) S.cfgName=c.name; if(S.cfgName){ $('coName').textContent=S.cfgName; setBrand(S.cfgName); } renderReport(); });
   listen('groups', rows=>{ S.groups=rows; renderAll(); });
   listen('items', rows=>{ S.items=rows; renderAll(); });

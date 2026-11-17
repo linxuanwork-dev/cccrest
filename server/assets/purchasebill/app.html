@@ -321,6 +321,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       <div class="bar mgr-only" style="flex-wrap:wrap;gap:8px;margin-top:8px">
         <span class="small muted">流程：</span>
         <button class="btn" id="stApprove" disabled>Approve</button>
+        <label class="small" id="autoSendL" hidden title="按 Approve 之后，赊账的单直接用 API 送进 Bukku（垫付 / 现付的单请用「送进 Bukku」手动选付款方式）"><input type="checkbox" id="stAutoSend"> Approve 后自动送进 Bukku</label>
         <button class="btn" id="stUnapprove" disabled>取消 Approve</button>
         <button class="btn" id="stInBukku" disabled>已在 Bukku ✓</button>
         <button class="btn" id="stNotInBukku" disabled>取消「已在 Bukku」</button>
@@ -484,7 +485,7 @@ async function refresh(){
     $('offline').hidden = true;
     S.hasStock = !!d.hasStock; S.stock = d.stock || []; applyStockMode();
     L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills)); L.items.forEach(cb=>cb(d.items || []));
-    if(!S._autoSup){ S._autoSup=true; setTimeout(autoBukkuSuppliers,1500); }
+    if(!S._autoSup){ S._autoSup=true; setTimeout(autoBukkuSuppliers,1500); setTimeout(loadBkOpts,800); }
   }catch(e){
     $('offline').hidden = false;
     $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
@@ -976,7 +977,27 @@ async function stage(action,value,okMsg){
   if(!ids.length) return;
   try{ const r=await http('POST','/bills/stage',{ids,action,value}); toast((okMsg||'已更新')+'：'+r.changed+' 张'); await refresh(); }catch(err){ dbErr(err); }
 }
-$('stApprove').addEventListener('click',()=>stage('approve',true,'已 Approve'));
+// Approve, and (when ticked) send the approved credit bills straight to Bukku: the same checks as the "送进 Bukku" button
+async function loadBkOpts(){
+  if(!S.mgr) return;
+  try{ S.bk=await http('GET','/bukku-options'); }catch(e){ S.bk=null; }
+  const on=!!(S.bk&&S.bk.connected&&S.bk.sendEnabled), L=$('autoSendL');
+  L.hidden=!on;
+  if(on){ L.lastChild.textContent=' Approve 后自动送进 Bukku（'+(S.bk.sendStatus==='ready'?'正式':'草稿')+'）'; try{ $('stAutoSend').checked=localStorage.getItem('pbAutoSend:'+S.cid)==='1'; }catch(e){ /* fine */ } }
+}
+$('stAutoSend').addEventListener('change',e=>{ try{ localStorage.setItem('pbAutoSend:'+S.cid,e.target.checked?'1':'0'); }catch(err){ /* fine */ } });
+$('stApprove').addEventListener('click',async()=>{
+  const ids=[...S.selected].map(Number); if(!ids.length) return;
+  const auto=!$('autoSendL').hidden&&$('stAutoSend').checked;
+  await stage('approve',true,'已 Approve');
+  if(!auto) return;
+  const sendIds=ids.filter(id=>{ const b=S.bills.find(x=>Number(x.id)===id); return b&&b.approved&&!b.bukkuSent&&!b.paidBy; });
+  const skipped=ids.length-sendIds.length;
+  if(!sendIds.length){ toast('没有可以自动送的单（已经送过，或是垫付的单：请用「送进 Bukku」手动选付款方式）'); return; }
+  const p=$('bkPanel'); p.hidden=false; p.innerHTML='<h3 style="margin:0 0 8px">自动送进 Bukku 的结果</h3><div id="bkResult">送出中…</div>'+(skipped?'<p class="small muted">另外 '+skipped+' 张没有自动送（已经送过，或是垫付的单）。</p>':'');
+  try{ const r=await http('POST','/bills/send-bukku',{ids:sendIds,mode:'credit'}); bkResult(r.results,'send'); await refresh(); loadBkOpts(); }
+  catch(e){ $('bkResult').innerHTML='<div class="small" style="color:#dc2626">'+esc(e.message)+'</div>'; }
+});
 $('stUnapprove').addEventListener('click',()=>stage('unapprove',true,'已取消 Approve（已在 Bukku 的不受影响）'));
 $('stInBukku').addEventListener('click',()=>stage('in-bukku',true,'已标记「已在 Bukku」'));
 $('stNotInBukku').addEventListener('click',()=>stage('not-in-bukku',true,'已取消「已在 Bukku」（已发去付款的不受影响）'));

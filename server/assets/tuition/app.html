@@ -1396,9 +1396,9 @@ function stockParts(l){ const q=+l.qty||1, o=[];
 function stockAliases(){ const AL={}; for(const d of Object.values(S.hqbills||{})) if(d.kind==='alias') for(const [k,v] of Object.entries(d.map||{})) AL[d.branch+'|'+k]=v; return AL; }
 function stockMoves(){
   const AL=stockAliases(), canon=(b,cat,item)=>{ let c=cat,i=item,n=0; while(n++<5){ const v=AL[b+'|'+c+'|'+nk(i)]; if(!v) break; c=v.cat; i=v.item; } return [c,i]; };
-  const mv=[], add=(b,cat0,item0,date,doc,who,inn,out)=>{ const [cat,item]=canon(b,cat0,String(item0).replace(/\s+/g,' ').trim()); mv.push({branch:b,cat,item,date,doc,who,in:inn,out}); };
+  const mv=[], add=(b,cat0,item0,date,doc,who,inn,out,cid)=>{ const [cat,item]=canon(b,cat0,String(item0).replace(/\s+/g,' ').trim()); mv.push({branch:b,cat,item,date,doc,who,in:inn,out,cid:cid||''}); };
   for(const [id,d] of Object.entries(S.hqbills||{})){
-    if(d.kind==='adj'){ (d.entries||[]).forEach(e=>add(d.branch,e.cat||'Other',e.item,e.d,'Adjustment',e.note||'',e.qty>0?e.qty:0,e.qty<0?-e.qty:0)); continue; }
+    if(d.kind==='adj'){ (d.entries||[]).forEach(e=>add(d.branch,e.cat||'Other',e.item,e.d,e.countId?'Stock count':'Adjustment',e.note||'',e.qty>0?e.qty:0,e.qty<0?-e.qty:0,e.countId||'')); continue; }
     if(d.kind) continue;
     for(const l of d.lines||[]) for(const [cat,item,q] of stockParts(l)){
       add(d.branch,cat,item,d.date,'HQ '+d.invoiceNo,'QC GROUP',q,0);
@@ -1414,9 +1414,11 @@ function vStockCard(){
   const mv=stockMoves(), all=stockItems(mv), b=UI.skB||'ALL', c=UI.skC||'ALL', q=nk(UI.skQ||'');
   const list=all.filter(x=>(b==='ALL'||x.branch===b)&&(c==='ALL'||x.cat===c)&&(!q||nk(x.item).includes(q)));
   const cats=[...new Set(all.map(x=>x.cat))];
-  return `<div class="card"><h2>Stock card</h2><div class="small mute">每个货品一张卡：HQ 单进货，开单给 klien 出货，Fast Track 按 MT Claim 打勾出货；期初库存、盘点调整用「＋ 调整」加。</div>
+  const mNow=today().slice(0,7), todoCount=BRANCHES.filter(x=>all.some(i=>i.branch===x)&&!S.hqbills[stockCountId(x,mNow)]);
+  const remind=todoCount.length?`<div class="msg warn" style="margin-top:8px">这个月（${mNow}）还没盘点：${todoCount.map(x=>`<b>${x}</b> <button class="g" onclick="stockCountOpen('${x}')">盘点</button>`).join('　')}</div>`:'';
+  return `<div class="card"><h2>Stock card</h2>${remind}<div class="small mute">每个货品一张卡：HQ 单进货，开单给 klien 出货，Fast Track 按 MT Claim 打勾出货；期初库存、盘点调整用「＋ 调整」加。</div>
    <div class="row" style="margin:8px 0"><select onchange="UI.skB=this.value;render()">${brOpts(b,true)}</select><select onchange="UI.skC=this.value;render()"><option value="ALL">All categories</option>${cats.map(x=>`<option ${x===c?'selected':''}>${esc(x)}</option>`).join('')}</select>
-    <input placeholder="Search item" value="${esc(UI.skQ||'')}" oninput="UI.skQ=this.value;render()" style="width:180px"><span style="flex:1"></span><button class="g" onclick="stockAdj()">＋ 调整</button><button class="g" onclick="stockMerge()">合并写法不同的货品</button><button class="g" onclick="stockExcel()">下载 Excel（stock card）</button></div>
+    <input placeholder="Search item" value="${esc(UI.skQ||'')}" oninput="UI.skQ=this.value;render()" style="width:180px"><span style="flex:1"></span><button class="b" onclick="stockCountOpen(UI.skB&&UI.skB!=='ALL'?UI.skB:'')">每月盘点</button><button class="g" onclick="stockAdj()">＋ 调整</button><button class="g" onclick="stockMerge()">合并写法不同的货品</button><button class="g" onclick="stockExcel()">下载 Excel（stock card）</button></div>
    <div class="tw"><table><tr><th>Branch</th><th>Category</th><th>Item</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th></th></tr>
    ${list.map(x=>{ const bal=x.in-x.out; return `<tr><td>${esc(x.branch)}</td><td>${esc(x.cat)}</td><td>${esc(x.item)}</td><td class="n">${x.in}</td><td class="n">${x.out}</td><td class="n"><b ${bal<0?'style="color:#b91c1c"':''}>${bal}</b></td><td><button class="g" onclick="stockOpen('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">卡</button> <button class="g" onclick="stockMerge('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">合并</button></td></tr>`; }).join('')||'<tr><td colspan="7" class="mute">还没有库存记录</td></tr>'}</table></div>
    ${stockMergedList()}</div>`;
@@ -1457,6 +1459,53 @@ async function stockMergeSave(){
 async function stockUnmerge(id,k){
   const cur=S.hqbills[id]; if(!cur) return; const doc=JSON.parse(JSON.stringify(cur)); delete (doc.map||{})[k];
   await save('hqbills/'+id,doc); toast('已拆开');
+}
+// ---------- the monthly stock count: every item of one branch, counted against what the system says ----------
+// Saving writes the count (COUNT_<branch>_<month>) and one adjustment for every item that is not what the system says; counting the same month
+// again replaces the earlier adjustments of that count.
+const stockCountId=(b,m)=>'COUNT_'+b+'_'+m;
+const q4=n=>Math.round((+n||0)*10000)/10000;
+function stockCountOpen(b){
+  if(!b||!BRANCHES.includes(b)) b=BRANCHES[0];
+  const date=today(); UI._sc={b,date,vals:{},extra:[],rows:[]};
+  const prev=S.hqbills[stockCountId(b,date.slice(0,7))];
+  if(prev){ UI._sc.date=prev.date||date; (prev.lines||[]).forEach(l=>{ UI._sc.vals[l.cat+'|'+nk(l.item)]=l.counted; }); }
+  stockCountDraw();
+}
+function scRows(){
+  const sc=UI._sc, cid=stockCountId(sc.b,sc.date.slice(0,7)), items={};
+  stockMoves().filter(x=>x.branch===sc.b).forEach(x=>{ const k=x.cat+'|'+nk(x.item), e=items[k]||(items[k]={cat:x.cat,item:x.item,sys:0}); if(String(x.date)<=sc.date&&x.cid!==cid) e.sys=q4(e.sys+x.in-x.out); });
+  sc.extra.forEach(e=>{ const k=e.cat+'|'+nk(e.item); if(!items[k]) items[k]={cat:e.cat,item:e.item,sys:0}; });
+  return Object.entries(items).map(([k,e])=>Object.assign({k},e)).sort((a,c)=>a.cat.localeCompare(c.cat)||a.item.localeCompare(c.item));
+}
+function scDiffTxt(r){ const v=UI._sc.vals[r.k]; if(v==null||v===''||isNaN(v)) return ''; const d=q4(+v-r.sys); return d===0?'<span style="color:#15803d">✔ 一样</span>':`<b style="color:${d<0?'#b91c1c':'#b45309'}">${d>0?'+':''}${d}</b>`; }
+function stockCountDraw(){
+  const sc=UI._sc, rows=sc.rows=scRows(), done=rows.filter(r=>sc.vals[r.k]!=null&&!isNaN(sc.vals[r.k])).length;
+  modal(`<h3>每月盘点 Stock count</h3><div class="row" style="margin:6px 0">
+   <select onchange="UI._sc.b=this.value;UI._sc.vals={};UI._sc.extra=[];stockCountOpen(this.value)">${BRANCHES.map(x=>`<option ${x===sc.b?'selected':''}>${x}</option>`).join('')}</select>
+   <label class="small">盘点日期 <input type="date" value="${sc.date}" onchange="UI._sc.date=this.value||today();stockCountDraw()"></label>
+   <span class="small mute" id="sc_prog">已填 ${done} / ${rows.length}</span></div>
+   <div class="small mute">「系统」= 到盘点日期为止，HQ 进货 − 开给学生 − Fast Track − 已有的调整。「实际」填你数到的数量；没数的留空，不会动。同一个月再盘一次，会取代上一次盘点产生的调整。</div>
+   <div class="tw" style="max-height:52vh;overflow:auto;margin-top:6px"><table><tr><th>Category</th><th>Item</th><th class="n">系统</th><th class="n">实际</th><th class="n">差</th></tr>
+   ${rows.map((r,i)=>`<tr><td>${esc(r.cat)}</td><td>${esc(r.item)}</td><td class="n">${r.sys}</td><td class="n"><input type="number" step="1" style="width:90px" value="${sc.vals[r.k]==null?'':sc.vals[r.k]}" oninput="scIn(${i},this.value)"></td><td class="n" id="scd_${i}">${scDiffTxt(r)}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">这个分校还没有库存记录</td></tr>'}</table></div>
+   <div class="row" style="margin-top:8px"><select id="sc_nc">${['Module','Jersi','Game','Fast Track / other','Other'].map(x=>`<option>${x}</option>`).join('')}</select><input id="sc_ni" placeholder="系统里还没有的货品（名字）" style="width:230px"><button class="g" onclick="scAddItem()">＋ 加这个货品</button></div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="stockCountSave()">保存盘点</button><button class="g" onclick="stockCountExcel()">下载 Excel</button><button class="g" onclick="closeModal()">取消</button></div>`);
+}
+function scIn(i,v){ const r=UI._sc.rows[i]; if(!r) return; UI._sc.vals[r.k]=v===''?undefined:+v; const c=document.getElementById('scd_'+i); if(c) c.innerHTML=scDiffTxt(r); const n=UI._sc.rows.filter(x=>UI._sc.vals[x.k]!=null&&!isNaN(UI._sc.vals[x.k])).length, p=document.getElementById('sc_prog'); if(p) p.textContent='已填 '+n+' / '+UI._sc.rows.length; }
+function scAddItem(){ const item=($('#sc_ni').value||'').trim().replace(/\s+/g,' '); if(!item) return toast('请填货品名字'); UI._sc.extra.push({cat:$('#sc_nc').value,item}); stockCountDraw(); }
+async function stockCountSave(){
+  const sc=UI._sc, month=sc.date.slice(0,7), cid=stockCountId(sc.b,month);
+  const lines=sc.rows.filter(r=>sc.vals[r.k]!=null&&!isNaN(sc.vals[r.k])).map(r=>({cat:r.cat,item:r.item,system:r.sys,counted:+sc.vals[r.k],diff:q4(+sc.vals[r.k]-r.sys)}));
+  if(!lines.length) return toast('还没有填任何数量');
+  const doc={kind:'count',branch:sc.b,month,date:sc.date,lines,at:new Date().toISOString()};
+  const adjId='ADJ_'+sc.b, cur=S.hqbills[adjId]||{kind:'adj',branch:sc.b,entries:[]}, adj=JSON.parse(JSON.stringify(cur)); adj.kind='adj'; adj.branch=sc.b;
+  adj.entries=(adj.entries||[]).filter(e=>e.countId!==cid).concat(lines.filter(l=>Math.abs(l.diff)>0.0001).map(l=>({d:sc.date,cat:l.cat,item:l.item,qty:l.diff,note:'盘点 '+sc.date,countId:cid})));
+  try{ await save('hqbills/'+cid,doc); await save('hqbills/'+adjId,adj); closeModal(); toast('已保存盘点：'+lines.length+' 个货品，'+lines.filter(l=>Math.abs(l.diff)>0.0001).length+' 个有差异（已记成调整）',5000); }
+  catch(e){ toast('保存失败：'+(e&&e.message||e),6000); }
+}
+function stockCountExcel(){
+  const sc=UI._sc, rows=sc.rows.map(r=>{ const v=sc.vals[r.k], has=v!=null&&!isNaN(v); return [sc.b,sc.date,r.cat,r.item,r.sys,has?+v:'',has?q4(+v-r.sys):'']; });
+  saveXlsx(`DM-Stock-Count-${sc.b}-${sc.date.slice(0,4)}_${sc.date.slice(5,7)}.xlsx`,[['Stock count',[['Branch','Date','Category','Item','System','Counted','Difference']].concat(rows)]]);
 }
 function stockAdj(){
   const items=[...new Set(stockItems(stockMoves()).map(x=>x.item))];

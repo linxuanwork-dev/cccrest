@@ -1442,8 +1442,15 @@ async function claimProdsSave(v){ const c=JSON.parse(JSON.stringify(cfg())); c.c
 // ---------- HQ 进货单（QC GROUP 开给各 branch 的单）：上传后自动开单给 klien ----------
 // Lines with a client name (registration, seasonal, module, jersey, reactive) become a sales invoice to that client, priced from the sales price list
 // (not the HQ price), numbered IV-[BRANCH]-R / M / O-[YY][MM]-[3DIGIT] and dated with the HQ invoice date. Fast Track (no client) is stock only.
-const HQ_DEF={targetSpm:30,module:80,regLong:210,regShort:200,xl3:15,regProduct:'REGISTRATION-MALE',seasonal:60,reactive:20};   // registration: long sleeve (PANJANG) RM210, short sleeve (PENDEK) RM200, size 3XL +RM15 for both; no male / female split; seasonal RM60
-function hqCfg(){ const h=(S.config&&S.config.hq)||{}; return Object.assign({},HQ_DEF,h,{fast:Object.assign({},h.fast||{})}); }
+const HQ_PROD={regLong:'REGISTRATION-LONG SLEEVE',regShort:'REGISTRATION-SHORT SLEEVE',seasonal:'REGISTRATION - SEASONAL',module:'MODULE',jerseyLong:'JERSEY-LONG SLEEVE',jerseyShort:'JERSEY-SHORT SLEEVE',reactive:'ACTIVATION FEE'};   // the product names in the Bukku item list (Products)
+const HQ_DEF={targetSpm:30,module:80,regLong:210,regShort:200,xl3:15,seasonal:60,reactive:20};   // registration: long sleeve (PANJANG) RM210, short sleeve (PENDEK) RM200, size 3XL +RM15 for both; no male / female split; seasonal RM60
+function hqCfg(){ const h=(S.config&&S.config.hq)||{}; return Object.assign({},HQ_DEF,h,{fast:Object.assign({},h.fast||{}),prod:Object.assign({},HQ_PROD,h.prod||{})}); }
+// the Bukku product (item) of an invoice line, by what it is: registration / jersey follow the sleeve wording of the HQ bill (PANJANG = long, PENDEK = short)
+function hqProd(kind,title){ const p=hqCfg().prod, t=String(title||''), lg=/PANJANG|LONG/i.test(t), sh=/PENDEK|SHORT/i.test(t);
+  if(kind==='registration') return lg&&!sh?p.regLong:p.regShort; if(kind==='seasonal') return p.seasonal; if(kind==='module') return p.module; if(kind==='jersey') return sh?p.jerseyShort:p.jerseyLong; if(kind==='reactive') return p.reactive; return null; }
+// a product name as the Bukku item list spells it (upper / lower case does not matter); '' when the list is loaded and the name is not in it
+const bkProdList=()=>(S.config&&S.config.bkProducts)||[];
+function bkProdName(name){ const L=bkProdList(); if(!name||!L.length) return name||null; const k=String(name).trim().toUpperCase().replace(/\s+/g,' '); const hit=L.find(x=>String(x.name).toUpperCase().replace(/\s+/g,' ')===k); return hit?hit.name:''; }
 const HQ_KINDS=[['registration','Registration'],['seasonal','Seasonal'],['module','Module'],['jersey','Jersey'],['reactive','Reactive'],['targetspm','Target SPM'],['other','Other'],['fasttrack','Fast Track (stock)'],['stock','Stock (no client)']];
 const HQ_SERIES={registration:'R',seasonal:'R',module:'M',jersey:'O',reactive:'O',targetspm:'O',other:'O'};
 const HQ_ACCOUNT={R:'5000-01',M:'5000-03',O:'5000-04'};   // Bukku: 5000-01 Registration Fees, 5000-01A Registration Fees-Seasonal, 5000-03 Module Fees, 5000-04 Other Fees
@@ -1749,7 +1756,7 @@ function hqExportRows(d){
   for(let li=0;li<d.lines.length;li++){ const l=d.lines[li]; if(!invoiced(l.kind)||l.skip) continue; const s=l.uid?findStu(S,l.uid):null;
     if(!s){ bad.push(l.client+'：找不到学生'); continue; } if(!s.code){ bad.push(s.no+' '+s.name+'：没有 Bukku code'); continue; } if(!(l.price>0)){ bad.push(s.no+' '+s.name+'：售价是 0'); continue; }
     const T=HQ_SERIES[l.kind];
-    const prod=l.kind==='registration'?(hqCfg().regProduct||'REGISTRATION-MALE'):l.kind==='module'?'MODULE':l.kind==='jersey'?(/PENDEK|SHORT/i.test(l.title)?'UNIFORM-SHORT SLEEVE':'UNIFORM-LONG SLEEVE'):null;
+    const want=hqProd(l.kind,l.title), prod=bkProdName(want); if(want&&prod==='') { bad.push(s.no+' '+s.name+'：货品名字 '+want+' 不在 Bukku 货品清单里（到「设置」→ HQ 单 / 售价 改货品对应）'); continue; }
     const desc=l.kind==='registration'?d.branch+'-REGISTRATION':l.kind==='seasonal'?d.branch+'-REGISTRATION SEASONAL':l.kind==='module'?d.branch+'-MODUL '+Y+'_'+M:l.kind==='jersey'?d.branch+'-JERSI '+Y+'_'+M:l.kind==='targetspm'?d.branch+'-TARGET SPM '+Y+'_'+M:d.branch+'-'+l.kind.toUpperCase()+' '+Y+'_'+M;
     const det=[l.title,l.module,l.jersey,l.game].filter(Boolean).join(' / ');
     rows.push([s.code,s.no+'-'+s.name,'IV-'+d.branch+'-'+T+'-'+yy+M+'-[3DIGIT]',d.invoiceNo,dt,null,null,null,null,d.branch,null,det,prod,hqSalesAcc(l.kind),desc,l.qty||1,null,null,l.price,null,null,null,null]); idx.push(li); }
@@ -1773,14 +1780,14 @@ function hqFastOpen(){
 function hqFastLines(b,m){
   const cfg=hqCfg(), out=[];
   for(const c of Object.values(S.claims||{})) if(c.status==='approved'&&c.branch===b&&c.month===m) for(const l of c.lines||[]) for(const p of l.products||[]){
-    const s=l.uid?findStu(S,l.uid):null, price=+(cfg.fast||{})[p]||0; let bad=''; if(!s) bad='找不到学生'; else if(!s.code) bad='没有 Bukku code'; else if(!price) bad='没有售价';
+    const s=l.uid?findStu(S,l.uid):null, price=+(cfg.fast||{})[p]||0; let bad=''; if(!s) bad='找不到学生'; else if(!s.code) bad='没有 Bukku code'; else if(!price) bad='没有售价'; else if(bkProdName(p)==='') bad='货品名字不在 Bukku 货品清单里';
     out.push({s,name:l.name,mt:c.mt,prod:p,price,bad}); }
   return out;
 }
 function hqFastExport(force,again,starts){
   const b=UI.hqFB||'BBU', m=UI.hqFM||addMonths(today().slice(0,7),-1), Y=m.slice(0,4), M=m.slice(5,7), dt=lastDay(m).slice(8,10)+'/'+M+'/'+Y;
   const lines=hqFastLines(b,m), ok=lines.filter(x=>!x.bad), bad=lines.filter(x=>x.bad).map(x=>x.name+' / '+x.prod+'：'+x.bad);
-  const rows=ok.map(x=>[x.s.code,x.s.no+'-'+x.s.name,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,null,HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null,null,null]);
+  const rows=ok.map(x=>[x.s.code,x.s.no+'-'+x.s.name,'IV-'+b+'-O-'+Y.slice(2)+M+'-[3DIGIT]','FAST TRACK '+m,dt,null,null,null,null,b,null,x.prod+' / '+x.mt,bkProdName(x.prod),HQ_ACCOUNT.O,b+'-FAST TRACK '+Y+'_'+M,1,null,null,x.price,null,null,null,null]);
   const frec=S.hqbills['FAST_'+b+'_'+m];
   if(frec&&!again&&rows.length) return modal(`<h3>这个月已经导出过了</h3><div class="msg warn">${b} ${m} 的 Fast Track invoice 在 ${esc(frec.exportedAt)} 导出过 ${(frec.items||[]).length} 张。再导出一次，Bukku 会重复开单。</div><div class="row" style="margin-top:12px"><button class="g" onclick="closeModal();hqFastExport(${force?'true':'false'},true)">仍然导出（会重复开单）</button><button class="b" onclick="closeModal()">取消</button></div>`);
   if(bad.length&&!force) return exportGate(bad.length+' 行不会开单。',bad,rows.length,'hqFastExport(true,'+(again?'true':'false')+')');
@@ -1797,9 +1804,28 @@ function hqCard(){
   const c=hqCfg(), prods=((S.config||{}).claimProducts&&S.config.claimProducts.length)?S.config.claimProducts:['Fast Track ABC','Fast Track ABB','Fast Track ABD','Fast Track ABK','Fast Track ABS'];
   const inp=(k,l)=>`<label>${l}</label><input type="number" step="0.01" value="${c[k]||''}" style="width:110px" onchange="hqCfgSet('${k}',+this.value)">`;
   return `<div class="card"><h2>HQ 单 / 售价</h2><div class="small mute">HQ 单上的金额是进货价；开给 klien 的 invoice 用这里的售价。Jersi 和其他行用 HQ 单上的价钱。</div>
-   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regLong','注册（长袖 PANJANG）RM')}${inp('regShort','注册（短袖 PENDEK）RM')}${inp('xl3','3XL 加价 RM（长袖短袖一样）')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}<label>Bukku 注册产品名</label><input value="${esc(c.regProduct||'REGISTRATION-MALE')}" style="width:200px" onchange="hqCfgSet('regProduct',this.value.trim())">${inp('reactive','Reactive / activation RM')}${inp('targetSpm','Target SPM RM')}</div>
+   <div class="f" style="max-width:480px">${inp('module','模块 Module RM')}${inp('regLong','注册（长袖 PANJANG）RM')}${inp('regShort','注册（短袖 PENDEK）RM')}${inp('xl3','3XL 加价 RM（长袖短袖一样）')}${inp('seasonal','Seasonal 注册 RM（空 = 用 HQ 价）')}${inp('reactive','Reactive / activation RM')}${inp('targetSpm','Target SPM RM')}</div>
    <h3 style="margin-top:12px">HQ 采购单</h3><div class="f" style="max-width:480px">${[['registration','注册（PENDAFTARAN）Account'],['seasonal','Seasonal 注册 Account'],['module','模块 Account'],['other','Jersi / Fast Track / 其他 Account']].map(([k,l])=>`<label>${l}</label><input value="${esc(((c.purchaseAccounts||{})[k])||({registration:'6000',seasonal:'6000-01',module:'6001',other:'6002'})[k])}" style="width:110px" onchange="hqPurchAcc('${k}',this.value.trim())">`).join('')}</div><div class="small mute">HQ 单上传后，自动在「Purchases Bill」页生成一张采购单草稿，供应商 QC GROUP SDN BHD（C-Q0001）。Bukku：6000 Purchases-Registration、6001 Purchases-Module、6002 Purchases-Other。</div>
+   <h3 style="margin-top:12px">Bukku 货品名字对应（Products）</h3>
+   <div class="small mute">开给 klien 的 invoice，Product 栏要跟 Bukku 里的货品名字一模一样。上传 Bukku 导出的 Products 文件（Bukku → Products → Export），系统会记下货品名字，导出前检查；货品名字不对的行不会导出。</div>
+   <div class="row" style="margin:6px 0"><label class="b" style="padding:6px 12px;border-radius:7px;background:var(--pri);color:#fff;cursor:pointer">上传 Bukku Products 文件<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="bkProductsLoad(this)"></label>
+    <span class="small mute">${bkProdList().length?'已读入 '+bkProdList().length+' 个货品'+(((S.config||{}).bkProductsAt)?'（'+esc(S.config.bkProductsAt)+'）':''):'还没有上传：不会检查货品名字'}</span></div>
+   <datalist id="bkpl">${bkProdList().map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
+   <div class="f" style="max-width:560px">${[['regLong','注册 长袖 PANJANG'],['regShort','注册 短袖 PENDEK'],['seasonal','Seasonal 注册'],['module','模块 Module'],['jerseyLong','Jersi 长袖'],['jerseyShort','Jersi 短袖'],['reactive','Reactive / activation']].map(([k,l])=>`<label>${l}</label><input list="bkpl" value="${esc(c.prod[k]||'')}" style="width:280px" onchange="hqProdSet('${k}',this.value.trim())">${bkProdList().length&&c.prod[k]&&bkProdName(c.prod[k])===''?'<span class="tag bad">不在清单里</span>':''}`).join('')}</div>
+   <div class="small mute">Fast Track 的货品名字用上面「MT Claim 表格」里的产品名（例如 Fast Track ABB）去对 Bukku 的 FAST TRACK ABB（大小写不用管）。</div>
    <h3 style="margin-top:12px">Fast Track 售价</h3><div class="f" style="max-width:480px">${prods.map(p=>`<label>${esc(p)} RM</label><input type="number" step="0.01" value="${(c.fast||{})[p]||''}" style="width:110px" onchange="hqFastSet('${esc(p)}',+this.value)">`).join('')}</div></div>`;
+}
+async function hqProdSet(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq.prod=Object.assign({},HQ_PROD,c.hq.prod||{}); c.hq.prod[k]=v; await save('settings/config',c); toast('已保存'); }
+// the Bukku Products export (item list): the product names are kept so the invoice export can check them
+async function bkProductsLoad(input){
+  try{ const {wb}=await readFile(input); const rows=sheetRows(wb.Sheets[wb.SheetNames[0]]);
+    const hi=rows.findIndex(r=>String(r[0]||'').trim()==='$'); if(hi<0) throw new Error('这不是 Bukku 导出的 Products 文件（找不到以 $ 开头的表头）');
+    const h=rows[hi].map(x=>String(x||'').toLowerCase()), col=k=>h.findIndex(x=>x.startsWith(k));
+    const iN=col('name'), iT=col('track inventory'), iS=col('sale price'), iB=col('purchase price'), iSku=col('sku');
+    const list=rows.slice(hi+1).filter(r=>String(r[0]||'').trim()!=='#'&&r[iN]).map(r=>({name:String(r[iN]).trim(),track:String(r[iT]||'')==='Yes',sale:+r[iS]||0,buy:+r[iB]||0,sku:String(r[iSku]||'')}));
+    if(!list.length) throw new Error('文件里没有货品');
+    const c=JSON.parse(JSON.stringify(cfg())); c.bkProducts=list; c.bkProductsAt=today(); await save('settings/config',c); toast('已读入 '+list.length+' 个 Bukku 货品',4000);
+  }catch(e){ toast('读不了这个文件：'+(e&&e.message||e),7000); }
 }
 async function hqCfgSet(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }
 async function hqCfgText(k,v){ const c=JSON.parse(JSON.stringify(cfg())); c.hq=Object.assign({},c.hq||{}); c.hq[k]=v; await save('settings/config',c); toast('已保存'); }

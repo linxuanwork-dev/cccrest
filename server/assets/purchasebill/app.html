@@ -295,6 +295,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <option value="nocopy">没有纸本也没有电子档</option>
             <option value="unlinked">有行没链到 Stock Count 货品</option>
             <option value="paidby">垫付的（要报销）</option>
+            <option value="bkpaid">Bukku 已付款</option>
+            <option value="bkunpaid">Bukku 未付款</option>
             <option value="paying">付款中</option>
             <option value="paid">已付款</option>
           </select>
@@ -326,6 +328,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <button class="btn" id="stInBukku" disabled>已在 Bukku ✓</button>
         <button class="btn" id="stNotInBukku" disabled>取消「已在 Bukku」</button>
         <span style="width:12px"></span>
+        <button class="btn" id="bkPaidSync" title="向 Bukku 核对哪些单已经付款（只读）">刷新 Bukku 付款状态</button>
         <button class="btn" id="stRecPay" disabled title="Owner 检查银行之后，在 Bukku 记付款（自动记失败时用这个再试）">在 Bukku 记付款</button>
         <button class="btn" id="bkOpen" disabled title="用 API 把选中的、已 Approve 的单送进 Bukku">送进 Bukku</button>
       </div>
@@ -486,7 +489,7 @@ async function refresh(){
     $('offline').hidden = true;
     S.hasStock = !!d.hasStock; S.stock = d.stock || []; applyStockMode();
     L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills)); L.items.forEach(cb=>cb(d.items || []));
-    if(!S._autoSup){ S._autoSup=true; setTimeout(autoBukkuSuppliers,1500); setTimeout(loadBkOpts,800); }
+    if(!S._autoSup){ S._autoSup=true; setTimeout(autoBukkuSuppliers,1500); setTimeout(loadBkOpts,800); setTimeout(()=>bukkuPaidSync(false),2500); }
   }catch(e){
     $('offline').hidden = false;
     $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
@@ -896,6 +899,8 @@ function filteredBills(){
     if(fl==='paidby' && !(b.paidBy && b.payStatus!=='checked')) return false;
     if(fl==='paying' && !(b.payStatus==='todo' || b.payStatus==='done')) return false;
     if(fl==='paid' && b.payStatus!=='checked') return false;
+    if(fl==='bkpaid' && b.bukkuPaid!==true) return false;
+    if(fl==='bkunpaid' && b.bukkuPaid!==false) return false;
     if(q && !(normName(b.no).includes(q) || (b.lines||[]).some(l=>normName(l.desc).includes(q)) || normName(b.supplier).includes(q))) return false;
     return true;
   }).sort((a,b)=>(a.date||'').localeCompare(b.date||'') || normName(a.supplier).localeCompare(normName(b.supplier)) || String(a.no).localeCompare(String(b.no)));
@@ -918,6 +923,9 @@ function flowPills(b){
   if(b.noOriginal) p.push('<span class="pill dup">缺正式单据</span>');
   p.push('<span class="pill '+(b.hardcopy?'done':'draft')+'" title="纸本">纸本'+(b.hardcopy?' ✓':' ✗')+'</span><span class="pill '+(b.softcopy?'done':'draft')+'" title="电子档">电子档'+(b.softcopy?' ✓':' ✗')+'</span>');
   if(b.paidBy) p.push('<span class="pill draft">垫付 '+esc(b.paidBy)+'</span>');
+  if(b.imported&&b.bukkuNo) p.push('<span class="pill draft" title="这张单是在 Bukku 里输入的，系统从 Bukku 读进来">Bukku 里输入的</span>');
+  if(b.bukkuPaid===true) p.push('<span class="pill done" title="Bukku 里这张单已经付清">Bukku 已付款 ✓</span>');
+  else if(b.bukkuPaid===false&&b.bukkuChecked) p.push('<span class="pill draft" title="Bukku 里这张单还没付清">Bukku 未付'+(b.bukkuBalance?' RM '+money(b.bukkuBalance):'')+'</span>');
   if(b.bukkuPayNo) p.push('<span class="pill done" title="在 Bukku 记的付款">Bukku 付款 '+esc(b.bukkuPayNo)+'</span>');
   else if(b.bukkuPayError) p.push('<span class="pill dup" title="'+esc(b.bukkuPayError)+'">Bukku 记付款失败</span>');
   if(b.bukkuSent) p.push('<span class="pill done">'+(b.bukkuStatus==='ready'?'已送进 Bukku':'已送 Bukku 草稿')+(b.bukkuNo?' '+esc(b.bukkuNo):'')+'</span>');
@@ -979,6 +987,12 @@ async function stage(action,value,okMsg){
   const ids=[...S.selected].map(Number);
   if(!ids.length) return;
   try{ const r=await http('POST','/bills/stage',{ids,action,value}); toast((okMsg||'已更新')+'：'+r.changed+' 张'); await refresh(); }catch(err){ dbErr(err); }
+}
+// ask Bukku which of the bills are paid (read only); on opening the page, and by the button
+async function bukkuPaidSync(force){
+  try{ const r=await http('POST','/bills/bukku-paid-sync',{force:!!force}); if(r.throttled&&!force) return; if(force) toast(r.connected===false?'这家公司还没有连接 Bukku':('已向 Bukku 核对：'+r.checked+' 张找到，其中 '+r.paid+' 张已付款'+(r.notFound?'；'+r.notFound+' 张在 Bukku 里找不到（还没导入？）':'')+(r.pulled?'；从 Bukku 读进 '+r.pulled+' 张在 Bukku 里输入的单':'')+(r.pullLeft?'（还有 '+r.pullLeft+' 张，再按一次）':'')));
+    else if(r.pulled) toast('从 Bukku 读进 '+r.pulled+' 张在 Bukku 里输入的单'); await refresh(); }
+  catch(e){ if(force) toast('向 Bukku 核对失败：'+(e&&e.message||e)); }
 }
 // Approve, and (when ticked) send the approved credit bills straight to Bukku: the same checks as the "送进 Bukku" button
 async function loadBkOpts(){
@@ -1221,6 +1235,7 @@ $('bkOpen').addEventListener('click',async()=>{
     });
   }catch(e){ p.innerHTML='<p class="small">'+esc(e.message)+'</p>'; }
 });
+$('bkPaidSync').addEventListener('click',()=>bukkuPaidSync(true));
 $('stRecPay').addEventListener('click',async()=>{
   const ids=[...S.selected].map(Number); if(!ids.length) return; let ok=0,msgs=[];
   for(const id of ids){ try{ const r=await http('POST','/bills/'+id+'/record-payment'); if(r.recorded) ok++; else msgs.push(r.error||r.skipped||''); }catch(e){ msgs.push(e.message); } }

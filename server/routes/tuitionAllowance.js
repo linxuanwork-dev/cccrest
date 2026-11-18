@@ -89,6 +89,49 @@ async function enabledSettings(req, res) {
 }
 
 // Whether the feature is on for this company, and what this user may do on the page
+// The HQ (QC GROUP) bills as they are in Bukku (purchase bills of the supplier QC GROUP): the ones that are not in the system yet, with their lines
+// ("REGISTRATION-MALE -STUDENT NAME", "MODULE -STUDENT NAME"...). Read only. The page turns them into HQ bills to check and invoice the students.
+router.get(BASE + '/bukku-hq-bills', ...guard(2), async (req, res) => {
+  if (!isMgr(req)) return res.status(403).json({ error: '只有 manager 可以做这个操作。 Only a manager can do this.' });
+  const cid = req.params.companyId;
+  const conn = await bukkuApi.loadConn(cid);
+  if (!conn) return bad(res, '这家公司还没有连接 Bukku（请 Owner 到 Control Panel > Bukku API 连接）。');
+  const { rows: qc } = await pool.query(
+    `SELECT bukku_key, legal_name FROM bukku_contacts WHERE company_id = $1 AND NOT is_archived AND 'supplier' = ANY(types) AND legal_name ILIKE '%QC GROUP%' ORDER BY legal_name LIMIT 1`, [cid]);
+  if (!qc[0] || !Number.isInteger(Number(qc[0].bukku_key))) return bad(res, 'Bukku 的联络人里找不到 QC GROUP（请 Owner 先在 Control Panel > Bukku API 按「重新同步」）。');
+  let since = String(req.query.since || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) { const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 3); since = d.toISOString().slice(0, 10); }
+  const list = [];
+  for (let page = 1; page <= 20; page++) {
+    const body = await bukkuApi.get(conn, '/purchases/bills', { contact_id: qc[0].bukku_key, date_from: since, page, page_size: 100 });
+    const rows = (body && body.transactions) || [];
+    list.push(...rows);
+    const total = body && body.paging && Number(body.paging.total);
+    if (!rows.length || rows.length < 100 || (total && list.length >= total)) break;
+  }
+  const finished = list.filter((t) => !t.status || t.status === 'ready');
+  const { rows: have } = await pool.query(`SELECT data->>'invoiceNo' AS no FROM tuition_docs WHERE company_id = $1 AND coll = 'hqbills' AND data ? 'invoiceNo'`, [cid]);
+  const known = new Set(have.map((r) => String(r.no || '').trim().toUpperCase()));
+  const fresh = finished.filter((t) => !known.has(String(t.number || '').trim().toUpperCase()));
+  const bills = [];
+  const take = fresh.slice(0, 60);
+  for (let i = 0; i < take.length; i += 6) {
+    await Promise.all(take.slice(i, i + 6).map(async (t) => {
+      try {
+        const d = await bukkuApi.get(conn, '/purchases/bills/' + encodeURIComponent(t.id));
+        const tx = (d && d.transaction) || t;
+        const items = (tx.form_items || []).filter((x) => x && x.type !== 'bundle').map((x) => ({
+          title: String(x.description || '').replace(/\s+/g, ' ').trim(), qty: Number(x.quantity) || 1, price: Number(x.unit_price) || 0, amount: Number(x.amount) || (Number(x.quantity) || 1) * (Number(x.unit_price) || 0)
+        })).filter((x) => x.title);
+        const text = [tx.billing_party || t.billing_party || '', ...(tx.tag_names || t.tag_names || [])].join(' ');
+        bills.push({ bukkuId: t.id, no: String(t.number || ''), date: String(t.date || '').slice(0, 10), total: Number(tx.amount != null ? tx.amount : t.amount) || 0, branch: hqBill.guessBranch(text, ''), tags: tx.tag_names || t.tag_names || [], items });
+      } catch (e) { bills.push({ bukkuId: t.id, no: String(t.number || ''), date: String(t.date || '').slice(0, 10), total: Number(t.amount) || 0, branch: '', items: [], error: e.message }); }
+    }));
+  }
+  bills.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.no.localeCompare(b.no)));
+  res.json({ supplier: qc[0].legal_name, since, total: finished.length, already: finished.length - fresh.length, tooMany: fresh.length > take.length, bills });
+});
+
 // What Bukku says each customer still owes (read only): the invoices that are not fully paid, added up per contact.
 // The tuition page lines this up with what the system itself works out and lists what differs.
 router.get(BASE + '/bukku-receivables', ...guard(2), async (req, res) => {

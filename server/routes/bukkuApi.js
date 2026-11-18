@@ -92,12 +92,12 @@ router.get('/bukku/connections', requireAuth, requireRole('admin'), async (req, 
        (b.company_id IS NOT NULL) AS connected,
        (SELECT COUNT(*) FROM bukku_accounts a WHERE a.company_id = c.id)::int AS accounts,
        (SELECT COUNT(*) FROM bukku_contacts k WHERE k.company_id = c.id)::int AS contacts,
-       COALESCE(b.send_enabled, false) AS send_enabled, COALESCE(b.send_status, 'draft') AS send_status, COALESCE(b.pay_auto, false) AS pay_auto, b.pay_account_id,
+       COALESCE(b.send_enabled, false) AS send_enabled, COALESCE(b.send_status, 'draft') AS send_status, COALESCE(b.pay_auto, false) AS pay_auto, b.pay_account_id, COALESCE(b.pull_enabled, false) AS pull_enabled,
        (SELECT COUNT(*) FROM bukku_tags g WHERE g.company_id = c.id)::int AS tags
      FROM companies c LEFT JOIN bukku_connections b ON b.company_id = c.id
      ORDER BY (b.company_id IS NOT NULL) DESC, c.name`
   );
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts, tags: r.tags, sendEnabled: r.send_enabled, sendStatus: r.send_status, payAuto: r.pay_auto, payAccountId: r.pay_account_id == null ? '' : String(r.pay_account_id) })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts, tags: r.tags, sendEnabled: r.send_enabled, sendStatus: r.send_status, payAuto: r.pay_auto, pullEnabled: r.pull_enabled, payAccountId: r.pay_account_id == null ? '' : String(r.pay_account_id) })));
 });
 
 router.put('/bukku/connections/:companyId', requireAuth, requireRole('admin'), async (req, res) => {
@@ -258,6 +258,16 @@ router.put('/bukku/connections/:companyId/send', requireAuth, requireRole('admin
   const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, on ? 'Switched on sending purchase bills to Bukku' : 'Switched off sending purchase bills to Bukku', co[0] ? co[0].name : String(req.params.companyId), on ? ('as ' + (status === 'ready' ? 'finished bills' : 'drafts')) : null);
   res.json({ ok: true, enabled: on, status });
+});
+
+// The Owner switches "read the purchase bills typed in Bukku into the system" on or off for a company (read only).
+router.put('/bukku/connections/:companyId/pull', requireAuth, requireRole('admin'), async (req, res) => {
+  const on = !!(req.body && req.body.enabled);
+  const { rows } = await pool.query('UPDATE bukku_connections SET pull_enabled = $2 WHERE company_id = $1 RETURNING company_id', [req.params.companyId, on]);
+  if (!rows[0]) return bad(res, 'Save the Bukku subdomain and Access Token first.');
+  const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  await logActivity(req.user.sub, on ? 'Switched on reading the purchase bills typed in Bukku' : 'Switched off reading the purchase bills typed in Bukku', co[0] ? co[0].name : String(req.params.companyId), null);
+  res.json({ ok: true, enabled: on });
 });
 
 // The Owner switches "record the payment in Bukku after the bank check" on or off for a company, and names the Bukku bank account that pays.

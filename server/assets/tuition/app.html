@@ -1383,7 +1383,7 @@ function hqLineFrom(it,b){
 function vHq(){
   const bills=Object.entries(S.hqbills||{}).filter(([id,d])=>!d.kind).map(([id,d])=>Object.assign({id},d)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   return `<div class="card"><h2>HQ 进货单</h2><div class="small mute">上传 QC GROUP 开给 branch 的单（PDF）。有 klien 名字的行（注册、模块、Jersi、Reactive、Seasonal）自动开 invoice 给 klien，金额用「设置」里的售价表，日期用 HQ 单的日期；Fast Track 没有 klien，只记库存。</div>
-   <div class="row" style="margin:8px 0"><label class="g" style="padding:6px 12px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">上传 HQ 单 PDF<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="hqUpload(this)"></label>
+   <div class="row" style="margin:8px 0"><button class="b" title="直接读 Bukku 里 QC GROUP 的采购单，不用上传 PDF" onclick="hqBukkuOpen()">从 Bukku 读取 QC 单</button> <label class="g" style="padding:6px 12px;border:1px solid #cfd4dc;border-radius:7px;cursor:pointer">上传 HQ 单 PDF<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="hqUpload(this)"></label>
     <span style="flex:1"></span><button class="g" onclick="hqFastOpen()">Fast Track 开单（从 MT Claim）</button></div>
    <div class="tw"><table><tr><th>日期</th><th>HQ 单号</th><th>Branch</th><th class="n">行数</th><th class="n">HQ 金额</th><th class="n">开给 klien</th><th>状态</th><th></th></tr>
    ${bills.map(b=>{ const inv=(b.lines||[]).filter(l=>invoiced(l.kind)&&!l.skip); const tot=inv.reduce((a,l)=>a+l.price*(l.qty||1),0);
@@ -1540,6 +1540,38 @@ function hqStock(){
     const hit=Object.values(items).find(x=>x.branch===c.branch&&(nk(x.name).includes(nk(p))||nk(p).includes(nk(x.name))));
     (hit||get(c.branch,p)).sold++; }
   return Object.values(items).sort((a,b)=>a.branch.localeCompare(b.branch)||a.name.localeCompare(b.name));
+}
+// ---- HQ (QC GROUP) bills straight from Bukku: no PDF to upload ----
+function bkQcItem(l){
+  const t=String(l.title||'').replace(/\s+/g,' ').trim(), m=t.match(/^(.*?)\s+-\s*(.+)$/), prod=(m?m[1]:t).trim(), client=m?m[2].trim():'', U=prod.toUpperCase();
+  let kind;
+  if(/FAST\s*TRACK|^FT\b/.test(U)) kind='fasttrack'; else if(/TARGET\s*SPM/.test(U)) kind='targetspm';
+  else if(/^SAIZ JERSI|^JERSI|^JERSEY/.test(U)) kind='jersey'; else if(/^MODUL|^MODULE|PEMBELIAN MODUL/.test(U)) kind='module';
+  else if(/SEASONAL/.test(U)) kind='seasonal'; else if(/^REGISTRATION|PENDAFTARAN/.test(U)) kind='registration';
+  else if(/REAKTIF|REACTIVE|ACTIVATION/.test(U)) kind='reactive'; else kind=client?'other':'stock';
+  return {kind,title:prod,fields:{client},qty:l.qty||1,price:l.price,amount:l.amount};
+}
+const BK_QC_KEEP=['registration','module','jersey','fasttrack'];
+async function hqBukkuOpen(){
+  toast('正在从 Bukku 读取 QC GROUP 的单…',5000);
+  let j; try{ j=await http('GET','/bukku-hq-bills'); }catch(e){ return toast('从 Bukku 读取失败：'+(e&&e.message||e),7000); }
+  window._bkqc=j;
+  const kinds=b=>{ const o={}; b.items.map(bkQcItem).forEach(i=>{ o[i.kind]=(o[i.kind]||0)+1; }); return Object.entries(o).map(([k,n])=>k+' '+n).join(' · '); };
+  modal(`<h3>从 Bukku 读取 QC GROUP 的单</h3><div class="small mute">${esc(j.supplier)} · 从 ${esc(j.since)} 起共 ${j.total} 张，系统里已经有 ${j.already} 张，下面是还没进系统的 ${j.bills.length} 张${j.tooMany?'（只列前 60 张，处理完再读一次）':''}。</div>
+   <label class="small" style="display:block;margin:6px 0"><input type="checkbox" id="bkqc_only" checked> 只要 Registration / Module / Jersi / Fast Track 的行（其他行不导入）</label>
+   <div class="tw" style="max-height:48vh;overflow:auto"><table><tr><th></th><th>日期</th><th>QC 单号</th><th>Branch</th><th class="n">金额</th><th>行</th></tr>
+   ${j.bills.map((b,i)=>`<tr><td><input type="checkbox" class="bkqc_sel" data-i="${i}" ${b.items.length&&!b.error?'checked':'disabled'}></td><td>${esc(b.date)}</td><td>${esc(b.no)}</td>
+     <td><select id="bkqc_b${i}">${BRANCHES.map(x=>`<option ${x===(b.branch||'BBU')?'selected':''}>${x}</option>`).join('')}</select>${b.branch?'':' <span class="small mute">（没写，请选）</span>'}</td>
+     <td class="n">${money(b.total)}</td><td class="small">${b.error?'<span class="tag bad">读不到：'+esc(b.error)+'</span>':esc(kinds(b)||'（没有行）')}</td></tr>`).join('')||'<tr><td colspan="6" class="mute">没有新的单</td></tr>'}</table></div>
+   <div class="row" style="margin-top:10px"><button class="b" onclick="hqBukkuImport()">导入选中的，逐张核对学生</button><button class="g" onclick="closeModal()">关闭</button></div>`);
+}
+function hqBukkuImport(){
+  const j=window._bkqc; if(!j) return; const only=$('#bkqc_only')&&$('#bkqc_only').checked, picked=[];
+  document.querySelectorAll('.bkqc_sel').forEach(c=>{ if(!c.checked) return; const i=+c.dataset.i, b=j.bills[i]; let items=b.items.map(bkQcItem); if(only) items=items.filter(x=>BK_QC_KEEP.includes(x.kind));
+    if(!items.length) return; const sum=r2(items.reduce((a,x)=>a+(+x.amount||0),0));
+    picked.push({branch:$('#bkqc_b'+i).value,invoiceNo:b.no,date:b.date,total:b.total,itemsTotal:sum,totalMatches:only?true:Math.abs(sum-b.total)<0.01,items}); });
+  if(!picked.length) return toast('没有选中的单，或者选中的单里没有 Registration / Module / Jersi / Fast Track 的行');
+  closeModal(); _hqQ=_hqQ.concat(picked); toast('导入 '+picked.length+' 张，逐张核对学生名字',5000); hqNext();
 }
 async function hqUpload(input){
   const f=input.files[0]; input.value=''; if(!f) return;

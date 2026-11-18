@@ -340,11 +340,11 @@ const billOut = (r) => ({
   lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised, hq: r.hq || null,
   createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime(),
   approved: !!r.approved_at, noOriginal: !!r.no_original, inBukku: !!r.in_bukku_at, payDue: r.pay_due || '', payStatus: r.pay_task_status || '',
-  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || '', hardcopy: !!r.hardcopy, softcopy: !!r.softcopy, paidBy: r.paid_by || '', bukkuPayNo: r.bukku_pay_no || '', bukkuPayError: r.bukku_pay_error || ''
+  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || '', hardcopy: !!r.hardcopy, softcopy: !!r.softcopy, paidBy: r.paid_by || '', bukkuPayNo: r.bukku_pay_no || '', bukkuPayError: r.bukku_pay_error || '', bukkuPaid: r.bukku_paid == null ? null : !!r.bukku_paid, bukkuBalance: r.bukku_balance == null ? null : Number(r.bukku_balance), bukkuChecked: !!r.bukku_checked_at
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
 const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at,
-  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status, hardcopy, softcopy, paid_by, bukku_pay_no, bukku_pay_error,
+  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status, hardcopy, softcopy, paid_by, bukku_pay_no, bukku_pay_error, bukku_paid, bukku_balance, bukku_checked_at,
   (SELECT t.status FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay' ORDER BY t.id DESC LIMIT 1) AS pay_task_status`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
@@ -761,6 +761,101 @@ function buildBukkuBill(bill, ctx, opt) {
   }
   return { payload, problems, summary: { contact: contact ? contact.legal_name : '', accounts: [...new Set(codes)], tags: tagNames, mode } };
 }
+
+// What Bukku says about the bills of this system: paid or not. The bills are found in Bukku by their number (and supplier); only reading.
+const lastPaidSync = new Map();
+async function syncBukkuPaid(companyId, force) {
+  const conn = await bukkuApi.loadConn(companyId);
+  if (!conn) return { connected: false };
+  if (!force && Date.now() - (lastPaidSync.get(String(companyId)) || 0) < 120000) return { connected: true, throttled: true };
+  lastPaidSync.set(String(companyId), Date.now());
+  const windowStart = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const { rows: mine } = await pool.query(
+    `SELECT id, supplier, no, to_char(bill_date, 'YYYY-MM-DD') AS d, bukku_paid FROM purchase_bukku_bills WHERE company_id = $1 AND (bukku_paid IS NOT TRUE) AND bill_date > now() - interval '18 months'`, [companyId]);
+  if (!mine.length && !conn.pull_enabled) return { connected: true, checked: 0, paid: 0, notFound: 0, pulled: 0 };
+  const from = [...mine.map((x) => x.d), conn.pull_enabled ? windowStart : '9999'].filter(Boolean).sort()[0];
+  const list = [];
+  for (let page = 1; page <= 30; page++) {
+    const body = await bukkuApi.get(conn, '/purchases/bills', { date_from: from, page, page_size: 100 });
+    const rows = (body && body.transactions) || [];
+    list.push(...rows);
+    const total = body && body.paging && Number(body.paging.total);
+    if (!rows.length || rows.length < 100 || (total && list.length >= total)) break;
+  }
+  let paidSet = null;
+  if (list.length && list.every((t) => t.balance == null)) {   // the list gives no balance: ask for the paid ones
+    paidSet = new Set();
+    for (let page = 1; page <= 30; page++) {
+      const body = await bukkuApi.get(conn, '/purchases/bills', { date_from: from, payment_status: 'PAID', page, page_size: 100 });
+      const rows = (body && body.transactions) || [];
+      rows.forEach((t) => paidSet.add(String(t.id)));
+      if (rows.length < 100) break;
+    }
+  }
+  const ctx = await bukkuCtx(companyId, '');
+  const normNo = (v) => String(v || '').toUpperCase().replace(/\s+/g, '');
+  const live = list.filter((t) => t.status !== 'void');
+  const byNo = new Map();
+  live.forEach((t) => { const k = normNo(t.number); if (k) (byNo.get(k) || byNo.set(k, []).get(k)).push(t); });
+  const balOf = (t) => (t.balance != null ? Number(t.balance) : (paidSet && paidSet.has(String(t.id)) ? 0 : null));
+  let paid = 0, notFound = 0, checked = 0;
+  for (const b of mine) {
+    const cands = byNo.get(normNo(b.no)) || [];
+    const contact = bukkuFindContact(ctx, b.supplier);
+    const hit = cands.find((t) => !contact || String(t.contact_id) === String(contact.bukku_key)) || (cands.length === 1 && !contact ? cands[0] : null);
+    if (!hit) { notFound++; continue; }
+    checked++;
+    const bal = balOf(hit), isPaid = bal == null ? null : bal <= 0.004;
+    if (isPaid) paid++;
+    await pool.query('UPDATE purchase_bukku_bills SET bukku_paid = $2, bukku_balance = $3, bukku_checked_at = now() WHERE id = $1', [b.id, isPaid, bal]);
+  }
+
+  // the bills typed directly in Bukku (the last 60 days) that the system does not have yet
+  let pulled = 0, pullLeft = 0;
+  if (conn.pull_enabled) {
+    const { rows: all } = await pool.query(`SELECT supplier, no FROM purchase_bukku_bills WHERE company_id = $1 AND bill_date >= $2::date - 7`, [companyId, windowStart]);
+    const have = new Set(all.map((x) => normName(x.supplier) + '|' + normNo(x.no)));
+    const byContact = new Map(ctx.contacts.map((c) => [String(c.bukku_key), c]));
+    const accById = new Map(ctx.accounts.map((a) => [String(a.bukku_id), a]));
+    const supNames = new Set(ctx.suppliers.map((x) => normName(x.name)));
+    const todo = live.filter((t) => String(t.date || '').slice(0, 10) >= windowStart && normNo(t.number)).filter((t) => {
+      const c = byContact.get(String(t.contact_id)); if (!c || !(c.types || []).includes('supplier')) return false;
+      return !have.has(normName(c.legal_name) + '|' + normNo(t.number)) && !(t.payment_mode === 'claim');
+    });
+    const take = todo.slice(0, 40); pullLeft = todo.length - take.length;
+    for (let i = 0; i < take.length; i += 5) {
+      await Promise.all(take.slice(i, i + 5).map(async (t) => {
+        try {
+          const c = byContact.get(String(t.contact_id)), name = normName(c.legal_name);
+          const d = await bukkuApi.get(conn, '/purchases/bills/' + encodeURIComponent(t.id));
+          const tx = (d && d.transaction) || t;
+          const lines = (tx.form_items || []).filter((x) => x && x.type !== 'bundle').map((x) => {
+            const acc = accById.get(String(x.account_id));
+            return { desc: String(x.description || 'ITEM').toUpperCase().slice(0, 200), account: acc ? String(acc.code) : '', qty: Number(x.quantity) > 0 ? Number(x.quantity) : 1, price: Number(x.unit_price) || 0, tax: String(x.tax_code || '').toUpperCase().slice(0, 20) };
+          });
+          if (!lines.length) lines.push({ desc: String(tx.description || 'BILL').toUpperCase().slice(0, 200), account: '', qty: 1, price: Number(tx.amount) || 0, tax: '' });
+          const bal = balOf(t), isPaid = bal == null ? null : bal <= 0.004;
+          await pool.query(
+            `INSERT INTO purchase_bukku_bills (company_id, supplier, code, no, ref, bill_date, tags, description, lines, total, status, imported, exported_at,
+               bukku_txn_id, bukku_txn_no, in_bukku_at, bukku_paid, bukku_balance, bukku_checked_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,'exported',true,now(),$11,$12,now(),$13,$14,now())`,
+            [companyId, name.slice(0, 150), String(c.contact_code || '').slice(0, 30), String(t.number).slice(0, 60), String(t.number2 || '').slice(0, 60), String(t.date).slice(0, 10), (tx.tag_names || t.tag_names || []).join(', ').slice(0, 100),
+              String(tx.description || t.description || '').slice(0, 200), JSON.stringify(lines), Number(tx.amount != null ? tx.amount : t.amount) || 0, t.id, String(t.number).slice(0, 60), isPaid, bal]
+          );
+          if (!supNames.has(name)) { await pool.query(`INSERT INTO purchase_bukku_contacts (company_id, name, code, account, tags) VALUES ($1,$2,$3,'','') ON CONFLICT (company_id, name) DO NOTHING`, [companyId, name.slice(0, 150), String(c.contact_code || '').toUpperCase().replace(/\s+/g, '').slice(0, 30)]); supNames.add(name); }
+          pulled++;
+        } catch (e) { console.error('pull bill from Bukku failed:', e.message); }
+      }));
+    }
+  }
+  return { connected: true, checked, paid, notFound, pulled, pullLeft };
+}
+router.syncBukkuPaid = syncBukkuPaid;
+router.post(BASE + '/bills/bukku-paid-sync', ...guard(1), async (req, res) => {
+  if (!await enabledSettings(req, res)) return;
+  try { res.json(await syncBukkuPaid(req.params.companyId, req.body && req.body.force === true)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
 
 // Record the payment of a bill in Bukku (a payment voucher linked to the bill the API made), after the Owner has checked the bank.
 // Only a credit bill that was sent through the API and is not paid out of pocket; once only.

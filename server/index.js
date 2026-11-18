@@ -54,6 +54,7 @@ app.use('/api', require('./routes/accounts'));
 app.use('/api', require('./routes/purchaseBukku'));
 app.use('/api', require('./routes/stockCount'));
 app.use('/api', require('./routes/tngReport'));
+app.use('/api', require('./routes/accountCheck'));
 app.use('/api', require('./routes/tuitionAllowance'));
 app.use('/api', require('./routes/attendance'));
 app.use('/api', require('./routes/salesRecon'));

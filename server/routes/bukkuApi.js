@@ -291,5 +291,6 @@ module.exports = router;
 module.exports.bukku = {
   loadConn: async (companyId) => (await pool.query('SELECT * FROM bukku_connections WHERE company_id = $1', [companyId])).rows[0] || null,
   post: (conn, path, body) => bukkuGet(conn, path, {}, body),
-  get: (conn, path, query) => bukkuGet(conn, path, query)
+  get: (conn, path, query) => bukkuGet(conn, path, query),
+  encrypt, decrypt
 };

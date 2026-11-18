@@ -1012,6 +1012,15 @@ async function loadBkOwe(){
   try{ UI._bk=await http('GET','/bukku-receivables'); UI._bkAt=Date.now(); }catch(e){ UI._bkErr=(e&&e.message)||String(e); UI._bk=null; }
   UI._bkLoading=false; if(!UI._tx||!document.getElementById('txq')) render();
 }
+// sorting of the outstanding list: click a column title, or pick from the list; the same click again turns it round
+const OSORT_BK=[['','默认排序'],['owe|-1','欠款 多 → 少'],['owe|1','欠款 少 → 多'],['oldest|1','最旧发票 旧 → 新'],['diff|-1','差额（Bukku 和系统）大 → 小'],['count|-1','发票数 多 → 少'],['name|1','学生名 A → Z'],['no|1','编号'],['mt|1','MT']];
+const OSORT_SYS=[['','默认排序'],['owe|-1','欠 多 → 少'],['owe|1','欠 少 → 多'],['deadline|1','期限 近 → 远'],['name|1','学生名 A → Z'],['no|1','编号'],['mt|1','MT']];
+function oweSortSel(opts){ const cur=UI.oSort?UI.oSort.k+'|'+UI.oSort.d:''; return `<select onchange="oweSortSet(this.value)">${opts.map(([v,t])=>`<option value="${v}" ${v===cur?'selected':''}>排序：${t}</option>`).join('')}</select>`; }
+function oweSortSet(v){ UI.oSort=v?{k:v.split('|')[0],d:+v.split('|')[1]}:null; render(); }
+function oweSort(k){ const c=UI.oSort, numeric=['owe','sys','diff','count','amount','paid'].includes(k); UI.oSort=c&&c.k===k?{k,d:-c.d}:{k,d:numeric?-1:1}; render(); }
+const oweTh=(label,k,cls)=>`<th class="${cls||''}" style="cursor:pointer;white-space:nowrap" onclick="oweSort('${k}')" title="按这一列排序">${label}${UI.oSort&&UI.oSort.k===k?(UI.oSort.d>0?' ▲':' ▼'):''}</th>`;
+function oweApplySort(rows,get){ const s=UI.oSort; if(!s) return rows; return rows.slice().sort((a,b)=>{ const x=get(a,s.k), y=get(b,s.k), nx=(x==null||x===''), ny=(y==null||y===''); if(nx&&ny) return 0; if(nx) return 1; if(ny) return -1;
+  const r=(typeof x==='number'&&typeof y==='number')?x-y:String(x).localeCompare(String(y),undefined,{numeric:true,sensitivity:'base'}); return r*s.d; }); }
 function oweBkRows(){
   const bk=UI._bk; if(!bk) return [];
   const byCode={}; BRANCHES.forEach(b=>stuList(b).forEach(s=>{ if(s.code) byCode[s.code]=s; }));
@@ -1020,6 +1029,7 @@ function oweBkRows(){
   if(UI.oBranch!=='ALL') rows=rows.filter(x=>x.branch===UI.oBranch);
   if(UI.oMt!=='ALL') rows=rows.filter(x=>x.mt===UI.oMt);
   const oq=normA(UI.oQ||''); if(oq) rows=rows.filter(x=>normA(x.name+x.no+x.code+x.parents.join(' ')+x.mt).includes(oq));
+  if(UI.oSort) return oweApplySort(rows,(r,k)=>k==='diff'?(r.sys==null?null:Math.abs(r.owe-r.sys)):r[k]);
   return rows.sort((a,b)=>(a.branch+a.mt+a.no).localeCompare(b.branch+b.mt+b.no));
 }
 function vOweBukku(){
@@ -1028,6 +1038,7 @@ function vOweBukku(){
    <select onchange="UI.oSrc=this.value;render()"><option value="bukku" selected>来源：Bukku（直接读取）</option><option value="system">来源：系统自己算的</option></select>
    <select onchange="UI.oBranch=this.value;UI.oMt='ALL';render()">${brOpts(b,true)}</select>
    <input id="oweq" placeholder="搜学生 / 编号 / code / 父母 / MT" value="${esc(UI.oQ||'')}" oninput="UI.oQ=this.value;render()" style="width:230px">
+   ${oweSortSel(OSORT_BK)}
    <button class="g" onclick="UI._bk=null;UI._bkErr='';UI._hp=null;UI._hpErr='';render()">重新读取 Bukku</button>
    <span style="flex:1"></span>
    <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>`;
@@ -1036,7 +1047,7 @@ function vOweBukku(){
   const rows=oweBkRows(), tot=r2(rows.reduce((a,x)=>a+x.owe,0));
   const mts=[...new Set(oweBkRows().map(x=>x.mt))];
   return head+`<div class="small mute" style="margin-top:6px">Bukku 读取时间 ${esc(String(UI._bk.asOf).slice(0,16).replace('T',' '))}（UTC）· 这是 Bukku 里还没收齐的发票。付款导入 Bukku 之后，这里才会减少。${UI._bk.partial?' <b style="color:#b45309">有些发票读不到余额，数字可能少算。</b>':''}</div></div>
-  <div class="card"><h2>${rows.length} 位，共 RM ${money(tot)}</h2><div class="tw"><table><tr><th>Branch</th><th>MT</th><th>编号</th><th>学生</th><th>Bukku code</th><th class="n">发票数</th><th>最旧发票</th><th class="n">Bukku 欠款</th><th class="n">系统自己算</th><th>发票</th></tr>
+  <div class="card"><h2>${rows.length} 位，共 RM ${money(tot)}</h2><div class="tw"><table><tr>${oweTh('Branch','branch')}${oweTh('MT','mt')}${oweTh('编号','no')}${oweTh('学生','name')}${oweTh('Bukku code','code')}${oweTh('发票数','count','n')}${oweTh('最旧发票','oldest')}${oweTh('Bukku 欠款','owe','n')}${oweTh('系统自己算','diff','n')}<th>发票</th></tr>
   ${rows.map(x=>`<tr${x.found?'':' style="background:#fff7ed"'}><td>${x.branch}</td><td>${esc(x.mt)}</td><td>${esc(x.no)}</td><td>${x.found?`<a href="#" onclick="stmt('${x.uid}');return false">${esc(x.name)}</a> ${x.status&&x.status!=='Active'?stTag(x.status):''}`:esc(x.name)}</td><td>${esc(x.code)}</td><td class="n">${x.count}</td><td>${x.oldest||'—'}</td><td class="n"><b>${money(x.owe)}</b></td><td class="n">${x.sys==null?'':(Math.abs(x.sys-x.owe)<0.01?'<span class="tag ok">一样</span>':money(x.sys))}</td><td class="small">${esc(x.invoices.slice(0,4).map(i=>i.no+' '+money(i.balance)).join(' · '))}${x.invoices.length>4?' …':''}</td></tr>`).join('')||'<tr><td colspan="10" class="mute">Bukku 里没有欠款 🎉</td></tr>'}
   </table></div></div>`;
 }
@@ -1119,6 +1130,7 @@ function vOwe0(){
   const mts=[...new Set(o.map(x=>x.mt))].sort(); if(UI.oMt!=='ALL') o=o.filter(x=>x.mt===UI.oMt);
   if(!UI.oLate) o=o.filter(x=>!x.late);
   const oq=normA(UI.oQ||''); if(oq) o=o.filter(x=>stuHit(x,oq));
+  o=oweApplySort(o,(r,k)=>({branch:r.branch,mt:r.mt,no:r.s.no,name:r.s.name,month:r.month,amount:r.amount,paid:r.paid,owe:r.owe,deadline:r.deadline})[k]);
   const tot=o.reduce((a,x)=>a+x.owe,0);
   const upd=b==='BBU'?'Affin '+(lastBankDate('AFFIN')||'—'):b==='ALL'?'Affin '+(lastBankDate('AFFIN')||'—')+' / Public Bank '+(lastBankDate('PBB')||'—'):'Public Bank '+(lastBankDate('PBB')||'—');
   return `<div class="card"><div class="row">
@@ -1127,11 +1139,12 @@ function vOwe0(){
    <select onchange="UI.oMt=this.value;render()"><option value="ALL">全部 MT</option>${mts.map(m=>`<option ${m===UI.oMt?'selected':''}>${esc(m)}</option>`).join('')}</select>
    <label class="small"><input type="checkbox" ${UI.oLate?'checked':''} onchange="UI.oLate=this.checked;render()"> 包括已过期</label>
    <input id="oweq" placeholder="搜学生 / 编号 / 父母 / MT" value="${esc(UI.oQ||'')}" oninput="UI.oQ=this.value;render()" style="width:200px">
+   ${oweSortSel(OSORT_SYS)}
    <span style="flex:1"></span>
    ${MGR&&canWrite?'<button class="g" title="期初欠款来自有错的 aging：全部清零，欠款以 Bukku 为准（会先备份）" onclick="removeOpening()">移除期初欠款</button>':''}
    <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>
    <div class="small mute" style="margin-top:6px">银行资料更新至：${upd}。只算已确认的老师名单和已配对的入账；「待处理」的银行入账还没算进去（现在 ${reviewCount()} 笔）。</div></div>
-  <div class="card"><h2>${o.length} 笔，共 RM ${money(tot)}</h2><div class="tw"><table><tr><th>Branch</th><th>MT</th><th>编号</th><th>学生</th><th>父母</th><th>月份</th><th class="n">应付</th><th class="n">已付</th><th class="n">欠</th><th>期限</th><th>状态</th></tr>
+  <div class="card"><h2>${o.length} 笔，共 RM ${money(tot)}</h2><div class="tw"><table><tr>${oweTh('Branch','branch')}${oweTh('MT','mt')}${oweTh('编号','no')}${oweTh('学生','name')}<th>父母</th>${oweTh('月份','month')}${oweTh('应付','amount','n')}${oweTh('已付','paid','n')}${oweTh('欠','owe','n')}${oweTh('期限','deadline')}<th>状态</th></tr>
   ${o.map(x=>`<tr><td>${x.branch}</td><td>${esc(x.mt)}</td><td>${esc(x.s.no)}</td><td><a href="#" onclick="stmt('${x.uid}');return false">${esc(x.s.name)}</a> ${x.s.status!=='Active'?stTag(x.s.status):''}</td><td class="small">${esc((x.s.parents||[])[1]||(x.s.parents||[])[0]||'')}</td><td>${x.month}</td><td class="n">${money(x.amount)}</td><td class="n">${x.paid?money(x.paid):''}</td><td class="n"><b>${money(x.owe)}</b></td><td>${x.deadline||'—'}</td>
    <td>${x.deadline?(x.late?'<span class="tag bad">过期，不出 allowance</span>':x.daysLeft<=14?`<span class="tag warn">还剩 ${x.daysLeft} 天</span>`:`<span class="tag grey">还剩 ${x.daysLeft} 天</span>`):'<span class="tag grey">期初</span>'}</td></tr>`).join('')||'<tr><td colspan="11" class="mute">没有欠款 🎉</td></tr>'}
   </table></div></div>`;

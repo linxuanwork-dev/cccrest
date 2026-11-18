@@ -24,6 +24,25 @@
 - 同一个文件丢两次不会重复：系统认得出（内容一样），会写「already there」。
 - 上传失败（没有网络、token 被停用……）：文件留在 `inbox`，小程序会过一阵再试。
 
+## TNG 每日结算报告（UK、Inviro、Own Laundry）
+
+这三家公司的 TNG / MMSDO 原版月结报告（.xlsx 或 .csv）也可以自动读取：
+
+1. Owner 先到 Control Panel →「TNG Report」，选公司，打勾开通。
+2. 在这家公司的那一段设定里加两个文件夹：`tngInbox`（把 MMSDO 报告丢进这里）和 `tngDone`（上传后存放，可不写）。`config.example.json` 里有写法。同一家公司的账单文件夹（`inbox` / `done`）可以不写。
+3. 丢进 `tngInbox` 的 .xlsx / .csv 几秒后会被上传，并改名成 `公司简称-TNG-MMSDO-2026_10.xlsx`，搬进 `tngDone`。
+4. 到系统 → TNG Report，会看到「收件箱：1 个新文件」，按「打开并生成」就有每个分行的 PDF 和 Excel。
+5. 小程序发现不是 MMSDO 报告的文件，不会反复重试，会把它放进 `tngDone` 里的 `_rejected` 子文件夹，并在窗口和 `watcher.log` 写出原因。
+6. 旧格式 .xls 不能读：请先在 Excel 里另存为 .xlsx。
+
+## 文件放在 Google Drive 上
+
+文件夹可以直接用 Google Drive 在电脑上同步出来的文件夹（Google Drive for desktop），例如 `G:/My Drive/CCCREST-SYSTEM/OWN-LAUNDRY/tng-inbox`，路径有空格也没问题，用正斜线 `/`。要注意：
+
+- 电脑要开着，Google Drive for desktop 也要在运行；手机传到 Drive 的文件，要等同步到电脑后，小程序才看得到。
+- Google Drive for desktop 的设置里，最好选「镜像文件」（Mirror files），不要用「串流」（Stream files）：串流模式下文件可能还没真正下载到电脑，小程序读不到。
+- 小程序上传后会把文件搬到「已上传」文件夹，所以 Drive 里的收件文件夹会清空，这是正常的。
+
 ## 想让它开机自动跑
 
 按 `Win + R`，输入 `shell:startup`，在打开的文件夹里放一个 `start-watcher.bat` 的快捷方式。

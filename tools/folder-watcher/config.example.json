@@ -10,6 +10,12 @@
       "done": "D:/CCCREST-FILES/WEALTHY/uploaded",
       "exports": "D:/CCCREST-FILES/WEALTHY/exports",
       "exportPrefix": "WCCHMSB-"
+    },
+    {
+      "name": "OWN LAUNDRY (only the TNG report; no bill folders)",
+      "token": "cci_PASTE-THE-TOKEN-FROM-THE-CONTROL-PANEL",
+      "tngInbox": "G:/My Drive/CCCREST-SYSTEM/OWN-LAUNDRY/tng-inbox",
+      "tngDone": "G:/My Drive/CCCREST-SYSTEM/OWN-LAUNDRY/tng-uploaded"
     }
   ]
 }

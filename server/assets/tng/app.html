@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TNG Report</title>
+<style>
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
+  --accent:#1f3a5f; --accent-ink:#ffffff; --accent-soft:#e6ecf4;
+  --bad:#b42318; --bad-soft:#fde8e6; --warn:#9a6200; --warn-soft:#fff1d6; --ok:#1f7a3d; --ok-soft:#e3f4e8;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#6f9bd6; --accent-ink:#0b1520; --accent-soft:#1a2a3d;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#6f9bd6; --accent-ink:#0b1520; --accent-soft:#1a2a3d;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;font-size:14px;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 60px}
+h1{font-size:17px;margin:0 0 2px}
+h2{font-size:15px;margin:0 0 10px}
+h3{font-size:13px;margin:0 0 6px}
+.sub{color:var(--muted);font-size:12.5px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:14px;min-width:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sp{flex:1}
+input,select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 9px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:6px 13px;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn[disabled],.btn.off,.row.off{opacity:.45;pointer-events:none}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:26px 16px;text-align:center;cursor:pointer;color:var(--muted)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.drop b{color:var(--ink)}
+.msg{border-radius:7px;padding:9px 12px;font-size:13px;margin-top:8px}
+.msg.ok{background:var(--ok-soft);color:var(--ok)} .msg.warn{background:var(--warn-soft);color:var(--warn)} .msg.bad{background:var(--bad-soft);color:var(--bad)} .msg.info{background:var(--accent-soft);color:var(--ink)}
+.chk{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:7px;margin-top:6px;font-size:13px}
+.chk.ok{background:var(--ok-soft)} .chk.warn{background:var(--warn-soft)} .chk.bad{background:var(--bad-soft)}
+.chk .dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex:none}
+.chk.ok .dot{background:var(--ok)} .chk.warn .dot{background:var(--warn)} .chk.bad .dot{background:var(--bad)}
+.chk ul{margin:4px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin-top:10px}
+.oc{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--panel)}
+.oc .nm{font-weight:600;font-size:14.5px}
+.oc .net{font-size:20px;font-weight:600;margin:4px 0 8px;font-variant-numeric:tabular-nums}
+.oc details{margin-top:8px;font-size:12.5px}
+.oc summary{cursor:pointer;color:var(--muted)}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;margin-top:6px}
+.fg label{font-size:11.5px;color:var(--muted);display:block}
+.fg input{width:100%}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+.tag{display:inline-block;font-size:11.5px;border-radius:9px;padding:0 8px;background:var(--line2);color:var(--muted)}
+.tag.new{background:var(--accent);color:var(--accent-ink)}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;display:none;z-index:9}
+</style></head>
+<body><div class="wrap">
+<div class="row"><div><h1>TNG / DuitNow QR Daily Settlement Report <span class="sub">· TNG 每日结算报告</span></h1><div class="sub" id="coName"></div></div></div>
+<div id="off" class="msg warn" hidden></div>
+<div id="app" hidden>
+
+<div class="card" id="upCard">
+  <h2>上传 TNG 原版月结报告 <span class="sub">· Upload the original MMSDO monthly report</span></h2>
+  <div class="drop" id="drop" tabindex="0" role="button">把 <b>MMSDO 原版报告</b> 拖到这里，或点一下选择文件<br><span class="sub">.xlsx / .csv（Merchant Monthly Settlement Report Detailed for E-WALLET Payment）· 一次一个文件</span></div>
+  <input type="file" id="file" accept=".xlsx,.csv" hidden>
+  <div id="upMsg"></div>
+  <div class="sub" style="margin-top:8px">电脑上的「自动读取文件夹」小程序也可以把文件放进这里，它们会出现在下面的「历史记录」，标着「新」。 · Files from the folder watcher show up below marked "New".</div>
+</div>
+
+<div id="newBox"></div>
+<div id="detail"></div>
+
+<div class="card">
+  <h2>历史记录 <span class="sub">· History</span></h2>
+  <div class="row" style="margin-bottom:8px">
+    <select id="fMonth"><option value="">全部月份 · All months</option></select>
+    <input id="fQ" placeholder="搜分行 / 文件名 · Search outlet / file" style="width:240px">
+  </div>
+  <div class="tw"><table><thead><tr><th>月份 Month</th><th>文件 File</th><th>分行 Outlets</th><th class="n">Net Settlement (RM)</th><th>上传 Uploaded</th><th></th></tr></thead><tbody id="hist"></tbody></table></div>
+</div>
+
+<div class="card">
+  <details id="setBox"><summary style="cursor:pointer;font-weight:600">分行设定 · Outlet settings <span class="sub">（原版的 Outlet Name → 显示名称 / 简称 / 公司名称；存起来下次自动套用）</span></summary>
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>原版 Outlet Name</th><th>显示名称 Display name</th><th>简称 Short code</th><th>公司名称 Company name</th><th>公司注册号 Reg. no. (选填)</th></tr></thead><tbody id="setRows"></tbody></table></div>
+    <div class="row" style="margin-top:10px"><button class="btn pri" id="setSave">保存 Save</button><span class="sub">新的分行上传后会自动出现在这里，也可以在报告页面直接填。</span></div>
+  </details>
+</div>
+</div>
+<div id="toast"></div>
+</div>
+<script>
+(function(){
+  var QS = new URLSearchParams(location.search), CID = QS.get('company') || '';
+  var API = '/api/companies/' + encodeURIComponent(CID) + '/tng-report';
+  try{ var th = QS.get('theme'); if(th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); }catch(e){}
+  window.addEventListener('message', function(e){ if(e.origin === location.origin && e.data && e.data.type === 'pbill-theme') document.documentElement.setAttribute('data-theme', e.data.theme === 'dark' ? 'dark' : 'light'); });
+  var $ = function(s){ return document.querySelector(s); };
+  var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); };
+  var money = function(c){ return (c / 100).toLocaleString('en-MY', { minimumFractionDigits:2, maximumFractionDigits:2 }); };
+  var S = { info:null, files:[], cur:null, outlets:[], coName:'', coReg:'', skip:{} };
+  function toast(t, ms){ var e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function(){ e.style.display = 'none'; }, ms || 2800); }
+  async function http(method, url, body){
+    var r = await fetch(API + url, { method:method, credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    var j = await r.json().catch(function(){ return {}; });
+    if(!r.ok){ var err = new Error(j.error || ('请求失败 (' + r.status + ')')); err.status = r.status; err.data = j; throw err; }
+    return j;
+  }
+  var dmy = function(s){ return s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) + '/' + String(s).slice(0, 4) : ''; };
+  var when = function(t){ var d = new Date(t); return isNaN(d) ? '' : d.toLocaleString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); };
+
+  // ---------- upload ----------
+  async function upload(file, overwrite){
+    if(!file) return;
+    var msg = $('#upMsg'); msg.innerHTML = '<div class="msg info">正在读取 ' + esc(file.name) + '…</div>';
+    try{
+      var r = await fetch(API + '/files?name=' + encodeURIComponent(file.name) + (overwrite ? '&overwrite=1' : ''), { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/octet-stream' }, body:file });
+      var j = await r.json().catch(function(){ return {}; });
+      if(r.status === 409 && j.sameReference){
+        msg.innerHTML = '';
+        if(confirm('此报告已上传过（' + when(j.createdAt) + '）。\n要覆盖吗？\nThis report was uploaded before. Replace it?')) return upload(file, true);
+        return openFile(j.id);
+      }
+      if(!r.ok) throw new Error(j.error || ('上传失败 (' + r.status + ')'));
+      msg.innerHTML = j.duplicate ? '<div class="msg info">这个文件之前已经上传过，已打开。 · This file was uploaded before.</div>' : '<div class="msg ok">已上传 ✓</div>';
+      await loadFiles(); await openFile(j.id);
+    }catch(e){ msg.innerHTML = '<div class="msg bad">' + esc(e.message) + '</div>'; }
+  }
+  var drop = $('#drop'), fileIn = $('#file');
+  drop.addEventListener('click', function(){ fileIn.click(); });
+  drop.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileIn.click(); } });
+  fileIn.addEventListener('change', function(){ upload(fileIn.files[0]); fileIn.value = ''; });
+  ['dragenter', 'dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function(e){ var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) upload(f); });
+
+  // ---------- files / history ----------
+  async function loadFiles(){ var r = await http('GET', '/files'); S.files = r.files; renderHist(); renderNew(); }
+  function renderNew(){
+    var nw = S.files.filter(function(f){ return f.status === 'new'; });
+    $('#newBox').innerHTML = nw.length ? '<div class="card" style="border-left:4px solid var(--accent)"><h2>收件箱：' + nw.length + ' 个新文件 <span class="sub">· ' + nw.length + ' new file(s) from the folder</span></h2>' + nw.map(function(f){ return '<div class="row" style="margin-top:6px"><span class="tag new">新 New</span><b>' + esc(monthLabel(f.period)) + '</b><span class="sub">' + esc(f.name) + ' · ' + f.outlets.length + ' 个分行 · ' + when(f.createdAt) + '</span><span class="sp"></span><button class="btn pri sm" data-open="' + f.id + '">打开并生成 Open</button></div>'; }).join('') + '</div>' : '';
+  }
+  function monthLabel(p){ var m = ['January','February','March','April','May','June','July','August','September','October','November','December']; return p ? m[Number(p.slice(5, 7)) - 1] + ' ' + p.slice(0, 4) : '-'; }
+  function renderHist(){
+    var months = Array.from(new Set(S.files.map(function(f){ return f.period; }).filter(Boolean))).sort().reverse();
+    var cur = $('#fMonth').value;
+    $('#fMonth').innerHTML = '<option value="">全部月份 · All months</option>' + months.map(function(m){ return '<option value="' + m + '"' + (m === cur ? ' selected' : '') + '>' + esc(monthLabel(m)) + '</option>'; }).join('');
+    var q = $('#fQ').value.trim().toLowerCase(), mo = $('#fMonth').value;
+    var rows = S.files.filter(function(f){ return (!mo || f.period === mo) && (!q || (f.name + ' ' + f.outlets.map(function(o){ return o.name; }).join(' ')).toLowerCase().indexOf(q) >= 0); });
+    $('#hist').innerHTML = rows.map(function(f){
+      var net = f.outlets.reduce(function(a, o){ return a + o.net; }, 0);
+      return '<tr><td><b>' + esc(monthLabel(f.period)) + '</b>' + (f.status === 'new' ? ' <span class="tag new">新</span>' : '') + '</td><td>' + esc(f.name) + '<div class="sub">' + esc(f.reference) + '</div></td><td>' + f.outlets.map(function(o){ return esc(o.name) + ' <span class="sub">(' + o.count + ')</span>'; }).join('<br>') + '</td><td class="n">' + money(net) + '</td><td class="sub">' + when(f.createdAt) + (f.by ? '<br>' + esc(f.by) : '') + (f.replacedAt ? '<br>已覆盖 replaced' : '') + '</td><td style="white-space:nowrap"><button class="btn sm" data-open="' + f.id + '">打开 Open</button> <a class="btn sm" href="' + API + '/files/' + f.id + '/original">原文件</a>' + (S.info.mgr ? ' <button class="btn sm danger" data-del="' + f.id + '">删除</button>' : '') + '</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="sub">还没有记录 · Nothing yet</td></tr>';
+  }
+  $('#fMonth').addEventListener('change', renderHist); $('#fQ').addEventListener('input', renderHist);
+  document.addEventListener('click', async function(e){
+    var o = e.target.closest('[data-open]'); if(o){ openFile(Number(o.getAttribute('data-open'))); return; }
+    var d = e.target.closest('[data-del]');
+    if(d){ if(!confirm('删除这个文件和它的记录？\nDelete this file and its record?')) return; try{ await http('DELETE', '/files/' + d.getAttribute('data-del')); if(S.cur && S.cur.id === Number(d.getAttribute('data-del'))){ S.cur = null; $('#detail').innerHTML = ''; } await loadFiles(); toast('已删除'); }catch(er){ toast(er.message, 5000); } }
+  });
+
+  // ---------- one report ----------
+  async function openFile(id){
+    try{
+      S.cur = await http('GET', '/files/' + id); S.skip = {};
+      if(S.cur.status === 'new'){ http('POST', '/files/' + id + '/status', { status:'done' }).then(loadFiles).catch(function(){}); }
+      await loadSettings(); renderDetail();
+      $('#detail').scrollIntoView({ behavior:'smooth', block:'start' });
+    }catch(e){ $('#detail').innerHTML = '<div class="card"><div class="msg bad">' + esc(e.message) + '</div></div>'; }
+  }
+  function renderDetail(){
+    var c = S.cur; if(!c) return;
+    var lvl = c.checks.level, can = S.info.canWrite;
+    var head = '<div class="card"><div class="row"><div><h2 style="margin:0">' + esc(monthLabel(c.period)) + ' <span class="sub">· ' + esc(c.name) + '</span></h2><div class="sub">Report Reference ' + esc(c.meta.reference || '-') + ' · External MID ' + esc(c.meta.externalMid || '-') + ' · ' + c.rowCount + ' 笔 transactions · ' + c.outlets.length + ' 个分行 outlet(s)</div></div><span class="sp"></span>' +
+      '<a class="btn" href="' + API + '/files/' + c.id + '/zip">全部下载 ZIP · All (ZIP)</a>' + (c.outlets.length > 1 ? '<a class="btn" href="' + API + '/files/' + c.id + '/merged">合并 Excel · Merged</a>' : '') + '</div>';
+    var chk = '<h3 style="margin-top:14px">核对结果 · Checks <span class="tag" style="background:var(--' + (lvl === 'ok' ? 'ok-soft' : lvl === 'warn' ? 'warn-soft' : 'bad-soft') + ')">' + (lvl === 'ok' ? '全部通过' : lvl === 'warn' ? '有提醒，仍可生成' : '有问题，请检查（仍可生成）') + '</span></h3>' +
+      c.checks.checks.map(function(k){ return '<div class="chk ' + k.level + '"><span class="dot"></span><div><b>' + esc(k.title) + '</b>' + (k.detail ? ' <span class="sub">' + esc(k.detail) + '</span>' : '') + (k.list && k.list.length ? '<ul>' + k.list.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div></div>'; }).join('');
+    var cards = '<div class="cards">' + c.outlets.map(function(o){
+      var ready = o.configured || S.skip[o.key];
+      var s = o.setting || {}, sg = o.sign || {};
+      var base = API + '/files/' + c.id + '/outlet/' + o.index;
+      var setup = !ready ? '<div class="msg warn" style="margin:0 0 8px">这是新的分行，请先填显示名称和简称。 · New outlet: set its display name and short code first.</div>' +
+        '<div class="fg"><div><label>显示名称 Display name</label><input data-f="displayName" data-k="' + esc(o.key) + '" value="' + esc(o.name) + '"></div><div><label>简称 Short code</label><input data-f="short" data-k="' + esc(o.key) + '" maxlength="12"></div>' +
+        '<div><label>公司名称 Company name</label><input data-f="companyName" data-k="' + esc(o.key) + '" value="' + esc(S.coName) + '"></div><div><label>公司注册号 Reg. no.</label><input data-f="regNo" data-k="' + esc(o.key) + '" value="' + esc(S.coReg) + '"></div></div>' +
+        '<div class="row" style="margin-top:8px">' + (can ? '<button class="btn pri sm" data-setup="' + esc(o.key) + '" data-name="' + esc(o.name) + '">保存并生成 Save</button>' : '') + '<button class="btn sm" data-skip="' + esc(o.key) + '">直接用原名 Use original name</button></div>' : '';
+      return '<div class="oc"><div class="nm">' + esc(s.displayName || o.name) + (s.short ? ' <span class="sub">(' + esc(s.short) + ')</span>' : '') + '</div><div class="sub">' + o.count + ' 笔 · ' + o.activeDays + ' 天有交易 · Gross RM ' + money(o.gross) + '</div><div class="net">RM ' + money(o.net) + '</div>' +
+        setup +
+        '<div class="row' + (ready ? '' : ' off') + '" style="margin-top:' + (ready ? 0 : 8) + 'px"><a class="btn pri sm" href="' + base + '/pdf">下载 PDF</a><a class="btn pri sm" href="' + base + '/xlsx">下载 Excel</a><a class="btn sm" target="_blank" rel="noopener" href="' + base + '/pdf?inline=1">预览 Preview</a></div>' +
+        (ready ? '<details><summary>签名栏 · Prepared / Checked / Approved</summary><div class="fg">' +
+          sgField(o, 'preparedBy', 'Prepared By', sg.preparedBy || S.info.userName) + sgField(o, 'preparedDate', 'Date', sg.preparedDate || (sg.preparedBy ? '' : today()), 'date') +
+          sgField(o, 'checkedBy', 'Checked By', sg.checkedBy) + sgField(o, 'checkedDate', 'Date', sg.checkedDate, 'date') +
+          sgField(o, 'approvedBy', 'Approved By', sg.approvedBy) + sgField(o, 'approvedDate', 'Date', sg.approvedDate, 'date') + '</div>' + (can ? '<div class="row" style="margin-top:8px"><button class="btn sm" data-sign="' + esc(o.key) + '">保存签名栏 Save</button><span class="sub">保存后重新下载 PDF / Excel 就会带上。</span></div>' : '') + '</details>' : '') + '</div>';
+    }).join('') + '</div>';
+    $('#detail').innerHTML = head + chk + cards + '</div>';
+  }
+  function sgField(o, f, label, val, type){ return '<div><label>' + label + '</label><input ' + (type ? 'type="' + type + '" ' : '') + 'data-s="' + f + '" data-k="' + esc(o.key) + '" value="' + esc(val || '') + '"></div>'; }
+  function today(){ return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10); }
+  document.addEventListener('click', async function(e){
+    var sk = e.target.closest('[data-skip]'); if(sk){ S.skip[sk.getAttribute('data-skip')] = true; renderDetail(); return; }
+    var su = e.target.closest('[data-setup]');
+    if(su){
+      var key = su.getAttribute('data-setup'); var v = {}; document.querySelectorAll('[data-k="' + key.replace(/"/g, '\\"') + '"][data-f]').forEach(function(i){ v[i.getAttribute('data-f')] = i.value; });
+      if(!String(v.displayName || '').trim() || !String(v.short || '').trim()) return toast('请填显示名称和简称 · Fill the display name and short code', 4000);
+      try{ await http('PUT', '/outlets', { outlets:[{ key:key, originalName:su.getAttribute('data-name'), displayName:v.displayName, short:v.short, companyName:v.companyName, regNo:v.regNo }] }); toast('已保存'); await openFile(S.cur.id); }catch(er){ toast(er.message, 5000); }
+      return;
+    }
+    var sg = e.target.closest('[data-sign]');
+    if(sg){
+      var k2 = sg.getAttribute('data-sign'); var b = { key:k2 }; document.querySelectorAll('[data-k="' + k2.replace(/"/g, '\\"') + '"][data-s]').forEach(function(i){ b[i.getAttribute('data-s')] = i.value; });
+      try{ await http('PUT', '/files/' + S.cur.id + '/sign', b); toast('签名栏已保存'); }catch(er){ toast(er.message, 5000); }
+    }
+  });
+
+  // ---------- outlet settings ----------
+  async function loadSettings(){
+    var r = await http('GET', '/outlets'); S.outlets = r.outlets; S.coName = r.companyName; S.coReg = r.companyRegNo || '';
+    $('#setRows').innerHTML = r.outlets.map(function(o){ return '<tr><td>' + esc(o.originalName || o.key) + '<div class="sub">' + esc(o.key) + '</div></td>' + ['displayName', 'short', 'companyName', 'regNo'].map(function(f){ return '<td><input data-sf="' + f + '" data-sk="' + esc(o.key) + '" data-so="' + esc(o.originalName) + '" value="' + esc(o[f]) + '" style="width:100%"></td>'; }).join('') + '</tr>'; }).join('') || '<tr><td colspan="5" class="sub">还没有分行设定：上传第一份报告后会出现。 · None yet: they appear after the first upload.</td></tr>';
+  }
+  $('#setSave').addEventListener('click', async function(){
+    var map = {}; document.querySelectorAll('[data-sf]').forEach(function(i){ var k = i.getAttribute('data-sk'); map[k] = map[k] || { key:k, originalName:i.getAttribute('data-so') }; map[k][i.getAttribute('data-sf')] = i.value; });
+    try{ await http('PUT', '/outlets', { outlets:Object.keys(map).map(function(k){ return map[k]; }) }); toast('分行设定已保存'); if(S.cur) openFile(S.cur.id); }catch(er){ toast(er.message, 5000); }
+  });
+
+  // ---------- start ----------
+  (async function init(){
+    try{
+      S.info = await http('GET', '');
+      $('#coName').textContent = S.info.name;
+      if(!S.info.enabled){ $('#off').hidden = false; $('#off').textContent = '这家公司还没有开通 TNG Report。 TNG Report is not switched on for this company.'; return; }
+      $('#app').hidden = false;
+      if(!S.info.canWrite){ $('#upCard').hidden = true; }
+      await loadSettings(); await loadFiles();
+      var nw = S.files.filter(function(f){ return f.status === 'new'; })[0];
+      if(nw && S.files.filter(function(f){ return f.status === 'new'; }).length === 1) { /* one new file: leave it in the inbox box, the user opens it */ }
+    }catch(e){ $('#off').hidden = false; $('#off').textContent = e.message; }
+  })();
+})();
+</script></body></html>

@@ -24,6 +24,7 @@ function log(msg) {
 }
 
 const OK = /\.(pdf|jpe?g|png|webp)$/i;
+const OK_TNG = /\.(xlsx|csv)$/i;        // the TNG / MMSDO monthly settlement report (the TNG Report page of the company)
 const TEMP = /\.(crdownload|tmp|part|download)$|^~\$|^\./i;
 const STABLE_MS = 3000;                 // a file is taken when its size has not changed for this long (it may still be copying / downloading)
 const seen = new Map();                 // path -> { size, since }
@@ -55,25 +56,32 @@ async function upload(co, full) {
     method: 'POST', headers: { Authorization: 'Bearer ' + co.token, 'Content-Type': 'application/octet-stream' }, body
   });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((j && j.error) || ('HTTP ' + res.status));
+  if (!res.ok) { const err = new Error((j && j.error) || ('HTTP ' + res.status)); err.rejected = !!(j && j.rejected); throw err; }
   return j;
 }
 
-async function scanInbox(co) {
-  mkdirs(co.inbox); mkdirs(co.done);
-  for (const f of fs.readdirSync(co.inbox)) {
-    if (!OK.test(f) || TEMP.test(f)) continue;
-    const full = path.join(co.inbox, f);
+// one watched folder: the bill files (inbox -> done) or the TNG reports (tngInbox -> tngDone); `ok` = the file types of that folder
+async function scanInbox(co, inbox, done, ok, kind) {
+  mkdirs(inbox); mkdirs(done);
+  for (const f of fs.readdirSync(inbox)) {
+    if (!ok.test(f) || TEMP.test(f)) continue;
+    const full = path.join(inbox, f);
     if (!stable(full)) continue;
     const fail = failures.get(full);
     if (fail && Date.now() < fail.next) continue;
     try {
       const j = await upload(co, full);
-      const target = uniquePath(co.done, j.name || f);
+      const target = uniquePath(done, j.name || f);
       moveFile(full, target);
       seen.delete(full); failures.delete(full);
-      log('[' + co.name + '] ' + f + ' -> inbox' + (j.duplicate ? ' (already there)' : '') + ' ; saved as ' + path.relative(path.dirname(co.done), target));
+      log('[' + co.name + '] ' + f + ' -> ' + (kind === 'tng' ? 'TNG Report' : 'inbox') + (j.duplicate ? ' (already there)' : '') + ' ; saved as ' + path.relative(path.dirname(done), target));
     } catch (e) {
+      if (e.rejected) {   // the system read the file and says it is not what it needs: do not try again, put it aside
+        const rej = path.join(done, '_rejected'); mkdirs(rej);
+        try { moveFile(full, uniquePath(rej, f)); seen.delete(full); failures.delete(full); } catch (e2) { /* stays where it is */ }
+        log('[' + co.name + '] ' + f + ' was not accepted: ' + e.message + ' -> moved to ' + rej);
+        continue;
+      }
       const n = (fail ? fail.n : 0) + 1;
       failures.set(full, { n, next: Date.now() + Math.min(600000, 15000 * n) });
       log('[' + co.name + '] could not upload ' + f + ': ' + e.message + ' (will retry)');
@@ -100,8 +108,10 @@ function scanDownloads() {
 
 async function tick() {
   for (const co of cfg.companies) {
-    if (!co.token || !co.inbox || !co.done) { log('[' + (co.name || '?') + '] config needs token, inbox and done'); continue; }
-    try { await scanInbox(co); } catch (e) { log('[' + co.name + '] ' + e.message); }
+    if (!co.token || (!co.tngInbox && (!co.inbox || !co.done))) { log('[' + (co.name || '?') + '] config needs a token and an inbox + done folder (or a tngInbox folder)'); continue; }
+    if (!co.inbox || !co.done) { try { if (co.tngInbox) await scanInbox(co, co.tngInbox, co.tngDone || path.join(path.dirname(co.tngInbox), 'tng-uploaded'), OK_TNG, 'tng'); } catch (e) { log('[' + co.name + '] TNG: ' + e.message); } continue; }
+    try { await scanInbox(co, co.inbox, co.done, OK, 'bill'); } catch (e) { log('[' + co.name + '] ' + e.message); }
+    if (co.tngInbox) { try { await scanInbox(co, co.tngInbox, co.tngDone || path.join(path.dirname(co.tngInbox), 'tng-uploaded'), OK_TNG, 'tng'); } catch (e) { log('[' + co.name + '] TNG: ' + e.message); } }
   }
   try { scanDownloads(); } catch (e) { log('downloads: ' + e.message); }
 }

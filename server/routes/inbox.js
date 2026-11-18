@@ -65,7 +65,17 @@ router.post('/inbox/upload', express.raw({ type: () => true, limit: '12mb' }), a
   const { rows: tk } = await pool.query('SELECT id, company_id FROM inbox_tokens WHERE token_hash = $1 AND active', [hashToken(token[1])]);
   if (!tk[0]) return res.status(401).json({ error: 'Missing or wrong token' });
   const name = String(req.query.name || '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 150);
-  if (!OK_EXT.test(name)) return bad(res, 'Only PDF, JPG, PNG or WEBP files.');
+  if (/\.(xlsx|csv)$/i.test(name)) {   // an MMSDO settlement report for the TNG Report page of this company
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Empty file.');
+    const tng = require('./tngReport');
+    if (!(await tng.isEnabled(tk[0].company_id))) return bad(res, 'TNG Report is not switched on for this company.');
+    await pool.query('UPDATE inbox_tokens SET last_used_at = now() WHERE id = $1', [tk[0].id]);
+    let r; try { r = await tng.saveFile(tk[0].company_id, name, req.body, { viaToken: tk[0].id }); } catch (e) { return res.status(422).json({ error: e.message, rejected: true }); }
+    const info = await docs.companyInfo(tk[0].company_id);
+    const stored = (info.PREFIX || 'CO') + '-TNG-MMSDO-' + String(r.period || '').replace('-', '_') + '.' + name.split('.').pop().toLowerCase();
+    return res.status(r.duplicate ? 200 : 201).json({ ok: true, duplicate: !!r.duplicate, id: r.id, name: stored, kind: 'tng' });
+  }
+  if (!OK_EXT.test(name)) return bad(res, 'Only PDF, JPG, PNG or WEBP files (or an .xlsx / .csv TNG report).');
   if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Empty file.');
   const buf = req.body, hash = sha(buf), ext = name.split('.').pop().toLowerCase();
   await pool.query('UPDATE inbox_tokens SET last_used_at = now() WHERE id = $1', [tk[0].id]);

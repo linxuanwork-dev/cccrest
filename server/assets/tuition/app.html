@@ -1022,7 +1022,7 @@ function vOweBukku(){
    <select onchange="UI.oSrc=this.value;render()"><option value="bukku" selected>来源：Bukku（直接读取）</option><option value="system">来源：系统自己算的</option></select>
    <select onchange="UI.oBranch=this.value;UI.oMt='ALL';render()">${brOpts(b,true)}</select>
    <input id="oweq" placeholder="搜学生 / 编号 / code / 父母 / MT" value="${esc(UI.oQ||'')}" oninput="UI.oQ=this.value;render()" style="width:230px">
-   <button class="g" onclick="UI._bk=null;UI._bkErr='';render()">重新读取 Bukku</button>
+   <button class="g" onclick="UI._bk=null;UI._bkErr='';UI._hp=null;UI._hpErr='';render()">重新读取 Bukku</button>
    <span style="flex:1"></span>
    <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>`;
   if(UI._bkErr) return head+`<div class="msg bad" style="margin-top:8px">从 Bukku 读取失败：${esc(UI._bkErr)}</div></div>`;
@@ -1055,18 +1055,44 @@ function heldRows(){
     for(const a of t.alloc||[]){ if(!a.hold||a.knocked||!(+a.amt>0.004)) continue; const s=findStu(S,a.uid); if(!s) continue; out.push({did,tid:t.id,uid:a.uid,s,date:t.date,payer:t.payer,amt:r2(+a.amt)}); } }
   return out.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
 }
+// the Bukku payment that is this prepaid money (same student code, a date within a week, the same amount) and what is left of it not applied to an invoice
+function heldPay(h){
+  const ps=(UI._hp&&UI._hp.payments)||[]; if(!h.s.code) return null; const t0=Date.parse(h.date);
+  const c=ps.filter(p=>p.code===h.s.code&&Math.abs(Date.parse(p.date)-t0)<=7*86400000);
+  return c.find(p=>Math.abs(p.amount-h.amt)<0.01)||c.find(p=>p.amount>=h.amt-0.01)||null;
+}
+function heldState(h){ const p=heldPay(h); if(!p||p.balance==null) return p?'?':'none'; return p.balance<=0.004?'done':p.balance<p.amount-0.004?'part':'open'; }
+async function loadHeldPay(rows){
+  if(UI._hp||UI._hpLoading||UI._hpErr) return; const codes=[...new Set(rows.map(h=>h.s.code).filter(Boolean))]; if(!codes.length) return;
+  const d0=new Date(Date.parse(rows[0].date)-7*86400000).toISOString().slice(0,10);
+  UI._hpLoading=true;
+  try{ UI._hp=await http('GET','/bukku-payments?from='+d0+'&codes='+encodeURIComponent(codes.join(','))); }catch(e){ UI._hpErr=(e&&e.message)||String(e); }
+  UI._hpLoading=false;
+  // Bukku says the payment is fully applied: remember it as knocked (the money goes back to the normal way)
+  const done=heldRows().filter(h=>heldState(h)==='done');
+  if(done.length&&MGR&&canWrite){ try{ const by={}; done.forEach(h=>{ (by[h.did]=by[h.did]||[]).push(h); });
+      for(const did in by){ const doc=JSON.parse(JSON.stringify(S.bank[did])); by[did].forEach(h=>{ const a=((doc.tx[h.tid]||{}).alloc||[]).find(x=>x.uid===h.uid&&x.hold&&!x.knocked); if(a){ a.knocked=today(); a.knockedBy='bukku'; } }); await save('bank/'+did,doc); }
+      toast('Bukku 显示 '+done.length+' 笔预收已经 knock，已自动记下',5000); }catch(e){ console.error(e); } }
+  if(!UI._tx||!document.getElementById('txq')) render();
+}
 function heldBk(h){
   if(UI._bkErr) return '<span class="small mute">读不到 Bukku</span>';
   if(UI._bkLoading||!UI._bk) return '<span class="small mute">正在读取 Bukku…</span>';
   if(!h.s.code) return '<span class="small" style="color:#b45309">这位学生没有 Bukku code，无法对照</span>';
+  const hs=heldState(h), hp=heldPay(h);
+  const payTxt=UI._hpLoading?'<div class="small mute">正在读取 Bukku 的付款记录…</div>':UI._hpErr?'<div class="small mute">读不到 Bukku 的付款记录：'+esc(UI._hpErr)+'</div>'
+    :hs==='none'?'<div class="small" style="color:#b91c1c"><b>Bukku 里找不到这笔付款（还没导入 Bukku？） · Payment not found in Bukku</b></div>'
+    :hs==='open'?'<div class="small">Bukku 已收到这笔款（'+esc(hp.no)+'），还没 knock，未分配 RM '+money(hp.balance)+'</div>'
+    :hs==='part'?'<div class="small">Bukku 已收款（'+esc(hp.no)+'），已 knock 一部分，还剩 RM '+money(hp.balance)+' 没分配</div>':'';
   const from=String(h.date).slice(0,7)+'-01', inv=bkInvoicesOf(h.uid).filter(i=>String(i.date||'')>=from);
   if(inv.length){ const owe=r2(inv.reduce((a,i)=>a+(+i.balance||0),0));
-    return `<span style="color:#b45309"><b>Bukku 有 ${inv.length} 张未付发票，可以 knock · ${inv.length} unpaid invoice(s) in Bukku, ready to knock off</b></span><div class="small">${esc(inv.slice(0,3).map(i=>i.no+' '+(i.date||'')+' 欠 '+money(i.balance)).join(' · '))}${inv.length>3?' …':''}　可 knock RM ${money(Math.min(h.amt,owe))}</div>`; }
-  return '<span class="small mute">Bukku 里没有这个月份以后的未付发票：还没开单，或者已经 knock 了 · No unpaid invoice yet (not made, or already knocked off)</span>';
+    return `<span style="color:#b45309"><b>Bukku 有 ${inv.length} 张未付发票，可以 knock · ${inv.length} unpaid invoice(s) in Bukku, ready to knock off</b></span><div class="small">${esc(inv.slice(0,3).map(i=>i.no+' '+(i.date||'')+' 欠 '+money(i.balance)).join(' · '))}${inv.length>3?' …':''}　可 knock RM ${money(Math.min(h.amt,owe))}</div>`+payTxt; }
+  return '<span class="small mute">Bukku 里没有这个月份以后的未付发票：还没开单，或者已经 knock 了 · No unpaid invoice yet (not made, or already knocked off)</span>'+payTxt;
 }
 function heldCard(){
   const rows=heldRows(); if(!rows.length) return '';
   if(!UI._bk&&!UI._bkLoading&&!UI._bkErr) loadBkOwe();
+  loadHeldPay(rows);
   const tot=r2(rows.reduce((a,x)=>a+x.amt,0));
   return `<div class="card" style="border-left:4px solid #f59e0b"><h2>预收，等你在 Bukku knock · ${rows.length} 笔，RM ${money(tot)} · Prepaid, waiting to be knocked off in Bukku</h2>
    <div class="small mute">这些是你选了「不抵消，留作预收」的付款。下个月开了单，请到 Bukku 自己 knock，再按「已 knock」。右边的 Bukku 情况是现在从 Bukku 读到的。</div>

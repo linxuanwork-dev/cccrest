@@ -178,6 +178,39 @@ router.get(BASE + '/bukku-receivables', ...guard(2), async (req, res) => {
   res.json({ asOf: new Date().toISOString(), invoices: live.length, partial, contacts: [...by.values()].filter((c) => c.outstanding > 0.004).sort((a, b) => b.outstanding - a.outstanding) });
 });
 
+// The payments Bukku has for some students (by Bukku contact code) since a date: amount received and the balance that is still NOT applied to an invoice
+// (balance = amount - applied). Used to see whether a payment kept as prepaid has been knocked off in Bukku. Read only.
+router.get(BASE + '/bukku-payments', ...guard(2), async (req, res) => {
+  if (!isMgr(req)) return res.status(403).json({ error: '只有 manager 可以做这个操作。 Only a manager can do this.' });
+  const conn = await bukkuApi.loadConn(req.params.companyId);
+  if (!conn) return bad(res, '这家公司还没有连接 Bukku（请 Owner 到 Control Panel > Bukku API 连接）。');
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || '')) ? String(req.query.from) : null;
+  const codes = new Set(String(req.query.codes || '').split(',').map((c) => c.trim()).filter(Boolean).slice(0, 400));
+  if (!from || !codes.size) return bad(res, 'Invalid request');
+  const list = [];
+  for (let page = 1; page <= 40; page++) {
+    const body = await bukkuApi.get(conn, '/sales/payments', { date_from: from, page, page_size: 100 });
+    const rows = (body && body.transactions) || [];
+    list.push(...rows);
+    const total = body && body.paging && body.paging.total != null ? Number(body.paging.total) : null;
+    if (!rows.length || rows.length < 100 || (total != null && list.length >= total)) break;
+  }
+  const mine = list.filter((t) => (!t.status || t.status === 'ready') && codes.has(String(t.contact_code || '')));
+  let partial = false;
+  // the list may not carry the balance: ask for the payment itself (a few at a time)
+  const need = mine.filter((t) => t.balance == null).slice(0, 300);
+  if (mine.filter((t) => t.balance == null).length > need.length) partial = true;
+  for (let i = 0; i < need.length; i += 8) {
+    await Promise.all(need.slice(i, i + 8).map(async (t) => {
+      try { const d = await bukkuApi.get(conn, '/sales/payments/' + encodeURIComponent(t.id)); if (d && d.transaction && d.transaction.balance != null) t.balance = d.transaction.balance; } catch (e) { partial = true; }
+    }));
+  }
+  res.json({
+    asOf: new Date().toISOString(), partial,
+    payments: mine.map((t) => ({ code: String(t.contact_code || ''), no: String(t.number || ''), date: String(t.date || '').slice(0, 10), amount: Number(t.amount) || 0, balance: t.balance == null || !Number.isFinite(Number(t.balance)) ? null : Number(t.balance) }))
+  });
+});
+
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await loadSettings(req.params.companyId);
   if (!s) return res.status(404).json({ error: 'Not found' });

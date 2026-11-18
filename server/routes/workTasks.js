@@ -293,13 +293,14 @@ router.get('/work/purchase-reminders', requireAuth, requireRole(...TEAM), async 
        COUNT(*) FILTER (WHERE b.approved_at IS NULL AND NOT b.imported AND b.status <> 'exported')::int AS to_approve,
        COUNT(*) FILTER (WHERE b.no_original)::int AS no_original,
        COUNT(*) FILTER (WHERE b.approved_at IS NOT NULL AND b.in_bukku_at IS NULL)::int AS to_bukku,
-       COUNT(*) FILTER (WHERE b.approved_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b.id AND t.kind = 'pay'))::int AS to_pay
+       COUNT(*) FILTER (WHERE b.approved_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b.id AND t.kind = 'pay'))::int AS to_pay,
+       (SELECT COUNT(*) FROM inbox_files f WHERE f.company_id = c.id AND f.status = 'new')::int AS inbox
      FROM companies c
      JOIN purchase_bukku_settings s ON s.company_id = c.id AND s.enabled
-     JOIN purchase_bukku_bills b ON b.company_id = c.id
+     LEFT JOIN purchase_bukku_bills b ON b.company_id = c.id
      WHERE ${scope}
      GROUP BY c.id, c.name ORDER BY c.name`, params);
-  res.json({ companies: rows.filter((r) => r.to_approve || r.no_original || r.to_bukku || r.to_pay).map((r) => ({ id: r.id, name: r.name, toApprove: r.to_approve, noOriginal: r.no_original, toBukku: r.to_bukku, toPay: r.to_pay })) });
+  res.json({ companies: rows.filter((r) => r.to_approve || r.no_original || r.to_bukku || r.to_pay || r.inbox).map((r) => ({ id: r.id, name: r.name, inbox: r.inbox, toApprove: r.to_approve, noOriginal: r.no_original, toBukku: r.to_bukku, toPay: r.to_pay })) });
 });
 
 // ============ the whole purchase flow, bill by bill: where is every bill now ============

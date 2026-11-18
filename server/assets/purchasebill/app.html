@@ -155,6 +155,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       </div>
     </div>
     <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="inbox" aria-selected="false">收件箱<span class="ct" id="ctInbox" hidden>0</span></button>
       <button role="tab" data-tab="upload" aria-selected="false">上传单据（自动读取）</button>
       <button role="tab" data-tab="quick" aria-selected="true">快速录入<span class="ct" id="ctQ" hidden></span></button>
       <button role="tab" data-tab="entry" aria-selected="false">单张录入（多项目）</button>
@@ -170,6 +171,14 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   <div id="offline" class="notice" hidden>正在连接资料库… 如果一直出现这条提示，资料可能还没保存到云端。</div>
 
   <!-- QUICK GRID -->
+  <section id="v-inbox" hidden>
+    <div class="panel">
+      <div class="ph"><h2>收件箱 · 自动上传的单据文件</h2></div>
+      <p class="small muted" style="margin:0 0 10px">办公室电脑的「文件夹小程序」把丢进文件夹的单据文件自动传到这里。按「读取」，系统读出供应商、单号、日期和金额，放到「上传单据」页让你检查；保存之后，这个文件就算处理好了。</p>
+      <div class="tbl-wrap" style="max-height:60vh;overflow:auto"><table><thead><tr><th>文件</th><th>收到</th><th>状态</th><th></th></tr></thead><tbody id="inboxBody"></tbody></table></div>
+    </div>
+  </section>
+
   <section id="v-upload" hidden>
     <div class="panel">
       <div class="ph"><h2>上传单据 · 自动读取</h2></div>
@@ -490,6 +499,7 @@ async function refresh(){
     S.hasStock = !!d.hasStock; S.stock = d.stock || []; applyStockMode();
     L.sup.forEach(cb=>cb(d.suppliers)); L.bills.forEach(cb=>cb(d.bills)); L.items.forEach(cb=>cb(d.items || []));
     if(!S._autoSup){ S._autoSup=true; setTimeout(autoBukkuSuppliers,1500); setTimeout(loadBkOpts,800); setTimeout(()=>bukkuPaidSync(false),2500); }
+    loadInbox();
   }catch(e){
     $('offline').hidden = false;
     $('offline').textContent = e && e.code===400 ? (e.message||'') : '连接不上服务器：'+(e && e.message || e);
@@ -1161,17 +1171,17 @@ async function upSave(card){
   try{
     await put('companies/'+S.cid+'/bills/'+uid(),doc);
     if(!sup&&v.supName) await put('org/'+S.cid+'/suppliers/'+uid(),{name:v.supName,code:'',account:'',tags:''});
-    toast('已保存 '+v.no+(sup?'':'（新供应商已加入名单，记得补 Contact Code）')); card.remove(); upStat();
+    toast('已保存 '+v.no+(sup?'':'（新供应商已加入名单，记得补 Contact Code）')); if(card.dataset.inbox) inboxStatus(card.dataset.inbox,'done',v.no); card.remove(); upStat();
   }catch(err){ btn.disabled=false; dbErr(err); }
 }
 function upManual(card){
   const v=upRead(card); setTab('entry'); resetForm();
   $('fSup').value=v.supName; $('fNo').value=v.no; $('fDate').value=v.date||$('fDate').value;
   $('lineBody').innerHTML=''; (v.lines.length?v.lines:[{desc:'',qty:1}]).forEach(l=>{ const tr=lineRow({desc:l.desc,account:l.account,qty:l.qty,price:isNaN(l.price)?'':l.price}); if(S.hasStock) resolveLine(tr); });
-  onSupplierInput(false); calcTotal(); checkDup(); card.remove(); upStat(); toast('已放进手动录入，请核对后保存');
+  onSupplierInput(false); calcTotal(); checkDup(); if(card.dataset.inbox) inboxStatus(card.dataset.inbox,'done','手动录入'); card.remove(); upStat(); toast('已放进手动录入，请核对后保存');
 }
 function upStat(){ const n=$('upList').children.length; $('upStat').textContent=UP.busy?UP.msg||'读取中…':(n?'待检查 '+n+' 张':''); }
-async function upFiles(files){
+async function upFiles(files,opts){
   if(UP.busy||!files.length) return; UP.busy=true;
   const list=[...files];
   for(let i=0;i<list.length;i++){
@@ -1180,6 +1190,7 @@ async function upFiles(files){
     try{ const r=await upReadFile(f); Object.assign(c,upParse(r.lines,r.how)); }
     catch(e){ console.error(e); Object.assign(c,{lines:[],how:'读不到',supplier:'',no:'',date:'',total:NaN,items:[{desc:'',qty:1,price:NaN}],flags:['读不到这个文件（'+((e&&e.message)||e)+'）。请按「转到手动录入」自己填，或用更清楚的照片。'],ok:false}); }
     const id='upc'+Date.now().toString(36)+i, wrap=document.createElement('div'); wrap.innerHTML=upCardHtml(c,id); const card=wrap.firstElementChild; $('upList').appendChild(card);
+    if(opts&&opts.inboxId) card.dataset.inbox=opts.inboxId;
     card.addEventListener('input',()=>upCalc(card));
     card.addEventListener('click',e=>{
       if(e.target.closest('.up-x')){ const tr=e.target.closest('tr'); if(card.querySelectorAll('.up-lines tr').length>1){ tr.remove(); upCalc(card); } }
@@ -1193,6 +1204,33 @@ async function upFiles(files){
   UP.busy=false; upStat(); $('upFiles').value='';
 }
 $('upFiles').addEventListener('change',e=>upFiles(e.target.files));
+
+/* ---------- the inbox: files the folder watcher uploaded ---------- */
+let INBOX=[];
+async function loadInbox(){
+  try{
+    const r=await fetch('/api/companies/'+encodeURIComponent(S.cid)+'/inbox',{credentials:'same-origin'}); if(!r.ok) return;
+    INBOX=(await r.json()).files||[];
+    const n=INBOX.filter(f=>f.status==='new').length, ct=$('ctInbox'); ct.hidden=!n; ct.textContent=n; ct.className='ct'+(n?' alert':'');
+    $('inboxBody').innerHTML=INBOX.length?INBOX.map(f=>`<tr><td><b>${esc(f.name)}</b><div class="small muted">${esc(f.storedName)} · ${Math.round(f.size/1024)} KB</div></td><td class="small">${esc(String(f.createdAt).slice(0,16).replace('T',' '))}</td>
+      <td>${f.status==='new'?'<span class="pill draft">待检查</span>':f.status==='done'?'<span class="pill done">已处理'+(f.billNo?' · '+esc(f.billNo):'')+'</span>':'<span class="pill">已忽略</span>'}</td>
+      <td class="r" style="white-space:nowrap">${f.status==='new'?`<button class="btn sm pri" data-in-read="${f.id}">读取</button> <button class="btn sm" data-in-skip="${f.id}">忽略</button>`:`<button class="btn sm" data-in-open="${f.id}">打开</button> <button class="btn sm" data-in-back="${f.id}">改回待检查</button>`}</td></tr>`).join('')
+      :'<tr><td colspan="4" class="empty">收件箱是空的。把单据文件丢进电脑上的收件文件夹，小程序会自动传上来。</td></tr>';
+  }catch(e){ /* quiet */ }
+}
+async function inboxStatus(id,status,billNo){ await fetch('/api/companies/'+encodeURIComponent(S.cid)+'/inbox/'+id+'/status',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,billNo:billNo||''})}); loadInbox(); }
+$('inboxBody').addEventListener('click',async e=>{
+  const rd=e.target.closest('[data-in-read]'), sk=e.target.closest('[data-in-skip]'), op=e.target.closest('[data-in-open]'), bk=e.target.closest('[data-in-back]');
+  if(sk){ inboxStatus(sk.dataset.inSkip,'dismissed'); return; }
+  if(bk){ inboxStatus(bk.dataset.inBack,'new'); return; }
+  const id=(rd||op)&&(rd||op).dataset[rd?'inRead':'inOpen']; if(!id) return;
+  const f=INBOX.find(x=>String(x.id)===String(id)); if(!f) return;
+  if(op){ window.open('/api/companies/'+encodeURIComponent(S.cid)+'/inbox/'+id+'/file','_blank'); return; }
+  try{
+    const r=await fetch('/api/companies/'+encodeURIComponent(S.cid)+'/inbox/'+id+'/file',{credentials:'same-origin'}); if(!r.ok) throw new Error('读不到这个文件');
+    const blob=await r.blob(); const file=new File([blob],f.name,{type:blob.type}); setTab('upload'); upFiles([file],{inboxId:id});
+  }catch(err){ toast(err.message||String(err)); }
+});
 
 /* ---------- send to Bukku (drafts) ---------- */
 let BK=null;
@@ -1512,7 +1550,8 @@ $('itemPasteBtn').addEventListener('click',async ()=>{
 /* ---------- tabs ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false'));
-  ['upload','quick','entry','bills','suppliers','items'].forEach(x=>$('v-'+x).hidden = x!==t);
+  ['inbox','upload','quick','entry','bills','suppliers','items'].forEach(x=>$('v-'+x).hidden = x!==t);
+  if(t==='inbox') loadInbox();
   try{localStorage.setItem('bk-tab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });

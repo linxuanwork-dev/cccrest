@@ -1578,6 +1578,20 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
           </div>
         </div>
 
+
+        <div class="section-title" style="margin-top:22px;" data-i18n="fw_title">Folder watcher (auto upload)</div>
+        <p style="font-size:12.5px;color:var(--primary-soft);margin:6px 0 14px;max-width:780px;line-height:1.7;" data-i18n="fw_desc">A small program on the office computer watches a folder for each company: every bill file (PDF / photo) dropped in is uploaded to the Purchases Bill inbox, renamed and moved to an "uploaded" folder, and the exported Excel files are moved to the company's export folder. Each computer needs its own token (shown once).</p>
+        <div class="table-card" style="padding:16px 18px;max-width:900px;">
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="field" style="min-width:260px;flex:1;margin:0;"><label for="fw-company" data-i18n="stk_company">Company</label><select id="fw-company"></select></div>
+            <div class="field" style="width:220px;margin:0;"><label for="fw-name" data-i18n="fw_name">Computer name</label><input type="text" id="fw-name" maxlength="60" placeholder="Office" /></div>
+            <button type="button" class="btn-primary" id="fw-make" style="width:auto;padding:10px 22px;" data-i18n="fw_make">Make a token</button>
+          </div>
+          <div id="fw-new" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);font-size:12.5px;line-height:1.7;"></div>
+          <div class="table-card" style="margin-top:14px;overflow-x:auto;"><table><thead><tr><th data-i18n="th_company">Company</th><th data-i18n="fw_name">Computer name</th><th data-i18n="fw_files">Files</th><th data-i18n="fw_last">Last used</th><th data-i18n="th_status">Status</th><th></th></tr></thead><tbody id="fw-tbody"></tbody></table></div>
+          <span id="fw-status" style="font-size:12.5px;"></span>
+        </div>
+
         <div class="section-title" style="margin-top:22px;" data-i18n="bka_title">Bukku API</div>
         <p style="font-size:12.5px;color:var(--primary-soft);margin:6px 0 14px;max-width:780px;line-height:1.7;" data-i18n="bka_desc">Connect a company to its Bukku account. For now the system only READS the chart of accounts and contacts (nothing is written to Bukku); the Account boxes then become a pick-list of the company's Bukku accounts. In Bukku: Control Panel → Integrations → switch on API Access → Save, then copy the Access Token.</p>
         <div class="table-card" style="padding:16px 18px;max-width:900px;">
@@ -1710,7 +1724,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
           <div class="section-title" style="margin-top:0;" data-i18n="pr_title">Purchase bills to deal with</div>
           <div class="table-card" style="margin-bottom:28px;overflow-x:auto;">
             <table>
-              <thead><tr><th data-i18n="th_company">Company</th><th data-i18n="pr_approve">To approve</th><th data-i18n="pr_noorig">No official document yet</th><th data-i18n="pr_bukku">Approved - confirm in Bukku</th><th data-i18n="pr_pay">In Bukku - not sent for payment</th><th></th></tr></thead>
+              <thead><tr><th data-i18n="th_company">Company</th><th data-i18n="pr_inbox">Files in the inbox</th><th data-i18n="pr_approve">To approve</th><th data-i18n="pr_noorig">No official document yet</th><th data-i18n="pr_bukku">Approved - confirm in Bukku</th><th data-i18n="pr_pay">In Bukku - not sent for payment</th><th></th></tr></thead>
               <tbody id="pr-tbody"></tbody>
             </table>
           </div>
@@ -2948,7 +2962,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       h_workflow:"Workflow & Progress", sub_workflow:"Staff and manager progress across all clients · Owner only",
       staff_progress:"Staff progress", th_outstanding:"Outstanding", th_completed:"Completed",
       managers:"Managers", th_manager:"Manager", th_team:"Team", th_team_outstanding:"Team Outstanding",
-      sub_my_jobs:"Your outstanding work and reminders", pp_title:"Purchase bills: where is each one", pp_desc:"Every purchase bill from entry to the bank check. A = waiting for Approve · B = approved, not in Bukku yet · C = no payment asked for yet · D = manager still has to go to the bank · E = manager paid, waiting for YOUR bank check · F = finished (30 days).", pp_th_bill:"Bill", pp_th_due:"Pay by", pp_th_who:"Who", pp_st_d:"Waiting: go to the bank", pp_st_e:"Paid - check the bank", pp_reimburse:"Reimburse", pp_alert:"{n} payment(s) were made at the bank by the team and wait for YOUR bank check", pp_alert_hint:"Check the bank, then tick 'Checked' on the task in My Jobs - that finishes the job.", pr_title:"Purchase bills to deal with", pr_approve:"To approve", pr_noorig:"No official document yet", pr_bukku:"Approved - confirm in Bukku", pr_pay:"Approved - not sent for payment", pr_open:"Open Purchases Bill", wk_title:"Tasks", wk_show_checked:"Show checked tasks", wk_th_done:"Done", wk_th_due:"Due", wk_th_task:"Task", wk_th_person:"Person", wk_th_checked:"Checked by Owner", wk_add_title:"Add a task", wk_add_btn:"Add", wk_none:"No tasks for this month.", wk_confirm_del:"Delete this task?", wk_st_todo:"To do", wk_st_late:"Late", wk_st_done:"Done - to check", wk_st_checked:"Checked", wk_progress:"Done {d} of {t} · checked {c}", wk_mine_open:"You still have {n} to do", wk_mine_late:"{n} late", wk_to_check:"{n} waiting for your check", wkp_title:"Work progress this month", wkr_title:"Monthly bills", wkr_desc:"Bills paid every month (rent, utilities, instalments...). Each month the system makes two tasks: collect the bill, then pay it. The team ticks them in My Jobs and you check them there.", wkr_th_bill:"Bill", wkr_th_day:"Pay on day", wkr_th_collect:"Collect the bill", wkr_th_payer:"Pays", wkr_add_title:"Add a monthly bill", wkr_edit_title:"Edit the monthly bill", wkr_need_collect:"Someone collects the bill first", wkr_before:"Collect how many days before", wkr_collect_person:"Who collects", wkr_pay_person:"Who pays", wkr_cancel:"Cancel editing", wkr_none:"No monthly bills yet.", wkr_days_before:"{n} days before", wkr_off:"Switch off", wkr_on:"Switch on", wkr_confirm_del:"Delete this monthly bill? Its tasks that are not done yet are removed; done ones stay in the history.", my_outstanding_jobs:"My outstanding jobs", th_reminders:"Reminders",
+      sub_my_jobs:"Your outstanding work and reminders", pp_title:"Purchase bills: where is each one", pp_desc:"Every purchase bill from entry to the bank check. A = waiting for Approve · B = approved, not in Bukku yet · C = no payment asked for yet · D = manager still has to go to the bank · E = manager paid, waiting for YOUR bank check · F = finished (30 days).", pp_th_bill:"Bill", pp_th_due:"Pay by", pp_th_who:"Who", pp_st_d:"Waiting: go to the bank", pp_st_e:"Paid - check the bank", pp_reimburse:"Reimburse", pp_alert:"{n} payment(s) were made at the bank by the team and wait for YOUR bank check", pp_alert_hint:"Check the bank, then tick 'Checked' on the task in My Jobs - that finishes the job.", fw_title:"Folder watcher (auto upload)", fw_desc:"A small program on the office computer watches a folder for each company: every bill file (PDF / photo) dropped in is uploaded to the Purchases Bill inbox, renamed and moved to an \"uploaded\" folder, and the exported Excel files are moved to the company's export folder. Each computer needs its own token (shown once).", fw_name:"Computer name", fw_make:"Make a token", fw_files:"Files", fw_last:"Last used", fw_once:"Copy this now - the token is shown only once. Put it in the watcher's config.json (the \"companies\" list):", fw_snippet_hint:"Change the folder paths to where you want them. See tools/folder-watcher/README.md.", fw_confirm_off:"Switch this token off? The watcher using it stops uploading.", pr_inbox:"Files in the inbox", pr_title:"Purchase bills to deal with", pr_approve:"To approve", pr_noorig:"No official document yet", pr_bukku:"Approved - confirm in Bukku", pr_pay:"Approved - not sent for payment", pr_open:"Open Purchases Bill", wk_title:"Tasks", wk_show_checked:"Show checked tasks", wk_th_done:"Done", wk_th_due:"Due", wk_th_task:"Task", wk_th_person:"Person", wk_th_checked:"Checked by Owner", wk_add_title:"Add a task", wk_add_btn:"Add", wk_none:"No tasks for this month.", wk_confirm_del:"Delete this task?", wk_st_todo:"To do", wk_st_late:"Late", wk_st_done:"Done - to check", wk_st_checked:"Checked", wk_progress:"Done {d} of {t} · checked {c}", wk_mine_open:"You still have {n} to do", wk_mine_late:"{n} late", wk_to_check:"{n} waiting for your check", wkp_title:"Work progress this month", wkr_title:"Monthly bills", wkr_desc:"Bills paid every month (rent, utilities, instalments...). Each month the system makes two tasks: collect the bill, then pay it. The team ticks them in My Jobs and you check them there.", wkr_th_bill:"Bill", wkr_th_day:"Pay on day", wkr_th_collect:"Collect the bill", wkr_th_payer:"Pays", wkr_add_title:"Add a monthly bill", wkr_edit_title:"Edit the monthly bill", wkr_need_collect:"Someone collects the bill first", wkr_before:"Collect how many days before", wkr_collect_person:"Who collects", wkr_pay_person:"Who pays", wkr_cancel:"Cancel editing", wkr_none:"No monthly bills yet.", wkr_days_before:"{n} days before", wkr_off:"Switch off", wkr_on:"Switch on", wkr_confirm_del:"Delete this monthly bill? Its tasks that are not done yet are removed; done ones stay in the history.", my_outstanding_jobs:"My outstanding jobs", th_reminders:"Reminders",
       my_team:"My team", team_outstanding_jobs:"Team outstanding jobs",
       field_display_name:"Display Name", field_login_id:"Login ID", create_btn:"Create",
       edit_team_title:"Edit Team", edit_team_sub:"Select which staff report to this manager.",
@@ -3236,7 +3250,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       h_workflow:"工作流程与进度", sub_workflow:"所有客户的员工与经理进度 · 仅限东主查看",
       staff_progress:"员工进度", th_outstanding:"未完成", th_completed:"已完成",
       managers:"经理", th_manager:"经理", th_team:"团队", th_team_outstanding:"团队未完成",
-      sub_my_jobs:"您的未完成工作与提醒", pp_title:"采购单进度：每一张现在在哪一步", pp_desc:"每一张采购单从录入到银行检查的进度。A = 等 Approve · B = 已 Approve，还没送 Bukku · C = 还没发去付款 · D = 已发去付款，manager 还要去银行 · E = manager 已付款，等「你」去银行检查 · F = 已完成（30 天内）。", pp_th_bill:"单据", pp_th_due:"还款日", pp_th_who:"负责人", pp_st_d:"待办：去银行付款", pp_st_e:"已付款，等你检查银行", pp_reimburse:"报销", pp_alert:"有 {n} 笔付款，员工已经去银行付了，等「你」去银行检查", pp_alert_hint:"到银行核对之后，在 My Jobs 的待办里勾「Owner 已检查」，这笔工作才算完成。", pr_title:"采购单提醒", pr_approve:"待 Approve", pr_noorig:"缺正式单据", pr_bukku:"已 Approve，待确认导入 Bukku", pr_pay:"已 Approve，还没发去付款", pr_open:"打开采购单", wk_title:"待办事项", wk_show_checked:"显示已检查的", wk_th_done:"已做", wk_th_due:"到期日", wk_th_task:"事项", wk_th_person:"负责人", wk_th_checked:"Owner 已检查", wk_add_title:"新增事项", wk_add_btn:"新增", wk_none:"这个月没有事项。", wk_confirm_del:"删除这项事项？", wk_st_todo:"待做", wk_st_late:"逾期", wk_st_done:"已做，待检查", wk_st_checked:"已检查", wk_progress:"已做 {d}/{t} · 已检查 {c}", wk_mine_open:"你还有 {n} 项没做", wk_mine_late:"其中 {n} 项逾期", wk_to_check:"{n} 项等你检查", wkp_title:"本月工作进度", wkr_title:"每月固定还款", wkr_desc:"每个月都要还的单（租金、水电、分期等）。每个月系统会生成两项事项：先「拿单」，再「付款」。同事在 My Jobs 里勾「已做」，你在那里检查。", wkr_th_bill:"单据", wkr_th_day:"每月几号还", wkr_th_collect:"拿单", wkr_th_payer:"付款", wkr_add_title:"新增每月固定还款", wkr_edit_title:"修改每月固定还款", wkr_need_collect:"要先有人去拿单", wkr_before:"提前几天拿单", wkr_collect_person:"谁拿单", wkr_pay_person:"谁付款", wkr_cancel:"取消修改", wkr_none:"还没有每月固定还款。", wkr_days_before:"提前 {n} 天", wkr_off:"停用", wkr_on:"启用", wkr_confirm_del:"删除这个每月固定还款？还没做的事项会一起删除，已经做了的会保留在记录里。", my_outstanding_jobs:"我的未完成工作", th_reminders:"提醒",
+      sub_my_jobs:"您的未完成工作与提醒", pp_title:"采购单进度：每一张现在在哪一步", pp_desc:"每一张采购单从录入到银行检查的进度。A = 等 Approve · B = 已 Approve，还没送 Bukku · C = 还没发去付款 · D = 已发去付款，manager 还要去银行 · E = manager 已付款，等「你」去银行检查 · F = 已完成（30 天内）。", pp_th_bill:"单据", pp_th_due:"还款日", pp_th_who:"负责人", pp_st_d:"待办：去银行付款", pp_st_e:"已付款，等你检查银行", pp_reimburse:"报销", pp_alert:"有 {n} 笔付款，员工已经去银行付了，等「你」去银行检查", pp_alert_hint:"到银行核对之后，在 My Jobs 的待办里勾「Owner 已检查」，这笔工作才算完成。", fw_title:"自动读取文件夹（Folder watcher）", fw_desc:"办公室电脑上的一个小程序，每家公司盯一个文件夹：丢进去的单据文件（PDF / 照片）自动上传到采购单的「收件箱」，按固定格式改名，存进「已上传」文件夹；导出的 Excel 也会自动搬进这家公司的「导出」文件夹。每台电脑要有自己的 token（只显示一次）。", fw_name:"电脑名称", fw_make:"生成 token", fw_files:"文件数", fw_last:"最后使用", fw_once:"请现在复制，token 只显示这一次。放进小程序的 config.json（「companies」那一段）：", fw_snippet_hint:"文件夹路径改成你要的位置。说明在 tools/folder-watcher/README.md。", fw_confirm_off:"停用这个 token？用它的小程序会停止上传。", pr_inbox:"收件箱的文件", pr_title:"采购单提醒", pr_approve:"待 Approve", pr_noorig:"缺正式单据", pr_bukku:"已 Approve，待确认导入 Bukku", pr_pay:"已 Approve，还没发去付款", pr_open:"打开采购单", wk_title:"待办事项", wk_show_checked:"显示已检查的", wk_th_done:"已做", wk_th_due:"到期日", wk_th_task:"事项", wk_th_person:"负责人", wk_th_checked:"Owner 已检查", wk_add_title:"新增事项", wk_add_btn:"新增", wk_none:"这个月没有事项。", wk_confirm_del:"删除这项事项？", wk_st_todo:"待做", wk_st_late:"逾期", wk_st_done:"已做，待检查", wk_st_checked:"已检查", wk_progress:"已做 {d}/{t} · 已检查 {c}", wk_mine_open:"你还有 {n} 项没做", wk_mine_late:"其中 {n} 项逾期", wk_to_check:"{n} 项等你检查", wkp_title:"本月工作进度", wkr_title:"每月固定还款", wkr_desc:"每个月都要还的单（租金、水电、分期等）。每个月系统会生成两项事项：先「拿单」，再「付款」。同事在 My Jobs 里勾「已做」，你在那里检查。", wkr_th_bill:"单据", wkr_th_day:"每月几号还", wkr_th_collect:"拿单", wkr_th_payer:"付款", wkr_add_title:"新增每月固定还款", wkr_edit_title:"修改每月固定还款", wkr_need_collect:"要先有人去拿单", wkr_before:"提前几天拿单", wkr_collect_person:"谁拿单", wkr_pay_person:"谁付款", wkr_cancel:"取消修改", wkr_none:"还没有每月固定还款。", wkr_days_before:"提前 {n} 天", wkr_off:"停用", wkr_on:"启用", wkr_confirm_del:"删除这个每月固定还款？还没做的事项会一起删除，已经做了的会保留在记录里。", my_outstanding_jobs:"我的未完成工作", th_reminders:"提醒",
       my_team:"我的团队", team_outstanding_jobs:"团队未完成工作",
       field_display_name:"显示名称", field_login_id:"登录账号", create_btn:"创建",
       edit_team_title:"编辑团队", edit_team_sub:"选择向该经理汇报的员工。",
@@ -7124,7 +7138,39 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     api('/bukku/connections/' + id, { method:'DELETE' }).then(function(){ renderBkaSettings(); renderActivityLog(); }).catch(function(err){ bkaSay(err.message, true); });
   });
 
+  // ---- Control Panel: folder watcher tokens ----
+  function fwSay(text, isErr){ var el = pfEl('fw-status'); el.textContent = text || ''; el.style.color = isErr ? 'var(--danger)' : 'var(--primary-soft)'; }
+  function renderFolderWatcher(){
+    var sel = pfEl('fw-company'); if(!sel) return;
+    api('/bukku/connections').then(function(rows){   // the list of companies
+      var keep = sel.value;
+      sel.innerHTML = rows.map(function(r){ return '<option value="' + r.id + '">' + wkEsc(r.name) + '</option>'; }).join('');
+      if(keep) sel.value = keep;
+    }).catch(function(){});
+    api('/inbox/tokens').then(function(rows){
+      pfEl('fw-tbody').innerHTML = rows.length === 0 ? emptyRowSafe(6, '—') : rows.map(function(r){
+        return '<tr' + (r.active ? '' : ' style="opacity:0.55;"') + '><td>' + wkEsc(r.company) + '</td><td>' + wkEsc(r.name) + '</td><td class="num">' + r.files + '</td><td>' + (r.lastUsedAt ? new Date(r.lastUsedAt).toLocaleString() : '—') + '</td><td>' + (r.active ? t('status_active') : t('status_suspended')) + '</td><td>' + (r.active ? '<button type="button" class="btn-row" data-fw-off="' + r.id + '">' + t('wkr_off') + '</button>' : '') + '</td></tr>';
+      }).join('');
+      pfEl('fw-tbody').querySelectorAll('[data-fw-off]').forEach(function(b){ b.addEventListener('click', function(){
+        if(!window.confirm(t('fw_confirm_off'))) return;
+        api('/inbox/tokens/' + b.dataset.fwOff, { method:'DELETE' }).then(renderFolderWatcher).catch(function(err){ fwSay(err.message, true); });
+      }); });
+    }).catch(function(err){ fwSay(err.message, true); });
+  }
+  pfEl('fw-make').addEventListener('click', function(){
+    var btn = this, id = pfEl('fw-company').value, name = pfEl('fw-name').value;
+    btn.disabled = true; fwSay('');
+    api('/inbox/tokens', { method:'POST', body: JSON.stringify({ companyId: Number(id), name: name }) }).then(function(r){
+      var co = pfEl('fw-company').selectedOptions[0].textContent;
+      var snippet = JSON.stringify({ name: co, token: r.token, inbox: 'D:/CCCREST-FILES/' + co.replace(/[^A-Za-z0-9]+/g, '-') + '/inbox', done: 'D:/CCCREST-FILES/' + co.replace(/[^A-Za-z0-9]+/g, '-') + '/uploaded', exports: 'D:/CCCREST-FILES/' + co.replace(/[^A-Za-z0-9]+/g, '-') + '/exports', exportPrefix: '' }, null, 2);
+      var box = pfEl('fw-new'); box.style.display = '';
+      box.innerHTML = '<b>' + t('fw_once') + '</b><pre style="white-space:pre-wrap;word-break:break-all;margin:8px 0;user-select:all;">' + wkEsc(snippet) + '</pre><div>' + t('fw_snippet_hint') + '</div>';
+      pfEl('fw-name').value = ''; renderFolderWatcher();
+    }).catch(function(err){ fwSay(err.message, true); }).finally(function(){ btn.disabled = false; });
+  });
+
   function renderControl(){
+    renderFolderWatcher();
     renderBkaSettings();
     renderEnoSettings();
     renderPbkSettings();
@@ -8137,7 +8183,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       box.hidden = d.companies.length === 0;
       var n = function(v, red){ return v ? '<b' + (red ? ' style="color:var(--danger);"' : '') + '>' + v + '</b>' : '<span style="color:var(--primary-soft);">0</span>'; };
       tb.innerHTML = d.companies.map(function(c){
-        return '<tr><td>' + wkEsc(c.name) + '</td><td class="num">' + n(c.toApprove) + '</td><td class="num">' + n(c.noOriginal, true) + '</td><td class="num">' + n(c.toBukku) + '</td><td class="num">' + n(c.toPay) + '</td>' +
+        return '<tr><td>' + wkEsc(c.name) + '</td><td class="num">' + n(c.inbox, true) + '</td><td class="num">' + n(c.toApprove) + '</td><td class="num">' + n(c.noOriginal, true) + '</td><td class="num">' + n(c.toBukku) + '</td><td class="num">' + n(c.toPay) + '</td>' +
           '<td><button type="button" class="btn-row" data-pr-open="' + wkEsc(c.name) + '">' + t('pr_open') + '</button></td></tr>';
       }).join('');
       tb.querySelectorAll('[data-pr-open]').forEach(function(b){ b.addEventListener('click', function(){

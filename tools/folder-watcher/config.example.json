@@ -1,0 +1,15 @@
+{
+  "server": "https://cccrest-production.up.railway.app",
+  "downloads": "C:/Users/YOUR-NAME/Downloads",
+  "intervalSeconds": 5,
+  "companies": [
+    {
+      "name": "WEALTHY CC HOUSE",
+      "token": "cci_PASTE-THE-TOKEN-FROM-THE-CONTROL-PANEL",
+      "inbox": "D:/CCCREST-FILES/WEALTHY/inbox",
+      "done": "D:/CCCREST-FILES/WEALTHY/uploaded",
+      "exports": "D:/CCCREST-FILES/WEALTHY/exports",
+      "exportPrefix": "WCCHMSB-"
+    }
+  ]
+}

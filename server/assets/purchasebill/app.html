@@ -72,6 +72,12 @@ td{border-top:1px solid var(--line2);padding:6px 8px;vertical-align:middle}
 td.r,th.r{text-align:right}
 tr.isdup td{background:var(--bad-soft)}
 .lines td{padding:4px}
+#lineBody{counter-reset:ln}
+#lineBody tr{counter-increment:ln}
+.lines td.c-no::before{content:counter(ln);color:#64748b;font-size:12px}
+.lines td.c-no,.lines th.c-no{width:28px;text-align:center}
+.lines .c-disc{width:92px}
+.lines input.l-note{font-size:12px;width:100%;margin-top:3px}
 .lines input{padding:5px 7px}
 .lines .c-qty{width:70px}.lines .c-price{width:120px}.lines .c-acc{width:90px}.lines .c-tax{width:80px}.lines .c-x{width:34px}
 .total{display:flex;justify-content:flex-end;gap:14px;align-items:baseline;padding-top:10px}
@@ -241,7 +247,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <button type="button" class="btn sm" id="addLine">+ 加一行</button></div>
           <div class="tbl-wrap">
             <table class="lines nostock">
-              <thead><tr><th>Item Description *</th><th class="c-unit">买的单位</th><th class="c-acc">Account *</th><th class="c-qty r">Qty</th><th class="c-price r">Unit Price *</th><th class="c-tax">Tax</th><th class="c-x"></th></tr></thead>
+              <thead><tr><th class="c-no">#</th><th>Item Description *</th><th class="c-unit">买的单位</th><th class="c-acc">Account *</th><th class="c-qty r">Qty</th><th class="c-price r">Unit Price *</th><th class="c-disc r">Discount</th><th class="c-tax">Tax</th><th class="c-x"></th></tr></thead>
               <tbody id="lineBody"></tbody>
             </table>
           </div>
@@ -669,11 +675,12 @@ function resolveLine(tr){
 function lineRow(l={}){
   const tr=document.createElement('tr');
   tr._st={item:l.item||'', as:l.as||'', unit:l.unit||'', per:Number(l.per)>0?Number(l.per):1, ng:!!l.ng};
-  tr.innerHTML=`<td><input class="must l-desc" list="itemList" value="${esc(l.desc||'')}" required><div class="lnote small"></div></td>
+  tr.innerHTML=`<td class="c-no"></td><td><input class="must l-desc" list="itemList" value="${esc(l.desc||'')}" required><input class="l-note" value="${esc(l.note||'')}" placeholder="Description（买的不是货品时，写在这里；可留空）"><div class="lnote small"></div></td>
    <td class="c-unit"><select class="l-unit" aria-label="买的单位"></select></td>
    <td class="c-acc"><input class="mono l-acc" value="${esc(l.account||'')}"></td>
    <td class="c-qty"><input class="mono l-qty" inputmode="decimal" style="text-align:right" value="${esc(l.qty ?? 1)}"></td>
    <td class="c-price"><input class="mono must l-price" inputmode="decimal" style="text-align:right" value="${esc(l.price ?? '')}" required></td>
+   <td class="c-disc"><input class="mono l-disc" inputmode="decimal" style="text-align:right" value="${esc(l.disc||'')}" placeholder="0 或 10%"></td>
    <td class="c-tax"><input class="mono l-tax" value="${esc(l.tax||'')}" placeholder="—"></td>
    <td class="c-x"><button type="button" class="btn sm" title="删除这行" aria-label="删除这行">×</button></td>`;
   tr.querySelector('.c-x button').addEventListener('click',()=>{ if($('lineBody').children.length>1){tr.remove();calcTotal();} });
@@ -709,7 +716,9 @@ function readLines(){
       account:tr.querySelector('.l-acc').value.trim(),
       qty:parseFloat(tr.querySelector('.l-qty').value)||1,
       price:parseFloat(String(tr.querySelector('.l-price').value).replace(/,/g,'')),
-      tax:tr.querySelector('.l-tax').value.trim().toUpperCase()
+      tax:tr.querySelector('.l-tax').value.trim().toUpperCase(),
+      disc:tr.querySelector('.l-disc').value.trim()||undefined,
+      note:tr.querySelector('.l-note').value.trim()||undefined
     };
   });
 }
@@ -766,7 +775,9 @@ $('lineBody').addEventListener('paste',e=>{
   });
   calcTotal(); checkDup(); toast('已贴上 '+rows.length+' 行');
 });
-function calcTotal(){ const t=readLines().reduce((a,l)=>a+(isNaN(l.price)?0:l.price*l.qty),0); $('fTotal').textContent=money(t); return t; }
+// the amount of a line: quantity x unit price, less the discount (an amount, or a percentage like 10%)
+function lineAmt(l){ const gross=(isNaN(l.price)?0:l.price)*(l.qty||1), d=String(l.disc||'').trim(); let off=0; if(d) off=d.endsWith('%')?gross*Math.min(100,parseFloat(d)||0)/100:(parseFloat(d)||0); return Math.round(Math.max(0,gross-off)*100)/100; }
+function calcTotal(){ const t=readLines().reduce((a,l)=>a+lineAmt(l),0); $('fTotal').textContent=money(t); return t; }
 function onSupplierInput(fillDefaults=true){
   const sup=supByName($('fSup').value);
   $('fCode').textContent = sup ? (sup.code||'（没有 Code，用名字对应）') : ($('fSup').value.trim()?'新供应商（不在名单）':'—');
@@ -845,7 +856,7 @@ $('billForm').addEventListener('submit', async e=>{
   if(lines.some(l=>!l.account)) return toast('Account 不能空（请到 Control Panel 的采购单设置填预设 Account）');
   checkDup();
   if(dupState.level==='dup' && !($('dupAck')&&$('dupAck').checked)){ toast('单号重复，请核对或勾选确认'); $('dupBox').scrollIntoView({block:'nearest'}); return; }
-  const total=lines.reduce((a,l)=>a+l.price*l.qty,0);
+  const total=lines.reduce((a,l)=>a+lineAmt(l),0);
   const prev=S.editingId ? S.bills.find(b=>b.id===S.editingId) : null;
   const doc={ supplier:supName, code:sup?(sup.code||''):'', no, ref:$('fRef').value.trim(), date:$('fDate').value,
     tags:$('fTags').value.trim(), desc:$('fDesc').value.trim(), lines, total:Math.round(total*100)/100,
@@ -1165,7 +1176,7 @@ async function upSave(card){
   const dup=upDup(card); if(dup&&!card.querySelector('.up-dup').checked) return toast('单号重复：请核对，或勾选确认');
   v.lines.forEach(l=>{ if(!l.account) l.account=defaultAccount(sup); });
   if(v.lines.some(l=>!l.account)) return toast('Account 不能空');
-  const total=Math.round(v.lines.reduce((a,l)=>a+l.price*l.qty,0)*100)/100;
+  const total=Math.round(v.lines.reduce((a,l)=>a+lineAmt(l),0)*100)/100;
   const doc={supplier:v.supName,code:sup?(sup.code||''):'',no:v.no,ref:'',date:v.date,tags:'',desc:'',lines:v.lines,total,status:'draft',createdAt:Date.now(),updatedAt:Date.now(),dupAck:dup};
   const btn=card.querySelector('.up-save'); btn.disabled=true;
   try{

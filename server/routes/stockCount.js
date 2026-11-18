@@ -265,7 +265,10 @@ router.get(BASE + '/fifo', ...guard(1), async (req, res) => {
       const item = (m && m.stock_item_id) || l.item || '';
       if (!item) { unmapped.add(sup + '|' + normName(l.desc)); continue; }
       const per = Number(l.per) > 0 ? Number(l.per) : (m && Number(m.per) > 0 ? Number(m.per) : 1);
-      const qty = Number(l.qty) > 0 ? Number(l.qty) : 1, price = Number(l.price) || 0;
+      const qty = Number(l.qty) > 0 ? Number(l.qty) : 1;
+      // the cost is what was really paid: the line less its discount (an amount, or a percentage like 10%)
+      const dsc = String(l.disc || '').trim(), gross = (Number(l.price) || 0) * qty, off = dsc ? (dsc.endsWith('%') ? gross * Math.min(100, parseFloat(dsc) || 0) / 100 : (parseFloat(dsc) || 0)) : 0;
+      const price = qty > 0 ? Math.max(0, gross - off) / qty : 0;
       const arr = layers[item] = layers[item] || [];
       if (arr.length < 80) arr.push({ d: b.d, no: b.no, sup: b.supplier, q: qty / per, c: price * per });
     }
@@ -291,7 +294,10 @@ router.get(BASE + '/stock-card', ...guard(1), async (req, res) => {
       const item = (m && m.stock_item_id) || l.item || '';
       if (!item) continue;
       const per = Number(l.per) > 0 ? Number(l.per) : (m && Number(m.per) > 0 ? Number(m.per) : 1);
-      const qty = Number(l.qty) > 0 ? Number(l.qty) : 1, price = Number(l.price) || 0;
+      const qty = Number(l.qty) > 0 ? Number(l.qty) : 1;
+      // the cost is what was really paid: the line less its discount (an amount, or a percentage like 10%)
+      const dsc = String(l.disc || '').trim(), gross = (Number(l.price) || 0) * qty, off = dsc ? (dsc.endsWith('%') ? gross * Math.min(100, parseFloat(dsc) || 0) / 100 : (parseFloat(dsc) || 0)) : 0;
+      const price = qty > 0 ? Math.max(0, gross - off) / qty : 0;
       rows.push({ item, d: b.d, no: b.no, sup: b.supplier, q: Math.round(qty / per * 10000) / 10000, c: Math.round(price * per * 1e6) / 1e6, bq: qty, bu: (m && m.unit) || l.unit || '' });
     }
   }

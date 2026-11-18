@@ -728,8 +728,10 @@ function buildBukkuBill(bill, ctx, opt) {
     const acc = bukkuAccountByCode(ctx, l.account || ctx.defaultAccount);
     if (!acc) { problems.push('第 ' + n + ' 行的科目「' + (l.account || ctx.defaultAccount || '空') + '」在 Bukku 的科目表里找不到。'); return; }
     codes.push(acc.code);
-    sum += qty * price;
-    items.push({ type: null, account_id: Number(acc.bukku_id), description: String(l.desc || '').slice(0, 255), unit_price: price, quantity: qty });
+    sum += lineAmount(l);
+    const item = { type: null, account_id: Number(acc.bukku_id), description: (String(l.desc || '') + (l.note ? ' - ' + l.note : '')).slice(0, 255), unit_price: price, quantity: qty };
+    if (l.disc) item.discount = String(l.disc);
+    items.push(item);
   });
   if (items.length === lines.length && Math.abs(sum - Number(bill.total)) > 0.011) problems.push('明细合计 ' + sum.toFixed(2) + ' 和单据总额 ' + Number(bill.total).toFixed(2) + ' 不一样。');
 
@@ -831,7 +833,7 @@ async function syncBukkuPaid(companyId, force) {
           const tx = (d && d.transaction) || t;
           const lines = (tx.form_items || []).filter((x) => x && x.type !== 'bundle').map((x) => {
             const acc = accById.get(String(x.account_id));
-            return { desc: String(x.description || 'ITEM').toUpperCase().slice(0, 200), account: acc ? String(acc.code) : '', qty: Number(x.quantity) > 0 ? Number(x.quantity) : 1, price: Number(x.unit_price) || 0, tax: String(x.tax_code || '').toUpperCase().slice(0, 20) };
+            return { desc: String(x.description || 'ITEM').toUpperCase().slice(0, 200), account: acc ? String(acc.code) : '', qty: Number(x.quantity) > 0 ? Number(x.quantity) : 1, price: Number(x.unit_price) || 0, tax: String(x.tax_code || '').toUpperCase().slice(0, 20), ...(/^\d+(\.\d{1,2})?%?$/.test(String(x.discount || '')) && parseFloat(x.discount) > 0 ? { disc: String(x.discount) } : {}) };
           });
           if (!lines.length) lines.push({ desc: String(tx.description || 'BILL').toUpperCase().slice(0, 200), account: '', qty: 1, price: Number(tx.amount) || 0, tax: '' });
           const bal = balOf(t), isPaid = bal == null ? null : bal <= 0.004;
@@ -993,6 +995,14 @@ function cleanHq(h) {
   const s = JSON.stringify(h);
   return s.length > 200000 ? null : JSON.parse(s);
 }
+// the amount of a line: quantity x unit price, less the discount (an amount, or a percentage like 10%)
+function lineAmount(l) {
+  const gross = (Number(l.price) || 0) * (Number(l.qty) || 1);
+  const d = String(l.disc || '').trim();
+  let off = 0;
+  if (d) off = d.endsWith('%') ? gross * Math.min(100, parseFloat(d) || 0) / 100 : (parseFloat(d) || 0);
+  return Math.round(Math.max(0, gross - off) * 100) / 100;
+}
 function cleanBill(b) {
   b = b || {};
   const supplier = normName(b.supplier);
@@ -1013,13 +1023,18 @@ function cleanBill(b) {
     const unit = String((l && l.unit) || '').trim().toUpperCase().slice(0, 20);
     const rawPer = Number(l && l.per);
     const as = String((l && l.as) || '').trim().toUpperCase().slice(0, 200);
+    const disc = String((l && l.disc) || '').trim().slice(0, 12);
+    if (disc && !/^\d+(\.\d{1,2})?%?$/.test(disc)) return { error: 'Discount 只能是金额（例如 5 或 5.50）或百分比（例如 10%）。 The discount is an amount (5.50) or a percentage (10%).' };
+    if (disc && parseFloat(disc) > 0) line.disc = disc;
+    const note = String((l && l.note) || '').trim().toUpperCase().slice(0, 200);
+    if (note) line.note = note;   // a description for what is not goods (written under the item)
     if (item) line.item = item;
     if (l && l.ng === true && !item) line.ng = true;   // not goods (a service, an expense): only the description, no Stock Count item needed
     if (unit) { line.unit = unit; line.per = Number.isFinite(rawPer) && rawPer > 0 ? Math.round(rawPer * 10000) / 10000 : 1; }
     if (as && as !== desc) line.as = as;
     lines.push(line);
   }
-  const total = Math.round(lines.reduce((a, l) => a + l.price * l.qty, 0) * 100) / 100;
+  const total = Math.round(lines.reduce((a, l) => a + lineAmount(l), 0) * 100) / 100;
   return { supplier, no, date: b.date, lines, total, code: String(b.code || '').trim().toUpperCase().slice(0, 30), ref: String(b.ref || '').trim().slice(0, 60), tags: String(b.tags || '').trim().slice(0, 100), desc: String(b.desc || '').trim().slice(0, 200), dupAck: b.dupAck === true, hq: cleanHq(b.hq),
     paidBy: b.paidBy === undefined ? undefined : String(b.paidBy || '').trim().toUpperCase().slice(0, 60),
     hardcopy: typeof b.hardcopy === 'boolean' ? b.hardcopy : undefined, softcopy: typeof b.softcopy === 'boolean' ? b.softcopy : undefined };
@@ -1161,7 +1176,7 @@ router.post(BASE + '/export', ...guard(2), async (req, res) => {
     b.lines.forEach((l, i) => {
       const r = ws.addRow(['',
         ...(i === 0 ? [code, b.supplier, b.no, b.ref || '', dmy(b.bill_date), '', '', '', '', b.tags || '', ((b.description || '') + (b.revised ? (b.description ? ' ' : '') + '[REVISED ' + dmy(new Date().toISOString().slice(0, 10)) + ']' : '')), ''] : Array(12).fill('')),
-        numOrText(l.account || (sup && sup.account) || s.account), l.desc, l.qty == null ? 1 : l.qty, '', '', Number(l.price), '', l.tax || '']);
+        numOrText(l.account || (sup && sup.account) || s.account), l.desc + (l.note ? ' - ' + l.note : ''), l.qty == null ? 1 : l.qty, '', '', Number(l.price), l.disc || '', l.tax || '']);
       // No. / Contact Code / Reference / Date stay text so Excel does not reformat things like "0626/0321"
       [2, 4, 5, 6].forEach((c) => { const cell = r.getCell(c); if (cell.value !== '') cell.numFmt = '@'; });
       r.getCell(19).numFmt = '#,##0.00';

@@ -262,7 +262,7 @@ function buildLedger(state){
   for(const bm of Object.values(state.bank||{})) for(const t of Object.values(bm.tx||{})){
     if(t.status==='ignore'||t.status==='unmatched') continue;
     if(t.status==='review') continue; // not confirmed yet
-    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:((state.config&&state.config.remarkMonths==='use')?monthHint(t.ref,t.date):[]),explicit:Array.isArray(a.months),inv:a.invoice||null});
+    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:Array.isArray(a.months)?a.months:((state.config&&state.config.remarkMonths==='use')?monthHint(t.ref,t.date):[]),explicit:Array.isArray(a.months),inv:a.invoice||null,bk:a.bkInv||null});
   }
   const tuitionFirst = !(state.config && state.config.payOrder==='fifo');   // the fees are paid as usual: old debts (opening) come last
   for(const uid in L){ const e=L[uid];
@@ -272,6 +272,10 @@ function buildLedger(state){
     for(const p of e.payments){ p.rem=p.amt; p.applied=[]; }
     const firstMonth=(e.charges.find(c=>!c.opening&&!c.extra)||{}).month;
     const apply=(p,c)=>{ const need=r2(c.amount-c.paid); if(need<=0.001||p.rem<=0.001) return; const take=Math.min(need,p.rem); p.rem=r2(p.rem-take); c.paid=r2(c.paid+take); c.cov.push({txid:p.txid,date:p.date,amt:r2(take)}); p.applied.push({month:c.month,label:c.label||'',key:c.key||'',opening:!!c.opening,amt:r2(take)}); if(c.amount-c.paid<=0.001) c.paidDate=p.date; };
+    // a payment for a Bukku invoice the person chose: if it is an invoice this system made (monthly fee, registration...) it pays that charge; otherwise it is an old / outside invoice and no fee of this system is touched
+    for(const p of e.payments){ if(!p.bk) continue; const st=findStu(state,uid), ch=st?e.charges.find(c=>invNoOf(st,c)===p.bk.no):null;
+      if(ch) apply(p,ch);
+      if(p.rem>0.001){ const take=p.rem; p.rem=0; p.applied.push({month:'Bukku',label:'Bukku 发票 '+p.bk.no,key:'',opening:false,amt:r2(take)}); } }
     // phase 0: payments for an invoice made by the system (registration, module ...): that invoice, then the other such invoices; never the monthly fee
     for(const p of e.payments){ if(!p.inv) continue; const c=e.charges.find(x=>x.extra&&x.key===p.inv); if(c) apply(p,c); for(const c2 of e.charges){ if(p.rem<=0.001) break; if(c2.extra) apply(p,c2); } }
     // phase 1: payments that say which month they are for (monthly fee / opening balance only)
@@ -847,14 +851,17 @@ function vBank(){
   </table></div></div>`;
 }
 function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return ''; const parts=ap.map(x=>(x.label?x.label:x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
+// the unpaid invoices of one student as Bukku has them (read through the API; see the outstanding list)
+function bkInvoicesOf(uid){ const st=findStu(S,uid); if(!st||!st.code||!UI._bk) return []; const c=UI._bk.contacts.find(x=>x.code===st.code); return c?c.invoices:[]; }
 function monthOpts(uid,cur,LG){ LG=LG||ledger(); const ch=(LG[uid]||{charges:[]}).charges;
   const opts=[['hint',(cfg().remarkMonths==='use'?'自动（看备注写的月份，没写就先还最旧的）':'自动（先还最旧的，不看备注）')],['auto','自动（先还最旧的）']];
   for(const c of ch){ if(c.extra) opts.push(['inv|'+c.key,'单：'+c.month+' '+c.label+'（'+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'；不算 allowance）']); else opts.push([c.opening?'期初':c.month, (c.opening?'期初 / 以前的欠款':c.month)+'（应付 '+money(c.amount)+(c.amount-c.paid>0.001?'，欠 '+money(c.amount-c.paid):'，已付清')+'）']); }
   if(!ch.some(c=>c.opening)) opts.push(['期初','旧欠款（以 Bukku 为准，不占用当月学费）']);
   opts.push(['REG','报名费 / 其他费用（不是学费）']);
+  bkInvoicesOf(uid).forEach(i=>opts.push(['bk|'+i.no,'Bukku 未付：'+i.no+'（'+(i.date||'')+'）还欠 RM '+money(i.balance)]));
   if(cur&&!opts.some(o=>o[0]===cur)) opts.push([cur,cur+'（这个月没有应付）']);
   return opts.map(([v,l])=>`<option value="${v}" ${v===cur?'selected':''}>${l}</option>`).join(''); }
-function monKey(a){ if(a.invoice) return 'inv|'+a.invoice; return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]==='0000-00'?'期初':a.months[0]):'auto'; }
+function monKey(a){ if(a.bkInv) return 'bk|'+a.bkInv.no; if(a.invoice) return 'inv|'+a.invoice; return !Array.isArray(a.months)?'hint':a.months.length?(a.months[0]==='0000-00'?'期初':a.months[0]):'auto'; }
 function monVal(k){ return k==='hint'?undefined:k==='auto'?[]:[k==='期初'?'0000-00':k]; }
 function txTag(t){ return {auto:'<span class="tag ok">自动</span>',manual:'<span class="tag info">已确认</span>',review:'<span class="tag warn">待确认</span>',unmatched:'<span class="tag bad">找不到</span>',ignore:'<span class="tag grey">非学费</span>'}[t.status]||t.status; }
 function paidSetFor(month){ const s=new Set(); for(const d of Object.values(S.bank)) if(d.month===month) for(const t of Object.values(d.tx||{})) if(t.status==='auto'||t.status==='manual') (t.alloc||[]).forEach(a=>s.add(a.uid)); return s; }
@@ -905,6 +912,7 @@ async function ingestBank(bank,rows,fname,note){
 }
 function openTx(did,id){
   const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
+  if(!UI._bkLoading&&(!UI._bk||Date.now()-(UI._bkAt||0)>600000)) loadBkOwe().then(()=>{ if(UI._tx&&document.getElementById('txq')) drawTx(); });
   const sug=[...new Set([...(t.sugg||[]),...(t.alloc||[]).map(a=>a.uid)])];
   UI._tx={did,id,sel:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,a.amt])),mon:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,monKey(a)])),extra:sug.filter(u=>!(t.alloc||[]).some(a=>a.uid===u))};
   drawTx();
@@ -923,7 +931,7 @@ function drawTx(){
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0);
   modal(`<h3>${t.date} · ${esc(t.payer)} · RM ${money(t.amount)}</h3><div class="small mute">备注：${esc(t.ref)||'—'}　${esc(howTxt(t.how))}</div>
    <h3>这笔钱是哪个学生的？</h3>
-   <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}</div>
+   <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}${UI._bkLoading?'　·　正在从 Bukku 读取学生的未付发票…（读好后「付哪个月」里会多出 Bukku 的未付发票可以直接选）':''}</div>
    <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th><th></th></tr>
    ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">${dueNote(s,+sel[u])}`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td><td><button class="g" title="从这个列表拿掉" onclick="txRemove('${u}')">✕</button></td></tr>`; }).join('')}
    </table>
@@ -940,7 +948,7 @@ function txSearch(q){ const n=normA(q); const box=$('#txres'); if(n.length<2){ b
 async function txConfirm(){
   const {did,id,sel}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id];
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0); if(Math.abs(sum-t.amount)>=0.01 && !confirmInline()) return;
-  t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mk=(UI._tx.mon||{})[uid]||'hint'; if(String(mk).startsWith('inv|')) o.invoice=String(mk).slice(4); else { const mv=monVal(mk); if(mv) o.months=mv; } return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
+  t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mk=(UI._tx.mon||{})[uid]||'hint'; if(String(mk).startsWith('inv|')) o.invoice=String(mk).slice(4); else if(String(mk).startsWith('bk|')){ const no=String(mk).slice(3); o.bkInv={no,date:(bkInvoicesOf(uid).find(i=>i.no===no)||{}).date||''}; } else { const mv=monVal(mk); if(mv) o.months=mv; } return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
   await save('bank/'+did,doc);
   if($('#tx_rem')&&$('#tx_rem').checked&&!isMtPayer(S,t.payer)){ const p=norm(t.payer); if(p.length>=4){ const rules=JSON.parse(JSON.stringify(S.rules)); rules.amt[p+'|'+(+t.amount).toFixed(2)]=t.alloc.map(a=>a.uid);
       const fam=new Set(rules.payer[p]||[]); t.alloc.forEach(a=>fam.add(a.uid)); rules.payer[p]=[...fam]; await save('settings/rules',rules); } }
@@ -965,15 +973,15 @@ function stmt(uid){ const s=findStu(S,uid); if(!s) return; const LG=ledger(); co
       <td>${al?`<select style="max-width:200px" onchange="setPayMonth('${did}','${p.txid}','${uid}',this.value)">${monthOpts(uid,monKey(al),LG)}</select>`:''}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mute">没有</td></tr>'}</table>
    ${e.credit?`<div class="msg info">多付 / 还没用的钱：RM ${money(e.credit)}</div>`:''}
    <div class="row" style="margin-top:12px"><button class="g" onclick="closeModal()">关闭</button></div>`); }
-async function setPayMonth(did,txid,uid,k){ const doc=JSON.parse(JSON.stringify(S.bank[did])); const al=doc.tx[txid].alloc.find(x=>x.uid===uid); const mv=monVal(k); if(mv) al.months=mv; else delete al.months; if(doc.tx[txid].status==='auto') doc.tx[txid].status='manual';
+async function setPayMonth(did,txid,uid,k){ const doc=JSON.parse(JSON.stringify(S.bank[did])); const al=doc.tx[txid].alloc.find(x=>x.uid===uid); const mv=monVal(k); delete al.bkInv; if(String(k).startsWith('bk|')){ const no=String(k).slice(3); al.bkInv={no,date:(bkInvoicesOf(uid).find(i=>i.no===no)||{}).date||''}; delete al.months; } else if(mv) al.months=mv; else delete al.months; if(doc.tx[txid].status==='auto') doc.tx[txid].status='manual';
   await save('bank/'+did,doc); setTimeout(()=>stmt(uid),150); toast('已改，重新计算'); }
 // ---------- 欠款 ----------
 // ---- the outstanding list straight from Bukku ----
 function oweSrc(){ return UI.oSrc||'bukku'; }
 async function loadBkOwe(){
   UI._bkLoading=true; UI._bkErr='';
-  try{ UI._bk=await http('GET','/bukku-receivables'); }catch(e){ UI._bkErr=(e&&e.message)||String(e); UI._bk=null; }
-  UI._bkLoading=false; render();
+  try{ UI._bk=await http('GET','/bukku-receivables'); UI._bkAt=Date.now(); }catch(e){ UI._bkErr=(e&&e.message)||String(e); UI._bk=null; }
+  UI._bkLoading=false; if(!UI._tx||!document.getElementById('txq')) render();
 }
 function oweBkRows(){
   const bk=UI._bk; if(!bk) return [];
@@ -1921,7 +1929,7 @@ function exportPayments(force){
   const need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched').length;
   const rows=[]; let noNo=0; for(const t of tx) for(const a of t.alloc){ const s=findStu(S,a.uid); if(!s) continue; if(kind==='fee'&&a.invoice) continue; if(kind==='other'&&!a.invoice) continue;
     const ch=a.invoice?((LG[a.uid]||{charges:[]}).charges.find(x=>x.key===a.invoice)||{}):null, what=a.invoice?'['+((ch&&ch.label)||'invoice')+'] ':'[Tuition fee] ';
-    const parts=((LG._tx[t.id+'|'+a.uid])||[]).map(x=>({no:invNoOf(s,x),amt:x.amt})).filter(x=>x.no&&x.amt>0); noNo+=(parts.length?0:1);
+    const parts=a.bkInv?[{no:a.bkInv.no,amt:a.amt}]:((LG._tx[t.id+'|'+a.uid])||[]).map(x=>({no:invNoOf(s,x),amt:x.amt})).filter(x=>x.no&&x.amt>0); noNo+=(parts.length?0:1);
     const row=[s.code,s.no+'-'+s.name,'OR-'+s.branch+t.date.slice(2,4)+t.date.slice(5,7)+'-[3DIGIT]',null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,(what+t.payer+' '+(t.ref||'')).slice(0,200),null,null];
     if(parts.length){ row[14]=parts[0].no; row[15]=parts[0].amt; }
     rows.push(row); parts.slice(1).forEach(x=>{ const r2x=new Array(16).fill(null); r2x[14]=x.no; r2x[15]=x.amt; rows.push(r2x); }); }

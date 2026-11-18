@@ -1,0 +1,450 @@
+{
+  "addbackTypes": [
+    {
+      "code": "DEP",
+      "name": "折旧 Depreciation",
+      "pct": 100,
+      "ref": "s39(1)(b) / Jadual 3 改以资本津贴"
+    },
+    {
+      "code": "PROV",
+      "name": "拨备、未实现汇兑亏损、出售资产亏损",
+      "pct": 100,
+      "ref": "s33(1) 未实际发生 / 资本性质"
+    },
+    {
+      "code": "CAPEX",
+      "name": "资本性开支（装修、首次油漆、开业前、购产律师费、商标/logo）",
+      "pct": 100,
+      "ref": "s39(1)(b)"
+    },
+    {
+      "code": "PRIV",
+      "name": "私人/家庭开销、老板提款/薪水/EPF/保险",
+      "pct": 100,
+      "ref": "s39(1)(a)"
+    },
+    {
+      "code": "ENT0",
+      "name": "招待潜在客户",
+      "pct": 100,
+      "ref": "s39(1)(l)"
+    },
+    {
+      "code": "ENT50",
+      "name": "招待现有客户/供应商（50% 不可扣）",
+      "pct": 50,
+      "ref": "s39(1)(l)"
+    },
+    {
+      "code": "FINE",
+      "name": "所得税、罚款、罚金",
+      "pct": 100,
+      "ref": "s33(1) / s39(1)"
+    },
+    {
+      "code": "DON",
+      "name": "捐款（另在捐款栏申报）",
+      "pct": 100,
+      "ref": "s39(1) / s44(6) 另扣"
+    },
+    {
+      "code": "WHT",
+      "name": "付非居民款项未缴预扣税",
+      "pct": 100,
+      "ref": "s39(1)(f)"
+    },
+    {
+      "code": "CARLS",
+      "name": "私家车租金超过上限部分",
+      "pct": 100,
+      "ref": "s39(1)(k)"
+    },
+    {
+      "code": "EPF19",
+      "name": "EPF 超过员工薪酬 19% 部分",
+      "pct": 100,
+      "ref": "s39(1)"
+    },
+    {
+      "code": "OTHER",
+      "name": "其他不可扣除",
+      "pct": 100,
+      "ref": "s33(1) / s39(1)"
+    }
+  ],
+  "brackets": [
+    {
+      "rate": 0,
+      "upto": 5000
+    },
+    {
+      "rate": 1,
+      "upto": 20000
+    },
+    {
+      "rate": 3,
+      "upto": 35000
+    },
+    {
+      "rate": 6,
+      "upto": 50000
+    },
+    {
+      "rate": 11,
+      "upto": 70000
+    },
+    {
+      "rate": 19,
+      "upto": 100000
+    },
+    {
+      "rate": 25,
+      "upto": 400000
+    },
+    {
+      "rate": 26,
+      "upto": 600000
+    },
+    {
+      "rate": 28,
+      "upto": 2000000
+    },
+    {
+      "rate": 30,
+      "upto": null
+    }
+  ],
+  "ca": {
+    "car": {
+      "cap": 50000,
+      "capHigh": 100000,
+      "highMaxCost": 150000
+    },
+    "classes": [
+      {
+        "aa": 20,
+        "code": "HM",
+        "ia": 20,
+        "name": "汽车、重型机械"
+      },
+      {
+        "aa": 14,
+        "code": "PM",
+        "ia": 20,
+        "name": "一般厂房与机械（冷气、厨房设备等）"
+      },
+      {
+        "aa": 10,
+        "code": "OT",
+        "ia": 20,
+        "name": "其他：办公设备、家具、装置"
+      },
+      {
+        "aa": 20,
+        "code": "ICT",
+        "ia": 40,
+        "name": "ICT 设备及软件（电脑、POS）"
+      }
+    ],
+    "sva": {
+      "cap": 20000,
+      "each": 2000
+    }
+  },
+  "deadlines": {
+    "B": "30/6/2027（e-Filing 预计 15/7/2027）",
+    "BE": "30/4/2027（e-Filing 预计 15/5/2027）"
+  },
+  "donationCapPct": 10,
+  "formCodes": {
+    "B": {
+      "bal": "B39",
+      "biz": "B1",
+      "ci": "B25",
+      "curLoss": "B15",
+      "don": "B18",
+      "donPart": "Bahagian G",
+      "emp": "B7",
+      "int": "B10",
+      "lossBF": "B5",
+      "paid": "B38",
+      "payable": "B36",
+      "reb": "B32",
+      "rel": "B24",
+      "relPrefix": "H",
+      "rent": "B9",
+      "repay": "B37",
+      "rk": "A6",
+      "tax": "B30"
+    },
+    "BE": {
+      "agg": "B6",
+      "bal": "B28",
+      "ci": "B14",
+      "don": "B9",
+      "donPart": "Bahagian F",
+      "emp": "B1",
+      "int": "B4",
+      "paid": "B27",
+      "payable": "B25",
+      "reb": "B21",
+      "rel": "B13",
+      "relPrefix": "G",
+      "rent": "B3",
+      "repay": "B26",
+      "tax": "B19",
+      "total": "B10"
+    }
+  },
+  "nonResidentRate": 30,
+  "notes": "与 YA2025 不同：项目8 学习障碍上限 RM10,000（仍在医药 RM10,000 合并上限内）；项目12 托儿扩大至12岁以下日托/课后转运中心，RM3,000 永久化；项目17(i) 人寿保险包括孩子；项目21 加入厨余粉碎机与家用 CCTV（两年内一次）；新增国内旅游景点/文化门票 RM1,000；疫苗扩大至所有 NPRA 核准疫苗。税率不变。",
+  "rebate": {
+    "self": 400,
+    "spouse": 400,
+    "threshold": 35000
+  },
+  "reliefGroups": {
+    "EDU": {
+      "max": 7000,
+      "name": "项目5 学费"
+    },
+    "H22": {
+      "max": 7000,
+      "name": "项目22 屋贷利息"
+    },
+    "L17": {
+      "max": 7000,
+      "name": "项目17 保险+EPF"
+    },
+    "MED": {
+      "max": 10000,
+      "name": "项目6–8 医药"
+    }
+  },
+  "reliefs": [
+    {
+      "code": "1",
+      "max": 9000,
+      "name": "个人及受扶养亲属 Individual & dependent relatives",
+      "no": "1",
+      "type": "auto"
+    },
+    {
+      "code": "2",
+      "max": 8000,
+      "name": "父母/祖父母医药、牙科、特别需要、看护（体检含疫苗 ≤1,000）",
+      "no": "2",
+      "type": "amt"
+    },
+    {
+      "code": "3",
+      "max": 6000,
+      "name": "残疾人士基本辅助器材（本人/配偶/孩子/父母）",
+      "no": "3",
+      "type": "amt"
+    },
+    {
+      "code": "4",
+      "max": 7000,
+      "name": "残疾人士（本人，需 JKM 注册）",
+      "no": "4",
+      "type": "flag"
+    },
+    {
+      "code": "5",
+      "group": "EDU",
+      "max": 7000,
+      "name": "本人学费：专业/文凭以上/硕士/博士",
+      "no": "5(i)(ii)",
+      "type": "amt"
+    },
+    {
+      "code": "5iii",
+      "group": "EDU",
+      "max": 2000,
+      "name": "本人技能提升课程",
+      "no": "5(iii)",
+      "type": "amt"
+    },
+    {
+      "code": "6",
+      "group": "MED",
+      "max": 10000,
+      "name": "医药：严重疾病、生育治疗、疫苗（所有 NPRA 核准，≤1,000）、牙科（≤1,000）",
+      "no": "6",
+      "type": "amt"
+    },
+    {
+      "code": "7",
+      "group": "MED",
+      "max": 1000,
+      "name": "全身体检/自我检测器材/心理健康咨询",
+      "no": "7",
+      "type": "amt"
+    },
+    {
+      "code": "8",
+      "group": "MED",
+      "max": 10000,
+      "name": "18岁以下孩子学习障碍评估与早期干预/康复",
+      "no": "8",
+      "type": "amt"
+    },
+    {
+      "code": "9",
+      "max": 2500,
+      "name": "生活方式：书报、电脑/手机/平板、上网、技能课程",
+      "no": "9",
+      "type": "amt"
+    },
+    {
+      "code": "10",
+      "max": 1000,
+      "name": "运动：运动器材、场地租用、比赛报名、健身房",
+      "no": "10",
+      "type": "amt"
+    },
+    {
+      "code": "11",
+      "max": 1000,
+      "name": "母乳器材（女性纳税人，孩子2岁以下，每2年一次）",
+      "no": "11",
+      "type": "amt"
+    },
+    {
+      "code": "12",
+      "max": 3000,
+      "name": "托儿所/幼儿园/日托/课后转运中心学费（12岁以下，已注册）",
+      "no": "12",
+      "type": "amt"
+    },
+    {
+      "code": "13",
+      "max": 8000,
+      "name": "SSPN 净储蓄",
+      "no": "13",
+      "type": "amt"
+    },
+    {
+      "code": "14",
+      "flag": "spouse",
+      "max": 4000,
+      "name": "配偶（无收入）/ 前妻赡养费",
+      "no": "14",
+      "type": "amt"
+    },
+    {
+      "code": "15",
+      "max": 6000,
+      "name": "残疾配偶",
+      "no": "15",
+      "type": "flag"
+    },
+    {
+      "code": "16a",
+      "name": "孩子：18岁以下（每位）",
+      "no": "16a",
+      "per": 2000,
+      "type": "count"
+    },
+    {
+      "code": "16b1",
+      "name": "孩子：18岁以上，全日制预科/A-Level 等（每位）",
+      "no": "16b(i)",
+      "per": 2000,
+      "type": "count"
+    },
+    {
+      "code": "16b2",
+      "name": "孩子：18岁以上，国内文凭以上/国外学位以上（每位）",
+      "no": "16b(ii)",
+      "per": 8000,
+      "type": "count"
+    },
+    {
+      "code": "16c",
+      "name": "残疾孩子（每位）",
+      "no": "16c",
+      "per": 8000,
+      "type": "count"
+    },
+    {
+      "code": "16c2",
+      "name": "残疾孩子就读文凭以上的附加扣除（每位）",
+      "no": "16c(ii)",
+      "per": 8000,
+      "type": "count"
+    },
+    {
+      "code": "17i",
+      "group": "L17",
+      "max": 3000,
+      "name": "人寿保险/Takaful（本人、配偶、孩子）/自愿 EPF",
+      "no": "17(i)",
+      "type": "amt"
+    },
+    {
+      "code": "17ii",
+      "group": "L17",
+      "max": 4000,
+      "name": "EPF / 核准计划供款",
+      "no": "17(ii)",
+      "type": "amt"
+    },
+    {
+      "code": "18",
+      "max": 3000,
+      "name": "私人退休计划 PRS / 递延年金",
+      "no": "18",
+      "type": "amt"
+    },
+    {
+      "code": "19",
+      "max": 4000,
+      "name": "教育与医药保险",
+      "no": "19",
+      "type": "amt"
+    },
+    {
+      "code": "20",
+      "max": 350,
+      "name": "SOCSO / EIS",
+      "no": "20",
+      "type": "amt"
+    },
+    {
+      "code": "21",
+      "max": 2500,
+      "name": "电动车充电/厨余堆肥机/厨余粉碎机/家用 CCTV",
+      "no": "21",
+      "type": "amt"
+    },
+    {
+      "code": "22i",
+      "group": "H22",
+      "max": 7000,
+      "name": "首购屋贷款利息（屋价 ≤RM500,000）",
+      "no": "22(i)",
+      "type": "amt"
+    },
+    {
+      "code": "22ii",
+      "group": "H22",
+      "max": 5000,
+      "name": "首购屋贷款利息（屋价 RM500,001–750,000）",
+      "no": "22(ii)",
+      "type": "amt"
+    },
+    {
+      "code": "23",
+      "max": 1000,
+      "name": "国内旅游景点/文化艺术节目门票（新，编号待 YA2026 表格确认）",
+      "no": "23*",
+      "type": "amt"
+    }
+  ],
+  "sources": "Budget 2026 / Finance Act 2025 提案；LHDN YA2026 表格出来后须核对项目编号",
+  "status": "draft",
+  "ya": 2026
+}

@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>个人所得税 Form B / BE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Same ledger-workbench look as the Bukku 采购单录入 page: teal accent, yellow = must key in, mono for figures */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#18242f; --muted:#5d6b78; --line:#d9e0e6; --line2:#eaeef2;
+  --accent:#0f6b6b; --accent-ink:#ffffff; --accent-soft:#e0f0ef;
+  --must:#fff3a6; --must-line:#e4cf4a;
+  --bad:#b42318; --bad-soft:#fde8e6; --warn:#9a6200; --warn-soft:#fff1d6; --ok:#1f7a3d; --ok-soft:#e3f4e8;
+  --f-body:"IBM Plex Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#11171c; --panel:#182128; --ink:#e4eaef; --muted:#93a1ad; --line:#2c3842; --line2:#222c34;
+  --accent:#3fb5ae; --accent-ink:#0b1515; --accent-soft:#163331;
+  --must:#4a4413; --must-line:#8c7d22;
+  --bad:#ff8a7d; --bad-soft:#3b1a17; --warn:#f2b552; --warn-soft:#38290f; --ok:#6fd393; --ok-soft:#163222; color-scheme:dark}}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding-block:12px 8px}
+.brand{font-weight:700;font-size:16px;display:flex;align-items:baseline;gap:8px}
+.brand small{font-weight:400;color:var(--muted);font-size:12px}
+.pick{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
+.pick label{font-size:12px;color:var(--muted)}
+nav{display:flex;gap:2px;overflow-x:auto}
+nav button{border:0;background:none;color:var(--muted);padding:8px 14px;font:inherit;font-weight:500;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+main{padding-block:18px 48px}
+h2{font-size:15px;margin:0}
+h3{font-size:13px;margin:14px 0 8px;color:var(--muted);font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+@media (max-width:960px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.panel + .panel{margin-top:14px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.ph .code{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:span 2}
+@media (max-width:480px){.f.wide{grid-column:auto}}
+.f > span{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.f > span em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;background:var(--line2);border-radius:4px;padding:0 4px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+input[type=checkbox]{width:auto}
+input.amt{font-family:var(--f-mono);text-align:right}
+textarea{resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.must input,input.must,.must select{background:var(--must);border-color:var(--must-line)}
+.auto{font-family:var(--f-mono);font-size:13px;padding:7px 9px;border:1px dashed var(--line);border-radius:6px;min-height:36px;text-align:right}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11.5px;font-weight:500;color:var(--muted);text-align:left;background:var(--line2);padding:7px 8px;white-space:nowrap}
+td{border-top:1px solid var(--line2);padding:5px 8px;vertical-align:middle}
+td.r,th.r{text-align:right}
+td.code,th.code{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.edit td{padding:3px 4px}
+.edit input,.edit select{padding:5px 7px}
+tr.tot td{font-weight:600;border-top:2px solid var(--line)}
+tr.sub td{color:var(--muted);font-size:12px}
+.sum{position:sticky;top:110px}
+.sum table td{padding:4px 6px}
+.big{display:flex;justify-content:space-between;align-items:baseline;padding:12px;border-radius:8px;margin-top:12px}
+.big b{font-family:var(--f-mono);font-size:22px}
+.big.pay{background:var(--warn-soft);color:var(--warn)}
+.big.refund{background:var(--ok-soft);color:var(--ok)}
+.big.zero{background:var(--line2);color:var(--muted)}
+.pill{display:inline-block;font-size:11px;font-weight:500;border-radius:10px;padding:1px 8px;white-space:nowrap;background:var(--line2);color:var(--muted)}
+.pill.draft{background:var(--accent-soft);color:var(--accent)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.notice{padding:10px 14px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px;margin-bottom:14px}
+.info{padding:10px 14px;border-radius:6px;background:var(--accent-soft);color:var(--ink);font-size:13px;margin-bottom:14px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+.warnline{color:var(--warn);font-size:11.5px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.saved{font-size:11.5px;color:var(--muted)}
+details summary{cursor:pointer;color:var(--muted);font-size:13px}
+/* Report = working paper */
+.paper{background:#fff;color:#111;max-width:900px;margin:0 auto;padding:28px 32px;border:1px solid var(--line);border-radius:4px;font-size:12.5px}
+.paper h1{font-size:17px;margin:0 0 2px}
+.paper h4{font-size:13px;margin:18px 0 6px;border-bottom:1.5px solid #111;padding-bottom:3px}
+.paper table{font-size:12px}
+.paper th{background:#eef1f3;color:#333}
+.paper td{border-top:1px solid #e3e6e9}
+.paper .meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 24px;margin:10px 0}
+.paper .meta div{display:flex;gap:8px}.paper .meta b{min-width:120px;font-weight:500;color:#555}
+.sign{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:28px}
+.sign div{border-top:1px solid #111;padding-top:6px;font-size:11.5px}
+.foot{margin-top:18px;font-size:11px;color:#555}
+@media print{
+  header,nav,.noprint,.toast{display:none!important}
+  body{background:#fff}
+  main{padding:0}
+  section{display:none!important}
+  section#t-report{display:block!important}
+  .paper{border:0;max-width:none;padding:0}
+  .paper h4{break-after:avoid}
+  tr{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">个人所得税 <small>Form B / BE · 计算与 e-Filing 对照</small></div>
+      <div class="pick">
+        <label for="cSel">客户</label><select id="cSel" style="width:auto;max-width:260px"></select>
+        <label for="ySel">YA</label><select id="ySel" style="width:auto"></select>
+        <span class="saved" id="savedTag"></span>
+      </div>
+    </div>
+    <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="ret" aria-selected="true">报税计算</button>
+      <button role="tab" data-tab="assets">资产 · 资本津贴</button>
+      <button role="tab" data-tab="report">报告 / 底稿</button>
+      <button role="tab" data-tab="clients">客户</button>
+      <button role="tab" data-tab="rules">税务规则</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="notice" id="offline" hidden>连不上资料库（离线或登入过期）。现在的输入只会留在这个页面，关掉就不见。</div>
+  <div class="notice" id="noRule" hidden></div>
+
+  <!-- ============ RETURN ============ -->
+  <section id="t-ret">
+    <div class="empty panel" id="retEmpty">先到「客户」新增客户，再选客户和 YA。</div>
+    <div class="grid" id="retGrid" hidden>
+      <div>
+        <div class="panel">
+          <div class="ph"><h2>基本资料</h2><span class="pill" id="statusPill"></span></div>
+          <div class="fields">
+            <label class="f"><span>表格</span><select data-k="form"><option value="B">Form B（有生意收入）</option><option value="BE">Form BE（无生意收入）</option></select></label>
+            <label class="f"><span>税务居民（≥182天）</span><select data-k="resident" data-bool="1"><option value="true">是 Resident</option><option value="false">否 Non-resident 30%</option></select></label>
+            <label class="f"><span>状态</span><select data-k="status"><option value="draft">草稿</option><option value="review">待复核</option><option value="reviewed">已复核</option><option value="filed">已提交 e-Filing</option></select></label>
+            <label class="f"><span>记录保存合规 <em id="rkCode">A6</em></span><select data-k="rk"><option value="1">1 = 合规</option><option value="2">2 = 不合规</option></select></label>
+            <label class="f"><span>制表人 Prepared by</span><input data-k="prepBy"></label>
+            <label class="f"><span>复核人 Reviewed by</span><input data-k="revBy"></label>
+            <label class="f"><span>e-Filing 提交日期</span><input type="date" data-k="filedOn"></label>
+            <label class="f"><span>e-Filing 收据号</span><input data-k="filedRef" class="mono"></label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><h2>受雇收入（EA 表格）</h2><span class="code" id="codeEmp"></span></div>
+          <div class="fields">
+            <label class="f wide"><span>雇主名称 / 雇主号码 E</span><input data-k="emp.employer"></label>
+            <label class="f must"><span>EA 总收入（B 部分合计）</span><input class="amt" data-k="emp.gross" inputmode="decimal"></label>
+            <label class="f"><span>免税部分（如有）</span><input class="amt" data-k="emp.exempt" inputmode="decimal"></label>
+            <label class="f must"><span>已扣 PCB（EA D1）</span><input class="amt" data-k="emp.pcb" inputmode="decimal"></label>
+            <label class="f"><span>员工 EPF（EA E1）</span><input class="amt" data-k="emp.epf" inputmode="decimal"></label>
+            <label class="f"><span>SOCSO + EIS（EA E2）</span><input class="amt" data-k="emp.socso" inputmode="decimal"></label>
+            <label class="f"><span>参考 / 文件</span><input data-k="emp.ref" placeholder="EA 2025 – 雇主名"></label>
+          </div>
+          <div class="row" style="margin-top:10px"><button class="btn sm" id="pullEA">把 EPF、SOCSO 带入扣除额</button></div>
+        </div>
+
+        <div class="panel" id="bizPanel">
+          <div class="ph"><h2>生意收入（HK-1 工作表）</h2><span class="code" id="codeBiz"></span></div>
+          <div class="fields">
+            <label class="f wide"><span>生意名称 / SSM 号码</span><input data-k="biz.name"></label>
+            <label class="f"><span>生意代码 MSIC</span><input data-k="biz.msic" class="mono"></label>
+            <label class="f"><span>账目期间</span><input data-k="biz.period" placeholder="1/1/2025 – 31/12/2025"></label>
+          </div>
+          <h3>损益表（按账目）</h3>
+          <div class="fields">
+            <label class="f must"><span>营业额 Revenue</span><input class="amt" data-k="biz.revenue" inputmode="decimal"></label>
+            <label class="f"><span>其他生意收入</span><input class="amt" data-k="biz.otherInc" inputmode="decimal"></label>
+            <label class="f must"><span>总开销（含成本）</span><input class="amt" data-k="biz.expenses" inputmode="decimal"></label>
+            <label class="f"><span>账目净利 / (亏)</span><div class="auto" id="npAuto">—</div></label>
+          </div>
+          <h3>加回：不可扣除开销（s33 / s39）</h3>
+          <div class="tbl-wrap"><table class="edit"><thead><tr><th>类别</th><th>说明</th><th class="r">账目金额</th><th class="r">加回 %</th><th class="r">加回</th><th>凭证 / 参考</th><th></th></tr></thead><tbody id="abBody"></tbody></table></div>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="abAdd">+ 加回项目</button></div>
+          <h3>减：不需课税收入 / 额外扣除</h3>
+          <div class="tbl-wrap"><table class="edit"><thead><tr><th>说明（例：出售资产盈利、已另报利息、双重扣除）</th><th class="r">金额</th><th>参考</th><th></th></tr></thead><tbody id="dedBody"></tbody></table></div>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="dedAdd">+ 扣除项目</button></div>
+          <h3>结转</h3>
+          <div class="fields">
+            <label class="f"><span>未用完资本津贴 b/f</span><input class="amt" data-k="biz.caBF" inputmode="decimal"></label>
+            <label class="f"><span>生意亏损 b/f <em id="codeLossBF">B5</em></span><input class="amt" data-k="biz.lossBF" inputmode="decimal"></label>
+          </div>
+          <p class="small muted" style="margin:10px 0 0">本年资本津贴由「资产 · 资本津贴」自动算入。</p>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><h2>其他收入</h2></div>
+          <div class="fields">
+            <label class="f"><span>租金（法定收入，已扣开销）<em id="codeRent"></em></span><input class="amt" data-k="other.rental" inputmode="decimal"></label>
+            <label class="f"><span>利息/版税/佣金等 <em id="codeInt"></em></span><input class="amt" data-k="other.interest" inputmode="decimal"></label>
+            <label class="f"><span>其他法定收入</span><input class="amt" data-k="other.other" inputmode="decimal"></label>
+          </div>
+          <h3>捐款 <span id="codeDon"></span></h3>
+          <div class="fields">
+            <label class="f"><span>给政府/州政府/地方政府（无上限）</span><input class="amt" data-k="don.gov" inputmode="decimal"></label>
+            <label class="f"><span>核准机构/运动/国家项目（上限 10% 总收入）</span><input class="amt" data-k="don.capped" inputmode="decimal"></label>
+            <label class="f"><span>收据参考</span><input data-k="don.ref"></label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><h2>个人扣除额 Relief</h2><span class="code" id="codeRel"></span></div>
+          <div class="tbl-wrap"><table class="edit"><thead><tr><th class="code">项目</th><th>扣除项目</th><th class="r">上限</th><th class="r">收据金额 / 人数</th><th class="r">可扣</th><th>收据参考</th></tr></thead><tbody id="relBody"></tbody></table></div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><h2>回扣与已缴税款</h2></div>
+          <div class="fields">
+            <label class="f"><span>Zakat / Fitrah</span><input class="amt" data-k="zakat" inputmode="decimal"></label>
+            <label class="f"><span>其他回扣（朝圣离境税等）</span><input class="amt" data-k="rebOther" inputmode="decimal"></label>
+            <label class="f"><span>CP500 / 自行分期已缴</span><input class="amt" data-k="cp500" inputmode="decimal"></label>
+          </div>
+          <label class="f" style="margin-top:12px"><span>备注（会印在底稿）</span><textarea data-k="notes" rows="3"></textarea></label>
+        </div>
+      </div>
+
+      <aside class="sum">
+        <div class="panel">
+          <div class="ph"><h2>计算结果</h2><span class="small muted" id="sumForm"></span></div>
+          <table id="sumTbl"></table>
+          <div class="big zero" id="bigBal"><span>—</span><b>0.00</b></div>
+          <div class="row" style="margin-top:12px"><button class="btn pri" id="toReport">看底稿 / 打印</button></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ ASSETS ============ -->
+  <section id="t-assets" hidden>
+    <div class="panel">
+      <div class="ph"><h2>资产登记（跟客户，跨年度）</h2><label class="row small"><input type="checkbox" id="smeChk"> SME：SVA 不限每年 RM20,000 上限</label></div>
+      <p class="small muted" style="margin:0 0 10px">每件资产登记一次，系统按购买 YA 起逐年算 IA、AA、TWDV。私家车自动套 QE 上限；有私人用途填私人 %。SVA = 小额资产（单价不超过规则里的上限）100% 一次过。</p>
+      <div class="tbl-wrap"><table class="edit" style="min-width:1100px"><thead><tr><th>资产</th><th>发票号/参考</th><th>类别</th><th>购买 YA</th><th class="r">成本</th><th>SVA</th><th>非商用车</th><th>新车</th><th class="r">私人 %</th><th>出售 YA</th><th class="r">出售价</th><th></th></tr></thead><tbody id="asBody"></tbody></table></div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="asAdd">+ 资产</button><button class="btn sm" id="asPaste">从 Excel 贴上</button></div>
+      <div id="pasteWrap" hidden style="margin-top:10px">
+        <textarea id="pasteBox" rows="4" placeholder="每行：资产	参考	类别(HM/PM/OT/ICT)	购买YA	成本"></textarea>
+        <div class="row" style="margin-top:6px"><button class="btn sm pri" id="pasteGo">加入</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>资本津贴计算 <span class="muted" id="caYA"></span>（HK-1.2）</h2></div>
+      <div class="tbl-wrap"><table id="caTbl"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ REPORT ============ -->
+  <section id="t-report" hidden>
+    <div class="row noprint" style="margin-bottom:12px;justify-content:flex-end">
+      <button class="btn" id="xlsBtn">下载 Excel</button>
+      <button class="btn pri" id="printBtn">下载 PDF</button>
+    </div>
+    <div class="paper" id="paper"></div>
+  </section>
+
+  <!-- ============ CLIENTS ============ -->
+  <section id="t-clients" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div class="ph"><h2>客户名单</h2><input type="search" id="cQ" placeholder="搜寻名字 / IC / TIN" style="max-width:240px"></div>
+        <div class="tbl-wrap"><table><thead><tr><th>客户</th><th>TIN</th><th>表格</th><th>各 YA 状态</th><th></th></tr></thead><tbody id="cBody"></tbody></table></div>
+      </div>
+      <form class="panel" id="cForm" autocomplete="off">
+        <h2 id="cFormTitle" style="margin-bottom:10px">新增客户</h2>
+        <div class="fields" style="grid-template-columns:1fr">
+          <label class="f must"><span>姓名（照 IC）</span><input id="cName" required></label>
+          <label class="f must"><span>IC / 护照</span><input id="cIC" class="mono" required></label>
+          <label class="f"><span>税务号码 TIN（SG / OG）</span><input id="cTIN" class="mono"></label>
+          <label class="f"><span>电话</span><input id="cTel"></label>
+          <label class="f"><span>Email</span><input id="cMail" type="email"></label>
+          <label class="f"><span>预设表格</span><select id="cForm2"><option value="B">Form B</option><option value="BE">Form BE</option></select></label>
+          <label class="f"><span>备注</span><textarea id="cNote" rows="2"></textarea></label>
+        </div>
+        <div class="row" style="margin-top:12px;justify-content:flex-end"><button type="button" class="btn" id="cCancel" hidden>取消</button><button class="btn pri" type="submit">保存</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ RULES ============ -->
+  <section id="t-rules" hidden>
+    <div class="info">每个 YA 的税率、扣除额上限、资本津贴率、e-Filing 项目编号都存在这里，系统计算全部读这张表。<b>每年更新：</b>按「复制成新 YA」→ 照财政预算案 / LHDN 新表格修改 → 状态改「定案」。也可以把新规则交给 Claude 更新。</div>
+    <div class="panel">
+      <div class="ph">
+        <div class="row"><h2>规则</h2><select id="rSel" style="width:auto"></select><span class="pill" id="rStatus"></span></div>
+        <div class="row"><button class="btn sm" id="rCopy">复制成新 YA</button><button class="btn sm" id="rExport">导出 JSON</button><button class="btn sm" id="rImport">导入 JSON</button><button class="btn sm pri" id="rSave">保存规则</button></div>
+      </div>
+      <div class="fields">
+        <label class="f"><span>状态</span><select id="r_status"><option value="draft">草稿（未定案）</option><option value="final">定案</option></select></label>
+        <label class="f"><span>回扣门槛 CI ≤</span><input class="amt" id="r_rbT"></label>
+        <label class="f"><span>本人回扣</span><input class="amt" id="r_rbS"></label>
+        <label class="f"><span>配偶回扣</span><input class="amt" id="r_rbP"></label>
+        <label class="f"><span>非居民税率 %</span><input class="amt" id="r_nr"></label>
+        <label class="f"><span>捐款上限 % 总收入</span><input class="amt" id="r_don"></label>
+        <label class="f"><span>SVA 每件上限</span><input class="amt" id="r_svaE"></label>
+        <label class="f"><span>SVA 每年上限（非 SME）</span><input class="amt" id="r_svaC"></label>
+        <label class="f"><span>私家车 QE 上限</span><input class="amt" id="r_car"></label>
+        <label class="f"><span>新车 QE 上限</span><input class="amt" id="r_carH"></label>
+        <label class="f"><span>新车车价不超过</span><input class="amt" id="r_carM"></label>
+        <label class="f wide"><span>截止日期 B / BE</span><input id="r_dl"></label>
+      </div>
+      <label class="f" style="margin-top:12px"><span>依据 / 来源</span><textarea id="r_src" rows="2"></textarea></label>
+      <label class="f" style="margin-top:8px"><span>今年变动备注</span><textarea id="r_notes" rows="3"></textarea></label>
+      <h3>税率表</h3>
+      <div class="tbl-wrap"><table class="edit"><thead><tr><th>应课税收入至（空 = 以上）</th><th class="r">税率 %</th><th></th></tr></thead><tbody id="rBr"></tbody></table></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-radd="br">+ 级距</button></div>
+      <h3>扣除额（编号 = Form B 的 H / Form BE 的 G）</h3>
+      <div class="tbl-wrap"><table class="edit" style="min-width:980px"><thead><tr><th>表格编号</th><th>代码</th><th>名称</th><th>类型</th><th class="r">上限</th><th class="r">每位</th><th>合并组</th><th>回扣标记</th><th></th></tr></thead><tbody id="rRel"></tbody></table></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-radd="rel">+ 扣除项目</button></div>
+      <h3>合并上限组</h3>
+      <div class="tbl-wrap"><table class="edit"><thead><tr><th>组代码</th><th>名称</th><th class="r">合并上限</th><th></th></tr></thead><tbody id="rGrp"></tbody></table></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-radd="grp">+ 组</button></div>
+      <h3>资本津贴类别</h3>
+      <div class="tbl-wrap"><table class="edit"><thead><tr><th>代码</th><th>类别</th><th class="r">IA %</th><th class="r">AA %</th><th></th></tr></thead><tbody id="rCA"></tbody></table></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-radd="ca">+ 类别</button></div>
+      <h3>加回类别</h3>
+      <div class="tbl-wrap"><table class="edit"><thead><tr><th>代码</th><th>名称</th><th class="r">加回 %</th><th>法令依据</th><th></th></tr></thead><tbody id="rAB"></tbody></table></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-radd="ab">+ 加回类别</button></div>
+      <h3>e-Filing 项目编号</h3>
+      <div class="fields" id="rCodes"></div>
+      <div id="importWrap" hidden style="margin-top:12px"><textarea id="importBox" rows="6" class="mono" placeholder="贴上规则 JSON"></textarea><div class="row" style="margin-top:6px"><button class="btn sm pri" id="importGo">套用到画面（还要按保存）</button></div></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+/* the data store of this page: small documents kept by the CC CREST server (Owner only), read again every 8 seconds and after each save */
+window.TAXDB=(function(){
+  var API='/api/tax';
+  async function http(m,u,b){
+    var r=await fetch(API+u,{method:m,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:b===undefined?undefined:JSON.stringify(b)});
+    var j=await r.json().catch(function(){return {};});
+    if(!r.ok){ var e=new Error(j.error||('HTTP '+r.status)); e.code=r.status===403?'permission_denied':r.status; throw e; }
+    return j;
+  }
+  var pulls={};
+  function collection(c){
+    return { onSnapshot:function(cb,err){
+      var stop=false,last='';
+      async function pull(force){
+        try{ var j=await http('GET','/docs/'+c); var key=JSON.stringify(j.docs.map(function(d){return [d.id,d.updatedAt];}));
+          if(force||key!==last){ last=key; cb({docs:j.docs.map(function(d){return {id:d.id,data:function(){return d.data;}};})}); } }
+        catch(e){ if(err) err(e); }
+      }
+      (pulls[c]=pulls[c]||[]).push(function(){ return pull(true); });
+      pull(true); var t=setInterval(function(){ if(!stop&&!document.hidden) pull(false); },8000);
+      return function(){ stop=true; clearInterval(t); };
+    } };
+  }
+  function doc(path){
+    var p=path.split('/'), c=p[0], id=p[1];
+    function again(){ (pulls[c]||[]).forEach(function(f){ f(); }); }
+    return { set:async function(d){ await http('PUT','/docs/'+c+'/'+encodeURIComponent(id),d); again(); }, delete:async function(){ await http('DELETE','/docs/'+c+'/'+encodeURIComponent(id)); again(); } };
+  }
+  return { collection:collection, doc:doc };
+})();
+</script>
+<script>
+/* ===== Tax engine: pure functions, no DOM. Rules come from the YA rule doc. ===== */
+const TAX = (() => {
+const n = v => { const x = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(x) ? x : 0; };
+const r2 = v => Math.round((v + Number.EPSILON) * 100) / 100;
+
+function taxOnIncome(ci, rules, resident) {
+  if (ci <= 0) return { tax: 0, steps: [] };
+  if (!resident) return { tax: r2(ci * (rules.nonResidentRate ?? 30) / 100), steps: [{ from: 0, to: ci, rate: rules.nonResidentRate ?? 30, amt: r2(ci * (rules.nonResidentRate ?? 30) / 100) }] };
+  let prev = 0, tax = 0; const steps = [];
+  for (const b of rules.brackets) {
+    const top = b.upto == null ? Infinity : b.upto;
+    if (ci > prev) {
+      const slice = Math.min(ci, top) - prev;
+      const amt = slice * b.rate / 100;
+      if (slice > 0) steps.push({ from: prev, to: Math.min(ci, top), rate: b.rate, amt: r2(amt) });
+      tax += amt;
+    }
+    prev = top; if (ci <= top) break;
+  }
+  return { tax: r2(tax), steps };
+}
+
+/* reliefs: rules.reliefs [{code,name,max,per?,group?,type:'amt'|'count'|'auto',flag?}], rules.reliefGroups {G:{max,name}} */
+function reliefs(rules, input) {
+  const lines = []; const groupUsed = {}; let total = 0; const flags = {};
+  for (const it of rules.reliefs || []) {
+    let claim = 0, raw = 0;
+    const v = input?.[it.code];
+    if (it.type === 'auto') { raw = it.max; claim = it.max; }
+    else if (it.type === 'flag') { raw = (v === true || v === 'true' || v === 1 || v === '1') ? it.max : 0; claim = raw; }
+    else if (it.type === 'count') { raw = n(v) * (it.per || 0); claim = it.max ? Math.min(raw, it.max) : raw; }
+    else { raw = n(v); claim = it.max ? Math.min(raw, it.max) : raw; }
+    claim = Math.max(0, claim);
+    let note = raw > claim ? `超过上限，只算 ${claim}` : '';
+    if (it.group && rules.reliefGroups?.[it.group]) {
+      const g = rules.reliefGroups[it.group]; const used = groupUsed[it.group] || 0;
+      const room = Math.max(0, g.max - used);
+      if (claim > room) { note = `合并上限 ${g.max}（${g.name}），只算 ${room}`; claim = room; }
+      groupUsed[it.group] = used + claim;
+    }
+    claim = r2(claim);
+    if (claim > 0 && it.flag) flags[it.flag] = true;
+    if (raw || claim) lines.push({ code: it.code, name: it.name, input: it.type === 'count' ? n(v) : r2(raw), claim, note, type: it.type });
+    total += claim;
+  }
+  return { lines, total: r2(total), flags };
+}
+
+/* Capital allowance schedule for one asset across years up to targetYA.
+   asset {id,desc,cls,cost,ya,sva,car,carNew,privPct,dispYA,dispAmt}
+   rulesFor(ya) -> rule doc (falls back to nearest) */
+function assetSchedule(a, targetYA, rulesFor, svaGranted) {
+  const cost = n(a.cost); const ya0 = parseInt(a.ya); const bus = Math.max(0, 100 - n(a.privPct)) / 100;
+  const r0 = rulesFor(ya0); const ca = r0.ca || {};
+  let qe = cost, capNote = '';
+  if (a.car) {
+    const c = ca.car || { cap: 50000, capHigh: 100000, highMaxCost: 150000 };
+    const cap = (a.carNew && cost <= c.highMaxCost) ? c.capHigh : c.cap;
+    if (cost > cap) { qe = cap; capNote = `私家车 QE 上限 ${cap}`; }
+  }
+  qe = r2(qe * bus);
+  const cls = (ca.classes || []).find(k => k.code === a.cls) || { ia: 20, aa: 10, name: a.cls };
+  const isSva = !!a.sva && svaGranted;
+  const rows = []; let twdv = qe;
+  for (let y = ya0; y <= targetYA; y++) {
+    if (a.dispYA && y > parseInt(a.dispYA)) break;
+    if (a.dispYA && y === parseInt(a.dispYA)) {
+      const proceeds = r2(n(a.dispAmt) * bus * (cost ? qe / (cost * bus || 1) : 1));
+      const claimed = qe - twdv;
+      let ba = 0, bc = 0;
+      if (proceeds < twdv) ba = r2(twdv - proceeds); else bc = r2(Math.min(proceeds - twdv, claimed));
+      rows.push({ ya: y, ia: 0, aa: 0, ba, bc, twdvOpen: twdv, twdvClose: 0, disposed: true, proceeds });
+      twdv = 0; break;
+    }
+    let ia = 0, aa = 0; const open = twdv;
+    if (y === ya0) {
+      if (isSva) { aa = qe; }
+      else { ia = r2(qe * cls.ia / 100); aa = r2(Math.min(qe * cls.aa / 100, qe - ia)); }
+    } else if (twdv > 0) {
+      const ry = rulesFor(ya0); const k = (ry.ca?.classes || []).find(c => c.code === a.cls) || cls;
+      aa = r2(Math.min(qe * k.aa / 100, twdv));
+    }
+    twdv = r2(twdv - ia - aa);
+    rows.push({ ya: y, ia, aa, ba: 0, bc: 0, twdvOpen: open, twdvClose: twdv });
+  }
+  return { qe, capNote, sva: isSva, cls, rows };
+}
+
+/* Decide which SVAs get the 100% special allowance in each YA (cap per YA unless SME unlimited). */
+function svaPlan(assets, rulesFor, smeUnlimited) {
+  const granted = {}; const byYa = {};
+  for (const a of assets) {
+    if (!a.sva) continue; const r = rulesFor(parseInt(a.ya)); const each = r.ca?.sva?.each ?? 2000;
+    if (n(a.cost) > each) { granted[a.id] = false; continue; }
+    (byYa[a.ya] = byYa[a.ya] || []).push(a);
+  }
+  for (const ya in byYa) {
+    const cap = smeUnlimited ? Infinity : (rulesFor(parseInt(ya)).ca?.sva?.cap ?? 20000); let used = 0;
+    for (const a of byYa[ya]) { const c = n(a.cost); if (used + c <= cap) { granted[a.id] = true; used += c; } else granted[a.id] = false; }
+  }
+  return granted;
+}
+
+function caForYA(assets, ya, rulesFor, smeUnlimited) {
+  const plan = svaPlan(assets || [], rulesFor, smeUnlimited);
+  const out = []; let ia = 0, aa = 0, ba = 0, bc = 0;
+  for (const a of assets || []) {
+    if (!a.cost || !a.ya || parseInt(a.ya) > ya) continue;
+    const s = assetSchedule(a, ya, rulesFor, !!plan[a.id]);
+    const row = s.rows.find(r => r.ya === ya);
+    if (!row) continue; // fully disposed earlier
+    if (a.sva && !plan[a.id] && parseInt(a.ya) === ya) s.svaNote = 'SVA 超过当年上限或单价，按一般税率';
+    ia += row.ia; aa += row.aa; ba += row.ba; bc += row.bc;
+    out.push({ a, s, row });
+  }
+  return { items: out, ia: r2(ia), aa: r2(aa), ba: r2(ba), bc: r2(bc), total: r2(ia + aa + ba) };
+}
+
+/* Full computation. ret = return doc, client = client doc */
+function compute(ret, client, rules, rulesFor) {
+  const ya = parseInt(ret.ya); const resident = ret.resident !== false;
+  const R = { ya, form: ret.form, resident };
+  /* employment */
+  const emp = ret.emp || {};
+  R.empIncome = r2(Math.max(0, n(emp.gross) - n(emp.exempt)));
+  /* business */
+  const biz = ret.biz || {}; R.hasBiz = ret.form === 'B';
+  if (R.hasBiz) {
+    R.revenue = n(biz.revenue); R.expenses = n(biz.expenses); R.netProfit = r2(n(biz.revenue) + n(biz.otherInc) - n(biz.expenses));
+    R.addbacks = (biz.addbacks || []).filter(x => n(x.amt)).map(x => {
+      const t = (rules.addbackTypes || []).find(k => k.code === x.type) || { pct: 100, name: x.type };
+      const pct = x.pct != null && x.pct !== '' ? n(x.pct) : t.pct;
+      return { ...x, typeName: t.name, pct, add: r2(n(x.amt) * pct / 100) };
+    });
+    R.addbackTotal = r2(R.addbacks.reduce((s, x) => s + x.add, 0));
+    R.deducts = (biz.deducts || []).filter(x => n(x.amt)).map(x => ({ ...x, amt: n(x.amt) }));
+    R.deductTotal = r2(R.deducts.reduce((s, x) => s + x.amt, 0));
+    R.ca = caForYA(client?.assets || [], ya, rulesFor, !!client?.sme);
+    R.adjusted = r2(R.netProfit + R.addbackTotal - R.deductTotal + R.ca.bc);
+    R.caBF = n(biz.caBF);
+    R.caAvail = r2(R.ca.total + R.caBF);
+    R.caUsed = R.adjusted > 0 ? r2(Math.min(R.caAvail, R.adjusted)) : 0;
+    R.caCF = r2(R.caAvail - R.caUsed);
+    R.statBiz = r2(Math.max(0, R.adjusted - R.caUsed));
+    R.lossBF = n(biz.lossBF);
+    R.lossBFUsed = r2(Math.min(R.lossBF, R.statBiz));
+    R.statBizNet = r2(R.statBiz - R.lossBFUsed);
+    R.curLoss = R.adjusted < 0 ? r2(-R.adjusted) : 0;
+  } else { R.statBizNet = 0; R.curLoss = 0; R.lossBF = 0; R.lossBFUsed = 0; }
+  /* other */
+  const o = ret.other || {};
+  R.rental = n(o.rental); R.interest = n(o.interest); R.otherInc = n(o.other);
+  R.aggregate = r2(R.statBizNet + R.empIncome + R.rental + R.interest + R.otherInc);
+  R.curLossUsed = r2(Math.min(R.curLoss, R.aggregate));
+  R.afterLoss = r2(R.aggregate - R.curLossUsed);
+  const lossLeftBF = r2(R.lossBF - R.lossBFUsed);
+  R.lossCF = r2(lossLeftBF + R.curLoss - R.curLossUsed);
+  /* donations */
+  const capPct = rules.donationCapPct ?? 10;
+  R.donCapped = r2(Math.min(n(ret.don?.capped), R.aggregate * capPct / 100));
+  R.donGov = n(ret.don?.gov);
+  R.totalIncome = r2(Math.max(0, R.afterLoss - R.donCapped - R.donGov));
+  /* reliefs */
+  R.rel = resident ? reliefs(rules, ret.reliefs || {}) : { lines: [], total: 0, flags: {} };
+  R.chargeable = r2(Math.max(0, R.totalIncome - R.rel.total));
+  const t = taxOnIncome(R.chargeable, rules, resident);
+  R.taxGross = t.tax; R.taxSteps = t.steps;
+  /* rebates */
+  const rb = rules.rebate || { threshold: 35000, self: 400, spouse: 400 };
+  let left = R.taxGross;
+  R.rebSelf = resident && R.chargeable <= rb.threshold ? r2(Math.min(rb.self, left)) : 0; left -= R.rebSelf;
+  R.rebSpouse = resident && R.chargeable <= rb.threshold && R.rel.flags.spouse ? r2(Math.min(rb.spouse, left)) : 0; left -= R.rebSpouse;
+  R.rebZakat = r2(Math.min(n(ret.zakat), left)); left -= R.rebZakat;
+  R.rebOther = r2(Math.min(n(ret.rebOther), left)); left -= R.rebOther;
+  R.taxPayable = r2(Math.max(0, left));
+  R.pcb = n(emp.pcb); R.cp500 = n(ret.cp500);
+  R.balance = r2(R.taxPayable - R.pcb - R.cp500);
+  return R;
+}
+
+return { compute, taxOnIncome, reliefs, caForYA, assetSchedule, n, r2 };
+})();
+
+
+</script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = v => (Number(v)||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const m0 = v => (Number(v)||0)===0 ? '—' : money(v);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const N = TAX.n;
+const S = { db:null, mem:{}, rules:{}, clients:[], returns:{}, cid:null, ya:null, cur:null, dirty:false, saveT:null, rEdit:null, tab:'ret' };
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2600); }
+function dbErr(e){ console.error(e); toast(e && e.code==='permission_denied' ? '没有权限（税务规则只限管理者修改）' : '保存失败：'+(e && e.message || e)); }
+
+/* ---------- storage ---------- */
+async function put(path, data){ if(S.db) return S.db.doc(path).set(data); S.mem[path]=data; memNotify(); }
+async function del(path){ if(S.db) return S.db.doc(path).delete(); delete S.mem[path]; memNotify(); }
+let memL=[]; function memNotify(){ memL.forEach(f=>f()); }
+function listen(coll, cb){
+  if(S.db){
+    const timer=setTimeout(()=>{$('offline').hidden=false},10000);
+    return S.db.collection(coll).onSnapshot(snap=>{ clearTimeout(timer); $('offline').hidden=true; cb(snap.docs.map(d=>Object.assign({id:d.id},d.data()))); }, e=>{clearTimeout(timer);dbErr(e);});
+  }
+  const run=()=>{ const pre=coll+'/'; cb(Object.keys(S.mem).filter(k=>k.startsWith(pre)&&!k.slice(pre.length).includes('/')).map(k=>Object.assign({id:k.slice(pre.length)},S.mem[k]))); };
+  memL.push(run); run(); return ()=>{memL=memL.filter(f=>f!==run)};
+}
+
+/* ---------- rules lookup ---------- */
+const ruleYAs = () => Object.keys(S.rules).map(Number).sort((a,b)=>a-b);
+function rulesFor(ya){
+  if(S.rules[ya]) return S.rules[ya];
+  const ys=ruleYAs(); if(!ys.length) return null;
+  const lower=ys.filter(y=>y<=ya); return S.rules[lower.length?lower[lower.length-1]:ys[0]];
+}
+const client = () => S.clients.find(c=>c.id===S.cid);
+const retKey = () => S.cid+'_'+S.ya;
+
+/* ---------- tabs ---------- */
+function setTab(t){
+  S.tab=t;
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t));
+  document.querySelectorAll('main > section').forEach(s=>s.hidden = s.id!=='t-'+t);
+  if(t==='report') renderReport();
+  if(t==='assets') renderAssets();
+  if(t==='rules') renderRules();
+  window.scrollTo(0,0);
+}
+$('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setTab(b.dataset.tab); });
+
+/* ---------- pickers ---------- */
+function renderPickers(){
+  const cs=[...S.clients].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  $('cSel').innerHTML = cs.length ? cs.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('') : '<option value="">（还没有客户）</option>';
+  if(!S.cid || !client()){ let rem=null; try{rem=localStorage.getItem('tx-cid')}catch(e){} const p=cs.find(c=>c.id===rem)||cs[0]; S.cid=p?p.id:null; }
+  $('cSel').value=S.cid||'';
+  const ys=ruleYAs(); const opts=new Set(ys); for(let y=2025;y<=new Date().getFullYear();y++) opts.add(y);
+  const list=[...opts].sort((a,b)=>b-a);
+  if(!S.ya){ let rem=null; try{rem=parseInt(localStorage.getItem('tx-ya'))}catch(e){} S.ya = list.includes(rem)?rem:(list.includes(2025)?2025:list[0]); }
+  $('ySel').innerHTML=list.map(y=>`<option value="${y}">YA${y}${S.rules[y]?(S.rules[y].status==='final'?'':' · 草稿规则'):' · 无规则'}</option>`).join('');
+  $('ySel').value=S.ya;
+}
+$('cSel').addEventListener('change',e=>{ flushSave(); S.cid=e.target.value; try{localStorage.setItem('tx-cid',S.cid)}catch(_){} loadReturn(); });
+$('ySel').addEventListener('change',e=>{ flushSave(); S.ya=parseInt(e.target.value); try{localStorage.setItem('tx-ya',S.ya)}catch(_){} loadReturn(); });
+
+/* ---------- return working copy ---------- */
+function blankReturn(){
+  const c=client();
+  return { cid:S.cid, ya:S.ya, form:c?.form||'B', resident:true, status:'draft', rk:'1', emp:{}, biz:{addbacks:[],deducts:[]}, other:{}, don:{}, reliefs:{}, relRef:{}, zakat:'', rebOther:'', cp500:'' };
+}
+function loadReturn(){
+  const has=!!(S.cid && S.ya);
+  $('retEmpty').hidden=has; $('retGrid').hidden=!has;
+  if(!has){ S.cur=null; return; }
+  const doc=S.returns[retKey()];
+  S.cur = doc ? JSON.parse(JSON.stringify(doc)) : blankReturn();
+  delete S.cur.id;
+  S.cur.biz=S.cur.biz||{}; S.cur.biz.addbacks=S.cur.biz.addbacks||[]; S.cur.biz.deducts=S.cur.biz.deducts||[];
+  ['emp','other','don','reliefs','relRef'].forEach(k=>S.cur[k]=S.cur[k]||{});
+  S.dirty=false; $('savedTag').textContent = doc ? '已保存' : '新文件';
+  ruleNotice(); fillForm(); recalc();
+  if(S.tab==='report') renderReport(); if(S.tab==='assets') renderAssets();
+}
+function ruleNotice(){
+  const r=S.rules[S.ya], n=$('noRule');
+  if(!ruleYAs().length){ n.hidden=false; n.textContent='还没有任何税务规则。请到「税务规则」导入，或请 Claude 写入。'; return; }
+  if(!r){ const f=rulesFor(S.ya); n.hidden=false; n.textContent=`YA${S.ya} 还没有规则，暂时用 YA${f.ya} 的规则计算。请到「税务规则」复制成 YA${S.ya} 并更新。`; return; }
+  if(r.status!=='final'){ n.hidden=false; n.textContent=`YA${S.ya} 规则还是草稿（${r.sources||''}）。LHDN 出 YA${S.ya} 表格后请核对编号与上限，再改成定案。`; return; }
+  n.hidden=true;
+}
+const getK = (o,k) => k.split('.').reduce((a,p)=>a==null?a:a[p], o);
+function setK(o,k,v){ const ps=k.split('.'); let a=o; for(let i=0;i<ps.length-1;i++){ if(a[ps[i]]==null) a[ps[i]]={}; a=a[ps[i]]; } a[ps[ps.length-1]]=v; }
+
+function fillForm(){
+  document.querySelectorAll('#t-ret [data-k]').forEach(el=>{
+    let v=getK(S.cur, el.dataset.k);
+    if(el.dataset.bool) v = String(v!==false);
+    el.value = v ?? (el.tagName==='SELECT' ? el.options[0].value : '');
+  });
+  renderRows(); renderReliefs(); applyForm();
+}
+function applyForm(){
+  const isB=S.cur.form==='B'; $('bizPanel').hidden=!isB;
+  const r=rulesFor(S.ya); const fc=r?.formCodes?.[S.cur.form]||{};
+  $('codeEmp').textContent=fc.emp?('→ '+fc.emp):''; $('codeBiz').textContent=fc.biz?('→ '+fc.biz):'';
+  $('codeRent').textContent=fc.rent||''; $('codeInt').textContent=fc.int||''; $('codeLossBF').textContent=fc.lossBF||'';
+  $('codeDon').textContent=fc.don?('→ '+fc.don+'（'+(fc.donPart||'')+'）'):''; $('codeRel').textContent=fc.rel?('→ '+fc.rel):'';
+  $('rkCode').textContent=fc.rk||(isB?'A6':'—');
+  const st={draft:['草稿','draft'],review:['待复核','warn'],reviewed:['已复核','ok'],filed:['已提交','ok']}[S.cur.status]||['草稿','draft'];
+  $('statusPill').textContent=st[0]; $('statusPill').className='pill '+st[1];
+}
+$('t-ret').addEventListener('input', e=>{
+  const el=e.target;
+  if(el.dataset.k){ let v=el.value; if(el.dataset.bool) v = v==='true'; setK(S.cur, el.dataset.k, v); if(el.dataset.k==='form'||el.dataset.k==='status') applyForm(); }
+  else if(el.dataset.ab!=null){ S.cur.biz.addbacks[+el.dataset.i][el.dataset.ab]=el.value; if(el.dataset.ab==='type'){ const t=(rulesFor(S.ya).addbackTypes||[]).find(x=>x.code===el.value); S.cur.biz.addbacks[+el.dataset.i].pct=''; setTimeout(()=>{renderRows();recalc();},0); } }
+  else if(el.dataset.dd!=null){ S.cur.biz.deducts[+el.dataset.i][el.dataset.dd]=el.value; }
+  else if(el.dataset.rel){ S.cur.reliefs[el.dataset.rel] = el.type==='checkbox' ? el.checked : el.value; }
+  else if(el.dataset.relref){ S.cur.relRef[el.dataset.relref]=el.value; }
+  else return;
+  touch(); recalc();
+});
+$('t-ret').addEventListener('change', e=>{ if(e.target.type==='checkbox' && e.target.dataset.rel){ S.cur.reliefs[e.target.dataset.rel]=e.target.checked; touch(); recalc(); } });
+
+function touch(){ S.dirty=true; $('savedTag').textContent='未保存…'; clearTimeout(S.saveT); S.saveT=setTimeout(saveReturn,900); }
+function flushSave(){ if(S.dirty){ clearTimeout(S.saveT); saveReturn(); } }
+async function saveReturn(){
+  if(!S.cur||!S.dirty) return;
+  const body=JSON.parse(JSON.stringify(S.cur)); body.updatedAt=Date.now();
+  const R=TAX.compute(body, client(), rulesFor(S.ya), rulesFor); body.result={balance:R.balance, chargeable:R.chargeable, taxPayable:R.taxPayable};
+  S.dirty=false;
+  try{ await put('taxreturns/'+body.cid+'_'+body.ya, body); $('savedTag').textContent='已保存'; }catch(e){ S.dirty=true; dbErr(e); }
+}
+window.addEventListener('beforeunload', flushSave);
+
+/* add-back & deduction rows */
+function renderRows(){
+  const types=rulesFor(S.ya)?.addbackTypes||[];
+  $('abBody').innerHTML = S.cur.biz.addbacks.map((x,i)=>{
+    const t=types.find(k=>k.code===x.type)||types[0]||{pct:100};
+    return `<tr><td><select data-ab="type" data-i="${i}" style="min-width:180px">${types.map(k=>`<option value="${esc(k.code)}" ${k.code===x.type?'selected':''}>${esc(k.name)}</option>`).join('')}</select><div class="small muted">${esc(t.ref||'')}</div></td>
+    <td><input data-ab="desc" data-i="${i}" value="${esc(x.desc||'')}" style="min-width:150px"></td>
+    <td><input class="amt" data-ab="amt" data-i="${i}" value="${esc(x.amt??'')}" inputmode="decimal" style="width:110px"></td>
+    <td><input class="amt" data-ab="pct" data-i="${i}" value="${esc(x.pct??'')}" placeholder="${t.pct}" style="width:60px"></td>
+    <td class="r mono" id="abAdd${i}">—</td>
+    <td><input data-ab="ref" data-i="${i}" value="${esc(x.ref||'')}" placeholder="GL 户口 / 单号" style="min-width:120px"></td>
+    <td><button class="btn sm" data-abx="${i}" aria-label="删除">×</button></td></tr>`;}).join('') || '<tr><td colspan="7" class="empty">没有加回项目</td></tr>';
+  $('dedBody').innerHTML = S.cur.biz.deducts.map((x,i)=>`<tr><td><input data-dd="desc" data-i="${i}" value="${esc(x.desc||'')}"></td>
+    <td><input class="amt" data-dd="amt" data-i="${i}" value="${esc(x.amt??'')}" inputmode="decimal" style="width:120px"></td>
+    <td><input data-dd="ref" data-i="${i}" value="${esc(x.ref||'')}"></td><td><button class="btn sm" data-ddx="${i}" aria-label="删除">×</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">没有</td></tr>';
+}
+$('abAdd').addEventListener('click',()=>{ const t=(rulesFor(S.ya)?.addbackTypes||[])[0]; S.cur.biz.addbacks.push({type:t?t.code:'OTHER',desc:'',amt:'',pct:'',ref:''}); renderRows(); touch(); recalc(); });
+$('dedAdd').addEventListener('click',()=>{ S.cur.biz.deducts.push({desc:'',amt:'',ref:''}); renderRows(); touch(); });
+$('abBody').addEventListener('click',e=>{ const b=e.target.closest('[data-abx]'); if(b){ S.cur.biz.addbacks.splice(+b.dataset.abx,1); renderRows(); touch(); recalc(); }});
+$('dedBody').addEventListener('click',e=>{ const b=e.target.closest('[data-ddx]'); if(b){ S.cur.biz.deducts.splice(+b.dataset.ddx,1); renderRows(); touch(); recalc(); }});
+
+function renderReliefs(){
+  const r=rulesFor(S.ya); const fc=r?.formCodes?.[S.cur.form]||{}; const pre=fc.relPrefix||'';
+  $('relBody').innerHTML=(r?.reliefs||[]).map(it=>{
+    const v=S.cur.reliefs[it.code];
+    let inp;
+    if(it.type==='auto') inp='<span class="muted small">自动</span>';
+    else if(it.type==='flag') inp=`<label class="row small" style="justify-content:flex-end"><input type="checkbox" data-rel="${esc(it.code)}" ${v===true||v==='true'?'checked':''}> 适用</label>`;
+    else inp=`<input class="amt" data-rel="${esc(it.code)}" value="${esc(v??'')}" inputmode="decimal" style="width:110px" placeholder="${it.type==='count'?'人数':''}">`;
+    const cap = it.type==='count' ? `${money(it.per)}/位` : money(it.max);
+    return `<tr><td class="code">${esc(pre+it.no)}</td><td>${esc(it.name)}${it.group?` <span class="pill">${esc(it.group)}</span>`:''}<div class="warnline" id="relN_${esc(it.code)}"></div></td><td class="r mono">${cap}</td><td class="r">${inp}</td><td class="r mono" id="relC_${esc(it.code)}">—</td><td><input data-relref="${esc(it.code)}" value="${esc(S.cur.relRef[it.code]||'')}" style="min-width:110px"></td></tr>`;
+  }).join('');
+}
+$('pullEA').addEventListener('click',()=>{
+  const e=S.cur.emp; if(N(e.epf)) S.cur.reliefs['17ii']=String(N(S.cur.reliefs['17ii'])+N(e.epf)); if(N(e.socso)) S.cur.reliefs['20']=String(N(S.cur.reliefs['20'])+N(e.socso));
+  renderReliefs(); touch(); recalc(); toast('已加入项目 17(ii) 和 20');
+});
+
+/* ---------- live computation ---------- */
+function recalc(){
+  if(!S.cur) return; const rules=rulesFor(S.ya); if(!rules) return;
+  const R=TAX.compute(S.cur, client(), rules, rulesFor); S.R=R;
+  if(R.hasBiz){ $('npAuto').textContent=money(R.netProfit); R.addbacks.forEach((x,i)=>{}); }
+  S.cur.biz.addbacks.forEach((x,i)=>{ const el=$('abAdd'+i); if(!el) return; const t=(rules.addbackTypes||[]).find(k=>k.code===x.type)||{pct:100}; const pct=x.pct!==''&&x.pct!=null?N(x.pct):t.pct; el.textContent=m0(N(x.amt)*pct/100); });
+  (rules.reliefs||[]).forEach(it=>{ const c=$('relC_'+it.code), nn=$('relN_'+it.code); const l=R.rel.lines.find(x=>x.code===it.code); if(c) c.textContent=l?m0(l.claim):'—'; if(nn) nn.textContent=l?.note||''; });
+  const fc=rules.formCodes?.[S.cur.form]||{};
+  const row=(code,label,v,cls='')=>`<tr class="${cls}"><td class="code">${esc(code||'')}</td><td>${label}</td><td class="r mono">${typeof v==='string'?v:money(v)}</td></tr>`;
+  let h='';
+  if(R.hasBiz){
+    h+=row('','账目净利',R.netProfit,'sub')+row('','+ 加回',R.addbackTotal,'sub')+(R.deductTotal?row('','− 扣除',R.deductTotal,'sub'):'')+(R.ca.bc?row('','+ Balancing charge',R.ca.bc,'sub'):'');
+    h+=row('','调整后收入',R.adjusted)+row('','− 资本津贴（本年 '+money(R.ca.total)+(R.caBF?' + b/f '+money(R.caBF):'')+'）',R.caUsed,'sub');
+    h+=row(fc.biz,'生意法定收入',R.statBiz)+(R.lossBFUsed?row(fc.lossBF,'− 亏损 b/f',R.lossBFUsed,'sub'):'');
+  }
+  if(R.empIncome) h+=row(fc.emp,'受雇法定收入',R.empIncome);
+  if(R.rental) h+=row(fc.rent,'租金',R.rental); if(R.interest) h+=row(fc.int,'利息/其他',R.interest); if(R.otherInc) h+=row('','其他收入',R.otherInc);
+  h+=row(fc.agg,'总收入 Aggregate',R.aggregate,'tot');
+  if(R.curLossUsed) h+=row(fc.curLoss,'− 本年生意亏损',R.curLossUsed,'sub');
+  if(R.donCapped||R.donGov) h+=row(fc.don,'− 捐款',R.donCapped+R.donGov,'sub');
+  h+=row(fc.total,'Total income',R.totalIncome)+row(fc.rel,'− 扣除额 Relief',R.rel.total,'sub');
+  h+=row(fc.ci,'应课税收入',R.chargeable,'tot')+row(fc.tax,'所得税',R.taxGross);
+  if(R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther) h+=row(fc.reb,'− 回扣',R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther,'sub');
+  h+=row(R.taxPayable>0?fc.payable:fc.repay,'应缴税额',R.taxPayable,'tot')+row(fc.paid,'− PCB + CP500',R.pcb+R.cp500,'sub');
+  if(R.hasBiz && (R.caCF||R.lossCF)) h+=`<tr class="sub"><td></td><td colspan="2">结转：资本津贴 c/f ${money(R.caCF)} · 亏损 c/f ${money(R.lossCF)}</td></tr>`;
+  $('sumTbl').innerHTML=h; $('sumForm').textContent='Form '+S.cur.form+' · YA'+S.ya;
+  const b=$('bigBal'); b.className='big '+(R.balance>0?'pay':R.balance<0?'refund':'zero');
+  b.innerHTML=`<span>${R.balance>0?'还要缴税':R.balance<0?'可退税':'不用补缴'} <span class="code">${esc(fc.bal||'')}</span></span><b>${money(Math.abs(R.balance))}</b>`;
+}
+$('toReport').addEventListener('click',()=>{ flushSave(); setTab('report'); });
+
+/* ---------- assets ---------- */
+function clientAssets(){ const c=client(); return c ? (c.assets||[]) : []; }
+async function saveClient(c){ const b={...c}; delete b.id; try{ await put('taxclients/'+c.id,b); }catch(e){dbErr(e)} }
+let asT=null;
+function assetChanged(){ clearTimeout(asT); asT=setTimeout(()=>saveClient(client()),700); renderCA(); recalc(); }
+function renderAssets(){
+  const c=client(); if(!c){ $('asBody').innerHTML='<tr><td colspan="12" class="empty">先选客户</td></tr>'; $('caTbl').innerHTML=''; return; }
+  $('smeChk').checked=!!c.sme;
+  const cls=rulesFor(S.ya)?.ca?.classes||[];
+  $('asBody').innerHTML=(c.assets||[]).map((a,i)=>`<tr>
+    <td><input data-as="desc" data-i="${i}" value="${esc(a.desc||'')}" style="min-width:160px"></td>
+    <td><input data-as="ref" data-i="${i}" value="${esc(a.ref||'')}" style="width:110px"></td>
+    <td><select data-as="cls" data-i="${i}">${cls.map(k=>`<option value="${k.code}" ${k.code===a.cls?'selected':''}>${esc(k.code)} · ${esc(k.name)} (${k.ia}/${k.aa})</option>`).join('')}</select></td>
+    <td><input data-as="ya" data-i="${i}" value="${esc(a.ya||'')}" class="mono" style="width:66px"></td>
+    <td><input class="amt" data-as="cost" data-i="${i}" value="${esc(a.cost??'')}" style="width:110px"></td>
+    <td><input type="checkbox" data-as="sva" data-i="${i}" ${a.sva?'checked':''}></td>
+    <td><input type="checkbox" data-as="car" data-i="${i}" ${a.car?'checked':''}></td>
+    <td><input type="checkbox" data-as="carNew" data-i="${i}" ${a.carNew?'checked':''}></td>
+    <td><input class="amt" data-as="privPct" data-i="${i}" value="${esc(a.privPct??'')}" style="width:60px"></td>
+    <td><input data-as="dispYA" data-i="${i}" value="${esc(a.dispYA||'')}" class="mono" style="width:66px"></td>
+    <td><input class="amt" data-as="dispAmt" data-i="${i}" value="${esc(a.dispAmt??'')}" style="width:100px"></td>
+    <td><button class="btn sm" data-asx="${i}" aria-label="删除">×</button></td></tr>`).join('') || '<tr><td colspan="12" class="empty">还没有资产</td></tr>';
+  renderCA();
+}
+function renderCA(){
+  const c=client(); if(!c) return; const R=TAX.caForYA(c.assets||[], S.ya, rulesFor, !!c.sme); S.CA=R;
+  $('caYA').textContent='YA'+S.ya;
+  $('caTbl').innerHTML=`<thead><tr><th>资产</th><th>参考</th><th>类别</th><th>购买 YA</th><th class="r">成本</th><th class="r">QE</th><th class="r">TWDV b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">BA</th><th class="r">BC</th><th class="r">TWDV c/f</th></tr></thead><tbody>`+
+   (R.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.s.capNote?`<div class="warnline">${esc(x.s.capNote)}</div>`:''}${x.s.sva&&+x.a.ya===S.ya?'<div class="small muted">SVA 100%</div>':''}${x.s.svaNote?`<div class="warnline">${esc(x.s.svaNote)}</div>`:''}${N(x.a.privPct)?`<div class="small muted">商用 ${100-N(x.a.privPct)}%</div>`:''}</td><td class="small">${esc(x.a.ref||'')}</td><td class="code">${esc(x.a.cls)}</td><td class="mono">${esc(x.a.ya)}</td><td class="r mono">${money(x.a.cost)}</td><td class="r mono">${money(x.s.qe)}</td><td class="r mono">${money(x.row.twdvOpen)}</td><td class="r mono">${m0(x.row.ia)}</td><td class="r mono">${m0(x.row.aa)}</td><td class="r mono">${m0(x.row.ba)}</td><td class="r mono">${m0(x.row.bc)}</td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('') || '<tr><td colspan="12" class="empty">本 YA 没有资本津贴</td></tr>')+
+   `<tr class="tot"><td colspan="7">合计（本年资本津贴 = IA + AA + BA）</td><td class="r mono">${money(R.ia)}</td><td class="r mono">${money(R.aa)}</td><td class="r mono">${money(R.ba)}</td><td class="r mono">${money(R.bc)}</td><td class="r mono">${money(R.total)}</td></tr></tbody>`;
+}
+$('asBody').addEventListener('input',e=>{ const el=e.target; if(el.dataset.as==null) return; const a=client().assets[+el.dataset.i]; a[el.dataset.as]= el.type==='checkbox'?el.checked:el.value;
+  if(el.dataset.as==='cost'){ const each=rulesFor(N(a.ya)||S.ya)?.ca?.sva?.each??2000; if(N(a.cost)>0 && N(a.cost)<=each && a.svaAuto!==false){ a.sva=true; } if(N(a.cost)>each) a.sva=false; }
+  if(el.dataset.as==='sva') a.svaAuto=false;
+  assetChanged(); });
+$('asBody').addEventListener('change',e=>{ if(e.target.dataset.as==='cost'||e.target.type==='checkbox') setTimeout(renderAssets,0); });
+$('asBody').addEventListener('click',e=>{ const b=e.target.closest('[data-asx]'); if(!b) return; if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='确定?'; setTimeout(()=>{b.dataset.armed='';b.textContent='×'},3000); return; } client().assets.splice(+b.dataset.asx,1); renderAssets(); assetChanged(); });
+$('asAdd').addEventListener('click',()=>{ const c=client(); if(!c) return toast('先选客户'); c.assets=c.assets||[]; c.assets.push({id:uid(),desc:'',cls:'OT',ya:String(S.ya),cost:''}); renderAssets(); });
+$('smeChk').addEventListener('change',e=>{ const c=client(); if(!c) return; c.sme=e.target.checked; assetChanged(); });
+$('asPaste').addEventListener('click',()=>$('pasteWrap').hidden=!$('pasteWrap').hidden);
+$('pasteGo').addEventListener('click',()=>{ const c=client(); if(!c) return; c.assets=c.assets||[]; let k=0;
+  $('pasteBox').value.split(/\r?\n/).map(l=>l.split('\t')).filter(x=>x[0]&&x[0].trim()).forEach(x=>{ const cost=N(x[4]); const each=rulesFor(N(x[3])||S.ya)?.ca?.sva?.each??2000;
+    c.assets.push({id:uid(),desc:x[0].trim(),ref:(x[1]||'').trim(),cls:(x[2]||'OT').trim().toUpperCase(),ya:(x[3]||String(S.ya)).trim(),cost:String(cost),sva:cost>0&&cost<=each}); k++; });
+  $('pasteBox').value=''; renderAssets(); assetChanged(); toast('已加入 '+k+' 件资产'); });
+
+/* ---------- report ---------- */
+function reportData(){
+  const c=client(); const rules=rulesFor(S.ya); if(!c||!S.cur||!rules) return null;
+  const R=TAX.compute(S.cur,c,rules,rulesFor); return {c,R,rules,fc:rules.formCodes?.[S.cur.form]||{}};
+}
+function renderReport(){
+  const d=reportData(); if(!d){ $('paper').innerHTML='<div class="empty">先选客户和 YA</div>'; return; }
+  const {c,R,rules,fc}=d; const cur=S.cur; const pre=fc.relPrefix||'';
+  const tr=(a,b,v,cls='')=>`<tr class="${cls}"><td class="code">${esc(a||'')}</td><td>${b}</td><td class="r mono">${typeof v==='string'?v:money(v)}</td></tr>`;
+  const T=(h,rows)=>`<table><thead><tr>${h}</tr></thead><tbody>${rows}</tbody></table>`;
+  let h=`<h1>所得税计算底稿 Tax Computation — YA${S.ya}</h1><div class="small">Form ${esc(cur.form)} · ${cur.resident!==false?'Resident':'Non-resident'} · 规则：YA${rules.ya}${rules.status==='final'?'':'（草稿规则）'}</div>
+  <div class="meta"><div><b>纳税人</b>${esc(c.name)}</div><div><b>IC / 护照</b><span class="mono">${esc(c.ic||'')}</span></div>
+  <div><b>税务号码 TIN</b><span class="mono">${esc(c.tin||'')}</span></div><div><b>评税年 / 基期</b>YA${S.ya} · 1/1/${S.ya} – 31/12/${S.ya}</div>
+  ${R.hasBiz?`<div><b>生意</b>${esc(cur.biz.name||'')}</div><div><b>MSIC / 期间</b>${esc(cur.biz.msic||'')} ${esc(cur.biz.period||'')}</div>`:''}
+  <div><b>记录保存 ${esc(fc.rk||'')}</b>${cur.rk==='2'?'2 – 不合规':'1 – 合规'}</div><div><b>截止日期</b>${esc(rules.deadlines?.[cur.form]||'')}</div></div>`;
+  h+=`<h4>1. e-Filing 对照（Borang ${esc(cur.form)} ${S.ya}）</h4>`;
+  let s='';
+  if(R.hasBiz){ s+=tr(fc.biz,'生意法定收入（来自 HK-1）',R.statBiz); if(R.lossBFUsed) s+=tr(fc.lossBF,'生意亏损 b/f',R.lossBFUsed); }
+  s+=tr(fc.emp,'受雇法定收入',R.empIncome)+tr(fc.rent,'租金',R.rental)+tr(fc.int,'利息、折扣、版税、佣金、其他',R.interest);
+  if(R.otherInc) s+=tr('','其他法定收入',R.otherInc);
+  s+=tr(fc.agg,'总收入 Aggregate income',R.aggregate,'tot');
+  if(R.hasBiz) s+=tr(fc.curLoss,'本年生意亏损',R.curLossUsed);
+  s+=tr(fc.don,'核准捐款（'+esc(fc.donPart||'')+'）',R.donCapped+R.donGov)+tr(fc.total,'Total income',R.totalIncome)+tr(fc.rel,'扣除额总额（见扣除额明细）',R.rel.total)+tr(fc.ci,'应课税收入 Chargeable income',R.chargeable,'tot');
+  s+=tr(fc.tax,'所得税（见税额计算）',R.taxGross)+tr(fc.reb,'回扣：本人 '+money(R.rebSelf)+' · 配偶 '+money(R.rebSpouse)+' · Zakat '+money(R.rebZakat)+(R.rebOther?' · 其他 '+money(R.rebOther):''),R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther);
+  s+=tr(R.taxPayable>0?fc.payable:fc.repay,'应缴税额',R.taxPayable,'tot')+tr(fc.paid,'已缴：PCB '+money(R.pcb)+' · CP500 '+money(R.cp500),R.pcb+R.cp500);
+  s+=tr(fc.bal,R.balance>=0?'余额：还要缴':'余额：多缴（可退，e-Filing 打 X）',Math.abs(R.balance),'tot');
+  h+=T('<th class="code">项目</th><th>说明</th><th class="r">RM</th>',s);
+  if(R.hasBiz){
+    h+=`<h4>2. 生意法定收入计算（HK-1）</h4>`;
+    let b=tr('','营业额',R.revenue)+(N(cur.biz.otherInc)?tr('','其他生意收入',N(cur.biz.otherInc)):'')+tr('','− 总开销（按账目）',R.expenses)+tr('','账目净利 / (亏)',R.netProfit,'tot');
+    b+=`<tr><td></td><td colspan="2"><b>加：不可扣除开销</b></td></tr>`;
+    b+=R.addbacks.map(x=>`<tr><td class="code">${esc(x.type)}</td><td>${esc(x.typeName)}${x.desc?' – '+esc(x.desc):''}<div class="small" style="color:#555">${esc(((rules.addbackTypes||[]).find(k=>k.code===x.type)||{}).ref||'')}${x.pct!==100?' · '+x.pct+'% of '+money(x.amt):''}${x.ref?' · 参考 '+esc(x.ref):''}</div></td><td class="r mono">${money(x.add)}</td></tr>`).join('')||tr('','（无）','—');
+    b+=tr('','加回合计',R.addbackTotal,'tot');
+    if(R.deducts.length){ b+=`<tr><td></td><td colspan="2"><b>减：不需课税收入 / 额外扣除</b></td></tr>`+R.deducts.map(x=>tr('',esc(x.desc)+(x.ref?' · '+esc(x.ref):''),x.amt)).join('')+tr('','扣除合计',R.deductTotal,'tot'); }
+    if(R.ca.bc) b+=tr('','加：Balancing charge',R.ca.bc);
+    b+=tr('','调整后收入 Adjusted income / (loss)',R.adjusted,'tot')+tr('','− 资本津贴：本年 '+money(R.ca.total)+' + b/f '+money(R.caBF)+' = '+money(R.caAvail),R.caUsed)+tr(fc.biz,'生意法定收入',R.statBiz,'tot');
+    b+=tr('','未用完资本津贴 c/f',R.caCF)+tr('','生意亏损 c/f',R.lossCF);
+    h+=T('<th class="code"></th><th>说明</th><th class="r">RM</th>',b);
+    h+=`<h4>3. 资本津贴明细（HK-1.2）</h4>`;
+    h+=T('<th>资产</th><th>参考</th><th>类别 IA/AA</th><th>YA</th><th class="r">成本</th><th class="r">QE</th><th class="r">TWDV b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">BA/(BC)</th><th class="r">TWDV c/f</th>',
+      R.ca.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.s.capNote?'<div class="small">'+esc(x.s.capNote)+'</div>':''}${x.s.sva&&+x.a.ya===S.ya?'<div class="small">SVA 100%（Jadual 3 para 19A）</div>':''}${N(x.a.privPct)?'<div class="small">商用 '+(100-N(x.a.privPct))+'%</div>':''}</td><td class="small">${esc(x.a.ref||'')}</td><td class="mono">${esc(x.a.cls)} ${x.s.cls.ia}/${x.s.cls.aa}</td><td class="mono">${esc(x.a.ya)}</td><td class="r mono">${money(x.a.cost)}</td><td class="r mono">${money(x.s.qe)}</td><td class="r mono">${money(x.row.twdvOpen)}</td><td class="r mono">${m0(x.row.ia)}</td><td class="r mono">${m0(x.row.aa)}</td><td class="r mono">${x.row.bc?'('+money(x.row.bc)+')':m0(x.row.ba)}</td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('')+
+      `<tr class="tot"><td colspan="7">合计</td><td class="r mono">${money(R.ca.ia)}</td><td class="r mono">${money(R.ca.aa)}</td><td class="r mono">${R.ca.bc?'('+money(R.ca.bc)+')':money(R.ca.ba)}</td><td class="r mono">${money(R.ca.total)}</td></tr>`);
+  }
+  const n=R.hasBiz?4:2;
+  h+=`<h4>${n}. 扣除额明细（Bahagian ${esc(pre)}）</h4>`;
+  h+=T('<th class="code">项目</th><th>扣除项目</th><th class="r">收据/人数</th><th class="r">可扣</th><th>收据参考</th>',
+    R.rel.lines.map(l=>{ const it=(rules.reliefs||[]).find(x=>x.code===l.code)||{}; return `<tr><td class="code">${esc(pre+(it.no||l.code))}</td><td>${esc(it.name||l.code)}${l.note?'<div class="small">'+esc(l.note)+'</div>':''}</td><td class="r mono">${l.type==='count'?l.input+' 位':l.type==='auto'?'自动':money(l.input)}</td><td class="r mono">${money(l.claim)}</td><td class="small">${esc(cur.relRef?.[l.code]||'')}</td></tr>`;}).join('')+
+    `<tr class="tot"><td></td><td>合计 → ${esc(fc.rel||'')}</td><td></td><td class="r mono">${money(R.rel.total)}</td><td></td></tr>`);
+  h+=`<h4>${n+1}. 税额计算（ITA 附表 1）</h4>`;
+  h+=T('<th>级距</th><th class="r">税率</th><th class="r">税额</th>',R.taxSteps.map(x=>`<tr><td class="mono">${money(x.from)} – ${money(x.to)}</td><td class="r mono">${x.rate}%</td><td class="r mono">${money(x.amt)}</td></tr>`).join('')+`<tr class="tot"><td>应课税收入 ${money(R.chargeable)}</td><td></td><td class="r mono">${money(R.taxGross)}</td></tr>`);
+  h+=`<h4>${n+2}. 资料来源与备注</h4><div>${R.empIncome?'EA：'+esc(cur.emp.employer||'')+' '+esc(cur.emp.ref||'')+'<br>':''}${cur.don?.ref?'捐款收据：'+esc(cur.don.ref)+'<br>':''}${esc(cur.notes||'').replace(/\n/g,'<br>')||'—'}</div>`;
+  h+=`<div class="sign"><div>制表 Prepared by<br>${esc(cur.prepBy||'')}<br>日期：</div><div>复核 Reviewed by<br>${esc(cur.revBy||'')}<br>日期：</div><div>纳税人确认 Taxpayer<br>${esc(c.name)}<br>日期：</div></div>`;
+  h+=`<div class="foot">计算依据：ITA 1967 s33、s39、s43、s44、附表 1、附表 3；${esc(rules.sources||'')}。<br>本底稿与所有收据、账目、发票须按 ITA s82 / s82A 保存至提交年份结束后 7 年，供 LHDN 查账。${cur.filedOn?'e-Filing 提交：'+esc(cur.filedOn)+' '+esc(cur.filedRef||''):''}<br>列印日期：${new Date().toLocaleDateString('en-GB')}</div>`;
+  $('paper').innerHTML=h;
+}
+async function saveFile(fname, bytes){
+  const url=URL.createObjectURL(new Blob([bytes])), a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+const fbase = () => { const c=client(); return `TAX-YA${S.ya}-${(c?.name||'').replace(/[^\w\u4e00-\u9fa5 -]/g,'').trim()}-Form${S.cur?.form||''}`; };
+$('printBtn').addEventListener('click', async ()=>{
+  renderReport(); if(typeof html2pdf==='undefined') return toast('PDF 模组没载入');
+  const b=$('printBtn'); b.disabled=true; b.textContent='生成中…';
+  try{
+    const buf=await html2pdf().set({margin:[10,10,12,10],image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','h4','.sign']}}).from($('paper')).outputPdf('arraybuffer');
+    await saveFile(fbase()+'.pdf', new Uint8Array(buf));
+  }catch(e){ console.error(e); toast('PDF 生成失败'); }
+  b.disabled=false; b.textContent='下载 PDF';
+});
+$('xlsBtn').addEventListener('click', async ()=>{
+  const d=reportData(); if(!d) return; if(typeof XLSX==='undefined') return toast('Excel 模组没载入');
+  const {c,R,rules,fc}=d; const cur=S.cur; const pre=fc.relPrefix||'';
+  const wb=XLSX.utils.book_new();
+  const sum=[['所得税计算底稿 YA'+S.ya,'','Form '+cur.form],['纳税人',c.name],['IC',c.ic||''],['TIN',c.tin||''],[],['项目','说明','RM']];
+  const add=(a,b,v)=>sum.push([a||'',b,Math.round(v*100)/100]);
+  if(R.hasBiz){ add(fc.biz,'生意法定收入',R.statBiz); add(fc.lossBF,'生意亏损 b/f',R.lossBFUsed); }
+  add(fc.emp,'受雇法定收入',R.empIncome); add(fc.rent,'租金',R.rental); add(fc.int,'利息/其他',R.interest); add('','其他',R.otherInc);
+  add(fc.agg,'总收入',R.aggregate); add(fc.curLoss,'本年亏损',R.curLossUsed); add(fc.don,'捐款',R.donCapped+R.donGov); add(fc.total,'Total income',R.totalIncome);
+  add(fc.rel,'扣除额',R.rel.total); add(fc.ci,'应课税收入',R.chargeable); add(fc.tax,'所得税',R.taxGross); add(fc.reb,'回扣',R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther);
+  add(fc.payable,'应缴税额',R.taxPayable); add(fc.paid,'已缴 PCB+CP500',R.pcb+R.cp500); add(fc.bal,R.balance>=0?'余额要缴':'多缴',Math.abs(R.balance));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'e-Filing');
+  if(R.hasBiz){
+    const hk=[['HK-1 生意法定收入'],['营业额',R.revenue],['其他生意收入',N(cur.biz.otherInc)],['总开销',R.expenses],['账目净利',R.netProfit],[],['加回','说明','法令','账目金额','%','加回','参考']];
+    R.addbacks.forEach(x=>hk.push([x.typeName,x.desc||'',((rules.addbackTypes||[]).find(k=>k.code===x.type)||{}).ref||'',N(x.amt),x.pct,x.add,x.ref||'']));
+    hk.push(['加回合计','','','','',R.addbackTotal]); R.deducts.forEach(x=>hk.push(['扣除',x.desc,'','','',-x.amt,x.ref||'']));
+    hk.push([],['调整后收入',R.adjusted],['资本津贴（用）',R.caUsed],['生意法定收入',R.statBiz],['资本津贴 c/f',R.caCF],['亏损 c/f',R.lossCF]);
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(hk),'HK-1');
+    const ca=[['资产','参考','类别','购买YA','成本','QE','TWDV b/f','IA','AA','BA','BC','TWDV c/f']];
+    R.ca.items.forEach(x=>ca.push([x.a.desc,x.a.ref||'',x.a.cls,x.a.ya,N(x.a.cost),x.s.qe,x.row.twdvOpen,x.row.ia,x.row.aa,x.row.ba,x.row.bc,x.row.twdvClose]));
+    ca.push(['合计','','','','','','',R.ca.ia,R.ca.aa,R.ca.ba,R.ca.bc,'']);
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ca),'HK-1.2 CA');
+  }
+  const rl=[['项目','扣除项目','收据/人数','可扣','参考']];
+  R.rel.lines.forEach(l=>{ const it=(rules.reliefs||[]).find(x=>x.code===l.code)||{}; rl.push([pre+(it.no||l.code),it.name||l.code,l.input,l.claim,cur.relRef?.[l.code]||'']); });
+  rl.push(['','合计','',R.rel.total]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rl),'Relief');
+  const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  await saveFile(fbase()+'.xlsx', new Uint8Array(data));
+});
+
+/* ---------- clients ---------- */
+let editingC=null;
+function renderClients(){
+  const q=$('cQ').value.trim().toLowerCase();
+  const rows=[...S.clients].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).filter(c=>!q||[c.name,c.ic,c.tin].some(v=>String(v||'').toLowerCase().includes(q)));
+  const st={draft:'草稿',review:'待复核',reviewed:'已复核',filed:'已提交'};
+  $('cBody').innerHTML=rows.map(c=>{
+    const rs=Object.values(S.returns).filter(r=>r.cid===c.id).sort((a,b)=>b.ya-a.ya);
+    return `<tr><td>${esc(c.name)}<div class="small muted mono">${esc(c.ic||'')}</div></td><td class="mono">${esc(c.tin||'')}</td><td>${esc(c.form||'B')}</td>
+    <td>${rs.map(r=>`<button class="btn sm" data-open="${esc(c.id)}" data-ya="${r.ya}">YA${r.ya} · ${st[r.status]||'草稿'}${r.result?' · '+(r.result.balance>=0?'缴 ':'退 ')+money(Math.abs(r.result.balance)):''}</button>`).join(' ')||'<span class="muted small">—</span>'}</td>
+    <td class="r" style="white-space:nowrap"><button class="btn sm" data-open="${esc(c.id)}">开</button> <button class="btn sm" data-editc="${esc(c.id)}">改</button></td></tr>`;}).join('') || `<tr><td colspan="5" class="empty">${S.clients.length?'找不到':'还没有客户，用右边表格新增。'}</td></tr>`;
+}
+$('cQ').addEventListener('input',renderClients);
+$('cBody').addEventListener('click',e=>{
+  const o=e.target.closest('[data-open]'), ed=e.target.closest('[data-editc]');
+  if(o){ flushSave(); S.cid=o.dataset.open; if(o.dataset.ya) S.ya=parseInt(o.dataset.ya); try{localStorage.setItem('tx-cid',S.cid);localStorage.setItem('tx-ya',S.ya)}catch(_){} renderPickers(); loadReturn(); setTab('ret'); }
+  if(ed){ const c=S.clients.find(x=>x.id===ed.dataset.editc); editingC=c.id; $('cName').value=c.name||''; $('cIC').value=c.ic||''; $('cTIN').value=c.tin||''; $('cTel').value=c.tel||''; $('cMail').value=c.mail||''; $('cForm2').value=c.form||'B'; $('cNote').value=c.note||''; $('cFormTitle').textContent='修改客户'; $('cCancel').hidden=false; }
+});
+function cReset(){ editingC=null; $('cForm').reset(); $('cFormTitle').textContent='新增客户'; $('cCancel').hidden=true; }
+$('cCancel').addEventListener('click',cReset);
+$('cForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const ex=editingC?S.clients.find(c=>c.id===editingC):null;
+  const ic=$('cIC').value.trim().toUpperCase().replace(/\s+/g,'');
+  if(!ex && S.clients.some(c=>(c.ic||'')===ic)) return toast('这个 IC 已经有客户');
+  const id=ex?ex.id:uid();
+  const body=Object.assign({}, ex||{assets:[]}, {name:$('cName').value.trim().toUpperCase(), ic, tin:$('cTIN').value.trim().toUpperCase().replace(/\s+/g,''), tel:$('cTel').value.trim(), mail:$('cMail').value.trim(), form:$('cForm2').value, note:$('cNote').value.trim()});
+  delete body.id;
+  try{ await put('taxclients/'+id, body); toast('已保存 '+body.name); if(!ex){ S.cid=id; } cReset(); }catch(err){dbErr(err)}
+});
+
+/* ---------- rules editor ---------- */
+function renderRules(){
+  const ys=ruleYAs();
+  $('rSel').innerHTML=ys.map(y=>`<option value="${y}">YA${y}</option>`).join('')||'<option value="">（无）</option>';
+  if(!S.rEdit || !ys.includes(S.rEdit.ya)) loadRuleEdit(ys.includes(S.ya)?S.ya:ys[ys.length-1]);
+  else { $('rSel').value=S.rEdit.ya; drawRule(); }
+}
+function loadRuleEdit(ya){ if(ya==null||!S.rules[ya]){ S.rEdit=null; drawRule(); return; } S.rEdit=JSON.parse(JSON.stringify(S.rules[ya])); delete S.rEdit.id; $('rSel').value=ya; drawRule(); }
+$('rSel').addEventListener('change',e=>loadRuleEdit(parseInt(e.target.value)));
+function drawRule(){
+  const r=S.rEdit; const dis=!r;
+  document.querySelectorAll('#t-rules input,#t-rules select:not(#rSel),#t-rules textarea:not(#importBox)').forEach(x=>x.disabled=dis);
+  if(!r){ ['rBr','rRel','rGrp','rCA','rAB'].forEach(id=>$(id).innerHTML=''); $('rStatus').textContent=''; return; }
+  $('rStatus').textContent=r.status==='final'?'定案':'草稿'; $('rStatus').className='pill '+(r.status==='final'?'ok':'warn');
+  $('r_status').value=r.status||'draft'; $('r_rbT').value=r.rebate?.threshold??''; $('r_rbS').value=r.rebate?.self??''; $('r_rbP').value=r.rebate?.spouse??'';
+  $('r_nr').value=r.nonResidentRate??30; $('r_don').value=r.donationCapPct??10; $('r_svaE').value=r.ca?.sva?.each??''; $('r_svaC').value=r.ca?.sva?.cap??'';
+  $('r_car').value=r.ca?.car?.cap??''; $('r_carH').value=r.ca?.car?.capHigh??''; $('r_carM').value=r.ca?.car?.highMaxCost??'';
+  $('r_dl').value=`B: ${r.deadlines?.B||''} | BE: ${r.deadlines?.BE||''}`; $('r_src').value=r.sources||''; $('r_notes').value=r.notes||'';
+  const x=(t,i)=>`<td><button class="btn sm" data-rdel="${t}" data-i="${i}" aria-label="删除">×</button></td>`;
+  $('rBr').innerHTML=r.brackets.map((b,i)=>`<tr><td><input class="amt" data-r="br.${i}.upto" value="${b.upto??''}"></td><td><input class="amt" data-r="br.${i}.rate" value="${b.rate}" style="width:80px"></td>${x('br',i)}</tr>`).join('');
+  $('rRel').innerHTML=r.reliefs.map((it,i)=>`<tr><td><input data-r="rel.${i}.no" value="${esc(it.no)}" style="width:70px" class="mono"></td><td><input data-r="rel.${i}.code" value="${esc(it.code)}" style="width:60px" class="mono"></td><td><input data-r="rel.${i}.name" value="${esc(it.name)}" style="min-width:280px"></td>
+    <td><select data-r="rel.${i}.type">${['amt','count','flag','auto'].map(t=>`<option ${t===it.type?'selected':''}>${t}</option>`).join('')}</select></td><td><input class="amt" data-r="rel.${i}.max" value="${it.max??''}" style="width:90px"></td><td><input class="amt" data-r="rel.${i}.per" value="${it.per??''}" style="width:80px"></td>
+    <td><input data-r="rel.${i}.group" value="${esc(it.group||'')}" style="width:60px" class="mono"></td><td><input data-r="rel.${i}.flag" value="${esc(it.flag||'')}" style="width:70px" class="mono"></td>${x('rel',i)}</tr>`).join('');
+  $('rGrp').innerHTML=Object.entries(r.reliefGroups||{}).map(([k,g],i)=>`<tr><td><input data-rg="${esc(k)}" data-f="key" value="${esc(k)}" class="mono" style="width:80px"></td><td><input data-rg="${esc(k)}" data-f="name" value="${esc(g.name)}"></td><td><input class="amt" data-rg="${esc(k)}" data-f="max" value="${g.max}" style="width:100px"></td><td><button class="btn sm" data-rgdel="${esc(k)}">×</button></td></tr>`).join('');
+  $('rCA').innerHTML=r.ca.classes.map((k,i)=>`<tr><td><input data-r="ca.${i}.code" value="${esc(k.code)}" class="mono" style="width:70px"></td><td><input data-r="ca.${i}.name" value="${esc(k.name)}"></td><td><input class="amt" data-r="ca.${i}.ia" value="${k.ia}" style="width:70px"></td><td><input class="amt" data-r="ca.${i}.aa" value="${k.aa}" style="width:70px"></td>${x('ca',i)}</tr>`).join('');
+  $('rAB').innerHTML=r.addbackTypes.map((k,i)=>`<tr><td><input data-r="ab.${i}.code" value="${esc(k.code)}" class="mono" style="width:80px"></td><td><input data-r="ab.${i}.name" value="${esc(k.name)}" style="min-width:260px"></td><td><input class="amt" data-r="ab.${i}.pct" value="${k.pct}" style="width:70px"></td><td><input data-r="ab.${i}.ref" value="${esc(k.ref||'')}"></td>${x('ab',i)}</tr>`).join('');
+  const labels={biz:'生意法定收入',lossBF:'亏损 b/f',emp:'受雇收入',rent:'租金',int:'利息/其他',agg:'总收入',curLoss:'本年亏损',don:'捐款',total:'Total income',rel:'扣除额总额',ci:'应课税收入',tax:'所得税',reb:'回扣',payable:'应缴税',repay:'可退税',paid:'已缴',bal:'余额',relPrefix:'扣除额前缀',donPart:'捐款部分',rk:'记录保存'};
+  $('rCodes').innerHTML=['B','BE'].map(f=>`<div class="f wide"><span><b>Form ${f}</b></span><div class="fields" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">${Object.keys(labels).map(k=>`<label class="f"><span>${labels[k]}</span><input class="mono" data-rc="${f}.${k}" value="${esc(r.formCodes?.[f]?.[k]||'')}"></label>`).join('')}</div></div>`).join('');
+}
+const listMap={br:'brackets',rel:'reliefs',ca:null,ab:'addbackTypes'};
+$('t-rules').addEventListener('input',e=>{
+  const r=S.rEdit; if(!r) return; const el=e.target;
+  if(el.dataset.r){ const [t,i,f]=el.dataset.r.split('.'); const arr=t==='ca'?r.ca.classes:r[listMap[t]]; let v=el.value;
+    if(['upto','rate','max','per','ia','aa','pct'].includes(f)) v = v===''?(f==='upto'?null:undefined):N(v);
+    if(v===undefined) delete arr[+i][f]; else arr[+i][f]=v; if(f==='group'&&!v) delete arr[+i].group; if(f==='flag'&&!v) delete arr[+i].flag; }
+  else if(el.dataset.rg){ const k=el.dataset.rg, f=el.dataset.f; r.reliefGroups=r.reliefGroups||{};
+    if(f==='key'){ if(el.value && el.value!==k){ r.reliefGroups[el.value]=r.reliefGroups[k]; delete r.reliefGroups[k]; el.dataset.rg=el.value; el.closest('tr').querySelectorAll('[data-rg]').forEach(x=>x.dataset.rg=el.value);} }
+    else r.reliefGroups[k][f]= f==='max'?N(el.value):el.value; }
+  else if(el.dataset.rc){ const [f,k]=el.dataset.rc.split('.'); r.formCodes=r.formCodes||{}; r.formCodes[f]=r.formCodes[f]||{}; r.formCodes[f][k]=el.value.trim(); }
+  else if(el.id && el.id.startsWith('r_')){
+    r.rebate=r.rebate||{}; r.ca.sva=r.ca.sva||{}; r.ca.car=r.ca.car||{};
+    const map={r_status:()=>r.status=el.value,r_rbT:()=>r.rebate.threshold=N(el.value),r_rbS:()=>r.rebate.self=N(el.value),r_rbP:()=>r.rebate.spouse=N(el.value),r_nr:()=>r.nonResidentRate=N(el.value),r_don:()=>r.donationCapPct=N(el.value),
+      r_svaE:()=>r.ca.sva.each=N(el.value),r_svaC:()=>r.ca.sva.cap=N(el.value),r_car:()=>r.ca.car.cap=N(el.value),r_carH:()=>r.ca.car.capHigh=N(el.value),r_carM:()=>r.ca.car.highMaxCost=N(el.value),
+      r_dl:()=>{ const m=el.value.split('|'); r.deadlines={B:(m[0]||'').replace(/^\s*B:\s*/,'').trim(),BE:(m[1]||'').replace(/^\s*BE:\s*/,'').trim()}; },r_src:()=>r.sources=el.value,r_notes:()=>r.notes=el.value};
+    map[el.id]&&map[el.id]();
+  }
+});
+$('t-rules').addEventListener('click',e=>{
+  const r=S.rEdit; const a=e.target.closest('[data-radd]'), d=e.target.closest('[data-rdel]'), g=e.target.closest('[data-rgdel]');
+  if(!r) return;
+  if(a){ const t=a.dataset.radd; if(t==='br') r.brackets.push({upto:null,rate:0}); if(t==='rel') r.reliefs.push({no:'',code:'new'+r.reliefs.length,name:'',type:'amt',max:0}); if(t==='ca') r.ca.classes.push({code:'',name:'',ia:20,aa:10}); if(t==='ab') r.addbackTypes.push({code:'',name:'',pct:100,ref:''}); if(t==='grp'){ r.reliefGroups=r.reliefGroups||{}; r.reliefGroups['G'+Object.keys(r.reliefGroups).length]={name:'',max:0}; } drawRule(); }
+  if(d){ const t=d.dataset.rdel; const arr=t==='ca'?r.ca.classes:r[listMap[t]]; arr.splice(+d.dataset.i,1); drawRule(); }
+  if(g){ delete r.reliefGroups[g.dataset.rgdel]; drawRule(); }
+});
+$('rSave').addEventListener('click', async ()=>{
+  const r=S.rEdit; if(!r) return;
+  r.brackets.sort((a,b)=>(a.upto??Infinity)-(b.upto??Infinity));
+  const codes=r.reliefs.map(x=>x.code); if(new Set(codes).size!==codes.length) return toast('扣除额代码有重复');
+  r.updatedAt=Date.now();
+  try{ await put('taxrules/'+r.ya, r); toast('YA'+r.ya+' 规则已保存'); }catch(e){dbErr(e)}
+});
+$('rCopy').addEventListener('click', async ()=>{
+  const ys=ruleYAs(); if(!ys.length) return; const src=S.rEdit||S.rules[ys[ys.length-1]]; const ny=Math.max(...ys)+1;
+  const r=JSON.parse(JSON.stringify(src)); delete r.id; r.ya=ny; r.status='draft'; r.sources='复制自 YA'+src.ya+'，待按 YA'+ny+' 财政预算案 / LHDN 表格更新'; r.notes=''; r.updatedAt=Date.now();
+  try{ await put('taxrules/'+ny, r); S.rEdit=null; toast('已建立 YA'+ny+'（草稿）'); setTimeout(()=>loadRuleEdit(ny),300); }catch(e){dbErr(e)}
+});
+$('rExport').addEventListener('click',()=>{ if(!S.rEdit) return; $('importWrap').hidden=false; $('importBox').value=JSON.stringify(S.rEdit,null,1); $('importBox').select(); try{navigator.clipboard.writeText($('importBox').value); toast('已复制到剪贴板');}catch(_){} });
+$('rImport').addEventListener('click',()=>{ $('importWrap').hidden=!$('importWrap').hidden; $('importBox').value=''; });
+$('importGo').addEventListener('click',()=>{ try{ const r=JSON.parse($('importBox').value); if(!r.ya||!r.brackets||!r.reliefs) throw new Error('缺 ya / brackets / reliefs'); r.ca=r.ca||{classes:[]}; r.addbackTypes=r.addbackTypes||[]; S.rEdit=r; drawRule(); toast('已套用 YA'+r.ya+'，检查后按保存'); }catch(e){ toast('JSON 有错：'+e.message); } });
+
+/* ---------- boot ---------- */
+function onClients(rows){ S.clients=rows; renderPickers(); renderClients(); if(!S.cur || S.cur.cid!==S.cid) loadReturn(); else { if(S.tab==='assets') renderCA(); recalc(); } }
+function onReturns(rows){ S.returns={}; rows.forEach(r=>S.returns[r.id]=r); renderClients();
+  const d=S.returns[retKey()]; if(S.cur && !S.dirty && d && d.updatedAt!==S.cur.updatedAt){ loadReturn(); } else if(!S.cur) loadReturn(); }
+function onRules(rows){ S.rules={}; rows.forEach(r=>S.rules[parseInt(r.id)]=r); renderPickers(); ruleNotice(); if(S.cur){ renderRows(); renderReliefs(); applyForm(); recalc(); } if(S.tab==='rules') renderRules(); }
+function start(){ listen('taxrules',onRules); listen('taxclients',onClients); listen('taxreturns',onReturns); }
+renderPickers(); loadReturn();
+(async()=>{
+  let db=window.TAXDB;
+  S.db=db; if(!db) $('offline').hidden=false;
+  start();
+})();
+})();
+</script>
+</body>
+</html>

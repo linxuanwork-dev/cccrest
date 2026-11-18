@@ -7,6 +7,7 @@ const { requireAuth, requireRole } = require('../auth');
 const { logActivity } = require('../lib/activity');
 const bukkuApi = require('./bukkuApi').bukku;
 const AC = require('../lib/acheck');
+const Rules = require('../lib/acheckRules');
 const T = require('../lib/tng');
 
 const router = express.Router();
@@ -92,7 +93,7 @@ router.delete('/ac/clients/:id/whitelist/:wid', ...guard, async (req, res) => {
 // ============ runs ============
 
 const runOut = (r, full) => ({
-  id: r.id, companyId: r.company_id, company: r.company, from: String(r.period_from).slice(0, 10), to: String(r.period_to).slice(0, 10), mode: r.mode, status: r.status, progress: r.progress, staff: r.staff, model: r.model,
+  id: r.id, companyId: r.company_id, company: r.company, engine: r.engine, from: String(r.period_from).slice(0, 10), to: String(r.period_to).slice(0, 10), mode: r.mode, status: r.status, progress: r.progress, staff: r.staff, model: r.model,
   prevRunId: r.prev_run_id, error: r.error, createdAt: r.created_at, finishedAt: r.finished_at, summary: r.result && r.result.summary ? r.result.summary : null,
   ...(full ? { stats: r.stats, result: r.result, decisions: r.decisions, usage: r.usage } : {})
 });
@@ -120,7 +121,8 @@ router.post('/ac/runs', ...guard, async (req, res) => {
   const client = await loadClient(companyId); if (!client) return bad(res, '请选公司。');
   if (!YMD.test(String(b.from || '')) || !YMD.test(String(b.to || '')) || b.from > b.to) return bad(res, '请选好「从」和「到」的日期。');
   if (Math.round((new Date(b.to) - new Date(b.from)) / 86400000) > 400) return bad(res, '一次最多检查 13 个月。');
-  if (!(await cfgGet('api_key_enc'))) return bad(res, '还没有设置 AI 的 key（页面上方「AI 设置」）。');
+  const engine = b.engine === 'ai' ? 'ai' : 'rules';
+  if (engine === 'ai' && !(await cfgGet('api_key_enc'))) return bad(res, '还没有设置 AI 的 key（页面下方「AI 设置」）。用「程序检查」不需要 key。');
   const conn = await bukkuApi.loadConn(companyId);
   if (!conn) return bad(res, '这家公司还没有连接 Bukku（Control Panel > Bukku API）。');
   const { rows: busy } = await pool.query("SELECT id FROM ac_runs WHERE status IN ('queued','fetching','analysing') AND created_at > now() - interval '40 minutes'");
@@ -130,11 +132,11 @@ router.post('/ac/runs', ...guard, async (req, res) => {
     const { rows: pr } = await pool.query("SELECT * FROM ac_runs WHERE company_id = $1 AND status = 'done' AND ($2::int IS NULL OR id = $2::int) ORDER BY id DESC LIMIT 1", [companyId, Number(b.prevRunId) || null]);
     if (!pr[0]) return bad(res, '找不到上一次已完成的检查，不能复查。'); prev = pr[0];
   }
-  const model = (await cfgGet('model')) || DEFAULT_MODEL;
+  const model = engine === 'ai' ? ((await cfgGet('model')) || DEFAULT_MODEL) : '';
   const { rows } = await pool.query(
-    `INSERT INTO ac_runs (company_id, period_from, period_to, mode, status, staff, model, prev_run_id, created_by) VALUES ($1,$2,$3,$4,'queued',$5,$6,$7,$8) RETURNING id`,
-    [companyId, b.from, b.to, mode, String(b.staff || client.staff || '').slice(0, 80), model, prev ? prev.id : null, req.user.sub]);
-  await logActivity(req.user.sub, 'Started an account check', client.name, b.from + ' ~ ' + b.to + ' (' + mode + ')');
+    `INSERT INTO ac_runs (company_id, period_from, period_to, mode, status, staff, model, prev_run_id, created_by, engine) VALUES ($1,$2,$3,$4,'queued',$5,$6,$7,$8,$9) RETURNING id`,
+    [companyId, b.from, b.to, mode, String(b.staff || client.staff || '').slice(0, 80), model, prev ? prev.id : null, req.user.sub, engine]);
+  await logActivity(req.user.sub, 'Started an account check', client.name, b.from + ' ~ ' + b.to + ' (' + mode + ', ' + engine + ')');
   runJob(rows[0].id, conn, client, prev).catch((e) => console.error('account check', e));
   res.status(201).json({ id: rows[0].id });
 });
@@ -169,6 +171,7 @@ async function extraFor(client, run, prev) {
       } catch (err) { /* a file that cannot be read is skipped */ }
     }
     if (out.length) e.settlement = 'outlet|date|count|gross|commission+gst|net_settlement|settlement_date\n' + out.join('\n');
+    if (out.length) e.settlementRows = out.map((l) => { const a = l.split('|'); return { outlet: a[0], ymd: a[1], count: Number(a[2]), gross: Number(a[3]), net: Number(a[5]), settle: a[6] }; });
   } catch (err) { /* the TNG tables may not be there */ }
   return e;
 }
@@ -182,6 +185,15 @@ async function runJob(runId, conn, client, prev) {
     const data = await AC.collect({ get: (p, q) => bukkuApi.get(conn, p, q), from, to, progress: (t) => { const n = Date.now(); if (n - last > 1500) { last = n; setRun(runId, { progress: t }).catch(() => {}); } } });
     const counts = {}; AC.SOURCES.forEach((s) => { counts[s.key] = (data.period[s.key] || []).length; });
     const extra = await extraFor(client, run, prev);
+    if (run.engine === 'rules') {
+      await setRun(runId, { status: 'analysing', progress: '程序正在检查…', stats: { counts, notes: data.notes, outstanding: { invoices: data.outstanding.invoices.length, bills: data.outstanding.bills.length } } });
+      const { rows: wl } = await pool.query('SELECT rule_id, title FROM ac_whitelist WHERE company_id = $1', [client.companyId]);
+      const found = Rules.runRules({ data, client, extra, today: new Date().toISOString().slice(0, 10) });
+      const result = Rules.finish({ run: Object.assign({}, run, { company: client.name }), found, whitelist: wl, prev, prevDecisions: prev ? prev.decisions : {} });
+      result.system_notes = data.notes;
+      await setRun(runId, { status: 'done', progress: '完成', result });
+      return;
+    }
     const { parts, notes } = AC.buildParts({ data, extra, mode: run.mode, staff: run.staff, today: new Date().toISOString().slice(0, 10) });
     const template = (await cfgGet('prompt')) || defaultPrompt();
     const prompt = AC.fillPrompt(template, parts);

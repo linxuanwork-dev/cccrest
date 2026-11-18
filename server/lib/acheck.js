@@ -45,12 +45,12 @@ function slim(row, detail, src) {
   const d = detail || {};
   const lines = (d.form_items || []).map((l) => ({ acc: clip(l.account_name || l.account_id, 60), amt: r2(l.amount != null ? l.amount : l.net_amount), tax: r2(l.tax_amount), desc: clip(l.description || l.product_name, 60) })).filter((l) => l.acc || l.amt);
   const deposits = (d.deposit_items || []).map((l) => ({ acc: clip(l.account_name || l.account_id, 60), amt: r2(l.amount) }));
-  const links = (d.link_items || []).map((l) => ({ no: clip(l.number, 40), amt: r2(l.amount), bal: l.balance == null ? null : r2(l.balance) }));
+  const links = (d.link_items || []).map((l) => ({ no: clip(l.number, 40), amt: r2(l.amount), bal: l.balance == null ? null : r2(l.balance), date: String(l.date || '').slice(0, 10) }));
   let journal = '';
   if (src.key === 'journals' && d) { const arr = d.journal_items || d.items || d.lines || d.form_items || []; journal = JSON.stringify(arr).slice(0, 600); }
   return {
     id: row.id, no: clip(row.number, 40), no2: clip(row.number2, 40), date: String(row.date || '').slice(0, 10), contact: clip(row.contact_name, 60), amount: r2(row.amount != null ? row.amount : d.amount),
-    status: clip(row.status, 12), remark: clip(d.description || d.remarks || row.title || row.internal_note, 100), lines, deposits, links, journal, balance: d.balance == null ? null : r2(d.balance)
+    status: clip(row.status, 12), remark: clip(d.description || d.remarks || row.title || row.internal_note, 100), lines, deposits, links, journal, balance: d.balance == null ? null : r2(d.balance), detailed: !!detail, tags: (row.tag_names || []).join(',')
   };
 }
 
@@ -83,7 +83,7 @@ async function collect({ get, from, to, progress }) {
     try { data.history[key] = (await pageAll(get, src.path, { date_from: hFrom, date_to: hTo })).map((r) => slim(r, null, src)); } catch (e) { data.notes.push('过去 6 个月的 ' + src.label + ' 读取失败：' + e.message); }
   }
   say('读取科目…');
-  try { const b = await get('/accounts', {}); data.accounts = ((b && b.accounts) || []).map((a) => ({ code: a.code, name: a.name, type: a.type, balance: a.balance == null ? null : r2(a.balance) })); } catch (e) { data.notes.push('科目读取失败：' + e.message); }
+  try { const b = await get('/accounts', {}); data.accounts = ((b && b.accounts) || []).map((a) => ({ code: a.code, name: a.name, type: a.type, sys: a.system_type || '', balance: a.balance == null ? null : r2(a.balance) })); } catch (e) { data.notes.push('科目读取失败：' + e.message); }
   // everything not yet paid (aging)
   for (const [key, path] of [['invoices', '/sales/invoices'], ['bills', '/purchases/bills']]) {
     say('读取未付的 ' + (key === 'invoices' ? 'Invoice' : 'Bill') + '…');

@@ -72,6 +72,8 @@ table.h th{font-size:12px;color:var(--muted)}
     <button class="btn" id="mRe">修正后复查</button>
     <span class="sub" id="reNote"></span>
     <span class="sp"></span>
+    <button class="btn sel" id="eRules" title="用程序算，不用 AI，不收费">程序检查（免费）</button>
+    <button class="btn" id="eAi" title="交给 AI 看，要 AI key，按用量收费">AI 检查（收费）</button>
     <button class="btn pri" id="go">开始检查</button>
   </div>
   <div id="runMsg"></div>
@@ -130,7 +132,7 @@ table.h th{font-size:12px;color:var(--muted)}
   var $ = function(s){ return document.querySelector(s); };
   var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); };
   var money = function(n){ return (Number(n) || 0).toLocaleString('en-MY', { minimumFractionDigits:2, maximumFractionDigits:2 }); };
-  var S = { ov:null, mode:'first', run:null, filter:'all', poll:null, prev:null };
+  var S = { engine:'rules', ov:null, mode:'first', run:null, filter:'all', poll:null, prev:null };
   function toast(t, ms){ var e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function(){ e.style.display = 'none'; }, ms || 2800); }
   async function http(method, url, body){
     var r = await fetch(API + url, { method:method, credentials:'same-origin', headers:{ 'Content-Type':'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -187,10 +189,13 @@ table.h th{font-size:12px;color:var(--muted)}
   function setMode(m){ S.mode = m; $('#mFirst').classList.toggle('sel', m === 'first'); $('#mRe').classList.toggle('sel', m === 'recheck'); }
   $('#mFirst').addEventListener('click', function(){ setMode('first'); });
   $('#mRe').addEventListener('click', function(){ setMode('recheck'); });
+  function setEngine(e){ S.engine = e; $('#eRules').classList.toggle('sel', e === 'rules'); $('#eAi').classList.toggle('sel', e === 'ai'); $('#runMsg').innerHTML = e === 'ai' ? '<div class="msg info">AI 检查会按用量收费，要先在页面下方设置 AI 的 key。可以先用「程序检查」，AI 只用来看程序做不了的规则。</div>' : '<div class="msg info">程序检查：用程序算，不用 AI，不收费。程序做得了的规则才会检查，做不了的会列在「资料不足」里。</div>'; }
+  $('#eRules').addEventListener('click', function(){ setEngine('rules'); });
+  $('#eAi').addEventListener('click', function(){ setEngine('ai'); });
 
   // ---------- start ----------
   $('#go').addEventListener('click', async function(){
-    var body = { companyId:Number($('#co').value), from:$('#from').value, to:$('#to').value, staff:$('#staff').value, mode:S.mode };
+    var body = { companyId:Number($('#co').value), from:$('#from').value, to:$('#to').value, staff:$('#staff').value, mode:S.mode, engine:S.engine };
     if(S.mode === 'recheck' && S.prev) body.prevRunId = S.prev;
     $('#runMsg').innerHTML = '';
     try{ var r = await http('POST', '/runs', body); toast('开始了'); await openRun(r.id); }catch(e){ $('#runMsg').innerHTML = '<div class="msg bad">' + esc(e.message) + '</div>'; }
@@ -205,7 +210,7 @@ table.h th{font-size:12px;color:var(--muted)}
     $('#mRe').disabled = !done; if(!done && S.mode === 'recheck') setMode('first');
     $('#hist').innerHTML = r.runs.map(function(x){
       var sm = x.summary ? '<span class="chip red">红 ' + x.summary.red + '</span><span class="chip yellow">黄 ' + x.summary.yellow + '</span><span class="chip">提示 ' + x.summary.info + '</span>' : (x.error ? '<span class="k">' + esc(x.error) + '</span>' : '');
-      return '<tr><td>' + x.id + '</td><td>' + esc(x.company) + '</td><td>' + x.from + ' ~ ' + x.to + '<div class="k">' + when(x.createdAt) + '</div></td><td>' + (x.mode === 'recheck' ? '复查' : '第一次') + '</td><td>' + ({ queued:'排队中', fetching:'读取 Bukku', analysing:'AI 检查中', done:'完成', failed:'失败' }[x.status] || x.status) + '</td><td>' + sm + '</td><td style="white-space:nowrap"><button class="btn sm" data-open="' + x.id + '">打开</button> ' + (x.status === 'done' || x.status === 'failed' ? '<button class="btn sm" data-rdel="' + x.id + '">删除</button>' : '') + '</td></tr>';
+      return '<tr><td>' + x.id + '</td><td>' + esc(x.company) + '</td><td>' + x.from + ' ~ ' + x.to + '<div class="k">' + when(x.createdAt) + '</div></td><td>' + (x.mode === 'recheck' ? '复查' : '第一次') + (x.engine === 'ai' ? ' · AI' : ' · 程序') + '</td><td>' + ({ queued:'排队中', fetching:'读取 Bukku', analysing:'AI 检查中', done:'完成', failed:'失败' }[x.status] || x.status) + '</td><td>' + sm + '</td><td style="white-space:nowrap"><button class="btn sm" data-open="' + x.id + '">打开</button> ' + (x.status === 'done' || x.status === 'failed' ? '<button class="btn sm" data-rdel="' + x.id + '">删除</button>' : '') + '</td></tr>';
     }).join('') || '<tr><td colspan="7" class="sub">还没有记录</td></tr>';
     var active = r.runs.filter(function(x){ return ['queued', 'fetching', 'analysing'].indexOf(x.status) >= 0; })[0];
     if(active && (!S.run || S.run.id !== active.id)) openRun(active.id);
@@ -227,11 +232,12 @@ table.h th{font-size:12px;color:var(--muted)}
     var issues = (j.issues || []).filter(function(x){ return S.filter === 'all' || (S.filter === 'open' ? !(dec[x.id] && dec[x.id].decision !== 'open') : x.severity === S.filter); });
     var undecided = (j.issues || []).filter(function(x){ return !(dec[x.id] && dec[x.id].decision !== 'open'); }).length;
     var fb = function(k, t){ return '<button class="btn sm' + (S.filter === k ? ' sel' : '') + '" data-filter="' + k + '">' + t + '</button> '; };
-    var head = '<div class="card"><div class="row"><div><h2 style="margin:0">' + esc(r.company) + ' · ' + r.from + ' ~ ' + r.to + ' <span class="sub">第 ' + r.id + ' 号 · ' + (r.mode === 'recheck' ? '复查' : '第一次检查') + (r.staff ? ' · 员工 ' + esc(r.staff) : '') + '</span></h2></div><span class="sp"></span>' +
+    var head = '<div class="card"><div class="row"><div><h2 style="margin:0">' + esc(r.company) + ' · ' + r.from + ' ~ ' + r.to + ' <span class="sub">第 ' + r.id + ' 号 · ' + (r.mode === 'recheck' ? '复查' : '第一次检查') + (r.engine === 'ai' ? ' · AI' : ' · 程序（没有用 AI）') + (r.staff ? ' · 员工 ' + esc(r.staff) : '') + '</span></h2></div><span class="sp"></span>' +
       '<a class="btn sm" href="' + API + '/runs/' + r.id + '/export">下载「交回员工改」的清单</a><a class="btn sm" href="' + API + '/runs/' + r.id + '/export?all=1">下载全部</a></div>' +
       '<div style="margin-top:8px"><span class="chip red">红 ' + (sm.red || 0) + '</span><span class="chip yellow">黄 ' + (sm.yellow || 0) + '</span><span class="chip">提示 ' + (sm.info || 0) + '</span>' + (r.mode === 'recheck' ? '<span class="chip green">已解决 ' + (sm.resolved || 0) + '</span><span class="chip">还在 ' + (sm.still_open || 0) + '</span><span class="chip">有变 ' + (sm.changed || 0) + '</span><span class="chip">新的 ' + (sm.new || 0) + '</span>' : '') + '<span class="chip">还没决定 ' + undecided + '</span></div>' +
       (r.stats && r.stats.counts ? '<div class="sub" style="margin-top:6px">读了：' + Object.keys(r.stats.counts).map(function(k){ return k + ' ' + r.stats.counts[k]; }).join(' · ') + '</div>' : '') +
       ((j.missing_data || []).length ? '<div class="msg warn"><b>资料不足，这些规则没办法检查：</b><ul style="margin:4px 0 0;padding-left:18px">' + j.missing_data.map(function(m){ return '<li>' + esc(m) + '</li>'; }).join('') + '</ul></div>' : '') +
+      ((j.checked_rules || []).length ? '<div class="sub" style="margin-top:6px">程序检查了这些规则：' + j.checked_rules.join('、') + '</div>' : '') +
       ((j.system_notes || []).length ? '<details style="margin-top:6px"><summary class="sub">系统读数据时的提醒（' + j.system_notes.length + '）</summary><ul class="sub" style="margin:4px 0 0;padding-left:18px">' + j.system_notes.map(function(m){ return '<li>' + esc(m) + '</li>'; }).join('') + '</ul></details>' : '') +
       '<div class="row" style="margin-top:10px">' + fb('all', '全部') + fb('open', '还没决定') + fb('red', '红') + fb('yellow', '黄') + fb('info', '提示') + '</div></div>';
     var body = issues.map(function(x){ return issueHtml(x, dec[x.id]); }).join('') || '<div class="card"><div class="sub">这个筛选下没有项目。</div></div>';
@@ -257,7 +263,7 @@ table.h th{font-size:12px;color:var(--muted)}
   }
 
   (async function init(){
-    try{ defaultDates(); await loadOverview(); await loadClient(); }
+    try{ defaultDates(); setEngine('rules'); await loadOverview(); await loadClient(); }
     catch(e){ $('#err').hidden = false; $('#err').textContent = e.status === 403 ? '只有 Owner 可以使用这个页面。' : e.message; }
   })();
 })();

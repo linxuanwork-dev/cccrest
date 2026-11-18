@@ -1187,6 +1187,10 @@ function bkResult(list, kind){
     const msg = kind==='preview' ? (r.ok ? '可以送：供应商 '+esc(r.summary.contact)+'；科目 '+esc((r.summary.accounts||[]).join(', ')||'—')+(r.summary.tags.length?'；Tag '+esc(r.summary.tags.join(', ')):'')+'；RM '+money(r.total) : esc(r.problems.join(' '))) : esc(r.message);
     return '<div style="margin:6px 0;padding:6px 8px;border-left:3px solid '+(ok?'#16a34a':'#dc2626')+'"><b class="mono">'+esc(r.no||'')+'</b> · '+esc(r.supplier)+'<div class="small">'+msg+'</div></div>';
   }).join('');
+  if(kind==='send'){   // a message that says it plainly: how many went in, how many did not
+    const sent=list.filter(r=>r.status==='sent').length, skipped=list.filter(r=>r.status==='skipped').length, bad=list.length-sent-skipped;
+    toast((sent?'✔ 已送进 Bukku：'+sent+' 张。':'没有送进 Bukku。')+(skipped?' '+skipped+' 张之前已经送过，没有重复送。':'')+(bad?' '+bad+' 张送不出去，原因在下面。':''));
+  }
 }
 $('bkOpen').addEventListener('click',async()=>{
   const p=$('bkPanel');

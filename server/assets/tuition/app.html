@@ -1041,6 +1041,7 @@ function vOweBukku(){
    ${oweSortSel(OSORT_BK)}
    <button class="g" onclick="UI._bk=null;UI._bkErr='';UI._hp=null;UI._hpErr='';render()">重新读取 Bukku</button>
    <span style="flex:1"></span>
+   ${MGR&&canWrite?'<button class="g" title="期初欠款来自有错的 aging：全部清零，欠款以 Bukku 为准（会先备份）" onclick="removeOpening()">移除期初欠款</button>':''}
    <button class="g" onclick="oweExcel()">下载 Excel</button><button class="g" onclick="oweText()">复制 WhatsApp 文字</button></div>`;
   if(UI._bkErr) return head+`<div class="msg bad" style="margin-top:8px">从 Bukku 读取失败：${esc(UI._bkErr)}</div></div>`;
   if(!UI._bk) return head+`<div class="small mute" style="margin-top:8px">正在从 Bukku 读取欠款，请稍等…</div></div>`;

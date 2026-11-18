@@ -289,7 +289,7 @@ function buildLedger(state){
     for(const p of e.payments){ if(p.inv) continue; for(const c of e.charges){ if(p.rem<=0.001) break; if(!c.extra) apply(p,c); } }
     for(const c of e.charges){ if(c.amount<=0){ c.paidDate=c.opening?null:'n/a'; } else if(c.paidDate){ c.paidDate=c.cov.reduce((a,x)=>x.date>a?x.date:a,''); } }
     e.credit=r2(e.payments.reduce((a,p)=>a+p.rem,0));
-    for(const p of e.payments){ if(p.txid!=='opening') L._tx[p.txid+'|'+uid]=p.applied; }
+    for(const p of e.payments){ if(p.txid==='opening') continue; L._tx[p.txid+'|'+uid+(p.bk?'|bk|'+p.bk.no:'')]=p.applied; }
   }
   return L;
 }
@@ -850,7 +850,7 @@ function vBank(){
    <td><button class="${t.status==='review'||t.status==='unmatched'?'b':'g'}" onclick="openTx('${did}','${t.id}')">${t.status==='review'||t.status==='unmatched'?'处理':'改'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="mute">没有</td></tr>'}
   </table></div></div>`;
 }
-function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid]; if(!ap) return ''; const parts=ap.map(x=>(x.label?x.label:x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
+function appliedTxt(LG,txid,a){ const ap=LG._tx[txid+'|'+a.uid+(a.bkInv?'|bk|'+a.bkInv.no:'')]; if(!ap) return ''; const parts=ap.map(x=>(x.label?x.label:x.month==='期初'?'期初':x.month.slice(2).replace('-','/'))+(ap.length>1?' '+money(x.amt):'')); const lead=Array.isArray(a.months)&&a.months.length?'📌':''; return ` <span class="tag ${lead?'info':'grey'}" title="${lead?'你指定的月份':'按备注 / 先后自动'}">${lead}付 ${parts.join(' + ')||'—'}</span>`; }
 // the unpaid invoices of one student as Bukku has them (read through the API; see the outstanding list)
 function bkInvoicesOf(uid){ const st=findStu(S,uid); if(!st||!st.code||!UI._bk) return []; const c=UI._bk.contacts.find(x=>x.code===st.code); return c?c.invoices:[]; }
 function monthOpts(uid,cur,LG){ LG=LG||ledger(); const ch=(LG[uid]||{charges:[]}).charges;
@@ -914,7 +914,9 @@ function openTx(did,id){
   const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
   if(!UI._bkLoading&&(!UI._bk||Date.now()-(UI._bkAt||0)>600000)) loadBkOwe().then(()=>{ if(UI._tx&&document.getElementById('txq')) drawTx(); });
   const sug=[...new Set([...(t.sugg||[]),...(t.alloc||[]).map(a=>a.uid)])];
-  UI._tx={did,id,sel:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,a.amt])),mon:Object.fromEntries((t.alloc||[]).map(a=>[a.uid,monKey(a)])),extra:sug.filter(u=>!(t.alloc||[]).some(a=>a.uid===u))};
+  const sel={}, mon={}, bk={};
+  (t.alloc||[]).forEach(a=>{ sel[a.uid]=r2((sel[a.uid]||0)+(+a.amt||0)); if(a.bkInv){ (bk[a.uid]=bk[a.uid]||{})[a.bkInv.no]=r2(+a.amt||0); } else if(!(a.uid in mon)) mon[a.uid]=monKey(a); });
+  UI._tx={did,id,sel,mon,bk,extra:sug.filter(u=>!(t.alloc||[]).some(a=>a.uid===u))};
   drawTx();
 }
 // under the amount of a student: still due / paid too much compared with the fee (a whole number of months is fine)
@@ -925,6 +927,24 @@ function dueNote(s,a){
   return d>0?'<div class="small" style="color:#b45309"><b>还欠 RM '+money(d)+'</b><br>学费 RM '+money(fee*k)+'，收到 RM '+money(a)+'</div>'
     :'<div class="small" style="color:#b45309"><b>多收 RM '+money(-d)+'</b><br>学费 RM '+money(fee*k)+'，收到 RM '+money(a)+'</div>';
 }
+// what a payment is applied to, like the Bukku screen: the student's unpaid invoices (tick, number, date, owed, applied, balance after)
+function bkApplied(u){ return Object.values(((UI._tx||{}).bk||{})[u]||{}).reduce((a,b)=>a+(+b||0),0); }
+function payCellHtml(u,LG){
+  const st=UI._tx, inv=bkInvoicesOf(u);
+  if(UI._bkLoading&&!UI._bk) return '<span class="small mute">正在从 Bukku 读取未付发票…</span>';
+  if(!inv.length) return `<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,st.mon[u]||'hint',LG)}</select>${UI._bk?'<div class="small mute">Bukku 里没有这位学生的未付发票</div>':''}`;
+  const ap=(st.bk||{})[u]||{}, left=r2((+st.sel[u]||0)-bkApplied(u));
+  return `<table class="bkapply" style="font-size:12.5px"><tr><th></th><th>单号</th><th>日期</th><th class="n">欠款</th><th class="n">抵消</th><th class="n">余额</th></tr>
+   ${inv.map((i,ix)=>{ const on=i.no in ap, a=on?ap[i.no]:0; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="bkTick('${u}',${ix},this.checked)"></td><td>${esc(i.no)}</td><td>${esc(i.date||'')}</td><td class="n">${money(i.balance)}</td>
+     <td class="n">${on?`<input type="number" step="0.01" style="width:84px" value="${a}" onchange="bkSet('${u}',${ix},this.value)">`:''}</td><td class="n">${on?'<b>'+money(r2(i.balance-a))+'</b>':''}</td></tr>`; }).join('')}</table>
+   ${left>0.004?`<div class="small" style="color:#b45309">还有 RM ${money(left)} 没有抵消任何发票（会按「自动」处理）</div>`:left<-0.004?`<div class="small" style="color:#b91c1c"><b>抵消超过收到的金额 RM ${money(-left)}</b></div>`:'<div class="small" style="color:#15803d">全部抵消 ✔</div>'}`;
+}
+function bkTick(u,ix,on){
+  const st=UI._tx, inv=bkInvoicesOf(u)[ix]; if(!inv) return; const ap=st.bk[u]=st.bk[u]||{};
+  if(on){ const left=r2((+st.sel[u]||0)-bkApplied(u)); ap[inv.no]=r2(Math.max(0,Math.min(+inv.balance||0,left))); } else delete ap[inv.no];
+  drawTx();
+}
+function bkSet(u,ix,val){ const st=UI._tx, inv=bkInvoicesOf(u)[ix]; if(!inv) return; st.bk[u][inv.no]=r2(Math.max(0,Math.min(+inv.balance||0,+val||0))); drawTx(); }
 function drawTx(){
   const {did,id,sel,extra}=UI._tx; const LG=ledger(); const doc=S.bank[did]; const t=doc.tx[id]; const pool=poolFor(doc.bank);
   const shown=[...new Set([...Object.keys(sel),...extra])];
@@ -933,22 +953,25 @@ function drawTx(){
    <h3>这笔钱是哪个学生的？</h3>
    <div class="small mute">备注里看到的月份：${monthHint(t.ref,t.date).join('、')||'没有写'}${UI._bkLoading?'　·　正在从 Bukku 读取学生的未付发票…（读好后「付哪个月」里会多出 Bukku 的未付发票可以直接选）':''}</div>
    <table><tr><th></th><th>学生</th><th>Pkg / 学费</th><th>父母</th><th class="n">金额</th><th>付哪个月</th><th></th></tr>
-   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">${dueNote(s,+sel[u])}`:''}</td><td>${on?`<select style="max-width:210px" onchange="UI._tx.mon['${u}']=this.value">${monthOpts(u,UI._tx.mon[u]||'hint',LG)}</select>`:''}</td><td><button class="g" title="从这个列表拿掉" onclick="txRemove('${u}')">✕</button></td></tr>`; }).join('')}
+   ${shown.map(u=>{ const s=findStu(S,u); if(!s) return ''; const on=u in sel; return `<tr><td><input type="checkbox" ${on?'checked':''} onchange="txToggle('${u}',this.checked)"></td><td>${esc(s.no+' '+s.name)} ${stTag(s.status)}</td><td>${esc(s.pkg)} / ${money(studentFee(S,s))}</td><td class="small">${(s.parents||[]).map(esc).join('<br>')}</td><td class="n">${on?`<input type="number" step="0.01" value="${sel[u]}" onchange="UI._tx.sel['${u}']=+this.value;drawTx()">${dueNote(s,+sel[u])}`:''}</td><td>${on?payCellHtml(u,LG):''}</td><td><button class="g" title="从这个列表拿掉" onclick="txRemove('${u}')">✕</button></td></tr>`; }).join('')}
    </table>
    <div class="row" style="margin:8px 0"><input id="txq" placeholder="搜其他学生（名字 / 编号 / 父母）" style="width:300px" oninput="txSearch(this.value)"><div id="txres" class="small"></div></div>
    <div class="${Math.abs(sum-t.amount)<0.01?'msg ok':'msg warn'}">已分配 RM ${money(sum)} / RM ${money(t.amount)}${Math.abs(sum-t.amount)>=0.01?'（差 RM '+money(t.amount-sum)+'）':''}</div>
    ${isMtPayer(S,t.payer)?'<div class="msg warn">⚠ 付款人是 MT 的名字：MT 代收现金后转账进公司，不能自动当作这个学生还款。请对照 MT 交来的收据或名单，分配给对应的学生。这种付款不会被记住，每次都要人工处理。 <button class="g" onclick="txNotMt()">这不是 MT（只是名字相似的家长）</button></div>':'<label class="small"><input type="checkbox" id="tx_rem" checked> 记住这个付款人（下次同样名字 + 金额自动配对）</label>'}
    <div class="row" style="margin-top:12px"><button class="b" onclick="txConfirm()" ${Object.keys(sel).length?'':'disabled'}>确认</button><button class="g" onclick="txIgnore()">不是学费（忽略）</button>${t.status!=='review'&&t.status!=='unmatched'?'<button class="g" onclick="txReset()">改回待确认</button>':''}<button class="g" onclick="closeModal()">取消</button></div>`);
 }
-function txRemove(u){ const st=UI._tx; delete st.sel[u]; delete st.mon[u]; st.extra=st.extra.filter(x=>x!==u); drawTx(); }
+function txRemove(u){ const st=UI._tx; delete st.sel[u]; delete st.mon[u]; if(st.bk) delete st.bk[u]; st.extra=st.extra.filter(x=>x!==u); drawTx(); }
 function txToggle(u,on){ const st=UI._tx; if(on){ const s=findStu(S,u); const t=S.bank[st.did].tx[st.id]; const left=t.amount-Object.values(st.sel).reduce((a,b)=>a+(+b||0),0); st.sel[u]=r2(left>0?Math.min(left,studentFee(S,s)||left):studentFee(S,s)); } else { delete st.sel[u]; if(!st.extra.includes(u)) st.extra.push(u); } drawTx(); }
 function txSearch(q){ const n=normA(q); const box=$('#txres'); if(n.length<2){ box.innerHTML=''; return; } const pool=poolFor(S.bank[UI._tx.did].bank);
   const hits=pool.filter(s=>normA(s.name+s.no+s.code+(s.parents||[]).join(' ')).includes(n)).slice(0,12);
   box.innerHTML=hits.map(s=>`<a href="#" onclick="UI._tx.extra.push('${s.uid}');txToggle('${s.uid}',true);return false">${esc(s.no+' '+s.name)}${s.status&&s.status!=='Active'?' ('+esc(s.status)+')':''}</a>`).join('<br>')||'找不到'; }
 async function txConfirm(){
-  const {did,id,sel}=UI._tx; const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id];
+  const {did,id,sel}=UI._tx;
+  for(const [uid,amt] of Object.entries(sel)){ if(bkApplied(uid)>(+amt||0)+0.004) return toast('抵消的金额超过收到的金额，请改一下',5000); } const doc=JSON.parse(JSON.stringify(S.bank[did])); const t=doc.tx[id];
   const sum=Object.values(sel).reduce((a,b)=>a+(+b||0),0); if(Math.abs(sum-t.amount)>=0.01 && !confirmInline()) return;
-  t.alloc=Object.entries(sel).map(([uid,amt])=>{ const o={uid,amt:r2(amt)}; const mk=(UI._tx.mon||{})[uid]||'hint'; if(String(mk).startsWith('inv|')) o.invoice=String(mk).slice(4); else if(String(mk).startsWith('bk|')){ const no=String(mk).slice(3); o.bkInv={no,date:(bkInvoicesOf(uid).find(i=>i.no===no)||{}).date||''}; } else { const mv=monVal(mk); if(mv) o.months=mv; } return o; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
+  t.alloc=Object.entries(sel).flatMap(([uid,amt])=>{ const apps=((UI._tx.bk||{})[uid])||{}, out=[]; let used=0;
+    for(const [no,a] of Object.entries(apps)){ const av=r2(a); if(av>0.004){ used=r2(used+av); out.push({uid,amt:av,bkInv:{no,date:(bkInvoicesOf(uid).find(i=>i.no===no)||{}).date||''}}); } }
+    const rest=r2(amt-used); if(out.length&&rest<=0.004) return out; const o={uid,amt:out.length?rest:r2(amt)}; const mk=(UI._tx.mon||{})[uid]||'hint'; if(String(mk).startsWith('inv|')) o.invoice=String(mk).slice(4); else if(String(mk).startsWith('bk|')){ const no=String(mk).slice(3); o.bkInv={no,date:(bkInvoicesOf(uid).find(i=>i.no===no)||{}).date||''}; } else { const mv=monVal(mk); if(mv) o.months=mv; } out.push(o); return out; }); t.status='manual'; t.how='手动确认'; t.checkedAt=today();
   await save('bank/'+did,doc);
   if($('#tx_rem')&&$('#tx_rem').checked&&!isMtPayer(S,t.payer)){ const p=norm(t.payer); if(p.length>=4){ const rules=JSON.parse(JSON.stringify(S.rules)); rules.amt[p+'|'+(+t.amount).toFixed(2)]=t.alloc.map(a=>a.uid);
       const fam=new Set(rules.payer[p]||[]); t.alloc.forEach(a=>fam.add(a.uid)); rules.payer[p]=[...fam]; await save('settings/rules',rules); } }

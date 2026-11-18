@@ -262,7 +262,7 @@ function buildLedger(state){
   for(const bm of Object.values(state.bank||{})) for(const t of Object.values(bm.tx||{})){
     if(t.status==='ignore'||t.status==='unmatched') continue;
     if(t.status==='review') continue; // not confirmed yet
-    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:a.hold?[]:Array.isArray(a.months)?a.months:((state.config&&state.config.remarkMonths==='use')?monthHint(t.ref,t.date):[]),explicit:Array.isArray(a.months),hold:!!a.hold,inv:a.invoice||null,bk:a.bkInv||null});
+    for(const a of t.alloc||[]) get(a.uid).payments.push({date:t.date,amt:+a.amt,txid:t.id,desc:t.payer,months:(a.hold&&!a.knocked)?[]:Array.isArray(a.months)?a.months:((state.config&&state.config.remarkMonths==='use')?monthHint(t.ref,t.date):[]),explicit:Array.isArray(a.months),hold:!!a.hold&&!a.knocked,inv:a.invoice||null,bk:a.bkInv||null});
   }
   const tuitionFirst = !(state.config && state.config.payOrder==='fifo');   // the fees are paid as usual: old debts (opening) come last
   for(const uid in L){ const e=L[uid];
@@ -479,7 +479,7 @@ async function init(){
 }
 let _rt=null; function render(){ clearTimeout(_rt); _rt=setTimeout(renderNow,30); }
 function renderNow(){
-  $('#nav').innerHTML=TABS.length>1?TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}</button>`).join(''):'';
+  $('#nav').innerHTML=TABS.length>1?TABS.map(([k,t])=>`<button class="${UI.tab===k?'on':''}" onclick="UI.tab='${k}';render()">${t}${k==='owe'&&heldRows().length?' <span class="tag bad">'+heldRows().length+'</span>':''}</button>`).join(''):'';
   const f={home:vHome,stu:vContact,claim:vClaim,roster:vRoster,bank:vBank,hq:vHq,owe:vOwe,allow:vAllow,set:vSet}[UI.tab];
   const keep=document.activeElement&&document.activeElement.id; const pos=keep?document.activeElement.selectionStart:null;
   $('#main').innerHTML=f();
@@ -1047,7 +1047,40 @@ async function removeOpening(){
     toast('已移除 '+n+' 位学生的期初欠款',5000);
   }catch(e){ toast('移除失败：'+(e&&e.message||e),6000); }
 }
-function vOwe(){
+// payments kept as prepaid ("不抵消，留作预收"): the Owner knocks them off in Bukku when the next invoice is made. This list reminds, with what Bukku shows now.
+function heldRows(){
+  const out=[];
+  for(const [did,d] of Object.entries(S.bank||{})) for(const t of Object.values(d.tx||{})){
+    if(t.status==='ignore'||t.status==='unmatched'||t.status==='review') continue;
+    for(const a of t.alloc||[]){ if(!a.hold||a.knocked||!(+a.amt>0.004)) continue; const s=findStu(S,a.uid); if(!s) continue; out.push({did,tid:t.id,uid:a.uid,s,date:t.date,payer:t.payer,amt:r2(+a.amt)}); } }
+  return out.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+}
+function heldBk(h){
+  if(UI._bkErr) return '<span class="small mute">读不到 Bukku</span>';
+  if(UI._bkLoading||!UI._bk) return '<span class="small mute">正在读取 Bukku…</span>';
+  if(!h.s.code) return '<span class="small" style="color:#b45309">这位学生没有 Bukku code，无法对照</span>';
+  const from=String(h.date).slice(0,7)+'-01', inv=bkInvoicesOf(h.uid).filter(i=>String(i.date||'')>=from);
+  if(inv.length){ const owe=r2(inv.reduce((a,i)=>a+(+i.balance||0),0));
+    return `<span style="color:#b45309"><b>Bukku 有 ${inv.length} 张未付发票，可以 knock · ${inv.length} unpaid invoice(s) in Bukku, ready to knock off</b></span><div class="small">${esc(inv.slice(0,3).map(i=>i.no+' '+(i.date||'')+' 欠 '+money(i.balance)).join(' · '))}${inv.length>3?' …':''}　可 knock RM ${money(Math.min(h.amt,owe))}</div>`; }
+  return '<span class="small mute">Bukku 里没有这个月份以后的未付发票：还没开单，或者已经 knock 了 · No unpaid invoice yet (not made, or already knocked off)</span>';
+}
+function heldCard(){
+  const rows=heldRows(); if(!rows.length) return '';
+  if(!UI._bk&&!UI._bkLoading&&!UI._bkErr) loadBkOwe();
+  const tot=r2(rows.reduce((a,x)=>a+x.amt,0));
+  return `<div class="card" style="border-left:4px solid #f59e0b"><h2>预收，等你在 Bukku knock · ${rows.length} 笔，RM ${money(tot)} · Prepaid, waiting to be knocked off in Bukku</h2>
+   <div class="small mute">这些是你选了「不抵消，留作预收」的付款。下个月开了单，请到 Bukku 自己 knock，再按「已 knock」。右边的 Bukku 情况是现在从 Bukku 读到的。</div>
+   <div class="tw"><table><tr><th>付款日期</th><th>学生</th><th>MT</th><th>付款人</th><th class="n">预收 RM</th><th>Bukku 现在的情况</th><th></th></tr>
+   ${rows.map(h=>`<tr><td>${esc(h.date)}</td><td><a href="#" onclick="stmt('${h.uid}');return false">${esc(h.s.no+' '+h.s.name)}</a></td><td>${esc(h.s.mt||'')}</td><td class="small">${esc(h.payer)}</td><td class="n"><b>${money(h.amt)}</b></td><td>${heldBk(h)}</td><td><button class="g" onclick="heldKnock('${h.did}','${h.tid}','${h.uid}')">已 knock ✔</button></td></tr>`).join('')}
+   </table></div></div>`;
+}
+async function heldKnock(did,tid,uid){
+  if(!MGR||!canWrite) return toast('只有 manager 可以做这个操作');
+  const doc=JSON.parse(JSON.stringify(S.bank[did])); const a=((doc.tx[tid]||{}).alloc||[]).find(x=>x.uid===uid&&x.hold&&!x.knocked); if(!a) return;
+  a.knocked=today(); await save('bank/'+did,doc); toast('已记下：这笔预收已在 Bukku knock'); render();
+}
+function vOwe(){ return heldCard()+vOwe0(); }
+function vOwe0(){
   if(oweSrc()==='bukku') return vOweBukku();
   const L=ledger(); const t=today(); let o=outstanding(S,L,t);
   const b=UI.oBranch; if(b!=='ALL') o=o.filter(x=>x.branch===b);

@@ -2072,6 +2072,13 @@ async function exportPayments(force,starts){
       moved.forEach(t=>{ for(const k of [...plan.keys()]) if(k.startsWith(t.id+'|')) plan.delete(k); }); }
   }
   const tx=txs(), need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched');
+  // what a hand-confirmed payment (no Bukku invoice ticked) is knocked off: the invoices of the months chosen, else the earliest unpaid ones; partly if the amount is less
+  const fillFromBk=(code,amt,months,skip)=>{ if(!code||!haveBk) return []; let want=null;
+    if(Array.isArray(months)&&months.length){ if(months.includes('REG')) return []; const ms=months.filter(x=>/^\d{4}-\d{2}$/.test(x)); if(ms.length) want=ms; }
+    let rem=amt; const out=[];
+    for(const inv of poolOf(code)){ if(rem<0.005) break; if(inv.used||inv.bal<0.005||(skip||[]).includes(inv.no)) continue; if(want&&!want.includes(String(inv.date||'').slice(0,7))) continue;
+      const take=Math.min(inv.bal,rem); out.push({no:inv.no,amt:r2(take)}); inv.bal=r2(inv.bal-take); if(inv.bal<0.005) inv.used=true; rem=r2(rem-take); }
+    return out; };
   // 2) the rows
   const rows=[], pref=[], ex=[], keys=[]; let noNo=0;
   for(const t of tx) (t.alloc||[]).forEach((a,ix)=>{ const s=findStu(S,a.uid); if(!s) return; if(kind==='fee'&&a.invoice) return; if(kind==='other'&&!a.invoice) return;
@@ -2081,6 +2088,7 @@ async function exportPayments(force,starts){
     else if(a.bkInv) parts=[{no:a.bkInv.no,amt:a.amt}];
     else if(plan.has(t.id+'|'+ix)) parts=plan.get(t.id+'|'+ix);
     else parts=((LG._tx[t.id+'|'+a.uid])||[]).map(x=>({no:invNoOf(s,x),amt:x.amt})).filter(x=>x.no&&x.amt>0);
+    if(haveBk&&!a.hold&&!a.invoice&&!a.bkInv&&!plan.has(t.id+'|'+ix)){ const got=r2(parts.reduce((x,p)=>x+p.amt,0)); if(got<a.amt-0.01) parts=parts.concat(fillFromBk(s.code,r2(a.amt-got),a.months,parts.map(p=>p.no))); }
     noNo+=(parts.length?0:1);
     const desc=fillPay(String(c.pay.desc||'').replace(/\{WHAT\}/g,what).replace(/\{PAYER\}/g,t.payer||'').replace(/\{REF\}/g,t.ref||'').replace(/\{NAME\}/g,s.no+'-'+s.name).replace(/\{NO\}/g,s.no),s.branch,t.date).replace(/\s+/g,' ').trim().slice(0,200);
     const row=[s.code,s.no+'-'+s.name,fillPay(c.pay.number,s.branch,t.date),null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,desc,null,null];

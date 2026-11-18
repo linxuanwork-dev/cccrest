@@ -1517,6 +1517,25 @@ function stockMoves(){
   return mv;
 }
 function stockItems(mv){ const m={}; for(const x of mv){ const k=x.branch+'|'+x.cat+'|'+nk(x.item); const e=m[k]||(m[k]={branch:x.branch,cat:x.cat,item:x.item,in:0,out:0}); e.in+=x.in; e.out+=x.out; } return Object.values(m).sort((a,b)=>a.branch.localeCompare(b.branch)||a.cat.localeCompare(b.cat)||a.item.localeCompare(b.item)); }
+// ---- stock items <-> Bukku products. A link made by hand is kept in hqbills/BKLINK; without one the system guesses (jersey sleeve, module, FAST TRACK xxx, the same name) ----
+function bkLinkDoc(){ return S.hqbills.BKLINK||{kind:'bklink',map:{}}; }
+function bkLinkAuto(cat,item){
+  const t=String(item||''), L=bkProdList(), p=hqCfg().prod; let g='';
+  if(cat==='Jersi'||/JERSI|JERSEY/i.test(t)) g=/PENDEK|SHORT/i.test(t)?p.jerseyShort:/PANJANG|LONG/i.test(t)?p.jerseyLong:'';
+  else if(cat==='Module'||/^MODUL/i.test(t)) g=p.module;
+  const exact=L.length?(bkProdName(t)||''):''; if(exact) return exact;
+  return g?(L.length?(bkProdName(g)||''):g):'';
+}
+function bkLinkOf(cat,item){ const m=bkLinkDoc().map||{}, k=cat+'|'+nk(item); return (k in m)?{name:m[k],manual:true}:{name:bkLinkAuto(cat,item),manual:false}; }
+async function bkLinkSet(cat,item,val){
+  const d=JSON.parse(JSON.stringify(bkLinkDoc())); d.kind='bklink'; d.map=d.map||{}; const k=cat+'|'+nk(item); val=String(val||'').trim();
+  if(val==='') delete d.map[k]; else if(val==='-') d.map[k]=''; else { const nm=bkProdList().length?bkProdName(val):val; if(nm===''){ toast('这个名字不在 Bukku 货品清单里（到「设置」上传 Bukku Products 文件）',6000); render(); return; } d.map[k]=nm; }
+  await save('hqbills/BKLINK',d); toast('已保存');
+}
+// the quantity of each Bukku product: the stock items linked to it added together (Bukku keeps one quantity per product, not per size)
+function bkProductTotals(rows,qtyOf){ const m={}; for(const r of rows){ const n=bkLinkOf(r.cat,r.item).name||''; const e=m[n]||(m[n]={name:n,qty:0,items:0}); e.qty=q4(e.qty+qtyOf(r)); e.items++; } return Object.values(m).sort((a,b)=>(a.name===''?1:0)-(b.name===''?1:0)||a.name.localeCompare(b.name)); }
+function bkTotalsHtml(rows,qtyOf,head){ const t=bkProductTotals(rows,qtyOf); if(!t.length) return '';
+  return `<details style="margin-top:8px"><summary class="small"><b>按 Bukku 货品合计</b>（和 Bukku 里的库存数量对）${t.some(x=>!x.name)?' <span class="tag warn">有货品没对应 Bukku 货品</span>':''}</summary><table style="max-width:560px"><tr><th>Bukku 货品</th><th class="n">${head}</th><th class="n">几个货品</th></tr>${t.map(x=>`<tr><td>${x.name?esc(x.name):'<span class="tag warn">没有对应</span>'}</td><td class="n"><b>${x.qty}</b></td><td class="n">${x.items}</td></tr>`).join('')}</table></details>`; }
 function vStockCard(){
   const mv=stockMoves(), all=stockItems(mv), b=UI.skB||'ALL', c=UI.skC||'ALL', q=nk(UI.skQ||'');
   const list=all.filter(x=>(b==='ALL'||x.branch===b)&&(c==='ALL'||x.cat===c)&&(!q||nk(x.item).includes(q)));
@@ -1526,8 +1545,10 @@ function vStockCard(){
   return `<div class="card"><h2>Stock card</h2>${remind}<div class="small mute">每个货品一张卡：HQ 单进货，开单给 klien 出货，Fast Track 按 MT Claim 打勾出货；期初库存、盘点调整用「＋ 调整」加。</div>
    <div class="row" style="margin:8px 0"><select onchange="UI.skB=this.value;render()">${brOpts(b,true)}</select><select onchange="UI.skC=this.value;render()"><option value="ALL">All categories</option>${cats.map(x=>`<option ${x===c?'selected':''}>${esc(x)}</option>`).join('')}</select>
     <input placeholder="Search item" value="${esc(UI.skQ||'')}" oninput="UI.skQ=this.value;render()" style="width:180px"><span style="flex:1"></span><button class="b" onclick="stockCountOpen(UI.skB&&UI.skB!=='ALL'?UI.skB:'')">每月盘点</button><button class="g" onclick="stockAdj()">＋ 调整</button><button class="g" onclick="stockMerge()">合并写法不同的货品</button><button class="g" onclick="stockExcel()">下载 Excel（stock card）</button></div>
-   <div class="tw"><table><tr><th>Branch</th><th>Category</th><th>Item</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th></th></tr>
-   ${list.map(x=>{ const bal=x.in-x.out; return `<tr><td>${esc(x.branch)}</td><td>${esc(x.cat)}</td><td>${esc(x.item)}</td><td class="n">${x.in}</td><td class="n">${x.out}</td><td class="n"><b ${bal<0?'style="color:#b91c1c"':''}>${bal}</b></td><td><button class="g" onclick="stockOpen('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">卡</button> <button class="g" onclick="stockMerge('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">合并</button></td></tr>`; }).join('')||'<tr><td colspan="7" class="mute">还没有库存记录</td></tr>'}</table></div>
+   <datalist id="bkpl">${bkProdList().map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
+   <div class="tw"><table><tr><th>Branch</th><th>Category</th><th>Item</th><th>Bukku 货品</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th></th></tr>
+   ${list.map(x=>{ const bal=x.in-x.out, bl=bkLinkOf(x.cat,x.item); return `<tr><td>${esc(x.branch)}</td><td>${esc(x.cat)}</td><td>${esc(x.item)}</td><td><input list="bkpl" value="${esc(bl.name)}" placeholder="（没有对应）" style="width:200px${bl.name?'':';border-color:#d97706'}" title="${bl.manual?'你自己选的':'系统猜的：不对就改；留空 = 让系统再猜；写 - = 不对应任何货品'}" onchange="bkLinkSet('${esc(x.cat)}','${esc(nk(x.item))}',this.value)">${bl.manual?'':(bl.name?' <span class="small mute">自动</span>':'')}</td><td class="n">${x.in}</td><td class="n">${x.out}</td><td class="n"><b ${bal<0?'style="color:#b91c1c"':''}>${bal}</b></td><td><button class="g" onclick="stockOpen('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">卡</button> <button class="g" onclick="stockMerge('${esc(x.branch)}','${esc(x.cat)}','${esc(nk(x.item))}')">合并</button></td></tr>`; }).join('')||'<tr><td colspan="8" class="mute">还没有库存记录</td></tr>'}</table></div>
+   ${bkTotalsHtml(list,x=>x.in-x.out,'Balance')}
    ${stockMergedList()}</div>`;
 }
 function stockCardRows(b,cat,k){ let bal=0; return stockMoves().filter(x=>x.branch===b&&x.cat===cat&&nk(x.item)===k).sort((x,y)=>String(x.date).localeCompare(String(y.date))||(y.in>0?1:0)-(x.in>0?1:0)).map(x=>{ bal+=x.in-x.out; return Object.assign({bal},x); }); }
@@ -1537,9 +1558,10 @@ function stockOpen(b,cat,k){ const rows=stockCardRows(b,cat,k); if(!rows.length)
 function stockExcel(){
   const mv=stockMoves(), b=UI.skB||'ALL', items=stockItems(mv).filter(x=>b==='ALL'||x.branch===b);
   if(!items.length) return toast('还没有库存记录');
-  const sum=[['Branch','Category','Item','In','Out','Balance']].concat(items.map(x=>[x.branch,x.cat,x.item,x.in,x.out,x.in-x.out]));
+  const sum=[['Branch','Category','Item','Bukku product','In','Out','Balance']].concat(items.map(x=>[x.branch,x.cat,x.item,bkLinkOf(x.cat,x.item).name,x.in,x.out,x.in-x.out]));
+  const byBk=[['Bukku product','Balance','Items']].concat(bkProductTotals(items,x=>x.in-x.out).map(t=>[t.name||'(no link)',t.qty,t.items]));
   const cards=[['Branch','Category','Item','Date','Document','Client / note','In','Out','Balance']]; items.forEach(x=>stockCardRows(x.branch,x.cat,nk(x.item)).forEach(r=>cards.push([r.branch,r.cat,r.item,r.date,r.doc,r.who,r.in||'',r.out||'',r.bal])));
-  const d=today(); saveXlsx(`DM-Stock-Card-${b}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`,[['Summary',sum],['Stock card',cards]]);
+  const d=today(); saveXlsx(`DM-Stock-Card-${b}-${d.slice(0,4)}_${d.slice(5,7)}.xlsx`,[['Summary',sum],['By Bukku product',byBk],['Stock card',cards]]);
 }
 function stockMergedList(){
   const rows=[]; for(const [id,d] of Object.entries(S.hqbills||{})) if(d.kind==='alias') for(const [k,v] of Object.entries(d.map||{})) rows.push({id,k,b:d.branch,v});
@@ -1593,8 +1615,9 @@ function stockCountDraw(){
    <label class="small">盘点日期 <input type="date" value="${sc.date}" onchange="UI._sc.date=this.value||today();stockCountDraw()"></label>
    <span class="small mute" id="sc_prog">已填 ${done} / ${rows.length}</span></div>
    <div class="small mute">「系统」= 到盘点日期为止，HQ 进货 − 开给学生 − Fast Track − 已有的调整。「实际」填你数到的数量；没数的留空，不会动。同一个月再盘一次，会取代上一次盘点产生的调整。</div>
-   <div class="tw" style="max-height:52vh;overflow:auto;margin-top:6px"><table><tr><th>Category</th><th>Item</th><th class="n">系统</th><th class="n">实际</th><th class="n">差</th></tr>
-   ${rows.map((r,i)=>`<tr><td>${esc(r.cat)}</td><td>${esc(r.item)}</td><td class="n">${r.sys}</td><td class="n"><input type="number" step="1" style="width:90px" value="${sc.vals[r.k]==null?'':sc.vals[r.k]}" oninput="scIn(${i},this.value)"></td><td class="n" id="scd_${i}">${scDiffTxt(r)}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">这个分校还没有库存记录</td></tr>'}</table></div>
+   <div class="tw" style="max-height:52vh;overflow:auto;margin-top:6px"><table><tr><th>Category</th><th>Item</th><th>Bukku 货品</th><th class="n">系统</th><th class="n">实际</th><th class="n">差</th></tr>
+   ${rows.map((r,i)=>`<tr><td>${esc(r.cat)}</td><td>${esc(r.item)}</td><td class="small">${esc(bkLinkOf(r.cat,r.item).name)||'<span class="tag warn">没有对应</span>'}</td><td class="n">${r.sys}</td><td class="n"><input type="number" step="1" style="width:90px" value="${sc.vals[r.k]==null?'':sc.vals[r.k]}" oninput="scIn(${i},this.value)"></td><td class="n" id="scd_${i}">${scDiffTxt(r)}</td></tr>`).join('')||'<tr><td colspan="6" class="mute">这个分校还没有库存记录</td></tr>'}</table></div>
+   ${bkTotalsHtml(rows,r=>r.sys,'系统')}
    <div class="row" style="margin-top:8px"><select id="sc_nc">${['Module','Jersi','Game','Fast Track / other','Other'].map(x=>`<option>${x}</option>`).join('')}</select><input id="sc_ni" placeholder="系统里还没有的货品（名字）" style="width:230px"><button class="g" onclick="scAddItem()">＋ 加这个货品</button></div>
    <div class="row" style="margin-top:12px"><button class="b" onclick="stockCountSave()">保存盘点</button><button class="g" onclick="stockCountExcel()">下载 Excel</button><button class="g" onclick="closeModal()">取消</button></div>`);
 }
@@ -1611,8 +1634,9 @@ async function stockCountSave(){
   catch(e){ toast('保存失败：'+(e&&e.message||e),6000); }
 }
 function stockCountExcel(){
-  const sc=UI._sc, rows=sc.rows.map(r=>{ const v=sc.vals[r.k], has=v!=null&&!isNaN(v); return [sc.b,sc.date,r.cat,r.item,r.sys,has?+v:'',has?q4(+v-r.sys):'']; });
-  saveXlsx(`DM-Stock-Count-${sc.b}-${sc.date.slice(0,4)}_${sc.date.slice(5,7)}.xlsx`,[['Stock count',[['Branch','Date','Category','Item','System','Counted','Difference']].concat(rows)]]);
+  const sc=UI._sc, rows=sc.rows.map(r=>{ const v=sc.vals[r.k], has=v!=null&&!isNaN(v); return [sc.b,sc.date,r.cat,r.item,bkLinkOf(r.cat,r.item).name,r.sys,has?+v:'',has?q4(+v-r.sys):'']; });
+  const byBk=[['Bukku product','System','Counted']].concat(bkProductTotals(sc.rows,r=>r.sys).map(t=>{ const cn=sc.rows.filter(r=>(bkLinkOf(r.cat,r.item).name||'')===t.name&&sc.vals[r.k]!=null&&!isNaN(sc.vals[r.k])); return [t.name||'(no link)',t.qty,cn.length?q4(cn.reduce((a,r)=>a+(+sc.vals[r.k]),0)):'']; }));
+  saveXlsx(`DM-Stock-Count-${sc.b}-${sc.date.slice(0,4)}_${sc.date.slice(5,7)}.xlsx`,[['Stock count',[['Branch','Date','Category','Item','Bukku product','System','Counted','Difference']].concat(rows)],['By Bukku product',byBk]]);
 }
 function stockAdj(){
   const items=[...new Set(stockItems(stockMoves()).map(x=>x.item))];

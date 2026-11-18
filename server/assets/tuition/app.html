@@ -2105,6 +2105,8 @@ async function exportPayments(force,starts){
   const bank=UI.expBank, m=UI.expMonth, kind=UI.expKind||'all'; const did=bankDocId(bank,m); if(!S.bank[did]) return toast('这个月没有 '+bank+' 资料');
   if(!UI._bk){ toast('正在从 Bukku 读取未付发票…',4000); await loadBkOwe(); }
   const haveBk=!!UI._bk;
+  if(!haveBk&&!UI._noBkOk) return modal(`<h3>读不到 Bukku 的未付发票</h3><div class="msg warn">${esc(UI._bkErr||'没有读到资料')}。没有 Bukku 的未付发票，导出的付款只能用系统自己开过的发票号码去对，Bukku 里原来就有的旧发票（例如以前月份的）会没有 Invoice No.，也会少 knock。</div>
+   <div class="row" style="margin-top:12px"><button class="b" onclick="closeModal();UI._bk=null;UI._bkErr='';exportPayments(${force?'true':'false'})">再读一次 Bukku</button><button class="g" onclick="UI._noBkOk=true;closeModal();exportPayments(${force?'true':'false'})">仍然导出（只用系统的发票号码）</button><button class="g" onclick="closeModal()">取消</button></div>`);
   let doc=S.bank[did]; const c=cfg(); const LG=ledger();
   const txs=()=>Object.values(doc.tx||{}).filter(t=>t.status==='auto'||t.status==='manual').sort((a,b)=>(a.date+a.time)<(b.date+b.time)?-1:1);
   // 1) which payments are knocked off which Bukku invoice
@@ -2124,13 +2126,13 @@ async function exportPayments(force,starts){
   const tx=txs(), need=Object.values(doc.tx||{}).filter(t=>t.status==='review'||t.status==='unmatched');
   // what a hand-confirmed payment (no Bukku invoice ticked) is knocked off: the invoices of the months chosen, else the earliest unpaid ones; partly if the amount is less
   const fillFromBk=(code,amt,months,skip)=>{ if(!code||!haveBk) return []; let want=null;
-    if(Array.isArray(months)&&months.length){ if(months.includes('REG')) return []; const ms=months.filter(x=>/^\d{4}-\d{2}$/.test(x)); if(ms.length) want=ms; }
+    if(Array.isArray(months)&&months.length){ if(months.includes('REG')){ const hit=poolOf(code).find(inv=>!inv.used&&!(skip||[]).includes(inv.no)&&Math.abs(inv.bal-amt)<0.005); if(!hit) return []; hit.used=true; hit.bal=0; return [{no:hit.no,amt:r2(amt)}]; } const ms=months.filter(x=>/^\d{4}-\d{2}$/.test(x)); if(ms.length) want=ms; }
     let rem=amt; const out=[];
     for(const inv of poolOf(code)){ if(rem<0.005) break; if(inv.used||inv.bal<0.005||(skip||[]).includes(inv.no)) continue; if(want&&!want.includes(String(inv.date||'').slice(0,7))) continue;
       const take=Math.min(inv.bal,rem); out.push({no:inv.no,amt:r2(take)}); inv.bal=r2(inv.bal-take); if(inv.bal<0.005) inv.used=true; rem=r2(rem-take); }
     return out; };
   // 2) the rows
-  const rows=[], pref=[], ex=[], keys=[]; let noNo=0;
+  const rows=[], pref=[], ex=[], keys=[], gaps=[]; let noNo=0;
   for(const t of tx) (t.alloc||[]).forEach((a,ix)=>{ const s=findStu(S,a.uid); if(!s) return; if(kind==='fee'&&a.invoice) return; if(kind==='other'&&!a.invoice) return;
     const ch=a.invoice?((LG[a.uid]||{charges:[]}).charges.find(x=>x.key===a.invoice)||{}):null, what=a.invoice?'['+((ch&&ch.label)||'invoice')+'] ':'[Tuition fee] ';
     let parts;
@@ -2140,6 +2142,9 @@ async function exportPayments(force,starts){
     else parts=((LG._tx[t.id+'|'+a.uid])||[]).map(x=>({no:invNoOf(s,x),amt:x.amt})).filter(x=>x.no&&x.amt>0);
     if(haveBk&&!a.hold&&!a.invoice&&!a.bkInv&&!plan.has(t.id+'|'+ix)){ const got=r2(parts.reduce((x,p)=>x+p.amt,0)); if(got<a.amt-0.01) parts=parts.concat(fillFromBk(s.code,r2(a.amt-got),a.months,parts.map(p=>p.no))); }
     noNo+=(parts.length?0:1);
+    if(!a.hold){ const cov=r2(parts.reduce((x,p)=>x+p.amt,0)); if(cov<a.amt-0.01){
+      const why=!haveBk?'读不到 Bukku 的未付发票':!s.code?'这位学生没有 Bukku code':!poolOf(s.code).length?'Bukku 里这位学生没有未付发票（那张 invoice 可能还没导入 Bukku）':'Bukku 里的未付发票不够抵消（或金额对不上）';
+      gaps.push(t.date+' '+s.no+' '+s.name+'（'+s.code+'）'+t.payer+' 收到 RM '+money(a.amt)+'：'+(parts.length?'对上 '+parts.map(x=>x.no+' RM '+money(x.amt)).join('、')+'，还有 RM '+money(r2(a.amt-cov))+' 没有对上发票':'没有对上任何发票')+'。原因：'+why); } }
     const desc=fillPay(String(c.pay.desc||'').replace(/\{WHAT\}/g,what).replace(/\{PAYER\}/g,t.payer||'').replace(/\{REF\}/g,t.ref||'').replace(/\{NAME\}/g,s.no+'-'+s.name).replace(/\{NO\}/g,s.no),s.branch,t.date).replace(/\s+/g,' ').trim().slice(0,200);
     const row=[s.code,s.no+'-'+s.name,fillPay(c.pay.number,s.branch,t.date),null,dmy(t.date),null,null,a.amt,c.payMethod[bank],c.deposit[bank],null,null,s.branch,desc,null,null];
     if(parts.length){ row[14]=parts[0].no; row[15]=parts[0].amt; }
@@ -2151,8 +2156,9 @@ async function exportPayments(force,starts){
   const head=[]; rows.forEach((r,i)=>{ if(keys[i]) head.push(i); });
   if(!starts) return startsGate(needByPrefix(head.map(i=>pref[i]),head.map(i=>ex[i])),st=>exportPayments(true,st));
   const nums=assignNumbers(head.map(i=>pref[i]),head.map(i=>ex[i]),starts); head.forEach((i,n)=>{ rows[i][2]=nums[n]; });
-  if(noNo) toast(noNo+' 笔入账没有对应的 Invoice No.（留作预收，或那张 invoice 不是系统开的），这几笔的 Invoice No. 留空',7000);
+  if(gaps.length) toast(gaps.length+' 笔入账没有完全对上发票（Invoice No. 空，或只对上一部分）：清单会另外下载，请对一下',9000);
   bukkuFile('payment',rows,`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}${kind==='fee'?'-Tuition':kind==='other'?'-Other':''}.xlsx`);
+  notExported(`DM-Bukku-Sales Payment-${bank}-${m.slice(0,4)}_${m.slice(5,7)}-没有完全对上发票.xlsx`,'没有完全对上发票',gaps); UI._noBkOk=false;
   // remember the numbers: the same payment gets the same number if it is exported again
   const d3=JSON.parse(JSON.stringify(doc)); let ch=false; head.forEach((i,n)=>{ const [tid,ix]=keys[i].split('|'); const a=((d3.tx[tid]||{}).alloc||[])[+ix]; if(a&&a.recNo!==nums[n]){ a.recNo=nums[n]; ch=true; } });
   if(ch) await save('bank/'+did,d3);

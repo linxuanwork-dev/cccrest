@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, requireRole } = require('../auth');
 const { logActivity } = require('../lib/activity');
+const purchaseRouter = require('./purchaseBukku');
 
 const router = express.Router();
 
@@ -264,7 +265,12 @@ router.post('/work/tasks/:id/check', requireAuth, requireRole('admin'), async (r
   } else {
     await pool.query(`UPDATE work_tasks SET status = 'done', checked_by = NULL, checked_at = NULL WHERE id = $1`, [task.id]);
   }
-  res.json({ ok: true, status: checked ? 'checked' : 'done' });
+  // a payment of a purchase bill that the Owner has now checked: record it in Bukku (when that is switched on for the company)
+  let bukku = null;
+  if (checked && task.purchase_bill_id) {
+    try { bukku = await purchaseRouter.recordBukkuPayment(task.purchase_bill_id, req.user.sub); } catch (e) { bukku = { error: e.message }; }
+  }
+  res.json({ ok: true, status: checked ? 'checked' : 'done', bukku });
 });
 
 // ============ purchase bills that need someone's attention (shown in My Jobs) ============

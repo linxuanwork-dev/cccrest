@@ -92,12 +92,12 @@ router.get('/bukku/connections', requireAuth, requireRole('admin'), async (req, 
        (b.company_id IS NOT NULL) AS connected,
        (SELECT COUNT(*) FROM bukku_accounts a WHERE a.company_id = c.id)::int AS accounts,
        (SELECT COUNT(*) FROM bukku_contacts k WHERE k.company_id = c.id)::int AS contacts,
-       COALESCE(b.send_enabled, false) AS send_enabled, COALESCE(b.send_status, 'draft') AS send_status,
+       COALESCE(b.send_enabled, false) AS send_enabled, COALESCE(b.send_status, 'draft') AS send_status, COALESCE(b.pay_auto, false) AS pay_auto, b.pay_account_id,
        (SELECT COUNT(*) FROM bukku_tags g WHERE g.company_id = c.id)::int AS tags
      FROM companies c LEFT JOIN bukku_connections b ON b.company_id = c.id
      ORDER BY (b.company_id IS NOT NULL) DESC, c.name`
   );
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts, tags: r.tags, sendEnabled: r.send_enabled, sendStatus: r.send_status })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, connected: r.connected, subdomain: r.subdomain || '', lastSyncAt: r.last_sync_at, lastError: r.last_error || '', accounts: r.accounts, contacts: r.contacts, tags: r.tags, sendEnabled: r.send_enabled, sendStatus: r.send_status, payAuto: r.pay_auto, payAccountId: r.pay_account_id == null ? '' : String(r.pay_account_id) })));
 });
 
 router.put('/bukku/connections/:companyId', requireAuth, requireRole('admin'), async (req, res) => {
@@ -215,11 +215,11 @@ router.post(['/bukku/connections/:companyId/sync', '/bukku/connections/:companyI
 
 router.get('/companies/:companyId/bukku/accounts', requireAuth, scopeToCompany, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT code, name, type, synced_at FROM bukku_accounts WHERE company_id = $1 ORDER BY code, name', [req.params.companyId]
+    'SELECT bukku_id, code, name, type, synced_at FROM bukku_accounts WHERE company_id = $1 ORDER BY code, name', [req.params.companyId]
   );
   res.json({
     syncedAt: rows[0] ? rows[0].synced_at : null,
-    accounts: rows.map((r) => ({ code: r.code, name: r.name, type: r.type, label: (r.code ? r.code + ' ' : '') + r.name }))
+    accounts: rows.map((r) => ({ id: String(r.bukku_id), code: r.code, name: r.name, type: r.type, label: (r.code ? r.code + ' ' : '') + r.name }))
   });
 });
 
@@ -258,6 +258,22 @@ router.put('/bukku/connections/:companyId/send', requireAuth, requireRole('admin
   const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
   await logActivity(req.user.sub, on ? 'Switched on sending purchase bills to Bukku' : 'Switched off sending purchase bills to Bukku', co[0] ? co[0].name : String(req.params.companyId), on ? ('as ' + (status === 'ready' ? 'finished bills' : 'drafts')) : null);
   res.json({ ok: true, enabled: on, status });
+});
+
+// The Owner switches "record the payment in Bukku after the bank check" on or off for a company, and names the Bukku bank account that pays.
+router.put('/bukku/connections/:companyId/pay', requireAuth, requireRole('admin'), async (req, res) => {
+  const on = !!(req.body && req.body.enabled);
+  const accountId = Number(req.body && req.body.accountId) || 0;
+  if (on) {
+    if (!accountId) return bad(res, '请选付款用的 Bukku 银行账户。 Choose the Bukku bank account that pays.');
+    const { rows: a } = await pool.query('SELECT 1 FROM bukku_accounts WHERE company_id = $1 AND bukku_id = $2', [req.params.companyId, accountId]);
+    if (!a[0]) return bad(res, '这个账户不在这家公司的 Bukku 科目表里，请先「重新同步」。 That account is not in the synced chart of accounts.');
+  }
+  const { rows } = await pool.query('UPDATE bukku_connections SET pay_auto = $2, pay_account_id = $3 WHERE company_id = $1 RETURNING company_id', [req.params.companyId, on, accountId || null]);
+  if (!rows[0]) return bad(res, 'Save the Bukku subdomain and Access Token first.');
+  const { rows: co } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.params.companyId]);
+  await logActivity(req.user.sub, on ? 'Switched on recording payments in Bukku after the bank check' : 'Switched off recording payments in Bukku', co[0] ? co[0].name : String(req.params.companyId), null);
+  res.json({ ok: true });
 });
 
 module.exports = router;

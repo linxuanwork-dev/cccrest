@@ -340,11 +340,11 @@ const billOut = (r) => ({
   lines: r.lines, total: Number(r.total), status: r.status, dupAck: r.dup_ack, imported: r.imported, revised: !!r.revised, hq: r.hq || null,
   createdAt: new Date(r.created_at).getTime(), updatedAt: r.imported ? 0 : new Date(r.updated_at).getTime(),
   approved: !!r.approved_at, noOriginal: !!r.no_original, inBukku: !!r.in_bukku_at, payDue: r.pay_due || '', payStatus: r.pay_task_status || '',
-  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || '', hardcopy: !!r.hardcopy, softcopy: !!r.softcopy, paidBy: r.paid_by || ''
+  bukkuNo: r.bukku_txn_no || '', bukkuSent: !!r.bukku_sent_at, bukkuError: r.bukku_send_error || '', payMode: r.pay_mode || '', bukkuStatus: r.bukku_sent_status || '', hardcopy: !!r.hardcopy, softcopy: !!r.softcopy, paidBy: r.paid_by || '', bukkuPayNo: r.bukku_pay_no || '', bukkuPayError: r.bukku_pay_error || ''
 });
 const supOut = (r) => ({ id: String(r.id), name: r.name, code: r.code, account: r.account, tags: r.tags });
 const BILL_COLS = `id, supplier, code, no, ref, to_char(bill_date, 'YYYY-MM-DD') AS bill_date, tags, description, lines, total, status, dup_ack, imported, revised, hq, created_at, updated_at,
-  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status, hardcopy, softcopy, paid_by,
+  approved_at, no_original, in_bukku_at, to_char(pay_due, 'YYYY-MM-DD') AS pay_due, bukku_txn_no, bukku_sent_at, bukku_send_error, pay_mode, bukku_sent_status, hardcopy, softcopy, paid_by, bukku_pay_no, bukku_pay_error,
   (SELECT t.status FROM work_tasks t WHERE t.purchase_bill_id = purchase_bukku_bills.id AND t.kind = 'pay' ORDER BY t.id DESC LIMIT 1) AS pay_task_status`;
 
 // ---- the company's Stock Count items (when it uses Stock Count): purchase lines can be linked to them ----
@@ -761,6 +761,54 @@ function buildBukkuBill(bill, ctx, opt) {
   }
   return { payload, problems, summary: { contact: contact ? contact.legal_name : '', accounts: [...new Set(codes)], tags: tagNames, mode } };
 }
+
+// Record the payment of a bill in Bukku (a payment voucher linked to the bill the API made), after the Owner has checked the bank.
+// Only a credit bill that was sent through the API and is not paid out of pocket; once only.
+async function recordBukkuPayment(billId, actorId) {
+  const { rows } = await pool.query('SELECT b.*, c.name AS company_name FROM purchase_bukku_bills b JOIN companies c ON c.id = b.company_id WHERE b.id = $1', [billId]);
+  const bill = rows[0];
+  if (!bill) return { skipped: 'not found' };
+  if (bill.bukku_pay_id) return { skipped: 'already recorded', no: bill.bukku_pay_no };
+  if (!bill.bukku_txn_id) return { skipped: 'the bill was not sent to Bukku by the system' };
+  if (bill.paid_by) return { skipped: 'paid out of pocket: record the reimbursement by hand' };
+  if (bill.pay_mode && bill.pay_mode !== 'credit') return { skipped: 'not a credit bill' };
+  const conn = await bukkuApi.loadConn(bill.company_id);
+  if (!conn || !conn.pay_auto || !conn.pay_account_id) return { skipped: 'recording payments in Bukku is switched off' };
+  const t = (await pool.query("SELECT done_at FROM work_tasks WHERE purchase_bill_id = $1 AND kind = 'pay' ORDER BY id DESC LIMIT 1", [billId])).rows[0];
+  const date = (t && t.done_at ? new Date(t.done_at) : new Date()).toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
+  const fail = async (msg) => { await pool.query('UPDATE purchase_bukku_bills SET bukku_pay_error = $2 WHERE id = $1', [billId, String(msg).slice(0, 400)]); return { error: msg }; };
+  const ctx = await bukkuCtx(bill.company_id, '');
+  const contact = bukkuFindContact(ctx, bill.supplier);
+  if (!contact || !Number.isInteger(Number(contact.bukku_key))) return fail('供应商「' + bill.supplier + '」在 Bukku 的联络人里找不到。');
+  const total = Number(bill.total);
+  const payload = {
+    contact_id: Number(contact.bukku_key), date, currency_code: 'MYR', exchange_rate: 1, amount: total,
+    description: ('Payment: ' + bill.supplier + ' ' + (bill.no || '')).slice(0, 255),
+    link_items: [{ target_transaction_id: Number(bill.bukku_txn_id), apply_amount: total }],
+    deposit_items: [{ account_id: Number(conn.pay_account_id), amount: total }],
+    status: conn.send_status === 'ready' ? 'ready' : 'draft'
+  };
+  try {
+    const resp = await bukkuApi.post(conn, '/purchases/payments', payload);
+    const tx = resp && resp.transaction;
+    if (!tx || tx.id == null) throw new Error('Bukku 没有回传付款单据 id。');
+    await pool.query('UPDATE purchase_bukku_bills SET bukku_pay_id = $2, bukku_pay_no = $3, bukku_pay_error = NULL, bukku_paid_at = now() WHERE id = $1', [billId, tx.id, String(tx.number || '').slice(0, 60)]);
+    await logActivity(actorId || null, 'Recorded a payment in Bukku (' + (payload.status === 'ready' ? 'finished' : 'draft') + ')', bill.company_name, (bill.supplier + ' ' + (bill.no || '') + ' -> ' + (tx.number || tx.id)).slice(0, 300));
+    return { recorded: true, no: String(tx.number || ''), status: payload.status };
+  } catch (e) { return fail(e.message); }
+}
+router.recordBukkuPayment = recordBukkuPayment;
+
+// the same by hand (a manager), for a bill whose automatic recording failed
+router.post(BASE + '/bills/:id/record-payment', ...guard(2), async (req, res) => {
+  if (!await enabledSettings(req, res) || !needMgr(req, res)) return;
+  const id = Number(req.params.id) || 0;
+  const { rows } = await pool.query(
+    `SELECT EXISTS (SELECT 1 FROM work_tasks t WHERE t.purchase_bill_id = b.id AND t.kind = 'pay' AND t.status = 'checked') AS checked FROM purchase_bukku_bills b WHERE b.id = $1 AND b.company_id = $2`, [id, req.params.companyId]);
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  if (!rows[0].checked) return bad(res, '要等 Owner 去银行检查之后，才可以在 Bukku 记付款。 The Owner has to check the bank first.');
+  res.json(await recordBukkuPayment(id, req.user.sub));
+});
 
 router.get(BASE + '/bukku-options', ...guard(2), async (req, res) => {
   if (!await enabledSettings(req, res) || !needMgr(req, res)) return;

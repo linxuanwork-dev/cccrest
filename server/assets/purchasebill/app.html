@@ -326,6 +326,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <button class="btn" id="stInBukku" disabled>已在 Bukku ✓</button>
         <button class="btn" id="stNotInBukku" disabled>取消「已在 Bukku」</button>
         <span style="width:12px"></span>
+        <button class="btn" id="stRecPay" disabled title="Owner 检查银行之后，在 Bukku 记付款（自动记失败时用这个再试）">在 Bukku 记付款</button>
         <button class="btn" id="bkOpen" disabled title="用 API 把选中的、已 Approve 的单送进 Bukku">送进 Bukku</button>
       </div>
       <div id="bkPanel" class="panel" style="margin-top:8px" hidden></div>
@@ -917,6 +918,8 @@ function flowPills(b){
   if(b.noOriginal) p.push('<span class="pill dup">缺正式单据</span>');
   p.push('<span class="pill '+(b.hardcopy?'done':'draft')+'" title="纸本">纸本'+(b.hardcopy?' ✓':' ✗')+'</span><span class="pill '+(b.softcopy?'done':'draft')+'" title="电子档">电子档'+(b.softcopy?' ✓':' ✗')+'</span>');
   if(b.paidBy) p.push('<span class="pill draft">垫付 '+esc(b.paidBy)+'</span>');
+  if(b.bukkuPayNo) p.push('<span class="pill done" title="在 Bukku 记的付款">Bukku 付款 '+esc(b.bukkuPayNo)+'</span>');
+  else if(b.bukkuPayError) p.push('<span class="pill dup" title="'+esc(b.bukkuPayError)+'">Bukku 记付款失败</span>');
   if(b.bukkuSent) p.push('<span class="pill done">'+(b.bukkuStatus==='ready'?'已送进 Bukku':'已送 Bukku 草稿')+(b.bukkuNo?' '+esc(b.bukkuNo):'')+'</span>');
   else if(b.bukkuError) p.push('<span class="pill dup" title="'+esc(b.bukkuError)+'">送 Bukku 失败</span>');
   if(b.payStatus==='checked') p.push('<span class="pill done">已付款</span>');
@@ -959,7 +962,7 @@ function updateSel(){
   const sel=S.bills.filter(b=>S.selected.has(b.id));
   const done=sel.filter(b=>b.status==='exported').length;
   $('selInfo').innerHTML = sel.length ? `已选 <b>${sel.length}</b> 张 · RM <b class="mono">${money(sel.reduce((a,b)=>a+(b.total||0),0))}</b>${done?` · <span style="color:#b45309">其中 ${done} 张已经导出过，不能再导出</span>`:''}` : '未选择（勾选要导出的单据）';
-  ['markDone','markDraft','delSel','bkOpen','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stHard','stNoHard','stSoft','stNoSoft','stPaidBy'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
+  ['markDone','markDraft','delSel','bkOpen','stRecPay','stApprove','stUnapprove','stInBukku','stNotInBukku','stNoOrig','stHasOrig','stPay','stHard','stNoHard','stSoft','stNoSoft','stPaidBy'].forEach(id=>{ const el=$(id); if(el) el.disabled=!sel.length; });
   $('exportBtn').disabled=!sel.length||done>0;
 }
 ['flMonth','flStatus','flFlow','flSup','flQ'].forEach(id=>$(id).addEventListener('input',()=>{S.selected.clear();renderBills();}));
@@ -1217,6 +1220,11 @@ $('bkOpen').addEventListener('click',async()=>{
       finally{ b.disabled=false; }
     });
   }catch(e){ p.innerHTML='<p class="small">'+esc(e.message)+'</p>'; }
+});
+$('stRecPay').addEventListener('click',async()=>{
+  const ids=[...S.selected].map(Number); if(!ids.length) return; let ok=0,msgs=[];
+  for(const id of ids){ try{ const r=await http('POST','/bills/'+id+'/record-payment'); if(r.recorded) ok++; else msgs.push(r.error||r.skipped||''); }catch(e){ msgs.push(e.message); } }
+  toast((ok?'✔ 已在 Bukku 记付款：'+ok+' 张。':'')+(msgs.length?' '+msgs.length+' 张没记：'+msgs[0]:'')); await refresh();
 });
 $('stPay').addEventListener('click',async()=>{
   const ids=[...S.selected].map(Number), due=$('payDue').value;

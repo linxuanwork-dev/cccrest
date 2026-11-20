@@ -135,6 +135,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       <button role="tab" data-tab="report">报告 / 底稿</button>
       <button role="tab" data-tab="clients">客户</button>
       <button role="tab" data-tab="rules">税务规则</button>
+      <button role="tab" data-tab="audit">修改记录</button>
     </nav>
   </div>
 </header>
@@ -148,12 +149,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     <div class="empty panel" id="retEmpty">先到「客户」新增客户，再选客户和 YA。</div>
     <div class="grid" id="retGrid" hidden>
       <div>
+        <div class="panel" id="lockBar"></div>
         <div class="panel">
           <div class="ph"><h2>基本资料</h2><span class="pill" id="statusPill"></span></div>
           <div class="fields">
             <label class="f"><span>表格</span><select data-k="form"><option value="B">Form B（有生意收入）</option><option value="BE">Form BE（无生意收入）</option></select></label>
             <label class="f"><span>税务居民（≥182天）</span><select data-k="resident" data-bool="1"><option value="true">是 Resident</option><option value="false">否 Non-resident 30%</option></select></label>
-            <label class="f"><span>状态</span><select data-k="status"><option value="draft">草稿</option><option value="review">待复核</option><option value="reviewed">已复核</option><option value="filed">已提交 e-Filing</option></select></label>
             <label class="f"><span>记录保存合规 <em id="rkCode">A6</em></span><select data-k="rk"><option value="1">1 = 合规</option><option value="2">2 = 不合规</option></select></label>
             <label class="f"><span>制表人 Prepared by</span><input data-k="prepBy"></label>
             <label class="f"><span>复核人 Reviewed by</span><input data-k="revBy"></label>
@@ -297,6 +298,14 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   </section>
 
   <!-- ============ RULES ============ -->
+  <section id="t-audit" hidden>
+    <div class="panel">
+      <div class="ph"><h2>修改记录（这位客户）</h2><div class="row"><button class="btn sm" id="auditXls">下载 Excel</button></div></div>
+      <p class="small muted" style="margin:0 0 10px">客户资料和每个 YA 的报税资料，每一次新增、修改、批准、重开、提交 e-Filing、删除都记在这里（谁、什么时候、改了什么、改前改后、原因）。这份记录不能关掉，也不能删。</p>
+      <div class="tbl-wrap"><table><thead><tr><th>时间</th><th>谁</th><th>资料</th><th>做了什么</th><th>改了什么（改前 → 改后）</th><th>原因</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+    </div>
+  </section>
+
   <section id="t-rules" hidden>
     <div class="info">每个 YA 的税率、扣除额上限、资本津贴率、e-Filing 项目编号都存在这里，系统计算全部读这张表。<b>每年更新：</b>按「复制成新 YA」→ 照财政预算案 / LHDN 新表格修改 → 状态改「定案」。也可以把新规则交给 Claude 更新。</div>
     <div class="panel">
@@ -605,6 +614,7 @@ function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t));
   document.querySelectorAll('main > section').forEach(s=>s.hidden = s.id!=='t-'+t);
   if(t==='report') renderReport();
+  if(t==='audit') renderAudit();
   if(t==='assets') renderAssets();
   if(t==='rules') renderRules();
   window.scrollTo(0,0);
@@ -691,7 +701,7 @@ async function saveReturn(){
   const body=JSON.parse(JSON.stringify(S.cur)); body.updatedAt=Date.now();
   const R=TAX.compute(body, client(), rulesFor(S.ya), rulesFor); body.result={balance:R.balance, chargeable:R.chargeable, taxPayable:R.taxPayable};
   S.dirty=false;
-  try{ await put('taxreturns/'+body.cid+'_'+body.ya, body); $('savedTag').textContent='已保存'; }catch(e){ S.dirty=true; dbErr(e); }
+  try{ await put('taxreturns/'+body.cid+'_'+body.ya, body); delete S.cur._reopen; $('savedTag').textContent='已保存'; }catch(e){ S.dirty=true; dbErr(e); if(e && e.code===409){ S.dirty=false; delete S.cur._reopen; loadReturn(); } }
 }
 window.addEventListener('beforeunload', flushSave);
 
@@ -1008,6 +1018,67 @@ $('rCopy').addEventListener('click', async ()=>{
 $('rExport').addEventListener('click',()=>{ if(!S.rEdit) return; $('importWrap').hidden=false; $('importBox').value=JSON.stringify(S.rEdit,null,1); $('importBox').select(); try{navigator.clipboard.writeText($('importBox').value); toast('已复制到剪贴板');}catch(_){} });
 $('rImport').addEventListener('click',()=>{ $('importWrap').hidden=!$('importWrap').hidden; $('importBox').value=''; });
 $('importGo').addEventListener('click',()=>{ try{ const r=JSON.parse($('importBox').value); if(!r.ya||!r.brackets||!r.reliefs) throw new Error('缺 ya / brackets / reliefs'); r.ca=r.ca||{classes:[]}; r.addbackTypes=r.addbackTypes||[]; S.rEdit=r; drawRule(); toast('已套用 YA'+r.ya+'，检查后按保存'); }catch(e){ toast('JSON 有错：'+e.message); } });
+
+/* ---------- approve and lock, reopen (with a reason), e-Filing record ---------- */
+const LOCKED=['reviewed','filed'];
+const stText={draft:'草稿',review:'待复核',reviewed:'已批准 · 已锁定',filed:'已提交 e-Filing · 已锁定'};
+function isLocked(){ return !!(S.cur && LOCKED.includes(S.cur.status)); }
+function applyLock(){
+  const bar=$('lockBar'); if(!bar||!S.cur) return;
+  const locked=isLocked(), st=S.cur.status||'draft';
+  let warn='';
+  if(locked && S.cur.approvedSnap && S.R){ const a=S.cur.approvedSnap, r=S.R;
+    if(Math.abs((a.balance||0)-r.balance)>0.005||Math.abs((a.chargeable||0)-r.chargeable)>0.005) warn='<div class="notice" style="margin:10px 0 0">批准之后资产、税务规则或客户资料有改动：现在算出来的数字（应课税收入 '+money(r.chargeable)+'，余额 '+money(r.balance)+'）和批准时的（'+money(a.chargeable)+' / '+money(a.balance)+'）不一样。请「重开」检查。</div>'; }
+  bar.innerHTML='<div class="ph"><h2>批准与锁定</h2><span class="pill '+(locked?'ok':st==='review'?'warn':'draft')+'">'+esc(stText[st]||st)+'</span></div><div class="row">'+
+    (st==='draft'?'<button class="btn" data-lk="review">提交复核</button>':'')+
+    (!locked?'<button class="btn pri" data-lk="approve">CC 批准并锁定</button>':'')+
+    (st==='reviewed'?'<button class="btn pri" data-lk="file">记录已提交 e-Filing</button>':'')+
+    (locked?'<button class="btn danger" data-lk="reopen">重开（要写原因）</button>':'')+'</div>'+
+    (S.cur.approvedAt?'<div class="small muted" style="margin-top:8px">批准：'+esc(new Date(S.cur.approvedAt).toLocaleString('en-GB'))+(S.cur.filedOn?' · e-Filing '+esc(S.cur.filedOn)+' '+esc(S.cur.filedRef||''):'')+'</div>':'')+warn;
+  document.querySelectorAll('#retGrid input,#retGrid select,#retGrid textarea,#retGrid button').forEach(el=>{ if(el.closest('#lockBar')||el.id==='toReport') return; el.disabled=locked; });
+}
+const _recalc=recalc; recalc=function(){ _recalc(); applyLock(); };
+document.addEventListener('click', async e=>{
+  const b=e.target.closest('[data-lk]'); if(!b||!S.cur) return; const act=b.dataset.lk;
+  if(act==='review'){ S.cur.status='review'; }
+  else if(act==='approve'){
+    if(!confirm('批准并锁定这份 YA'+S.ya+' 的报税资料？\n锁定后要改，必须按「重开」并写原因，这些都会记在「修改记录」。')) return;
+    const R=S.R; S.cur.status='reviewed'; S.cur.approvedAt=Date.now(); S.cur.approvedSnap={balance:R.balance,chargeable:R.chargeable,taxPayable:R.taxPayable,caTotal:R.ca?R.ca.total:0};
+  }
+  else if(act==='file'){
+    const d=prompt('e-Filing 提交日期（YYYY-MM-DD）：',new Date().toISOString().slice(0,10)); if(!d) return;
+    const ref=prompt('e-Filing 回执 / 收据号：',S.cur.filedRef||'')||''; S.cur.filedOn=d; S.cur.filedRef=ref; S.cur.status='filed';
+  }
+  else if(act==='reopen'){
+    const why=prompt('重开的原因（必填）：',''); if(!why||why.trim().length<3) return toast('请写重开的原因');
+    S.cur._reopen={reason:why.trim()}; S.cur.status='draft'; delete S.cur.approvedSnap; delete S.cur.approvedAt; S.cur.filedOn=''; S.cur.filedRef='';
+  }
+  S.dirty=true; await saveReturn(); applyForm(); recalc();
+});
+
+/* ---------- the change record ---------- */
+const actText={create:'新增',update:'修改',delete:'删除',approve:'批准并锁定',reopen:'重开',file:'提交 e-Filing'};
+async function renderAudit(){
+  const box=$('auditBody'); if(!S.cid){ box.innerHTML='<tr><td colspan="6" class="empty">先选客户</td></tr>'; return; }
+  box.innerHTML='<tr><td colspan="6" class="empty">读取中…</td></tr>';
+  try{
+    const r=await fetch('/api/tax/audit?client='+encodeURIComponent(S.cid),{credentials:'same-origin'}); const j=await r.json(); if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    S.audit=j.rows||[];
+    box.innerHTML=S.audit.map(x=>{
+      const what=x.coll==='taxclients'?'客户资料':'YA'+String(x.docId).split('_').pop()+' 报税';
+      const ch=(x.changes||[]).slice(0,8).map(c=>'<div class="small"><span class="mono">'+esc(c.path)+'</span>：'+esc(c.before||'（空）')+' → '+esc(c.after||'（空）')+'</div>').join('')+((x.changes||[]).length>8?'<div class="small muted">…共 '+x.changes.length+' 项</div>':'');
+      return '<tr><td class="small" style="white-space:nowrap">'+esc(new Date(x.at).toLocaleString('en-GB'))+'</td><td>'+esc(x.who)+'</td><td>'+esc(what)+'</td><td>'+esc(actText[x.action]||x.action)+'</td><td>'+ch+'</td><td>'+esc(x.reason||'')+'</td></tr>';
+    }).join('')||'<tr><td colspan="6" class="empty">还没有记录</td></tr>';
+  }catch(e){ box.innerHTML='<tr><td colspan="6" class="empty">'+esc(e.message)+'</td></tr>'; }
+}
+$('auditXls').addEventListener('click',()=>{
+  if(!S.audit||!S.audit.length) return toast('没有记录'); if(typeof XLSX==='undefined') return toast('Excel 模组没载入');
+  const rows=[['时间','谁','资料','做了什么','栏位','改前','改后','原因']];
+  S.audit.forEach(x=>{ const what=x.coll==='taxclients'?'客户资料':'YA'+String(x.docId).split('_').pop()+' 报税'; const t=new Date(x.at).toLocaleString('en-GB');
+    if(!(x.changes||[]).length) rows.push([t,x.who,what,actText[x.action]||x.action,'','','',x.reason||'']); (x.changes||[]).forEach((c,i)=>rows.push([t,x.who,what,actText[x.action]||x.action,c.path,c.before,c.after,i?'':(x.reason||'')])); });
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Audit'); const c=client();
+  saveFile('TAX-Audit-'+((c&&c.name)||'').replace(/[^\w\u4e00-\u9fa5 -]/g,'').trim()+'.xlsx', new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array'})));
+});
 
 /* ---------- boot ---------- */
 function onClients(rows){ S.clients=rows; renderPickers(); renderClients(); if(!S.cur || S.cur.cid!==S.cid) loadReturn(); else { if(S.tab==='assets') renderCA(); recalc(); } }

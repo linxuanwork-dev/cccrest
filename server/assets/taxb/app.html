@@ -232,6 +232,30 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
           <div class="tbl-wrap"><table class="edit"><thead><tr><th class="code">项目</th><th>扣除项目</th><th class="r">上限</th><th class="r">收据金额 / 人数</th><th class="r">可扣</th><th>收据参考</th></tr></thead><tbody id="relBody"></tbody></table></div>
         </div>
 
+        <div class="panel" id="jointPanel">
+          <div class="ph"><h2>合并评税比较（配偶有收入时）</h2></div>
+          <p class="small muted" style="margin:0 0 10px">填配偶自己的数字，系统并排算「各自评税」和「合并评税」（ITA s45）哪种税少，由 CC 决定。合并时两人收入加起来算；配偶自己的个人扣除不再给，改给配偶扣除（项目 14，金额照税务规则）。这是估算，报税前请对照 LHDN 的说明。</p>
+          <div class="fields">
+            <label class="f"><span>配偶总收入（扣掉他 / 她自己的亏损后，还没扣捐款和扣除额）</span><input class="amt" data-k="sp.income" inputmode="decimal"></label>
+            <label class="f"><span>配偶批准机构捐款</span><input class="amt" data-k="sp.don" inputmode="decimal"></label>
+            <label class="f"><span>配偶自己的其他扣除额合计（不含个人扣除，先按上限算好）</span><input class="amt" data-k="sp.relOther" inputmode="decimal"></label>
+            <label class="f"><span>配偶 Zakat / Fitrah</span><input class="amt" data-k="sp.zakat" inputmode="decimal"></label>
+            <label class="f"><span>配偶已缴 PCB / MTD</span><input class="amt" data-k="sp.pcb" inputmode="decimal"></label>
+            <label class="f"><span>配偶已缴 CP500</span><input class="amt" data-k="sp.cp500" inputmode="decimal"></label>
+          </div>
+          <div id="jointBox" style="margin-top:12px"></div>
+        </div>
+
+        <div class="panel" id="cpPanel">
+          <div class="ph"><h2>CP500 估算（下一年）</h2></div>
+          <p class="small muted" style="margin:0 0 10px">有生意收入的人，LHDN 会按评税结果发下一年的 CP500 分期。这里按今年的应缴税额（扣掉 PCB）估算，并和 LHDN 寄来的金额对比，差太多会提醒。</p>
+          <div class="fields">
+            <label class="f"><span>LHDN 寄来的 CP500 每期金额（还没有就空着）</span><input class="amt" data-k="cp500Lhdn.per" inputmode="decimal"></label>
+            <label class="f"><span>期数（空 = 按规则，默认 6）</span><input class="amt" data-k="cp500Lhdn.n" inputmode="numeric"></label>
+          </div>
+          <div id="cpBox" style="margin-top:12px"></div>
+        </div>
+
         <div class="panel">
           <div class="ph"><h2>回扣与已缴税款</h2></div>
           <div class="fields">
@@ -587,6 +611,98 @@ function caForYA(assets, ya, rulesFor, smeUnlimited) {
   };
 }
 
+/* Joint assessment (ITA s45) side by side with separate assessment.
+   The spouse's figures are typed in (ret.sp): income = the spouse's aggregate income after his / her own loss set-off,
+   relOther = the spouse's own reliefs except the individual one (already capped by CC). An estimate for CC to decide. */
+function jointCompare(R, ret, rules, resident) {
+  const sp = ret.sp || {}; const inc = n(sp.income);
+  if (!(inc > 0)) return null;
+  const capPct = rules.donationCapPct ?? 10; const rb = rules.rebate || { threshold: 35000, self: 400, spouse: 400 };
+  const it1 = (rules.reliefs || []).find(x => x.code === '1'), it14 = (rules.reliefs || []).find(x => x.code === '14');
+  /* the spouse on a separate assessment */
+  const spRel = resident ? r2((it1 ? n(it1.max) : 0) + n(sp.relOther)) : 0;
+  const spDon = r2(Math.min(n(sp.don), inc * capPct / 100));
+  const spTotal = r2(Math.max(0, inc - spDon));
+  const spCi = r2(Math.max(0, spTotal - spRel));
+  const spT = taxOnIncome(spCi, rules, resident);
+  let left = spT.tax;
+  const spRebSelf = resident && spCi <= rb.threshold ? r2(Math.min(rb.self, left)) : 0; left -= spRebSelf;
+  const spZak = r2(Math.min(n(sp.zakat), left)); left -= spZak;
+  const spTax = r2(Math.max(0, left));
+  const spPaid = r2(n(sp.pcb) + n(sp.cp500));
+  /* joint: the incomes are added; the spouse's individual relief is replaced by the spouse relief (item 14, amount from the rules) */
+  const l14 = R.rel.lines.find(x => x.code === '14');
+  const jAgg = r2(R.afterLoss + inc);
+  const jDon = r2(Math.min(n(ret.don?.capped) + n(sp.don), jAgg * capPct / 100) + R.donGov);
+  const jTotal = r2(Math.max(0, jAgg - jDon));
+  const jRel = resident ? r2(R.rel.total - (l14 ? l14.claim : 0) + (it14 ? n(it14.max) : 0) + n(sp.relOther)) : 0;
+  const jCi = r2(Math.max(0, jTotal - jRel));
+  const jT = taxOnIncome(jCi, rules, resident);
+  let jl = jT.tax;
+  const jRebSelf = resident && jCi <= rb.threshold ? r2(Math.min(rb.self, jl)) : 0; jl -= jRebSelf;
+  const jRebSp = resident && it14 && jCi <= rb.threshold ? r2(Math.min(rb.spouse, jl)) : 0; jl -= jRebSp;
+  const jZak = r2(Math.min(n(ret.zakat) + n(sp.zakat), jl)); jl -= jZak;
+  const jOth = r2(Math.min(n(ret.rebOther), jl)); jl -= jOth;
+  const jTax = r2(Math.max(0, jl));
+  const jPaid = r2(R.pcb + R.cp500 + spPaid);
+  const selfReb = r2(R.rebSelf + R.rebSpouse + R.rebZakat + R.rebOther);
+  const sepTax = r2(R.taxPayable + spTax), saving = r2(sepTax - jTax);
+  return {
+    self: { income: R.afterLoss, don: r2(R.donCapped + R.donGov), total: R.totalIncome, rel: R.rel.total, ci: R.chargeable, tax: R.taxGross, reb: selfReb, payable: R.taxPayable, paid: r2(R.pcb + R.cp500), bal: R.balance },
+    sp: { income: inc, don: spDon, total: spTotal, rel: spRel, ci: spCi, tax: spT.tax, reb: r2(spRebSelf + spZak), payable: spTax, paid: spPaid, bal: r2(spTax - spPaid) },
+    joint: { income: jAgg, don: jDon, total: jTotal, rel: jRel, ci: jCi, tax: jT.tax, reb: r2(jRebSelf + jRebSp + jZak + jOth), payable: jTax, paid: jPaid, bal: r2(jTax - jPaid + R.prevAdj) },
+    sepTax, saving, better: saving > 0.005 ? 'joint' : saving < -0.005 ? 'separate' : 'same', sepBal: r2(R.balance + spTax - spPaid)
+  };
+}
+
+/* CP500 instalments for next year, estimated from this year's tax, against the amount LHDN sent. */
+function cp500Estimate(R, ret, rules) {
+  if (!(R.statBizNet > 0)) return null;
+  const cfg = rules.cp500 || {}; const cnt = cfg.instalments ?? 6;
+  const annual = r2(Math.max(0, R.taxPayable - R.pcb)); const per = r2(annual / cnt);
+  const L = ret.cp500Lhdn || {}; const lper = n(L.per); const lcnt = n(L.n) || cnt; const lTotal = r2(lper * lcnt);
+  let diff = null, pct = null, warn = '';
+  if (lper > 0) {
+    diff = r2(lTotal - annual); pct = annual > 0 ? r2(diff / annual * 100) : null;
+    if (Math.abs(diff) >= (cfg.warnMin ?? 500) && (pct === null || Math.abs(pct) >= (cfg.warnPct ?? 20)))
+      warn = diff > 0 ? 'LHDN 的 CP500 合计 ' + lTotal.toFixed(2) + ' 比估算的 ' + annual.toFixed(2) + ' 多 ' + diff.toFixed(2) + '。如果下一年的生意收入会比这一年少，可以考虑申请修改 CP500（CP502，时限看 LHDN 通知）。'
+        : 'LHDN 的 CP500 合计 ' + lTotal.toFixed(2) + ' 比估算的 ' + annual.toFixed(2) + ' 少 ' + (-diff).toFixed(2) + '。年底评税时可能还要补缴。';
+  }
+  return { annual, count: cnt, per, lhdnPer: lper, lhdnCount: lcnt, lhdnTotal: lTotal, diff, pct, warn };
+}
+
+/* System checks: missing receipts, reliefs over the cap, big change against last year, spouse. Returns [{lvl,text}]. */
+function checks(R, ret, prevR, client, rules) {
+  const out = []; const add = (lvl, text) => out.push({ lvl, text });
+  const defs = rules.reliefs || [];
+  const noRef = [];
+  (R.rel?.lines || []).forEach(l => {
+    if (l.type === 'amt' && l.claim > 0 && !String(ret.relRef?.[l.code] || '').trim()) { const it = defs.find(x => x.code === l.code) || {}; noRef.push((it.no || l.code) + ' ' + String(it.name || '').split(/[（(]/)[0]); }
+  });
+  if (noRef.length) add('warn', '有 ' + noRef.length + ' 项扣除额申报了金额，但没有填收据参考：' + noRef.join('；') + '。');
+  if (n(ret.don?.capped) + n(ret.don?.gov) > 0 && !String(ret.don?.ref || '').trim()) add('warn', '申报了捐款，但没有填捐款收据参考。');
+  if (R.empIncome > 0 && !String(ret.emp?.ref || '').trim() && !String(ret.emp?.employer || '').trim()) add('warn', '有受雇收入，但没有填雇主 / EA 参考。');
+  const capped = (R.rel?.lines || []).filter(l => /上限/.test(l.note || '')).map(l => { const it = defs.find(x => x.code === l.code) || {}; return (it.no || l.code) + '（只算 ' + l.claim.toFixed(2) + '）'; });
+  if (capped.length) add('info', '有 ' + capped.length + ' 项扣除额超过上限，只算到上限：' + capped.join('；') + '。');
+  if (n(ret.don?.capped) > R.donCapped + 0.005) add('info', '捐款超过总收入的上限，只算了 ' + R.donCapped.toFixed(2) + '。');
+  const sp = client?.spouse || {};
+  const l14 = (R.rel?.lines || []).find(x => x.code === '14');
+  if (client?.marital === 'married' && sp.income === 'yes' && sp.joint !== 'joint' && l14 && l14.claim > 0) add('warn', '配偶有收入、各自评税，但扣除额项目 14（配偶）有申报：各自评税时配偶有收入不能扣。');
+  if (client?.marital === 'married' && sp.income === 'yes' && !R.joint) add('info', '配偶有收入：可以在「合并评税比较」填配偶的数字，看合并评税会不会少缴税。');
+  if (prevR) {
+    const cfg = rules.checks || {}; const pct = cfg.yoyPct ?? 30, minAmt = cfg.yoyMin ?? 2000;
+    [['总收入 Aggregate', 'aggregate'], ['受雇收入', 'empIncome'], ['生意法定收入', 'statBizNet'], ['租金收入', 'rental'], ['扣除额合计', null], ['应缴税额', 'taxPayable']].forEach(([lab, k]) => {
+      const a = k ? n(R[k]) : n(R.rel?.total), b = k ? n(prevR[k]) : n(prevR.rel?.total);
+      if (Math.abs(a - b) < minAmt) return;
+      if (b === 0) add('warn', lab + '：去年没有，今年 ' + a.toFixed(2) + '（新增的收入来源，确认有资料）。');
+      else if (a === 0) add('warn', lab + '：去年 ' + b.toFixed(2) + '，今年是 0（有没有漏填？）。');
+      else if (Math.abs(a - b) / Math.abs(b) * 100 >= pct) add('warn', lab + '：去年 ' + b.toFixed(2) + ' → 今年 ' + a.toFixed(2) + '（' + (a > b ? '+' : '') + ((a - b) / Math.abs(b) * 100).toFixed(0) + '%），变化很大，请确认。');
+    });
+  }
+  if (R.cp500Est?.warn) add('warn', R.cp500Est.warn);
+  return out;
+}
+
 /* Full computation. ret = return doc, client = client doc */
 function compute(ret, client, rules, rulesFor) {
   const ya = parseInt(ret.ya); const resident = ret.resident !== false;
@@ -692,10 +808,12 @@ function compute(ret, client, rules, rulesFor) {
   R.pcb = n(emp.pcb); R.cp500 = n(ret.cp500);
   R.prevAdj = n(ret.prevAdj);   // last year: + still to pay, - paid too much
   R.balance = r2(R.taxPayable - R.pcb - R.cp500 + R.prevAdj);
+  R.joint = jointCompare(R, ret, rules, resident);
+  R.cp500Est = cp500Estimate(R, ret, rules);
   return R;
 }
 
-return { compute, taxOnIncome, reliefs, caForYA, assetSchedule, n, r2 };
+return { compute, taxOnIncome, reliefs, caForYA, assetSchedule, checks, n, r2 };
 })();
 
 
@@ -1076,7 +1194,17 @@ function renderReport(){
     `<tr class="tot"><td></td><td>合计 → ${esc(fc.rel||'')}</td><td></td><td class="r mono">${money(R.rel.total)}</td><td></td></tr>`);
   h+=`<h4>${n+1}. 税额计算（ITA 附表 1）</h4>`;
   h+=T('<th>级距</th><th class="r">税率</th><th class="r">税额</th>',R.taxSteps.map(x=>`<tr><td class="mono">${money(x.from)} – ${money(x.to)}</td><td class="r mono">${x.rate}%</td><td class="r mono">${money(x.amt)}</td></tr>`).join('')+`<tr class="tot"><td>应课税收入 ${money(R.chargeable)}</td><td></td><td class="r mono">${money(R.taxGross)}</td></tr>`);
-  h+=`<h4>${n+2}. 资料来源与备注</h4><div>${R.empIncome?'EA：'+esc(cur.emp.employer||'')+' '+esc(cur.emp.ref||'')+'<br>':''}${cur.don?.ref?'捐款收据：'+esc(cur.don.ref)+'<br>':''}${esc(cur.notes||'').replace(/\n/g,'<br>')||'—'}</div>`;
+  let k=n+2;
+  if(R.joint){ const J=R.joint;
+    h+=`<h4>${k++}. 合并评税比较（ITA s45，估算）</h4>`;
+    h+=T('<th></th><th class="r">本人（各自）</th><th class="r">配偶（各自）</th><th class="r">合并评税</th>',jointRows(J).map(x=>`<tr class="${x[4]==='payable'?'tot':''}"><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td><td class="r mono">${money(x[2])}</td><td class="r mono">${money(x[3])}</td></tr>`).join('')+
+      `<tr class="tot"><td>各自评税应缴税额合计 / 合并评税应缴税额</td><td class="r mono" colspan="2">${money(J.sepTax)}</td><td class="r mono">${money(J.joint.payable)}</td></tr>`);
+    h+=`<div class="small">${J.better==='joint'?'合并评税少缴 '+money(J.saving):J.better==='separate'?'各自评税少缴 '+money(-J.saving):'两种方式税额一样'}。本底稿的主计算是「本人各自评税」。</div>`; }
+  if(R.cp500Est){
+    h+=`<h4>${k++}. CP500 估算（下一年）</h4>`;
+    h+=T('<th>项目</th><th class="r">RM</th>',cpLines(R.cp500Est).map(x=>`<tr><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td></tr>`).join(''));
+    if(R.cp500Est.warn) h+=`<div class="small">${esc(R.cp500Est.warn)}</div>`; }
+  h+=`<h4>${k}. 资料来源与备注</h4><div>${R.empIncome?'EA：'+esc(cur.emp.employer||'')+' '+esc(cur.emp.ref||'')+'<br>':''}${cur.don?.ref?'捐款收据：'+esc(cur.don.ref)+'<br>':''}${esc(cur.notes||'').replace(/\n/g,'<br>')||'—'}</div>`;
   h+=`<div class="sign"><div>制表 Prepared by<br>${esc(cur.prepBy||'')}<br>日期：</div><div>复核 Reviewed by<br>${esc(cur.revBy||'')}<br>日期：</div><div>纳税人确认 Taxpayer<br>${esc(c.name)}<br>日期：</div></div>`;
   h+=`<div class="foot">计算依据：ITA 1967 s33、s39、s43、s44、附表 1、附表 3；${esc(rules.sources||'')}。<br>本底稿与所有收据、账目、发票须按 ITA s82 / s82A 保存至提交年份结束后 7 年，供 LHDN 查账。${cur.filedOn?'e-Filing 提交：'+esc(cur.filedOn)+' '+esc(cur.filedRef||''):''}<br>列印日期：${new Date().toLocaleDateString('en-GB')}</div>`;
   $('paper').innerHTML=h;
@@ -1136,6 +1264,10 @@ $('xlsBtn').addEventListener('click', async ()=>{
     (c.assets||[]).forEach(a=>reg.push([a.desc||'',a.ref||'',a.cls||'',a.date||'',a.ya||'',N(a.cost),a.hp?'HP':'现金',100-N(a.privPct),a.dispDate||'',a.dispYA||'',a.dispYA?N(a.dispAmt):'',(a.hpPaid||[]).map(p=>'YA'+p.ya+' '+p.amt).join('; '),(a.adjs||[]).map(p=>'YA'+p.ya+' '+p.amt+' ('+(p.reason||'')+')').join('; ')]));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(reg),'Asset register');
   }
+  if(R.joint){ const jt=[['项目','本人（各自）','配偶（各自）','合并评税']]; jointRows(R.joint).forEach(x=>jt.push([x[0],x[1],x[2],x[3]])); jt.push([],['各自评税应缴税额合计',R.joint.sepTax,'',R.joint.joint.payable],['合并评税少缴（负数 = 各自少缴）',R.joint.saving]);
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(jt),'Joint assessment'); }
+  if(R.cp500Est){ const cp=[['CP500 估算（下一年）','RM']]; cpLines(R.cp500Est).forEach(x=>cp.push([x[0],x[1]])); if(R.cp500Est.warn) cp.push([],[R.cp500Est.warn]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cp),'CP500'); }
+  { const ck=runChecks(R,cur,S.ya); const rows=[['系统检查','级别']]; (R.warns||[]).forEach(w=>rows.push([w,'提示'])); ck.forEach(x=>rows.push([x.text,x.lvl==='info'?'参考':'提示'])); if(rows.length>1) XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Checks'); }
   const rl=[['项目','扣除项目','收据/人数','可扣','参考']];
   R.rel.lines.forEach(l=>{ const it=(rules.reliefs||[]).find(x=>x.code===l.code)||{}; rl.push([pre+(it.no||l.code),it.name||l.code,l.input,l.claim,cur.relRef?.[l.code]||'']); });
   rl.push(['','合计','',R.rel.total]);
@@ -1268,7 +1400,8 @@ document.addEventListener('click', async e=>{
   const b=e.target.closest('[data-lk]'); if(!b||!S.cur) return; const act=b.dataset.lk;
   if(act==='review'){ S.cur.status='review'; }
   else if(act==='approve'){
-    if(!confirm('批准并锁定这份 YA'+S.ya+' 的报税资料？\n锁定后要改，必须按「重开」并写原因，这些都会记在「修改记录」。')) return;
+    const nW=((S.R&&S.R.warns)||[]).length+(S.checks||[]).filter(x=>x.lvl==='warn').length;
+    if(!confirm('批准并锁定这份 YA'+S.ya+' 的报税资料？'+(nW?'\n\n注意：右边还有 '+nW+' 项提示没处理。':'')+'\n锁定后要改，必须按「重开」并写原因，这些都会记在「修改记录」。')) return;
     const R=S.R; S.cur.status='reviewed'; S.cur.approvedAt=Date.now(); S.cur.approvedSnap={balance:R.balance,chargeable:R.chargeable,taxPayable:R.taxPayable,caTotal:R.ca?R.ca.total:0};
   }
   else if(act==='file'){
@@ -1475,6 +1608,41 @@ function plAfterCalc(){
   const en=$('expNote'); if(en) en.textContent=(R.plLines||[]).length?'（现在用 P&L 费用明细的合计 RM '+money(R.plExpenses)+'）':'';
 }
 const _recalc2=recalc; recalc=function(){ _recalc2(); plAfterCalc(); };
+
+/* ---------- joint assessment, CP500 estimate, system checks ---------- */
+function jointRows(J){
+  const f=[['总收入（扣完亏损）','income'],['− 捐款','don'],['Total income','total'],['− 扣除额 Relief','rel'],['应课税收入','ci'],['所得税','tax'],['− 回扣 / Zakat','reb'],['应缴税额','payable'],['− 已缴 PCB / CP500','paid'],['余额（正数要缴）','bal']];
+  return f.map(([l,k])=>[l,J.self[k],J.sp[k],J.joint[k],k]);
+}
+function cpLines(C){
+  if(!C) return [];
+  const r=[['今年应缴税额 − PCB（估算的下一年 CP500 全年）',C.annual],['按 '+C.count+' 期，每期',C.per]];
+  if(C.lhdnPer>0){ r.push(['LHDN 的 CP500 每期（'+C.lhdnCount+' 期）',C.lhdnPer],['LHDN 合计',C.lhdnTotal],['LHDN 合计 − 估算',C.diff]); if(C.pct!=null) r.push(['差（%）',C.pct]); }
+  return r;
+}
+function renderJoint(R){
+  const box=$('jointBox'); if(!box) return; const c=client()||{}, sp=c.spouse||{};
+  if(!R.joint){ box.innerHTML='<div class="small muted">'+(c.marital==='married'&&sp.income==='yes'?'配偶有收入：填上面的「配偶总收入」就会并排比较。':'配偶没有收入或没填，不用比较。')+'</div>'; return; }
+  const J=R.joint;
+  box.innerHTML='<div class="tbl-wrap"><table><thead><tr><th></th><th class="r">本人（各自）</th><th class="r">配偶（各自）</th><th class="r">合并评税</th></tr></thead><tbody>'+
+    jointRows(J).map(x=>`<tr class="${x[4]==='ci'||x[4]==='payable'?'tot':''}"><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td><td class="r mono">${money(x[2])}</td><td class="r mono">${money(x[3])}</td></tr>`).join('')+
+    `<tr class="tot"><td>各自评税应缴税额合计</td><td class="r mono" colspan="2">${money(J.sepTax)}</td><td class="r mono">${money(J.joint.payable)}（合并）</td></tr></tbody></table></div>`+
+    `<div class="notice" style="margin-top:10px">${J.better==='joint'?'合并评税比各自评税少缴 <b>'+money(J.saving)+'</b>。':J.better==='separate'?'各自评税比合并评税少缴 <b>'+money(-J.saving)+'</b>。':'两种方式税额一样。'} 报税方式由 CC 决定（客户资料里现在选的是：${sp.joint==='joint'?'合并评税':'各自评税'}）。本页的计算结果（上面的主表）是「本人各自评税」。</div>`;
+}
+function renderCp(R){
+  const box=$('cpBox'); if(!box) return; const C=R.cp500Est;
+  if(!C){ box.innerHTML='<div class="small muted">没有生意收入，不用 CP500。</div>'; return; }
+  box.innerHTML='<table><tbody>'+cpLines(C).map(x=>`<tr><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td></tr>`).join('')+'</tbody></table>'+(C.warn?`<div class="notice" style="margin-top:10px">${esc(C.warn)}</div>`:'');
+}
+function runChecks(R,ret,yaN){
+  const pr=S.returns[S.cid+'_'+(yaN-1)], pRules=rulesFor(yaN-1), rules=rulesFor(yaN); let prevR=null;
+  try{ if(pr&&pRules) prevR=TAX.compute(pr,client(),pRules,rulesFor); }catch(e){}
+  return TAX.checks(R,ret,prevR,client(),rules);
+}
+const _recalc4=recalc; recalc=function(){ _recalc4(); try{ const R=S.R; if(!R||!S.cur) return;
+  renderJoint(R); renderCp(R); S.checks=runChecks(R,S.cur,S.ya);
+  if(S.checks.length) $('warnBox').insertAdjacentHTML('beforeend','<div class="small muted" style="margin-top:10px">系统检查</div>'+S.checks.map(x=>'<div class="notice" style="margin-top:6px">'+(x.lvl==='info'?'ℹ ':'')+esc(x.text)+'</div>').join(''));
+}catch(e){ console.error(e); } };
 
 /* ---------- boot ---------- */
 function onClients(rows){ S.clients=rows; renderPickers(); renderClients(); if(!S.cur || S.cur.cid!==S.cid) loadReturn(); else { if(S.tab==='assets') renderCA(); recalc(); } }

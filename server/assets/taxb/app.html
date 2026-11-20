@@ -260,8 +260,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   <section id="t-assets" hidden>
     <div class="panel">
       <div class="ph"><h2>资产登记（跟客户，跨年度）</h2><label class="row small"><input type="checkbox" id="smeChk"> SME：SVA 不限每年 RM20,000 上限</label></div>
-      <p class="small muted" style="margin:0 0 10px">每件资产登记一次，系统按购买 YA 起逐年算 IA、AA、TWDV。私家车自动套 QE 上限；有私人用途填私人 %。SVA = 小额资产（单价不超过规则里的上限）100% 一次过。</p>
-      <div class="tbl-wrap"><table class="edit" style="min-width:1100px"><thead><tr><th>资产</th><th>发票号/参考</th><th>类别</th><th>购买 YA</th><th class="r">成本</th><th>SVA</th><th>非商用车</th><th>新车</th><th class="r">私人 %</th><th>出售 YA</th><th class="r">出售价</th><th></th></tr></thead><tbody id="asBody"></tbody></table></div>
+      <p class="small muted" style="margin:0 0 10px">每件资产登记一次，系统按购买 YA 起逐年算 IA、AA 和剩余 RE（TWDV），每年自动结转。填购买日期会自动带出 YA。私家车自动套 QE 上限；有私人用途填私人 %。SVA = 小额资产（单价不超过规则里的上限）100% 一次过。HP 资产勾「HP」，在「详细」里填每年已付本金，QE 按当年已付本金算。闲置或公私比例改变，在「详细」里做手动调整并写原因。</p>
+      <div class="tbl-wrap"><table class="edit" style="min-width:1450px"><thead><tr><th>资产</th><th>发票号/参考</th><th>类别</th><th>购买日期</th><th>YA</th><th class="r">成本</th><th>HP</th><th>SVA</th><th>非商用车</th><th>新车</th><th class="r">私人 %</th><th>出售日期</th><th>出售 YA</th><th class="r">出售价</th><th></th><th></th></tr></thead><tbody id="asBody"></tbody></table></div>
       <div class="row" style="margin-top:8px"><button class="btn sm" id="asAdd">+ 资产</button><button class="btn sm" id="asPaste">从 Excel 贴上</button></div>
       <div id="pasteWrap" hidden style="margin-top:10px">
         <textarea id="pasteBox" rows="4" placeholder="每行：资产	参考	类别(HM/PM/OT/ICT)	购买YA	成本"></textarea>
@@ -270,7 +270,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     </div>
     <div class="panel">
       <div class="ph"><h2>资本津贴计算 <span class="muted" id="caYA"></span>（HK-1.2）</h2></div>
+      <div id="caWarn"></div>
       <div class="tbl-wrap"><table id="caTbl"></table></div>
+      <h4 style="margin:16px 0 6px">按类别小计</h4>
+      <div class="tbl-wrap"><table id="caClsTbl"></table></div>
+      <h4 style="margin:16px 0 6px">结转到下一年</h4>
+      <div class="tbl-wrap"><table id="caCfTbl"></table></div>
     </div>
   </section>
 
@@ -455,50 +460,95 @@ function reliefs(rules, input) {
 }
 
 /* Capital allowance schedule for one asset across years up to targetYA.
-   asset {id,desc,cls,cost,ya,sva,car,carNew,privPct,dispYA,dispAmt}
+   asset {id,desc,cls,cost,ya,date,sva,car,carNew,privPct,dispYA,dispDate,dispAmt,
+          hp, hpPaid:[{ya,amt}]  (hire purchase: QE = the principal paid in each year, one tranche per year),
+          adjs:[{ya,amt,reason}] (CC manual adjustment of that year: + more allowance, - cancel allowance, reason required)}
    rulesFor(ya) -> rule doc (falls back to nearest) */
+const yearOf = s => { const m = /^(\d{4})-\d\d-\d\d/.exec(String(s || '')); return m ? parseInt(m[1]) : 0; };
 function assetSchedule(a, targetYA, rulesFor, svaGranted) {
   const cost = n(a.cost); const ya0 = parseInt(a.ya); const bus = Math.max(0, 100 - n(a.privPct)) / 100;
   const r0 = rulesFor(ya0); const ca = r0.ca || {};
-  let qe = cost, capNote = '';
+  const hp = !!a.hp; const disp = a.dispYA ? parseInt(a.dispYA) : 0; const warns = [];
+  let cap = Infinity, capNote = '';
   if (a.car) {
     const c = ca.car || { cap: 50000, capHigh: 100000, highMaxCost: 150000 };
-    const cap = (a.carNew && cost <= c.highMaxCost) ? c.capHigh : c.cap;
-    if (cost > cap) { qe = cap; capNote = `私家车 QE 上限 ${cap}`; }
+    cap = (a.carNew && cost <= c.highMaxCost) ? c.capHigh : c.cap;
+    if (cost > cap) capNote = `私家车 QE 上限 ${cap}`;
   }
-  qe = r2(qe * bus);
-  const cls = (ca.classes || []).find(k => k.code === a.cls) || { ia: 20, aa: 10, name: a.cls };
-  const isSva = !!a.sva && svaGranted;
-  const rows = []; let twdv = qe;
+  /* qualifying expenditure: one tranche (cash) or one tranche per year of principal paid (HP) */
+  const tr = []; let paidTot = 0;
+  if (hp) {
+    const f = cost > cap ? cap / cost : 1;
+    (Array.isArray(a.hpPaid) ? a.hpPaid : []).map(p => ({ y: parseInt(p.ya), p: n(p.amt) })).filter(p => p.y && p.p > 0).sort((x, y) => x.y - y.y).forEach(p => {
+      if (p.y < ya0) warns.push('HP 本金年份 ' + p.y + ' 比购买 YA' + ya0 + ' 早，已当作 YA' + ya0 + ' 的本金。');
+      const ty = Math.max(p.y, ya0); paidTot = r2(paidTot + p.p); const q = r2(p.p * f * bus);
+      const ex = tr.find(t => t.ya === ty); if (ex) ex.qe = r2(ex.qe + q); else tr.push({ ya: ty, qe: q });
+    });
+    if (!tr.length) warns.push('HP 资产还没有登记任何一年的已付本金，QE 是 0。');
+    if (paidTot > cost + 0.005) warns.push('HP 已付本金合计 ' + paidTot.toFixed(2) + ' 比成本 ' + cost.toFixed(2) + ' 大。');
+    const paidUpTo = r2(tr.length ? (a.hpPaid || []).filter(p => parseInt(p.ya) <= targetYA).reduce((q, p) => q + n(p.amt), 0) : 0);
+    if (paidUpTo < cost - 0.005 && !tr.some(t => t.ya === targetYA) && (!disp || disp > targetYA)) warns.push('HP 还没还清，但 YA' + targetYA + ' 没有登记已付本金（没登记就没有这一年的津贴）。');
+    if (a.sva) warns.push('HP 资产不适用小额资产 100%（SVA）。');
+    if (cost > cap) capNote = `私家车 QE 上限 ${cap}（按比例分到每年的本金）`;
+  } else {
+    let qe = cost; if (cost > cap) qe = cap;
+    tr.push({ ya: ya0, qe: r2(qe * bus) });
+  }
+  const qeTot = r2(tr.reduce((q, t) => q + t.qe, 0));
+  const clsOf = y => (rulesFor(y).ca?.classes || []).find(k => k.code === a.cls);
+  const cls = clsOf(ya0) || { ia: 20, aa: 10, name: a.cls };
+  if (!clsOf(ya0)) warns.push('类别 ' + a.cls + ' 在 YA' + ya0 + ' 的规则里找不到，暂按 IA 20% / AA 10%。');
+  if (n(a.privPct) < 0 || n(a.privPct) > 100) warns.push('私人用途 % 不在 0 – 100。');
+  if (a.date && yearOf(a.date) !== ya0) warns.push('购买日期是 ' + a.date + '，但归在 YA' + ya0 + '（生意不是 12 月结账可以忽略）。');
+  if (a.dispDate && disp && yearOf(a.dispDate) !== disp) warns.push('出售日期是 ' + a.dispDate + '，但出售 YA 是 ' + disp + '（生意不是 12 月结账可以忽略）。');
+  if (disp && disp === targetYA && !n(a.dispAmt)) warns.push('有出售 YA，但没填出售价（出售价 0 = 全部当作 Balancing allowance）。');
+  const isSva = !!a.sva && svaGranted && !hp;
+  const rows = []; const tw = tr.map(() => 0);
+  const adjList = Array.isArray(a.adjs) ? a.adjs : [];
   for (let y = ya0; y <= targetYA; y++) {
-    if (a.dispYA && y > parseInt(a.dispYA)) break;
-    if (a.dispYA && y === parseInt(a.dispYA)) {
-      const proceeds = r2(n(a.dispAmt) * bus * (cost ? qe / (cost * bus || 1) : 1));
-      const claimed = qe - twdv;
+    if (disp && y > disp) break;
+    tr.forEach((t, i) => { if (t.ya === y) tw[i] = t.qe; });
+    if (disp && y === disp) {
+      const twdv = r2(tw.reduce((q, v) => q + v, 0)); const qeSoFar = r2(tr.filter(t => t.ya <= y).reduce((q, t) => q + t.qe, 0));
+      const frac = hp ? (cost > cap ? cap / cost : 1) : (cost ? qeTot / (cost * bus || 1) : 1);
+      const proceeds = r2(n(a.dispAmt) * bus * frac);
+      const claimed = qeSoFar - twdv;
       let ba = 0, bc = 0;
       if (proceeds < twdv) ba = r2(twdv - proceeds); else bc = r2(Math.min(proceeds - twdv, claimed));
-      rows.push({ ya: y, ia: 0, aa: 0, ba, bc, twdvOpen: twdv, twdvClose: 0, disposed: true, proceeds });
-      twdv = 0; break;
+      rows.push({ ya: y, ia: 0, aa: 0, adj: 0, ba, bc, twdvOpen: twdv, twdvClose: 0, disposed: true, proceeds });
+      break;
     }
-    let ia = 0, aa = 0; const open = twdv;
-    if (y === ya0) {
-      if (isSva) { aa = qe; }
-      else { ia = r2(qe * cls.ia / 100); aa = r2(Math.min(qe * cls.aa / 100, qe - ia)); }
-    } else if (twdv > 0) {
-      const ry = rulesFor(ya0); const k = (ry.ca?.classes || []).find(c => c.code === a.cls) || cls;
-      aa = r2(Math.min(qe * k.aa / 100, twdv));
+    const open = r2(tw.reduce((q, v) => q + v, 0));
+    let ia = 0, aa = 0;
+    tr.forEach((t, i) => {
+      if (t.ya > y) return; const k = clsOf(t.ya) || cls; let i1 = 0, a1 = 0;
+      if (y === t.ya) {
+        if (isSva) { a1 = t.qe; }
+        else { i1 = r2(t.qe * k.ia / 100); a1 = r2(Math.min(t.qe * k.aa / 100, t.qe - i1)); }
+      } else if (tw[i] > 0) a1 = r2(Math.min(t.qe * k.aa / 100, tw[i]));
+      tw[i] = r2(tw[i] - i1 - a1); ia += i1; aa += a1;
+    });
+    /* manual adjustment of this year */
+    const mine = adjList.filter(x => parseInt(x.ya) === y);
+    const want = r2(mine.reduce((q, x) => q + n(x.amt), 0)); let adj = 0;
+    if (want > 0) { let rem = want; for (let i = 0; i < tw.length && rem > 0; i++) { const tk = Math.min(rem, tw[i]); tw[i] = r2(tw[i] - tk); rem = r2(rem - tk); adj = r2(adj + tk); } }
+    else if (want < 0) { let rem = -want; for (let i = tr.length - 1; i >= 0 && rem > 0; i--) { if (tr[i].ya > y) continue; const tk = Math.min(rem, Math.max(0, r2(tr[i].qe - tw[i]))); tw[i] = r2(tw[i] + tk); rem = r2(rem - tk); adj = r2(adj - tk); } }
+    if (y === targetYA) {
+      if (adj !== want) warns.push('YA' + y + ' 的手动调整 ' + want.toFixed(2) + ' 超出可调范围，只调了 ' + adj.toFixed(2) + '。');
+      if (mine.some(x => n(x.amt) && !String(x.reason || '').trim())) warns.push('YA' + y + ' 的手动调整没有写原因。');
     }
-    twdv = r2(twdv - ia - aa);
-    rows.push({ ya: y, ia, aa, ba: 0, bc: 0, twdvOpen: open, twdvClose: twdv });
+    rows.push({ ya: y, ia: r2(ia), aa: r2(aa), adj, ba: 0, bc: 0, twdvOpen: open, twdvClose: r2(tw.reduce((q, v) => q + v, 0)) });
   }
-  return { qe, capNote, sva: isSva, cls, rows };
+  return { qe: qeTot, capNote, sva: isSva, cls, rows, warns, tr, hp };
 }
 
 /* Decide which SVAs get the 100% special allowance in each YA (cap per YA unless SME unlimited). */
 function svaPlan(assets, rulesFor, smeUnlimited) {
   const granted = {}; const byYa = {};
   for (const a of assets) {
-    if (!a.sva) continue; const r = rulesFor(parseInt(a.ya)); const each = r.ca?.sva?.each ?? 2000;
+    if (!a.sva) continue;
+    if (a.hp) { granted[a.id] = false; continue; }
+    const r = rulesFor(parseInt(a.ya)); const each = r.ca?.sva?.each ?? 2000;
     if (n(a.cost) > each) { granted[a.id] = false; continue; }
     (byYa[a.ya] = byYa[a.ya] || []).push(a);
   }
@@ -511,17 +561,30 @@ function svaPlan(assets, rulesFor, smeUnlimited) {
 
 function caForYA(assets, ya, rulesFor, smeUnlimited) {
   const plan = svaPlan(assets || [], rulesFor, smeUnlimited);
-  const out = []; let ia = 0, aa = 0, ba = 0, bc = 0;
+  const out = []; const warns = []; let ia = 0, aa = 0, adj = 0, ba = 0, bc = 0;
   for (const a of assets || []) {
-    if (!a.cost || !a.ya || parseInt(a.ya) > ya) continue;
+    const label = a.desc || a.ref || '（没有名称的资产）';
+    if (!a.cost || !a.ya) { if (a.desc || a.ref || n(a.cost)) warns.push(label + '：缺成本或购买 YA，没有算进去。'); continue; }
+    if (parseInt(a.ya) > ya) continue;
     const s = assetSchedule(a, ya, rulesFor, !!plan[a.id]);
     const row = s.rows.find(r => r.ya === ya);
     if (!row) continue; // fully disposed earlier
-    if (a.sva && !plan[a.id] && parseInt(a.ya) === ya) s.svaNote = 'SVA 超过当年上限或单价，按一般税率';
-    ia += row.ia; aa += row.aa; ba += row.ba; bc += row.bc;
+    if (a.sva && !a.hp && !plan[a.id] && parseInt(a.ya) === ya) s.svaNote = 'SVA 超过当年上限或单价，按一般税率';
+    ia += row.ia; aa += row.aa; adj += row.adj; ba += row.ba; bc += row.bc;
+    s.warns.forEach(w => warns.push(label + '：' + w));
     out.push({ a, s, row });
   }
-  return { items: out, ia: r2(ia), aa: r2(aa), ba: r2(ba), bc: r2(bc), total: r2(ia + aa + ba) };
+  const g = {}; const byClass = [];
+  out.forEach(x => {
+    const k = x.a.cls || '?';
+    let q = g[k]; if (!q) { q = g[k] = { code: k, name: x.s.cls.name || k, count: 0, qe: 0, open: 0, ia: 0, aa: 0, adj: 0, ba: 0, bc: 0, close: 0 }; byClass.push(q); }
+    q.count++; q.qe += x.s.qe; q.open += x.row.twdvOpen; q.ia += x.row.ia; q.aa += x.row.aa; q.adj += x.row.adj; q.ba += x.row.ba; q.bc += x.row.bc; q.close += x.row.twdvClose;
+  });
+  byClass.forEach(q => { for (const f of ['qe', 'open', 'ia', 'aa', 'adj', 'ba', 'bc', 'close']) q[f] = r2(q[f]); });
+  return {
+    items: out, byClass, warns, ia: r2(ia), aa: r2(aa), adj: r2(adj), ba: r2(ba), bc: r2(bc), total: r2(ia + aa + adj + ba),
+    reOpen: r2(out.reduce((q, x) => q + x.row.twdvOpen, 0)), reClose: r2(out.reduce((q, x) => q + x.row.twdvClose, 0))
+  };
 }
 
 /* Full computation. ret = return doc, client = client doc */
@@ -586,6 +649,12 @@ function compute(ret, client, rules, rulesFor) {
     R.caAvail = r2(R.ca.total + R.caBF);
     R.caUsed = R.adjusted > 0 ? r2(Math.min(R.caAvail, R.adjusted)) : 0;
     R.caCF = r2(R.caAvail - R.caUsed);
+    /* the allowance used is taken from this year's first, then from the b/f; what is left is carried on by source */
+    { const curTot = Math.max(0, R.ca.total); const usedCur = Math.min(curTot, R.caUsed);
+      R.caUsedCur = r2(usedCur); R.caUsedBF = r2(R.caUsed - usedCur); R.caCFCur = r2(curTot - usedCur); R.caCFBF = r2(R.caCF - R.caCFCur); }
+    (R.ca.warns || []).forEach(w => R.warns.push(w));
+    if (!(client?.assets || []).length && !R.caBF && (R.addbacks.some(x => x.type === 'DEP' && n(x.amt) > 0) || R.plLines.some(x => x.type === 'DEP' && x.add > 0)))
+      R.warns.push('P&L 有折旧加回，但资产登记表是空的，也没有 b/f：当年买的资产如果没登记，资本津贴会漏掉。');
     R.statBiz = r2(Math.max(0, R.adjusted - R.caUsed));
     R.lossBF = n(biz.lossBF);
     R.lossBFUsed = r2(Math.min(R.lossBF, R.statBiz));
@@ -844,38 +913,93 @@ function clientAssets(){ const c=client(); return c ? (c.assets||[]) : []; }
 async function saveClient(c){ const b={...c}; delete b.id; try{ await put('taxclients/'+c.id,b); }catch(e){dbErr(e)} }
 let asT=null;
 function assetChanged(){ clearTimeout(asT); asT=setTimeout(()=>saveClient(client()),700); renderCA(); recalc(); }
+S.asOpen=S.asOpen||{};
+const yOfS=v=>{ const m=/^(\d{4})-\d\d-\d\d$/.exec(v||''); return m?m[1]:''; };
+function caCfRows(R){
+  const r=[]; if(!R||!R.ca) return r;
+  r.push(['去年结转的未用完资本津贴（b/f）',R.caBF]);
+  r.push(['本年资本津贴（IA + AA + 调整 + BA）',R.ca.total]);
+  r.push(['可用资本津贴合计',R.caAvail]);
+  r.push(['调整后收入（资本津贴的上限）',R.adjusted]);
+  r.push(['本年扣掉的资本津贴',R.caUsed]);
+  r.push(['↳ 用的是本年的',R.caUsedCur]); r.push(['↳ 用的是 b/f 的',R.caUsedBF]);
+  r.push(['未用完，结转下一年（c/f）',R.caCF,'tot']);
+  r.push(['↳ 来自本年',R.caCFCur]); r.push(['↳ 来自 b/f',R.caCFBF]);
+  r.push(['资产剩余 RE（TWDV）b/f',R.ca.reOpen]); r.push(['资产剩余 RE（TWDV）c/f（下一年的期初）',R.ca.reClose]);
+  return r;
+}
+function assetDetail(a,i){
+  let h='<tr class="asDet"><td colspan="16" style="background:var(--soft,#f6f6f6)">';
+  if(a.hp){
+    const paid=(a.hpPaid||[]).reduce((q,p)=>q+N(p.amt),0);
+    h+='<div class="small"><b>HP 每年已付本金</b>（QE 按当年已付本金算，成本栏填整件资产的价钱）　已登记 '+money(paid)+' / 成本 '+money(N(a.cost))+'</div>';
+    h+=(a.hpPaid||[]).map((p,j)=>'<div class="row" style="margin:4px 0"><span class="small">YA</span><input data-sub="hpPaid" data-i="'+i+'" data-j="'+j+'" data-f="ya" value="'+esc(p.ya||'')+'" class="mono" style="width:70px"><span class="small">本金</span><input class="amt" data-sub="hpPaid" data-i="'+i+'" data-j="'+j+'" data-f="amt" value="'+esc(p.amt??'')+'" style="width:110px"><button class="btn sm" data-subx="hpPaid:'+i+':'+j+'" aria-label="删除">×</button></div>').join('');
+    h+='<div class="row" style="margin:4px 0 10px"><button class="btn sm" data-suba="hpPaid:'+i+'">+ 一年的本金</button></div>';
+  }
+  h+='<div class="small"><b>手动调整</b>（闲置、公私混用比例改变等。正数 = 多给津贴，负数 = 取消当年的津贴。一定要写原因，会记在修改记录）</div>';
+  h+=(a.adjs||[]).map((p,j)=>'<div class="row" style="margin:4px 0"><span class="small">YA</span><input data-sub="adjs" data-i="'+i+'" data-j="'+j+'" data-f="ya" value="'+esc(p.ya||'')+'" class="mono" style="width:70px"><span class="small">金额</span><input class="amt" data-sub="adjs" data-i="'+i+'" data-j="'+j+'" data-f="amt" value="'+esc(p.amt??'')+'" style="width:110px"><span class="small">原因</span><input data-sub="adjs" data-i="'+i+'" data-j="'+j+'" data-f="reason" value="'+esc(p.reason||'')+'" style="width:360px;min-width:0"><button class="btn sm" data-subx="adjs:'+i+':'+j+'" aria-label="删除">×</button></div>').join('');
+  h+='<div class="row" style="margin:4px 0"><button class="btn sm" data-suba="adjs:'+i+'">+ 手动调整</button></div>';
+  return h+'</td></tr>';
+}
 function renderAssets(){
-  const c=client(); if(!c){ $('asBody').innerHTML='<tr><td colspan="12" class="empty">先选客户</td></tr>'; $('caTbl').innerHTML=''; return; }
+  const c=client(); if(!c){ $('asBody').innerHTML='<tr><td colspan="16" class="empty">先选客户</td></tr>'; $('caTbl').innerHTML=''; return; }
   $('smeChk').checked=!!c.sme;
   const cls=rulesFor(S.ya)?.ca?.classes||[];
-  $('asBody').innerHTML=(c.assets||[]).map((a,i)=>`<tr>
+  $('asBody').innerHTML=(c.assets||[]).map((a,i)=>{
+    const open=!!S.asOpen[a.id]; const nsub=(a.hp?(a.hpPaid||[]).length:0)+(a.adjs||[]).length;
+    return `<tr>
     <td><input data-as="desc" data-i="${i}" value="${esc(a.desc||'')}" style="min-width:160px"></td>
     <td><input data-as="ref" data-i="${i}" value="${esc(a.ref||'')}" style="width:110px"></td>
     <td><select data-as="cls" data-i="${i}">${cls.map(k=>`<option value="${k.code}" ${k.code===a.cls?'selected':''}>${esc(k.code)} · ${esc(k.name)} (${k.ia}/${k.aa})</option>`).join('')}</select></td>
+    <td><input type="date" data-as="date" data-i="${i}" value="${esc(a.date||'')}" style="width:130px"></td>
     <td><input data-as="ya" data-i="${i}" value="${esc(a.ya||'')}" class="mono" style="width:66px"></td>
     <td><input class="amt" data-as="cost" data-i="${i}" value="${esc(a.cost??'')}" style="width:110px"></td>
+    <td><input type="checkbox" data-as="hp" data-i="${i}" ${a.hp?'checked':''}></td>
     <td><input type="checkbox" data-as="sva" data-i="${i}" ${a.sva?'checked':''}></td>
     <td><input type="checkbox" data-as="car" data-i="${i}" ${a.car?'checked':''}></td>
     <td><input type="checkbox" data-as="carNew" data-i="${i}" ${a.carNew?'checked':''}></td>
     <td><input class="amt" data-as="privPct" data-i="${i}" value="${esc(a.privPct??'')}" style="width:60px"></td>
+    <td><input type="date" data-as="dispDate" data-i="${i}" value="${esc(a.dispDate||'')}" style="width:130px"></td>
     <td><input data-as="dispYA" data-i="${i}" value="${esc(a.dispYA||'')}" class="mono" style="width:66px"></td>
     <td><input class="amt" data-as="dispAmt" data-i="${i}" value="${esc(a.dispAmt??'')}" style="width:100px"></td>
-    <td><button class="btn sm" data-asx="${i}" aria-label="删除">×</button></td></tr>`).join('') || '<tr><td colspan="12" class="empty">还没有资产</td></tr>';
+    <td><button class="btn sm" data-asd="${i}">${open?'收起':'详细'}${nsub?' ('+nsub+')':''}</button></td>
+    <td><button class="btn sm" data-asx="${i}" aria-label="删除">×</button></td></tr>`+(open?assetDetail(a,i):'');
+  }).join('') || '<tr><td colspan="16" class="empty">还没有资产</td></tr>';
   renderCA();
 }
 function renderCA(){
   const c=client(); if(!c) return; const R=TAX.caForYA(c.assets||[], S.ya, rulesFor, !!c.sme); S.CA=R;
   $('caYA').textContent='YA'+S.ya;
-  $('caTbl').innerHTML=`<thead><tr><th>资产</th><th>参考</th><th>类别</th><th>购买 YA</th><th class="r">成本</th><th class="r">QE</th><th class="r">TWDV b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">BA</th><th class="r">BC</th><th class="r">TWDV c/f</th></tr></thead><tbody>`+
-   (R.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.s.capNote?`<div class="warnline">${esc(x.s.capNote)}</div>`:''}${x.s.sva&&+x.a.ya===S.ya?'<div class="small muted">SVA 100%</div>':''}${x.s.svaNote?`<div class="warnline">${esc(x.s.svaNote)}</div>`:''}${N(x.a.privPct)?`<div class="small muted">商用 ${100-N(x.a.privPct)}%</div>`:''}</td><td class="small">${esc(x.a.ref||'')}</td><td class="code">${esc(x.a.cls)}</td><td class="mono">${esc(x.a.ya)}</td><td class="r mono">${money(x.a.cost)}</td><td class="r mono">${money(x.s.qe)}</td><td class="r mono">${money(x.row.twdvOpen)}</td><td class="r mono">${m0(x.row.ia)}</td><td class="r mono">${m0(x.row.aa)}</td><td class="r mono">${m0(x.row.ba)}</td><td class="r mono">${m0(x.row.bc)}</td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('') || '<tr><td colspan="12" class="empty">本 YA 没有资本津贴</td></tr>')+
-   `<tr class="tot"><td colspan="7">合计（本年资本津贴 = IA + AA + BA）</td><td class="r mono">${money(R.ia)}</td><td class="r mono">${money(R.aa)}</td><td class="r mono">${money(R.ba)}</td><td class="r mono">${money(R.bc)}</td><td class="r mono">${money(R.total)}</td></tr></tbody>`;
+  $('caWarn').innerHTML=(R.warns||[]).map(w=>'<div class="notice" style="margin:0 0 8px">'+esc(w)+'</div>').join('');
+  $('caTbl').innerHTML=`<thead><tr><th>资产</th><th>参考</th><th>类别</th><th>购买 YA</th><th class="r">成本</th><th class="r">QE</th><th class="r">TWDV b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">调整</th><th class="r">BA</th><th class="r">BC</th><th class="r">TWDV c/f</th></tr></thead><tbody>`+
+   (R.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.a.hp?' <span class="pill">HP</span>':''}${x.s.capNote?`<div class="warnline">${esc(x.s.capNote)}</div>`:''}${x.s.sva&&+x.a.ya===S.ya?'<div class="small muted">SVA 100%</div>':''}${x.s.svaNote?`<div class="warnline">${esc(x.s.svaNote)}</div>`:''}${N(x.a.privPct)?`<div class="small muted">商用 ${100-N(x.a.privPct)}%</div>`:''}</td><td class="small">${esc(x.a.ref||'')}</td><td class="code">${esc(x.a.cls)}</td><td class="mono">${esc(x.a.ya)}</td><td class="r mono">${money(x.a.cost)}</td><td class="r mono">${money(x.s.qe)}</td><td class="r mono">${money(x.row.twdvOpen)}</td><td class="r mono">${m0(x.row.ia)}</td><td class="r mono">${m0(x.row.aa)}</td><td class="r mono">${m0(x.row.adj)}</td><td class="r mono">${m0(x.row.ba)}</td><td class="r mono">${m0(x.row.bc)}</td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('') || '<tr><td colspan="13" class="empty">本 YA 没有资本津贴</td></tr>')+
+   `<tr class="tot"><td colspan="7">合计（本年资本津贴 = IA + AA + 调整 + BA）</td><td class="r mono">${money(R.ia)}</td><td class="r mono">${money(R.aa)}</td><td class="r mono">${money(R.adj)}</td><td class="r mono">${money(R.ba)}</td><td class="r mono">${money(R.bc)}</td><td class="r mono">${money(R.total)}</td></tr></tbody>`;
+  $('caClsTbl').innerHTML=`<thead><tr><th>类别</th><th class="r">件数</th><th class="r">QE</th><th class="r">RE b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">调整</th><th class="r">BA</th><th class="r">BC</th><th class="r">RE c/f</th></tr></thead><tbody>`+
+   (R.byClass.map(g=>`<tr><td><span class="code">${esc(g.code)}</span> ${esc(g.name)}</td><td class="r mono">${g.count}</td><td class="r mono">${money(g.qe)}</td><td class="r mono">${money(g.open)}</td><td class="r mono">${m0(g.ia)}</td><td class="r mono">${m0(g.aa)}</td><td class="r mono">${m0(g.adj)}</td><td class="r mono">${m0(g.ba)}</td><td class="r mono">${m0(g.bc)}</td><td class="r mono">${money(g.close)}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">—</td></tr>')+`</tbody>`;
+  renderCF();
 }
-$('asBody').addEventListener('input',e=>{ const el=e.target; if(el.dataset.as==null) return; const a=client().assets[+el.dataset.i]; a[el.dataset.as]= el.type==='checkbox'?el.checked:el.value;
-  if(el.dataset.as==='cost'){ const each=rulesFor(N(a.ya)||S.ya)?.ca?.sva?.each??2000; if(N(a.cost)>0 && N(a.cost)<=each && a.svaAuto!==false){ a.sva=true; } if(N(a.cost)>each) a.sva=false; }
+function renderCF(){
+  const box=$('caCfTbl'); if(!box) return; const R=S.R;
+  if(!R||!R.ca||!R.hasBiz){ box.innerHTML='<tbody><tr><td class="empty">这个 YA 没有生意收入（Form B），不用结转。</td></tr></tbody>'; return; }
+  box.innerHTML='<tbody>'+caCfRows(R).map(x=>`<tr class="${x[2]||''}"><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td></tr>`).join('')+'</tbody>'+
+    '<thead><tr><th>资产 RE c/f（下一年期初）</th><th class="r">RE c/f</th></tr></thead><tbody>'+
+    (R.ca.items.filter(x=>x.row.twdvClose>0).map(x=>`<tr><td>${esc(x.a.desc||x.a.ref||'')} <span class="small muted">${esc(x.a.cls)}</span></td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('')||'<tr><td class="empty" colspan="2">没有剩余</td></tr>')+'</tbody>';
+}
+const _recalc3=recalc; recalc=function(){ _recalc3(); try{ renderCF(); }catch(e){} };
+$('asBody').addEventListener('input',e=>{ const el=e.target; const c=client(); if(!c) return;
+  if(el.dataset.sub){ const o=c.assets[+el.dataset.i][el.dataset.sub][+el.dataset.j]; o[el.dataset.f]=el.value; assetChanged(); return; }
+  if(el.dataset.as==null) return; const a=c.assets[+el.dataset.i]; a[el.dataset.as]= el.type==='checkbox'?el.checked:el.value;
+  if(el.dataset.as==='date'){ const y=yOfS(el.value); if(y) a.ya=y; }
+  if(el.dataset.as==='dispDate'){ const y=yOfS(el.value); if(y) a.dispYA=y; }
+  if(el.dataset.as==='cost'){ const each=rulesFor(N(a.ya)||S.ya)?.ca?.sva?.each??2000; if(N(a.cost)>0 && N(a.cost)<=each && a.svaAuto!==false && !a.hp){ a.sva=true; } if(N(a.cost)>each) a.sva=false; }
   if(el.dataset.as==='sva') a.svaAuto=false;
   assetChanged(); });
-$('asBody').addEventListener('change',e=>{ if(e.target.dataset.as==='cost'||e.target.type==='checkbox') setTimeout(renderAssets,0); });
-$('asBody').addEventListener('click',e=>{ const b=e.target.closest('[data-asx]'); if(!b) return; if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='确定?'; setTimeout(()=>{b.dataset.armed='';b.textContent='×'},3000); return; } client().assets.splice(+b.dataset.asx,1); renderAssets(); assetChanged(); });
+$('asBody').addEventListener('change',e=>{ const k=e.target.dataset.as; if(k==='cost'||k==='date'||k==='dispDate'||e.target.type==='checkbox') setTimeout(renderAssets,0); });
+$('asBody').addEventListener('click',e=>{
+  const d=e.target.closest('[data-asd]'); if(d){ const a=client().assets[+d.dataset.asd]; S.asOpen[a.id]=!S.asOpen[a.id]; renderAssets(); return; }
+  const sa=e.target.closest('[data-suba]'); if(sa){ const [k,i]=sa.dataset.suba.split(':'); const a=client().assets[+i]; a[k]=a[k]||[]; a[k].push(k==='hpPaid'?{ya:String(S.ya),amt:''}:{ya:String(S.ya),amt:'',reason:''}); S.asOpen[a.id]=true; renderAssets(); assetChanged(); return; }
+  const sx=e.target.closest('[data-subx]'); if(sx){ const [k,i,j]=sx.dataset.subx.split(':'); client().assets[+i][k].splice(+j,1); renderAssets(); assetChanged(); return; }
+  const b=e.target.closest('[data-asx]'); if(!b) return; if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='确定?'; setTimeout(()=>{b.dataset.armed='';b.textContent='×'},3000); return; } client().assets.splice(+b.dataset.asx,1); renderAssets(); assetChanged(); });
 $('asAdd').addEventListener('click',()=>{ const c=client(); if(!c) return toast('先选客户'); c.assets=c.assets||[]; c.assets.push({id:uid(),desc:'',cls:'OT',ya:String(S.ya),cost:''}); renderAssets(); });
 $('smeChk').addEventListener('change',e=>{ const c=client(); if(!c) return; c.sme=e.target.checked; assetChanged(); });
 $('asPaste').addEventListener('click',()=>$('pasteWrap').hidden=!$('pasteWrap').hidden);
@@ -932,10 +1056,18 @@ function renderReport(){
     b+=tr('','调整后收入 Adjusted income / (loss)',R.adjusted,'tot')+tr('','− 资本津贴：本年 '+money(R.ca.total)+' + b/f '+money(R.caBF)+' = '+money(R.caAvail),R.caUsed)+tr(fc.biz,'生意法定收入',R.statBiz,'tot');
     b+=tr('','未用完资本津贴 c/f',R.caCF)+tr('','生意亏损 c/f',R.lossCF);
     h+=T('<th class="code"></th><th>说明</th><th class="r">RM</th>',b);
-    h+=`<h4>3. 资本津贴明细（HK-1.2）</h4>`;
-    h+=T('<th>资产</th><th>参考</th><th>类别 IA/AA</th><th>YA</th><th class="r">成本</th><th class="r">QE</th><th class="r">TWDV b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">BA/(BC)</th><th class="r">TWDV c/f</th>',
-      R.ca.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.s.capNote?'<div class="small">'+esc(x.s.capNote)+'</div>':''}${x.s.sva&&+x.a.ya===S.ya?'<div class="small">SVA 100%（Jadual 3 para 19A）</div>':''}${N(x.a.privPct)?'<div class="small">商用 '+(100-N(x.a.privPct))+'%</div>':''}</td><td class="small">${esc(x.a.ref||'')}</td><td class="mono">${esc(x.a.cls)} ${x.s.cls.ia}/${x.s.cls.aa}</td><td class="mono">${esc(x.a.ya)}</td><td class="r mono">${money(x.a.cost)}</td><td class="r mono">${money(x.s.qe)}</td><td class="r mono">${money(x.row.twdvOpen)}</td><td class="r mono">${m0(x.row.ia)}</td><td class="r mono">${m0(x.row.aa)}</td><td class="r mono">${x.row.bc?'('+money(x.row.bc)+')':m0(x.row.ba)}</td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('')+
-      `<tr class="tot"><td colspan="7">合计</td><td class="r mono">${money(R.ca.ia)}</td><td class="r mono">${money(R.ca.aa)}</td><td class="r mono">${R.ca.bc?'('+money(R.ca.bc)+')':money(R.ca.ba)}</td><td class="r mono">${money(R.ca.total)}</td></tr>`);
+    h+=`<h4>3. 资产登记与资本津贴（HK-1.2）</h4>`;
+    h+=T('<th>资产</th><th>参考</th><th>类别</th><th>购买日期</th><th class="r">成本</th><th>方式</th><th class="r">商用 %</th><th class="r">QE</th><th>出售</th><th class="r">卖价</th>',
+      R.ca.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.s.capNote?'<div class="small">'+esc(x.s.capNote)+'</div>':''}</td><td class="small">${esc(x.a.ref||'')}</td><td class="mono">${esc(x.a.cls)}</td><td class="mono">${esc(x.a.date||('YA'+x.a.ya))}</td><td class="r mono">${money(x.a.cost)}</td><td>${x.a.hp?'HP':'现金'}${x.s.sva&&+x.a.ya===S.ya?' · SVA':''}</td><td class="r mono">${100-N(x.a.privPct)}%</td><td class="r mono">${money(x.s.qe)}</td><td class="mono">${esc(x.a.dispDate||(x.a.dispYA?'YA'+x.a.dispYA:''))}</td><td class="r mono">${x.a.dispYA?money(x.a.dispAmt):''}</td></tr>`).join('')||'<tr><td colspan="10">没有资产</td></tr>');
+    h+=`<h4>3.1 资本津贴逐件计算</h4>`;
+    h+=T('<th>资产</th><th>类别 IA/AA</th><th>YA</th><th class="r">QE</th><th class="r">TWDV b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">调整</th><th class="r">BA/(BC)</th><th class="r">TWDV c/f</th>',
+      R.ca.items.map(x=>`<tr><td>${esc(x.a.desc)}${x.s.sva&&+x.a.ya===S.ya?'<div class="small">SVA 100%（Jadual 3 para 19A）</div>':''}${(x.a.adjs||[]).filter(q=>+q.ya===S.ya&&N(q.amt)).map(q=>'<div class="small">调整 '+money(N(q.amt))+'：'+esc(q.reason||'')+'</div>').join('')}</td><td class="mono">${esc(x.a.cls)} ${x.s.cls.ia}/${x.s.cls.aa}</td><td class="mono">${esc(x.a.ya)}</td><td class="r mono">${money(x.s.qe)}</td><td class="r mono">${money(x.row.twdvOpen)}</td><td class="r mono">${m0(x.row.ia)}</td><td class="r mono">${m0(x.row.aa)}</td><td class="r mono">${m0(x.row.adj)}</td><td class="r mono">${x.row.bc?'('+money(x.row.bc)+')':m0(x.row.ba)}</td><td class="r mono">${money(x.row.twdvClose)}</td></tr>`).join('')+
+      `<tr class="tot"><td colspan="5">合计</td><td class="r mono">${money(R.ca.ia)}</td><td class="r mono">${money(R.ca.aa)}</td><td class="r mono">${money(R.ca.adj)}</td><td class="r mono">${R.ca.bc?'('+money(R.ca.bc)+')':money(R.ca.ba)}</td><td class="r mono">${money(R.ca.total)}</td></tr>`);
+    h+=`<h4>3.2 按类别小计</h4>`;
+    h+=T('<th>类别</th><th class="r">件数</th><th class="r">QE</th><th class="r">RE b/f</th><th class="r">IA</th><th class="r">AA</th><th class="r">调整</th><th class="r">BA</th><th class="r">BC</th><th class="r">RE c/f</th>',
+      R.ca.byClass.map(g=>`<tr><td><span class="mono">${esc(g.code)}</span> ${esc(g.name)}</td><td class="r mono">${g.count}</td><td class="r mono">${money(g.qe)}</td><td class="r mono">${money(g.open)}</td><td class="r mono">${m0(g.ia)}</td><td class="r mono">${m0(g.aa)}</td><td class="r mono">${m0(g.adj)}</td><td class="r mono">${m0(g.ba)}</td><td class="r mono">${m0(g.bc)}</td><td class="r mono">${money(g.close)}</td></tr>`).join(''));
+    h+=`<h4>3.3 结转到下一年</h4>`;
+    h+=T('<th>项目</th><th class="r">RM</th>',caCfRows(R).map(x=>`<tr class="${x[2]||''}"><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td></tr>`).join(''));
   }
   const n=R.hasBiz?4:2;
   h+=`<h4>${n}. 扣除额明细（Bahagian ${esc(pre)}）</h4>`;
@@ -993,10 +1125,16 @@ $('xlsBtn').addEventListener('click', async ()=>{
       const pl=[['P&L 费用明细','金额','不可扣除类别','加回 %','加回','原因','']]; R.plLines.forEach(x=>{ pl.push([x.acct,x.amt,x.add?(x.typeName||x.type||''):'',x.add?x.pct:'',x.add,x.reason||'']); (x.details||[]).forEach(d=>pl.push(['   '+(d.date||''),d.amt,(d.ref||'')+' '+(d.desc||''),d.dis?'加回':'',d.noDoc?'没有正式单据':'',''])); });
       XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pl),'P&L disallowed');
     }
-    const ca=[['资产','参考','类别','购买YA','成本','QE','TWDV b/f','IA','AA','BA','BC','TWDV c/f']];
-    R.ca.items.forEach(x=>ca.push([x.a.desc,x.a.ref||'',x.a.cls,x.a.ya,N(x.a.cost),x.s.qe,x.row.twdvOpen,x.row.ia,x.row.aa,x.row.ba,x.row.bc,x.row.twdvClose]));
-    ca.push(['合计','','','','','','',R.ca.ia,R.ca.aa,R.ca.ba,R.ca.bc,'']);
+    const ca=[['资产','参考','类别','购买日期','购买YA','成本','方式','QE','TWDV b/f','IA','AA','调整','BA','BC','TWDV c/f']];
+    R.ca.items.forEach(x=>ca.push([x.a.desc,x.a.ref||'',x.a.cls,x.a.date||'',x.a.ya,N(x.a.cost),x.a.hp?'HP':'现金',x.s.qe,x.row.twdvOpen,x.row.ia,x.row.aa,x.row.adj||0,x.row.ba,x.row.bc,x.row.twdvClose]));
+    ca.push(['合计','','','','','','','','',R.ca.ia,R.ca.aa,R.ca.adj,R.ca.ba,R.ca.bc,'']);
+    ca.push([],['按类别小计'],['类别','件数','QE','RE b/f','IA','AA','调整','BA','BC','RE c/f']);
+    R.ca.byClass.forEach(g=>ca.push([g.code+' '+g.name,g.count,g.qe,g.open,g.ia,g.aa,g.adj,g.ba,g.bc,g.close]));
+    ca.push([],['结转到下一年']); caCfRows(R).forEach(x=>ca.push([x[0],x[1]]));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ca),'HK-1.2 CA');
+    const reg=[['资产','参考','类别','购买日期','购买YA','成本','方式','商用 %','出售日期','出售YA','卖价','HP 每年已付本金','手动调整（原因）']];
+    (c.assets||[]).forEach(a=>reg.push([a.desc||'',a.ref||'',a.cls||'',a.date||'',a.ya||'',N(a.cost),a.hp?'HP':'现金',100-N(a.privPct),a.dispDate||'',a.dispYA||'',a.dispYA?N(a.dispAmt):'',(a.hpPaid||[]).map(p=>'YA'+p.ya+' '+p.amt).join('; '),(a.adjs||[]).map(p=>'YA'+p.ya+' '+p.amt+' ('+(p.reason||'')+')').join('; ')]));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(reg),'Asset register');
   }
   const rl=[['项目','扣除项目','收据/人数','可扣','参考']];
   R.rel.lines.forEach(l=>{ const it=(rules.reliefs||[]).find(x=>x.code===l.code)||{}; rl.push([pre+(it.no||l.code),it.name||l.code,l.input,l.claim,cur.relRef?.[l.code]||'']); });

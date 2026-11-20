@@ -205,8 +205,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
           <p class="small muted" style="margin:10px 0 0">本年资本津贴由「资产 · 资本津贴」自动算入。</p>
         </div>
 
+        <div id="famWrap"></div>
+        <div id="tbPanels"></div>
         <div class="panel">
-          <div class="ph"><h2>其他收入</h2></div>
+          <div class="ph"><h2>其他收入（直接填净额）</h2></div>
           <div class="fields">
             <label class="f"><span>租金（法定收入，已扣开销）<em id="codeRent"></em></span><input class="amt" data-k="other.rental" inputmode="decimal"></label>
             <label class="f"><span>利息/版税/佣金等 <em id="codeInt"></em></span><input class="amt" data-k="other.interest" inputmode="decimal"></label>
@@ -231,6 +233,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <label class="f"><span>Zakat / Fitrah</span><input class="amt" data-k="zakat" inputmode="decimal"></label>
             <label class="f"><span>其他回扣（朝圣离境税等）</span><input class="amt" data-k="rebOther" inputmode="decimal"></label>
             <label class="f"><span>CP500 / 自行分期已缴</span><input class="amt" data-k="cp500" inputmode="decimal"></label>
+            <label class="f"><span>去年欠缴（+）/ 多缴（−）</span><input class="amt" data-k="prevAdj" inputmode="decimal"></label>
           </div>
           <label class="f" style="margin-top:12px"><span>备注（会印在底稿）</span><textarea data-k="notes" rows="3"></textarea></label>
         </div>
@@ -240,6 +243,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
         <div class="panel">
           <div class="ph"><h2>计算结果</h2><span class="small muted" id="sumForm"></span></div>
           <table id="sumTbl"></table>
+          <div id="warnBox"></div>
           <div class="big zero" id="bigBal"><span>—</span><b>0.00</b></div>
           <div class="row" style="margin-top:12px"><button class="btn pri" id="toReport">看底稿 / 打印</button></div>
         </div>
@@ -290,6 +294,16 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
           <label class="f"><span>电话</span><input id="cTel"></label>
           <label class="f"><span>Email</span><input id="cMail" type="email"></label>
           <label class="f"><span>预设表格</span><select id="cForm2"><option value="B">Form B</option><option value="BE">Form BE</option></select></label>
+          <label class="f"><span>婚姻状况</span><select id="cMarital"><option value="">—</option><option value="single">未婚</option><option value="married">已婚</option><option value="divorced">离婚</option><option value="widowed">丧偶</option></select></label>
+          <label class="f"><span>配偶姓名</span><input id="cSpName"></label>
+          <label class="f"><span>配偶 IC / 护照</span><input id="cSpIC" class="mono"></label>
+          <label class="f"><span>配偶有没有收入</span><select id="cSpInc"><option value="">—</option><option value="no">没有收入</option><option value="yes">有收入</option></select></label>
+          <label class="f"><span>报税方式</span><select id="cSpJoint"><option value="separate">各自评税</option><option value="joint">合并评税</option></select></label>
+          <label class="row small"><input type="checkbox" id="cOkuSelf"> 本人是 OKU（JKM 注册）</label>
+          <label class="row small"><input type="checkbox" id="cOkuSp"> 配偶是 OKU</label>
+          <label class="f"><span>业务名称</span><input id="cBiz"></label>
+          <label class="f"><span>SSM 号码</span><input id="cSSM" class="mono"></label>
+          <div class="f"><span>子女（岁数、读书情况、是否 OKU）</span><div id="cKids"></div><div><button type="button" class="btn sm" id="cKidAdd">+ 子女</button></div></div>
           <label class="f"><span>备注</span><textarea id="cNote" rows="2"></textarea></label>
         </div>
         <div class="row" style="margin-top:12px;justify-content:flex-end"><button type="button" class="btn" id="cCancel" hidden>取消</button><button class="btn pri" type="submit">保存</button></div>
@@ -512,6 +526,23 @@ function compute(ret, client, rules, rulesFor) {
   /* employment */
   const emp = ret.emp || {};
   R.empIncome = r2(Math.max(0, n(emp.gross) - n(emp.exempt)));
+  /* income lines: partnership (Form P), rental by property, interest / dividend / royalty, other (CP58, annuity ...) */
+  const rows = a => (Array.isArray(a) ? a : []);
+  R.partners = rows(ret.partners).filter(x => n(x.income) || n(x.ca)).map(x => ({ ...x, income: n(x.income), ca: n(x.ca) }));
+  R.partnerIncome = r2(R.partners.reduce((q, x) => q + x.income, 0)); R.partnerCA = r2(R.partners.reduce((q, x) => q + x.ca, 0));
+  const pnet = r2(R.partnerIncome - R.partnerCA); R.partnerStat = Math.max(0, pnet); R.partnerLoss = Math.max(0, -pnet);
+  const REXP = ['assess', 'quit', 'ins', 'loan', 'repair', 'other'];
+  R.rentals = rows(ret.rentals).filter(x => n(x.gross) || REXP.some(k => n(x[k]))).map(x => { const exp = r2(REXP.reduce((q, k) => q + n(x[k]), 0)); return { ...x, gross: n(x.gross), exp, net: r2(n(x.gross) - exp) }; });
+  const rnet = r2(R.rentals.reduce((q, x) => q + x.net, 0)); R.rentNew = Math.max(0, rnet); R.rentLossNote = Math.max(0, -rnet);
+  R.invests = rows(ret.invest).filter(x => n(x.gross)).map(x => ({ ...x, gross: n(x.gross), exempt: n(x.exempt), net: r2(Math.max(0, n(x.gross) - n(x.exempt))) }));
+  R.investNet = r2(R.invests.reduce((q, x) => q + x.net, 0));
+  R.others = rows(ret.others).filter(x => n(x.amt)).map(x => ({ ...x, amt: n(x.amt), toBiz: ret.form === 'B' && x.dest === 'biz' }));
+  R.otherBiz = r2(R.others.filter(x => x.toBiz).reduce((q, x) => q + x.amt, 0)); R.otherOth = r2(R.others.filter(x => !x.toBiz).reduce((q, x) => q + x.amt, 0));
+  R.warns = [];
+  if (ret.form !== 'B' && R.partners.length) R.warns.push('有合伙收入，要用 Form B。');
+  if (R.rentLossNote) R.warns.push('租金扣费用后是亏损 RM ' + R.rentLossNote.toFixed(2) + '，这里按 0 计算，亏损不抵其他收入（请对照法规）。');
+  const rd = n(ret.resDays), rdLimit = rules.residencyDays || 182;
+  if (rd) { if (rd >= rdLimit && !resident) R.warns.push('在马来西亚 ' + rd + ' 天（≥' + rdLimit + '），通常是税务居民，但这里选了非居民。'); if (rd < rdLimit && resident) R.warns.push('在马来西亚只有 ' + rd + ' 天（<' + rdLimit + '），要对照法规确认是不是居民。'); }
   /* business */
   const biz = ret.biz || {}; R.hasBiz = ret.form === 'B';
   if (R.hasBiz) {
@@ -525,7 +556,7 @@ function compute(ret, client, rules, rulesFor) {
     R.deducts = (biz.deducts || []).filter(x => n(x.amt)).map(x => ({ ...x, amt: n(x.amt) }));
     R.deductTotal = r2(R.deducts.reduce((s, x) => s + x.amt, 0));
     R.ca = caForYA(client?.assets || [], ya, rulesFor, !!client?.sme);
-    R.adjusted = r2(R.netProfit + R.addbackTotal - R.deductTotal + R.ca.bc);
+    R.adjusted = r2(R.netProfit + R.otherBiz + R.addbackTotal - R.deductTotal + R.ca.bc);
     R.caBF = n(biz.caBF);
     R.caAvail = r2(R.ca.total + R.caBF);
     R.caUsed = R.adjusted > 0 ? r2(Math.min(R.caAvail, R.adjusted)) : 0;
@@ -536,9 +567,11 @@ function compute(ret, client, rules, rulesFor) {
     R.statBizNet = r2(R.statBiz - R.lossBFUsed);
     R.curLoss = R.adjusted < 0 ? r2(-R.adjusted) : 0;
   } else { R.statBizNet = 0; R.curLoss = 0; R.lossBF = 0; R.lossBFUsed = 0; }
+  /* partnership: its share (after its own capital allowance) is a business income; a loss is set off against the aggregate */
+  R.statBizNet = r2(R.statBizNet + R.partnerStat); R.curLoss = r2((R.curLoss || 0) + R.partnerLoss);
   /* other */
   const o = ret.other || {};
-  R.rental = n(o.rental); R.interest = n(o.interest); R.otherInc = n(o.other);
+  R.rentalManual = n(o.rental); R.rental = r2(R.rentalManual + R.rentNew); R.interest = r2(n(o.interest) + R.investNet); R.otherInc = r2(n(o.other) + R.otherOth);
   R.aggregate = r2(R.statBizNet + R.empIncome + R.rental + R.interest + R.otherInc);
   R.curLossUsed = r2(Math.min(R.curLoss, R.aggregate));
   R.afterLoss = r2(R.aggregate - R.curLossUsed);
@@ -563,7 +596,8 @@ function compute(ret, client, rules, rulesFor) {
   R.rebOther = r2(Math.min(n(ret.rebOther), left)); left -= R.rebOther;
   R.taxPayable = r2(Math.max(0, left));
   R.pcb = n(emp.pcb); R.cp500 = n(ret.cp500);
-  R.balance = r2(R.taxPayable - R.pcb - R.cp500);
+  R.prevAdj = n(ret.prevAdj);   // last year: + still to pay, - paid too much
+  R.balance = r2(R.taxPayable - R.pcb - R.cp500 + R.prevAdj);
   return R;
 }
 
@@ -665,12 +699,13 @@ const getK = (o,k) => k.split('.').reduce((a,p)=>a==null?a:a[p], o);
 function setK(o,k,v){ const ps=k.split('.'); let a=o; for(let i=0;i<ps.length-1;i++){ if(a[ps[i]]==null) a[ps[i]]={}; a=a[ps[i]]; } a[ps[ps.length-1]]=v; }
 
 function fillForm(){
+  ['partners','rentals','invest','others'].forEach(k=>{ if(!Array.isArray(S.cur[k])) S.cur[k]=[]; });
   document.querySelectorAll('#t-ret [data-k]').forEach(el=>{
     let v=getK(S.cur, el.dataset.k);
     if(el.dataset.bool) v = String(v!==false);
     el.value = v ?? (el.tagName==='SELECT' ? el.options[0].value : '');
   });
-  renderRows(); renderReliefs(); applyForm();
+  renderRows(); renderReliefs(); renderTbPanels(); renderFam(); applyForm();
 }
 function applyForm(){
   const isB=S.cur.form==='B'; $('bizPanel').hidden=!isB;
@@ -689,6 +724,7 @@ $('t-ret').addEventListener('input', e=>{
   else if(el.dataset.dd!=null){ S.cur.biz.deducts[+el.dataset.i][el.dataset.dd]=el.value; }
   else if(el.dataset.rel){ S.cur.reliefs[el.dataset.rel] = el.type==='checkbox' ? el.checked : el.value; }
   else if(el.dataset.relref){ S.cur.relRef[el.dataset.relref]=el.value; }
+  else if(el.dataset.tb){ const L=S.cur[el.dataset.tb]; if(L&&L[+el.dataset.i]) L[+el.dataset.i][el.dataset.c]=el.value; }
   else return;
   touch(); recalc();
 });
@@ -759,6 +795,7 @@ function recalc(){
     h+=row(fc.biz,'生意法定收入',R.statBiz)+(R.lossBFUsed?row(fc.lossBF,'− 亏损 b/f',R.lossBFUsed,'sub'):'');
   }
   if(R.empIncome) h+=row(fc.emp,'受雇法定收入',R.empIncome);
+  if(R.partnerStat) h+=row(fc.partner||'','合伙收入 Form P',R.partnerStat); if(R.partnerLoss) h+=row('','合伙亏损（抵总收入）',R.partnerLoss,'sub');
   if(R.rental) h+=row(fc.rent,'租金',R.rental); if(R.interest) h+=row(fc.int,'利息/其他',R.interest); if(R.otherInc) h+=row('','其他收入',R.otherInc);
   h+=row(fc.agg,'总收入 Aggregate',R.aggregate,'tot');
   if(R.curLossUsed) h+=row(fc.curLoss,'− 本年生意亏损',R.curLossUsed,'sub');
@@ -767,8 +804,9 @@ function recalc(){
   h+=row(fc.ci,'应课税收入',R.chargeable,'tot')+row(fc.tax,'所得税',R.taxGross);
   if(R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther) h+=row(fc.reb,'− 回扣',R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther,'sub');
   h+=row(R.taxPayable>0?fc.payable:fc.repay,'应缴税额',R.taxPayable,'tot')+row(fc.paid,'− PCB + CP500',R.pcb+R.cp500,'sub');
+  if(R.prevAdj) h+=row('',R.prevAdj>0?'+ 去年欠缴':'− 去年多缴',Math.abs(R.prevAdj),'sub');
   if(R.hasBiz && (R.caCF||R.lossCF)) h+=`<tr class="sub"><td></td><td colspan="2">结转：资本津贴 c/f ${money(R.caCF)} · 亏损 c/f ${money(R.lossCF)}</td></tr>`;
-  $('sumTbl').innerHTML=h; $('sumForm').textContent='Form '+S.cur.form+' · YA'+S.ya;
+  $('sumTbl').innerHTML=h; $('warnBox').innerHTML=(R.warns||[]).map(w=>'<div class="notice" style="margin-top:10px">'+esc(w)+'</div>').join(''); $('sumForm').textContent='Form '+S.cur.form+' · YA'+S.ya;
   const b=$('bigBal'); b.className='big '+(R.balance>0?'pay':R.balance<0?'refund':'zero');
   b.innerHTML=`<span>${R.balance>0?'还要缴税':R.balance<0?'可退税':'不用补缴'} <span class="code">${esc(fc.bal||'')}</span></span><b>${money(Math.abs(R.balance))}</b>`;
 }
@@ -837,6 +875,7 @@ function renderReport(){
   h+=`<h4>1. e-Filing 对照（Borang ${esc(cur.form)} ${S.ya}）</h4>`;
   let s='';
   if(R.hasBiz){ s+=tr(fc.biz,'生意法定收入（来自 HK-1）',R.statBiz); if(R.lossBFUsed) s+=tr(fc.lossBF,'生意亏损 b/f',R.lossBFUsed); }
+  if(R.partnerStat||R.partnerLoss) s+=tr(fc.partner||'','合伙收入 Form P（份额 '+money(R.partnerIncome)+' − 资本津贴 '+money(R.partnerCA)+'）',R.partnerStat);
   s+=tr(fc.emp,'受雇法定收入',R.empIncome)+tr(fc.rent,'租金',R.rental)+tr(fc.int,'利息、折扣、版税、佣金、其他',R.interest);
   if(R.otherInc) s+=tr('','其他法定收入',R.otherInc);
   s+=tr(fc.agg,'总收入 Aggregate income',R.aggregate,'tot');
@@ -844,8 +883,16 @@ function renderReport(){
   s+=tr(fc.don,'核准捐款（'+esc(fc.donPart||'')+'）',R.donCapped+R.donGov)+tr(fc.total,'Total income',R.totalIncome)+tr(fc.rel,'扣除额总额（见扣除额明细）',R.rel.total)+tr(fc.ci,'应课税收入 Chargeable income',R.chargeable,'tot');
   s+=tr(fc.tax,'所得税（见税额计算）',R.taxGross)+tr(fc.reb,'回扣：本人 '+money(R.rebSelf)+' · 配偶 '+money(R.rebSpouse)+' · Zakat '+money(R.rebZakat)+(R.rebOther?' · 其他 '+money(R.rebOther):''),R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther);
   s+=tr(R.taxPayable>0?fc.payable:fc.repay,'应缴税额',R.taxPayable,'tot')+tr(fc.paid,'已缴：PCB '+money(R.pcb)+' · CP500 '+money(R.cp500),R.pcb+R.cp500);
+  if(R.prevAdj) s+=tr('',R.prevAdj>0?'去年欠缴（加）':'去年多缴（减）',Math.abs(R.prevAdj));
   s+=tr(fc.bal,R.balance>=0?'余额：还要缴':'余额：多缴（可退，e-Filing 打 X）',Math.abs(R.balance),'tot');
   h+=T('<th class="code">项目</th><th>说明</th><th class="r">RM</th>',s);
+  if(R.partners.length||R.rentals.length||R.invests.length||R.others.length){
+    h+='<h4>收入来源明细</h4>';
+    if(R.partners.length) h+=T('<th>合伙</th><th>SSM</th><th class="r">收入份额</th><th class="r">资本津贴</th><th class="r">净额</th><th>参考</th>',R.partners.map(x=>`<tr><td>${esc(x.name||'')}</td><td class="mono">${esc(x.ssm||'')}</td><td class="r mono">${money(x.income)}</td><td class="r mono">${money(x.ca)}</td><td class="r mono">${money(x.income-x.ca)}</td><td class="small">${esc(x.ref||'')}</td></tr>`).join(''));
+    if(R.rentals.length) h+=T('<th>物业</th><th class="r">租金</th><th class="r">可扣费用</th><th class="r">法定收入</th><th>参考</th>',R.rentals.map(x=>`<tr><td>${esc(x.prop||'')}<div class="small" style="color:#555">门牌税 ${money(N(x.assess))} · 地税 ${money(N(x.quit))} · 保险 ${money(N(x.ins))} · 贷款利息 ${money(N(x.loan))} · 维修 ${money(N(x.repair))} · 其他 ${money(N(x.other))}</div></td><td class="r mono">${money(x.gross)}</td><td class="r mono">${money(x.exp)}</td><td class="r mono">${money(x.net)}</td><td class="small">${esc(x.ref||'')}</td></tr>`).join(''));
+    if(R.invests.length) h+=T('<th>类别</th><th>来源</th><th class="r">金额</th><th class="r">免税部分</th><th class="r">应课税</th><th>凭证</th>',R.invests.map(x=>`<tr><td>${esc(x.type||'')}</td><td>${esc(x.source||'')}</td><td class="r mono">${money(x.gross)}</td><td class="r mono">${money(x.exempt)}</td><td class="r mono">${money(x.net)}</td><td class="small">${esc(x.ref||'')}</td></tr>`).join(''));
+    if(R.others.length) h+=T('<th>类别</th><th>来源</th><th class="r">金额</th><th>算进</th><th>凭证</th>',R.others.map(x=>`<tr><td>${esc(x.type||'')}</td><td>${esc(x.source||'')}</td><td class="r mono">${money(x.amt)}</td><td>${x.toBiz?'业务收入（HK-1）':'其他收入'}</td><td class="small">${esc(x.ref||'')}</td></tr>`).join(''));
+  }
   if(R.hasBiz){
     h+=`<h4>2. 生意法定收入计算（HK-1）</h4>`;
     let b=tr('','营业额',R.revenue)+(N(cur.biz.otherInc)?tr('','其他生意收入',N(cur.biz.otherInc)):'')+tr('','− 总开销（按账目）',R.expenses)+tr('','账目净利 / (亏)',R.netProfit,'tot');
@@ -898,7 +945,15 @@ $('xlsBtn').addEventListener('click', async ()=>{
   add(fc.agg,'总收入',R.aggregate); add(fc.curLoss,'本年亏损',R.curLossUsed); add(fc.don,'捐款',R.donCapped+R.donGov); add(fc.total,'Total income',R.totalIncome);
   add(fc.rel,'扣除额',R.rel.total); add(fc.ci,'应课税收入',R.chargeable); add(fc.tax,'所得税',R.taxGross); add(fc.reb,'回扣',R.rebSelf+R.rebSpouse+R.rebZakat+R.rebOther);
   add(fc.payable,'应缴税额',R.taxPayable); add(fc.paid,'已缴 PCB+CP500',R.pcb+R.cp500); add(fc.bal,R.balance>=0?'余额要缴':'多缴',Math.abs(R.balance));
+  if(R.prevAdj) add('',R.prevAdj>0?'去年欠缴（加）':'去年多缴（减）',Math.abs(R.prevAdj));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'e-Filing');
+  if(R.partners.length||R.rentals.length||R.invests.length||R.others.length){
+    const inc=[['收入来源明细'],[],['合伙','SSM','收入份额','资本津贴','净额','参考']]; R.partners.forEach(x=>inc.push([x.name||'',x.ssm||'',x.income,x.ca,Math.round((x.income-x.ca)*100)/100,x.ref||'']));
+    inc.push([],['物业','租金','门牌税','地税','保险','贷款利息','维修','其他','法定收入','参考']); R.rentals.forEach(x=>inc.push([x.prop||'',x.gross,N(x.assess),N(x.quit),N(x.ins),N(x.loan),N(x.repair),N(x.other),x.net,x.ref||'']));
+    inc.push([],['类别','来源','金额','免税部分','应课税','凭证']); R.invests.forEach(x=>inc.push([x.type||'',x.source||'',x.gross,x.exempt,x.net,x.ref||'']));
+    inc.push([],['类别','来源','金额','算进','凭证']); R.others.forEach(x=>inc.push([x.type||'',x.source||'',x.amt,x.toBiz?'业务收入':'其他收入',x.ref||'']));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inc),'Income sources');
+  }
   if(R.hasBiz){
     const hk=[['HK-1 生意法定收入'],['营业额',R.revenue],['其他生意收入',N(cur.biz.otherInc)],['总开销',R.expenses],['账目净利',R.netProfit],[],['加回','说明','法令','账目金额','%','加回','参考']];
     R.addbacks.forEach(x=>hk.push([x.typeName,x.desc||'',((rules.addbackTypes||[]).find(k=>k.code===x.type)||{}).ref||'',N(x.amt),x.pct,x.add,x.ref||'']));
@@ -934,9 +989,9 @@ $('cQ').addEventListener('input',renderClients);
 $('cBody').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'), ed=e.target.closest('[data-editc]');
   if(o){ flushSave(); S.cid=o.dataset.open; if(o.dataset.ya) S.ya=parseInt(o.dataset.ya); try{localStorage.setItem('tx-cid',S.cid);localStorage.setItem('tx-ya',S.ya)}catch(_){} renderPickers(); loadReturn(); setTab('ret'); }
-  if(ed){ const c=S.clients.find(x=>x.id===ed.dataset.editc); editingC=c.id; $('cName').value=c.name||''; $('cIC').value=c.ic||''; $('cTIN').value=c.tin||''; $('cTel').value=c.tel||''; $('cMail').value=c.mail||''; $('cForm2').value=c.form||'B'; $('cNote').value=c.note||''; $('cFormTitle').textContent='修改客户'; $('cCancel').hidden=false; }
+  if(ed){ const c=S.clients.find(x=>x.id===ed.dataset.editc); editingC=c.id; $('cName').value=c.name||''; $('cIC').value=c.ic||''; $('cTIN').value=c.tin||''; $('cTel').value=c.tel||''; $('cMail').value=c.mail||''; $('cForm2').value=c.form||'B'; $('cNote').value=c.note||''; cLoadProfile(c); $('cFormTitle').textContent='修改客户'; $('cCancel').hidden=false; }
 });
-function cReset(){ editingC=null; $('cForm').reset(); $('cFormTitle').textContent='新增客户'; $('cCancel').hidden=true; }
+function cReset(){ editingC=null; $('cForm').reset(); cKids=[]; renderKids(); $('cFormTitle').textContent='新增客户'; $('cCancel').hidden=true; }
 $('cCancel').addEventListener('click',cReset);
 $('cForm').addEventListener('submit', async e=>{
   e.preventDefault();
@@ -944,7 +999,7 @@ $('cForm').addEventListener('submit', async e=>{
   const ic=$('cIC').value.trim().toUpperCase().replace(/\s+/g,'');
   if(!ex && S.clients.some(c=>(c.ic||'')===ic)) return toast('这个 IC 已经有客户');
   const id=ex?ex.id:uid();
-  const body=Object.assign({}, ex||{assets:[]}, {name:$('cName').value.trim().toUpperCase(), ic, tin:$('cTIN').value.trim().toUpperCase().replace(/\s+/g,''), tel:$('cTel').value.trim(), mail:$('cMail').value.trim(), form:$('cForm2').value, note:$('cNote').value.trim()});
+  const body=Object.assign({}, ex||{assets:[]}, {name:$('cName').value.trim().toUpperCase(), ic, tin:$('cTIN').value.trim().toUpperCase().replace(/\s+/g,''), tel:$('cTel').value.trim(), mail:$('cMail').value.trim(), form:$('cForm2').value, note:$('cNote').value.trim(), marital:$('cMarital').value, spouse:{name:$('cSpName').value.trim(), ic:$('cSpIC').value.trim().toUpperCase(), income:$('cSpInc').value, joint:$('cSpJoint').value}, okuSelf:$('cOkuSelf').checked, okuSpouse:$('cOkuSp').checked, bizName:$('cBiz').value.trim(), ssm:$('cSSM').value.trim().toUpperCase(), children:cKids.filter(k=>k.name||k.age)});
   delete body.id;
   try{ await put('taxclients/'+id, body); toast('已保存 '+body.name); if(!ex){ S.cid=id; } cReset(); }catch(err){dbErr(err)}
 });
@@ -1079,6 +1134,84 @@ $('auditXls').addEventListener('click',()=>{
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Audit'); const c=client();
   saveFile('TAX-Audit-'+((c&&c.name)||'').replace(/[^\w\u4e00-\u9fa5 -]/g,'').trim()+'.xlsx', new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array'})));
 });
+
+/* ---------- taxpayer profile: children list in the client form ---------- */
+let cKids=[];
+const STUDY=[['','（不读书 / 18岁以下）'],['prep','18岁以上：预科 / A-Level'],['degree','18岁以上：文凭 / 学位']];
+function renderKids(){
+  $('cKids').innerHTML=cKids.map((k,i)=>`<div class="row" style="margin-bottom:4px"><input data-kid="name" data-i="${i}" placeholder="名字" value="${esc(k.name||'')}" style="width:110px"><input data-kid="age" data-i="${i}" type="number" min="0" placeholder="岁" value="${esc(k.age??'')}" style="width:60px"><select data-kid="study" data-i="${i}" style="width:150px">${STUDY.map(o=>`<option value="${o[0]}" ${o[0]===(k.study||'')?'selected':''}>${o[1]}</option>`).join('')}</select><label class="row small"><input type="checkbox" data-kid="oku" data-i="${i}" ${k.oku?'checked':''}> OKU</label><button type="button" class="btn sm" data-kidx="${i}">×</button></div>`).join('')||'<div class="small muted">没有</div>';
+}
+$('cKidAdd').addEventListener('click',()=>{ cKids.push({name:'',age:'',study:'',oku:false}); renderKids(); });
+$('cKids').addEventListener('input',e=>{ const el=e.target; if(el.dataset.kid==null) return; cKids[+el.dataset.i][el.dataset.kid]=el.type==='checkbox'?el.checked:el.value; });
+$('cKids').addEventListener('click',e=>{ const b=e.target.closest('[data-kidx]'); if(b){ cKids.splice(+b.dataset.kidx,1); renderKids(); } });
+function cLoadProfile(c){ $('cMarital').value=c.marital||''; const sp=c.spouse||{}; $('cSpName').value=sp.name||''; $('cSpIC').value=sp.ic||''; $('cSpInc').value=sp.income||''; $('cSpJoint').value=sp.joint||'separate'; $('cOkuSelf').checked=!!c.okuSelf; $('cOkuSp').checked=!!c.okuSpouse; $('cBiz').value=c.bizName||''; $('cSSM').value=c.ssm||''; cKids=JSON.parse(JSON.stringify(c.children||[])); renderKids(); }
+renderKids();
+
+/* ---------- the return: residency and family, relief suggestions, the income tables, last year ---------- */
+function resHintText(){ const rules=rulesFor(S.ya)||{}, lim=rules.residencyDays||182, rd=N(S.cur&&S.cur.resDays); return !rd?'—':rd>=lim?'≥'+lim+' 天：通常是税务居民 Resident':'<'+lim+' 天：可能是非居民，要对照法规'; }
+$('t-ret').addEventListener('input',e=>{ if(e.target.dataset.k==='resDays'){ const h=$('resHint'); if(h) h.textContent=resHintText(); } });
+const MARITAL={single:'未婚',married:'已婚',divorced:'离婚',widowed:'丧偶'};
+function reliefSuggest(){
+  const c=client(), rules=rulesFor(S.ya); if(!c||!rules) return null;
+  const out={}, why=[]; let a=0,b1=0,b2=0,k=0,k2=0;
+  (c.children||[]).forEach(ch=>{ const age=N(ch.age); if(ch.oku){ k++; if(ch.study==='degree') k2++; } else if(age<18) a++; else if(ch.study==='prep') b1++; else if(ch.study==='degree') b2++; });
+  if(a){ out['16a']=a; why.push('18岁以下孩子 '+a+' 位 → 16a'); } if(b1){ out['16b1']=b1; why.push('18岁以上预科孩子 '+b1+' 位 → 16b(i)'); } if(b2){ out['16b2']=b2; why.push('18岁以上文凭 / 学位孩子 '+b2+' 位 → 16b(ii)'); }
+  if(k){ out['16c']=k; why.push('OKU 孩子 '+k+' 位 → 16c'); } if(k2){ out['16c2']=k2; why.push('OKU 孩子读文凭以上 '+k2+' 位 → 16c(ii)'); }
+  if(c.okuSelf){ out['4']=true; why.push('本人 OKU → 项目 4'); } if(c.okuSpouse){ out['15']=true; why.push('配偶 OKU → 项目 15'); }
+  const sp=c.spouse||{}; const r14=(rules.reliefs||[]).find(x=>x.code==='14');
+  if(c.marital==='married' && sp.income==='no' && sp.joint!=='joint' && r14){ out['14']=String(r14.max); why.push('配偶没有收入 → 项目 14（上限 '+money(r14.max)+'）'); }
+  return {out,why};
+}
+function renderFam(){
+  const c=client(), box=$('famWrap'); if(!box||!c||!S.cur) return;
+  const rules=rulesFor(S.ya)||{}, lim=rules.residencyDays||182, rd=N(S.cur.resDays);
+  const hint=!rd?'—':rd>=lim?'≥'+lim+' 天：通常是税务居民 Resident':'<'+lim+' 天：可能是非居民，要对照法规';
+  const sp=c.spouse||{}, kids=(c.children||[]);
+  const fam=[MARITAL[c.marital]||'婚姻状况没填', c.marital==='married'?('配偶'+(sp.income==='no'?'没有收入':sp.income==='yes'?'有收入':'收入没填')+'，'+(sp.joint==='joint'?'合并评税':'各自评税')):'', '子女 '+kids.length+' 位'+(kids.length?'（'+kids.map(k=>(k.age||'?')+'岁'+(k.oku?' OKU':'')).join('、')+'）':''), c.okuSelf?'本人 OKU':'', c.okuSpouse?'配偶 OKU':''].filter(Boolean).join(' · ');
+  const prev=S.returns[S.cid+'_'+(S.ya-1)];
+  box.innerHTML=`<div class="panel"><div class="ph"><h2>居民身份与家庭</h2><span class="code">家庭资料在「客户」页修改</span></div>
+    <div class="fields"><label class="f"><span>当年在马来西亚的天数</span><input class="amt" data-k="resDays" inputmode="numeric" value="${esc(S.cur.resDays??'')}"></label><div class="f"><span>判断</span><div class="auto" id="resHint" style="text-align:left">${esc(hint)}</div></div></div>
+    <div class="small muted" style="margin-top:10px">${esc(fam)}${c.ssm?' · SSM '+esc(c.ssm):''}</div>
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="relSuggest">按客户资料带入扣除额</button><button class="btn sm" id="carryPrev" ${prev?'':'disabled title="没有 YA'+(S.ya-1)+' 的资料"'}>带入去年（YA${S.ya-1}）的资料</button></div></div>`;
+}
+document.addEventListener('click',e=>{
+  if(e.target.id==='relSuggest'){ const r=reliefSuggest(); if(!r||!Object.keys(r.out).length) return toast('客户资料里没有可以带入的（子女 / OKU / 配偶）'); if(isLocked()) return;
+    if(!confirm('把这些带入扣除额（会覆盖同一项目已填的数字）：\n\n'+r.why.join('\n'))) return; Object.assign(S.cur.reliefs,r.out); renderReliefs(); touch(); recalc(); toast('已带入 '+Object.keys(r.out).length+' 项'); }
+  if(e.target.id==='carryPrev') carryFromPrev();
+});
+function carryFromPrev(){
+  const pk=S.cid+'_'+(S.ya-1), prev=S.returns[pk]; if(!prev) return toast('没有 YA'+(S.ya-1)+' 的资料'); if(isLocked()) return;
+  if(!confirm('把 YA'+(S.ya-1)+' 的资料带入 YA'+S.ya+'？\n\n会带入：表格和居民身份、雇主、生意名称、各收入来源的名称（不带金额），还有未用完的资本津贴和生意亏损（按去年的计算结果）。\n今年已经填的这些栏位会被覆盖。')) return;
+  const pr=rulesFor(S.ya-1), R0=pr?TAX.compute(prev,client(),pr,rulesFor):null, cur=S.cur, yr=String(S.ya), py=String(S.ya-1);
+  cur.form=prev.form||cur.form; cur.resident=prev.resident!==false; cur.prepBy=prev.prepBy||cur.prepBy; cur.revBy=prev.revBy||cur.revBy;
+  cur.emp=Object.assign({},cur.emp,{employer:(prev.emp&&prev.emp.employer)||cur.emp.employer});
+  const pb=prev.biz||{}; cur.biz=Object.assign({addbacks:[],deducts:[]},cur.biz,{name:pb.name||'',msic:pb.msic||'',period:String(pb.period||'').split(py).join(yr)});
+  if(R0&&prev.form==='B'){ cur.biz.caBF=String(R0.caCF||''); cur.biz.lossBF=String(R0.lossCF||''); }
+  const names=(L,keys)=>(L||[]).map(x=>{ const o={}; keys.forEach(k=>o[k]=x[k]||''); return o; });
+  cur.partners=names(prev.partners,['name','ssm']); cur.rentals=names(prev.rentals,['prop']); cur.invest=names(prev.invest,['type','source']); cur.others=names(prev.others,['type','source','dest']);
+  if(R0 && R0.balance){ /* the balance of last year is paid or refunded by the filing: it is not carried by itself */ }
+  fillForm(); touch(); recalc(); toast('已带入 YA'+(S.ya-1)+' 的资料，请检查');
+}
+const TBL={
+  partners:{title:'合伙收入（Form P 资料）',hint:'合伙业务只能用 Form B。按合伙给的 Form P 填你应得的收入份额和资本津贴，净额 = 收入份额 − 资本津贴；净额是亏损会抵总收入。',cols:[['name','合伙名称',140],['ssm','SSM 号码',110],['income','应得收入份额',110,'amt'],['ca','应得资本津贴',110,'amt'],['ref','参考',110]],calc:r=>N(r.income)-N(r.ca),calcL:'净额',add:'+ 合伙'},
+  rentals:{title:'租金（逐处物业）',hint:'每处物业：全年租金，减去可扣费用（门牌税、地税、保险、贷款利息、维修）= 法定收入。',cols:[['prop','物业',130],['gross','全年租金',100,'amt'],['assess','门牌税',80,'amt'],['quit','地税',80,'amt'],['ins','保险',80,'amt'],['loan','贷款利息',90,'amt'],['repair','维修',80,'amt'],['other','其他',80,'amt'],['ref','参考',100]],calc:r=>N(r.gross)-['assess','quit','ins','loan','repair','other'].reduce((q,k)=>q+N(r[k]),0),calcL:'法定收入',add:'+ 物业'},
+  invest:{title:'利息 / 股息 / 版税',hint:'免税部分请按税务规则和凭证填写。',cols:[['type','类别',100,'sel',[['interest','利息'],['dividend','股息'],['royalty','版税'],['other','其他']]],['source','来源（银行 / 公司）',150],['gross','金额',100,'amt'],['exempt','免税部分',100,'amt'],['ref','凭证',110]],calc:r=>Math.max(0,N(r.gross)-N(r.exempt)),calcL:'应课税',add:'+ 项目'},
+  others:{title:'其他收入（CP58、年金等）',hint:'CP58 佣金 / 奖励放「业务收入」：会加进业务调整前的收入（Form B）；其他放「其他收入」。',cols:[['type','类别',130,'sel',[['cp58','CP58 佣金 / 奖励'],['annuity','年金'],['other','其他']]],['source','来源',150],['amt','金额',100,'amt'],['dest','算进',120,'sel',[['biz','业务收入'],['other','其他收入']]],['ref','凭证',110]],add:'+ 项目'}
+};
+function renderTbPanels(){
+  const box=$('tbPanels'); if(!box||!S.cur) return;
+  box.innerHTML=Object.keys(TBL).map(key=>{ const d=TBL[key], L=S.cur[key]||[];
+    const head=d.cols.map(c=>'<th'+(c[3]==='amt'?' class="r"':'')+'>'+c[1]+'</th>').join('')+(d.calc?'<th class="r">'+d.calcL+'</th>':'')+'<th></th>';
+    const body=L.map((r,i)=>'<tr>'+d.cols.map(c=>{ const v=r[c[0]]??''; if(c[3]==='sel') return `<td><select data-tb="${key}" data-i="${i}" data-c="${c[0]}" style="width:${c[2]}px">${c[4].map(o=>`<option value="${o[0]}" ${o[0]===v||(!v&&o===c[4][0])?'selected':''}>${o[1]}</option>`).join('')}</select></td>`; return `<td><input ${c[3]==='amt'?'class="amt" inputmode="decimal" ':''}data-tb="${key}" data-i="${i}" data-c="${c[0]}" value="${esc(v)}" style="width:${c[2]}px"></td>`; }).join('')+(d.calc?`<td class="r mono">${money(d.calc(r))}</td>`:'')+`<td><button class="btn sm" data-tbdel="${key}" data-i="${i}" aria-label="删除">×</button></td></tr>`).join('')||`<tr><td colspan="${d.cols.length+2}" class="empty">没有</td></tr>`;
+    return `<div class="panel"><div class="ph"><h2>${d.title}</h2></div><p class="small muted" style="margin:0 0 8px">${d.hint}</p><div class="tbl-wrap"><table class="edit"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="row" style="margin-top:8px"><button class="btn sm" data-tbadd="${key}">${d.add}</button></div></div>`; }).join('');
+}
+$('t-ret').addEventListener('click',e=>{
+  const a=e.target.closest('[data-tbadd]'), d=e.target.closest('[data-tbdel]');
+  if(a){ const k=a.dataset.tbadd; (S.cur[k]=S.cur[k]||[]).push(k==='others'?{type:'cp58',dest:'biz'}:k==='invest'?{type:'interest'}:{}); renderTbPanels(); touch(); recalc(); applyLock(); }
+  if(d){ S.cur[d.dataset.tbdel].splice(+d.dataset.i,1); renderTbPanels(); touch(); recalc(); applyLock(); }
+});
+/* a calculated column (net) must follow the typing without redrawing the row */
+$('t-ret').addEventListener('input',e=>{ const el=e.target; if(el.dataset.tb && TBL[el.dataset.tb].calc){ const tr=el.closest('tr'), cell=tr&&tr.querySelector('td.r.mono'); const r=S.cur[el.dataset.tb][+el.dataset.i]; if(cell&&r) cell.textContent=money(TBL[el.dataset.tb].calc(r)); } });
 
 /* ---------- boot ---------- */
 function onClients(rows){ S.clients=rows; renderPickers(); renderClients(); if(!S.cur || S.cur.cid!==S.cid) loadReturn(); else { if(S.tab==='assets') renderCA(); recalc(); } }

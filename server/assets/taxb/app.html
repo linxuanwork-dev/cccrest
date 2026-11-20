@@ -188,15 +188,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
           <div class="fields">
             <label class="f must"><span>营业额 Revenue</span><input class="amt" data-k="biz.revenue" inputmode="decimal"></label>
             <label class="f"><span>其他生意收入</span><input class="amt" data-k="biz.otherInc" inputmode="decimal"></label>
-            <label class="f must"><span>总开销（含成本）</span><input class="amt" data-k="biz.expenses" inputmode="decimal"></label>
+            <label class="f must"><span>总开销（含成本） <em id="expNote" style="font-style:normal;background:none"></em></span><input class="amt" data-k="biz.expenses" inputmode="decimal"></label>
             <label class="f"><span>账目净利 / (亏)</span><div class="auto" id="npAuto">—</div></label>
           </div>
-          <h3>加回：不可扣除开销（s33 / s39）</h3>
+          <h3>P&amp;L 费用明细（每个科目一行）</h3>
+          <p class="small muted" style="margin:0 0 8px">一个科目一行，可以点开看是哪几笔组成的。系统先按这位客户去年的选择、再按科目名字建议要不要加回（淡黄色「建议」），你逐行确认：勾 / 不勾，改类别和比例；也可以只勾一个科目里的其中几笔。有这里的明细时，总开销 = 这里的合计。</p>
+          <div id="plPanel"></div>
+          <div id="noDocBox"></div>
+          <h3>加回：其他不可扣除开销（手动，s33 / s39）</h3>
           <div class="tbl-wrap"><table class="edit"><thead><tr><th>类别</th><th>说明</th><th class="r">账目金额</th><th class="r">加回 %</th><th class="r">加回</th><th>凭证 / 参考</th><th></th></tr></thead><tbody id="abBody"></tbody></table></div>
           <div class="row" style="margin-top:8px"><button class="btn sm" id="abAdd">+ 加回项目</button></div>
           <h3>减：不需课税收入 / 额外扣除</h3>
-          <div class="tbl-wrap"><table class="edit"><thead><tr><th>说明（例：出售资产盈利、已另报利息、双重扣除）</th><th class="r">金额</th><th>参考</th><th></th></tr></thead><tbody id="dedBody"></tbody></table></div>
+          <div class="tbl-wrap"><table class="edit"><thead><tr><th>说明（例：出售资产盈利、已另报利息、双重扣除）</th><th>类别</th><th class="r">金额</th><th>参考</th><th></th></tr></thead><tbody id="dedBody"></tbody></table></div>
           <div class="row" style="margin-top:8px"><button class="btn sm" id="dedAdd">+ 扣除项目</button></div>
+          <h3>调整版模（A – H）</h3><div id="adjTpl"></div>
           <h3>结转</h3>
           <div class="fields">
             <label class="f"><span>未用完资本津贴 b/f</span><input class="amt" data-k="biz.caBF" inputmode="decimal"></label>
@@ -546,14 +551,34 @@ function compute(ret, client, rules, rulesFor) {
   /* business */
   const biz = ret.biz || {}; R.hasBiz = ret.form === 'B';
   if (R.hasBiz) {
-    R.revenue = n(biz.revenue); R.expenses = n(biz.expenses); R.netProfit = r2(n(biz.revenue) + n(biz.otherInc) - n(biz.expenses));
+    /* P&L expense lines (one per account, optionally with the GL entries): what is disallowed comes from the ticked accounts / entries */
+    const types0 = rules.addbackTypes || [];
+    R.plLines = rows(biz.pl).filter(x => n(x.amt) || rows(x.details).length).map(x => {
+      const det = rows(x.details).map(d => ({ ...d, amt: n(d.amt) }));
+      const amt = det.length ? r2(det.reduce((q, d) => q + d.amt, 0)) : n(x.amt);
+      const t = types0.find(k => k.code === x.type) || null;
+      const pct = x.pct !== '' && x.pct != null ? n(x.pct) : (t ? t.pct : 100);
+      const base = det.length ? r2(det.filter(d => d.dis).reduce((q, d) => q + d.amt, 0)) : (x.dis ? amt : 0);
+      return { ...x, details: det, amt, base, pct, add: r2(base * pct / 100), typeName: t ? t.name : '', lawRef: t ? t.ref : '' };
+    });
+    R.plExpenses = r2(R.plLines.reduce((q, x) => q + x.amt, 0));
+    R.plAddbacks = R.plLines.filter(x => x.add);
+    R.addbackPL = r2(R.plAddbacks.reduce((q, x) => q + x.add, 0));
+    R.noDoc = []; R.plLines.forEach(x => x.details.forEach(d => { if (d.noDoc) R.noDoc.push({ acct: x.acct, ...d }); }));
+    R.noDocTotal = r2(R.noDoc.reduce((q, d) => q + d.amt, 0));
+    const noDocOpen = R.noDoc.filter(d => !d.dis);
+    if (noDocOpen.length) R.warns.push('有 ' + noDocOpen.length + ' 笔没有正式单据的费用（合计 RM ' + r2(noDocOpen.reduce((q, d) => q + d.amt, 0)).toFixed(2) + '）还没有加回，请决定要不要加回。');
+    R.expenses = R.plLines.length ? R.plExpenses : n(biz.expenses);
+    R.revenue = n(biz.revenue); R.netProfit = r2(n(biz.revenue) + n(biz.otherInc) - R.expenses);
     R.addbacks = (biz.addbacks || []).filter(x => n(x.amt)).map(x => {
       const t = (rules.addbackTypes || []).find(k => k.code === x.type) || { pct: 100, name: x.type };
       const pct = x.pct != null && x.pct !== '' ? n(x.pct) : t.pct;
       return { ...x, typeName: t.name, pct, add: r2(n(x.amt) * pct / 100) };
     });
-    R.addbackTotal = r2(R.addbacks.reduce((s, x) => s + x.add, 0));
-    R.deducts = (biz.deducts || []).filter(x => n(x.amt)).map(x => ({ ...x, amt: n(x.amt) }));
+    R.addbackManual = r2(R.addbacks.reduce((s, x) => s + x.add, 0));
+    R.addbackTotal = r2(R.addbackManual + R.addbackPL);
+    R.deducts = (biz.deducts || []).filter(x => n(x.amt)).map(x => ({ ...x, amt: n(x.amt), kind: x.kind === 'D' ? 'D' : 'C' }));
+    R.deductC = r2(R.deducts.filter(x => x.kind === 'C').reduce((q, x) => q + x.amt, 0)); R.deductD = r2(R.deducts.filter(x => x.kind === 'D').reduce((q, x) => q + x.amt, 0));
     R.deductTotal = r2(R.deducts.reduce((s, x) => s + x.amt, 0));
     R.ca = caForYA(client?.assets || [], ya, rulesFor, !!client?.sme);
     R.adjusted = r2(R.netProfit + R.otherBiz + R.addbackTotal - R.deductTotal + R.ca.bc);
@@ -700,12 +725,13 @@ function setK(o,k,v){ const ps=k.split('.'); let a=o; for(let i=0;i<ps.length-1;
 
 function fillForm(){
   ['partners','rentals','invest','others'].forEach(k=>{ if(!Array.isArray(S.cur[k])) S.cur[k]=[]; });
+  if(!Array.isArray(S.cur.biz.pl)) S.cur.biz.pl=[];
   document.querySelectorAll('#t-ret [data-k]').forEach(el=>{
     let v=getK(S.cur, el.dataset.k);
     if(el.dataset.bool) v = String(v!==false);
     el.value = v ?? (el.tagName==='SELECT' ? el.options[0].value : '');
   });
-  renderRows(); renderReliefs(); renderTbPanels(); renderFam(); applyForm();
+  renderRows(); renderReliefs(); renderTbPanels(); renderFam(); renderPL(); applyForm();
 }
 function applyForm(){
   const isB=S.cur.form==='B'; $('bizPanel').hidden=!isB;
@@ -737,6 +763,7 @@ async function saveReturn(){
   const body=JSON.parse(JSON.stringify(S.cur)); body.updatedAt=Date.now();
   const R=TAX.compute(body, client(), rulesFor(S.ya), rulesFor); body.result={balance:R.balance, chargeable:R.chargeable, taxPayable:R.taxPayable};
   S.dirty=false;
+  try{ await rememberAccts(); }catch(e){ console.warn('remember', e); }
   try{ await put('taxreturns/'+body.cid+'_'+body.ya, body); delete S.cur._reopen; $('savedTag').textContent='已保存'; }catch(e){ S.dirty=true; dbErr(e); if(e && e.code===409){ S.dirty=false; delete S.cur._reopen; loadReturn(); } }
 }
 window.addEventListener('beforeunload', flushSave);
@@ -753,7 +780,7 @@ function renderRows(){
     <td class="r mono" id="abAdd${i}">—</td>
     <td><input data-ab="ref" data-i="${i}" value="${esc(x.ref||'')}" placeholder="GL 户口 / 单号" style="min-width:120px"></td>
     <td><button class="btn sm" data-abx="${i}" aria-label="删除">×</button></td></tr>`;}).join('') || '<tr><td colspan="7" class="empty">没有加回项目</td></tr>';
-  $('dedBody').innerHTML = S.cur.biz.deducts.map((x,i)=>`<tr><td><input data-dd="desc" data-i="${i}" value="${esc(x.desc||'')}"></td>
+  $('dedBody').innerHTML = S.cur.biz.deducts.map((x,i)=>`<tr><td><input data-dd="desc" data-i="${i}" value="${esc(x.desc||'')}"></td><td><select data-dd="kind" data-i="${i}" style="min-width:150px"><option value="C" ${x.kind!=='D'?'selected':''}>C 不属于业务 / 免税</option><option value="D" ${x.kind==='D'?'selected':''}>D 另外可扣</option></select></td>
     <td><input class="amt" data-dd="amt" data-i="${i}" value="${esc(x.amt??'')}" inputmode="decimal" style="width:120px"></td>
     <td><input data-dd="ref" data-i="${i}" value="${esc(x.ref||'')}"></td><td><button class="btn sm" data-ddx="${i}" aria-label="删除">×</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">没有</td></tr>';
 }
@@ -898,8 +925,9 @@ function renderReport(){
     let b=tr('','营业额',R.revenue)+(N(cur.biz.otherInc)?tr('','其他生意收入',N(cur.biz.otherInc)):'')+tr('','− 总开销（按账目）',R.expenses)+tr('','账目净利 / (亏)',R.netProfit,'tot');
     b+=`<tr><td></td><td colspan="2"><b>加：不可扣除开销</b></td></tr>`;
     b+=R.addbacks.map(x=>`<tr><td class="code">${esc(x.type)}</td><td>${esc(x.typeName)}${x.desc?' – '+esc(x.desc):''}<div class="small" style="color:#555">${esc(((rules.addbackTypes||[]).find(k=>k.code===x.type)||{}).ref||'')}${x.pct!==100?' · '+x.pct+'% of '+money(x.amt):''}${x.ref?' · 参考 '+esc(x.ref):''}</div></td><td class="r mono">${money(x.add)}</td></tr>`).join('')||tr('','（无）','—');
+    b+=R.plAddbacks.map(x=>`<tr><td class="code">${esc(x.type||'OTHER')}</td><td>${esc(x.acct)}（P&amp;L 科目）${x.typeName?' – '+esc(x.typeName):''}<div class="small" style="color:#555">${esc(x.lawRef||'')} · ${x.pct}% of ${money(x.base)}${x.details.length?' · 明细 '+x.details.length+' 笔，勾选 '+x.details.filter(d=>d.dis).length+' 笔':''}${x.reason?' · '+esc(x.reason):''}</div></td><td class="r mono">${money(x.add)}</td></tr>`).join('');
     b+=tr('','加回合计',R.addbackTotal,'tot');
-    if(R.deducts.length){ b+=`<tr><td></td><td colspan="2"><b>减：不需课税收入 / 额外扣除</b></td></tr>`+R.deducts.map(x=>tr('',esc(x.desc)+(x.ref?' · '+esc(x.ref):''),x.amt)).join('')+tr('','扣除合计',R.deductTotal,'tot'); }
+    if(R.deducts.length){ b+=`<tr><td></td><td colspan="2"><b>减：不需课税收入 / 额外扣除</b></td></tr>`+R.deducts.map(x=>tr('',(x.kind==='D'?'D 另外可扣：':'C 不属于业务 / 免税：')+esc(x.desc)+(x.ref?' · '+esc(x.ref):''),x.amt)).join('')+tr('','扣除合计',R.deductTotal,'tot'); }
     if(R.ca.bc) b+=tr('','加：Balancing charge',R.ca.bc);
     b+=tr('','调整后收入 Adjusted income / (loss)',R.adjusted,'tot')+tr('','− 资本津贴：本年 '+money(R.ca.total)+' + b/f '+money(R.caBF)+' = '+money(R.caAvail),R.caUsed)+tr(fc.biz,'生意法定收入',R.statBiz,'tot');
     b+=tr('','未用完资本津贴 c/f',R.caCF)+tr('','生意亏损 c/f',R.lossCF);
@@ -957,9 +985,14 @@ $('xlsBtn').addEventListener('click', async ()=>{
   if(R.hasBiz){
     const hk=[['HK-1 生意法定收入'],['营业额',R.revenue],['其他生意收入',N(cur.biz.otherInc)],['总开销',R.expenses],['账目净利',R.netProfit],[],['加回','说明','法令','账目金额','%','加回','参考']];
     R.addbacks.forEach(x=>hk.push([x.typeName,x.desc||'',((rules.addbackTypes||[]).find(k=>k.code===x.type)||{}).ref||'',N(x.amt),x.pct,x.add,x.ref||'']));
-    hk.push(['加回合计','','','','',R.addbackTotal]); R.deducts.forEach(x=>hk.push(['扣除',x.desc,'','','',-x.amt,x.ref||'']));
+    R.plAddbacks.forEach(x=>hk.push([x.acct+(x.typeName?' ('+x.typeName+')':''),x.reason||'',x.lawRef||'',x.base,x.pct,x.add,x.details.length?'明细 '+x.details.length+' 笔，勾选 '+x.details.filter(d=>d.dis).length+' 笔':'']));
+    hk.push(['加回合计','','','','',R.addbackTotal]); R.deducts.forEach(x=>hk.push([x.kind==='D'?'扣除 D 另外可扣':'扣除 C 不属于业务/免税',x.desc,'','','',-x.amt,x.ref||'']));
     hk.push([],['调整后收入',R.adjusted],['资本津贴（用）',R.caUsed],['生意法定收入',R.statBiz],['资本津贴 c/f',R.caCF],['亏损 c/f',R.lossCF]);
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(hk),'HK-1');
+    if(R.plLines.length){
+      const pl=[['P&L 费用明细','金额','不可扣除类别','加回 %','加回','原因','']]; R.plLines.forEach(x=>{ pl.push([x.acct,x.amt,x.add?(x.typeName||x.type||''):'',x.add?x.pct:'',x.add,x.reason||'']); (x.details||[]).forEach(d=>pl.push(['   '+(d.date||''),d.amt,(d.ref||'')+' '+(d.desc||''),d.dis?'加回':'',d.noDoc?'没有正式单据':'',''])); });
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pl),'P&L disallowed');
+    }
     const ca=[['资产','参考','类别','购买YA','成本','QE','TWDV b/f','IA','AA','BA','BC','TWDV c/f']];
     R.ca.items.forEach(x=>ca.push([x.a.desc,x.a.ref||'',x.a.cls,x.a.ya,N(x.a.cost),x.s.qe,x.row.twdvOpen,x.row.ia,x.row.aa,x.row.ba,x.row.bc,x.row.twdvClose]));
     ca.push(['合计','','','','','','',R.ca.ia,R.ca.aa,R.ca.ba,R.ca.bc,'']);
@@ -1212,6 +1245,98 @@ $('t-ret').addEventListener('click',e=>{
 });
 /* a calculated column (net) must follow the typing without redrawing the row */
 $('t-ret').addEventListener('input',e=>{ const el=e.target; if(el.dataset.tb && TBL[el.dataset.tb].calc){ const tr=el.closest('tr'), cell=tr&&tr.querySelector('td.r.mono'); const r=S.cur[el.dataset.tb][+el.dataset.i]; if(cell&&r) cell.textContent=money(TBL[el.dataset.tb].calc(r)); } });
+
+/* ---------- business income adjustment: the P&L lines, suggestions, the client's remembered choices ---------- */
+const acctKey=a=>String(a||'').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g,'');
+const KW=[ // account name -> the category suggested (the user confirms or changes it)
+  ['DEP',/deprec|amortis|amortiz|susut|pelunasan/i],
+  ['PROV',/provision|bad debt|doubtful|impair|unrealis|unrealiz|loss on (disposal|sale)|written off|exchange loss|peruntukan/i],
+  ['CAPEX',/renovat|capital (exp|item)|pre-?operat|start-?up|trademark|logo/i],
+  ['PRIV',/drawing|proprietor|owner|director'?s? (fee|salary|remuneration)|private|personal|household/i],
+  ['ENT50',/entertain|hamper|\bgift|hospitality|jamuan|hiburan/i],
+  ['FINE',/\bfine|penalt|compound|summons|saman|late (payment|fee)|income tax|cp500|zakat|tax expense|denda/i],
+  ['DON',/donat|derma|sumbang/i]
+];
+function plSuggest(acct){
+  const mem=(client()&&client().acctMap||{})[acctKey(acct)];
+  if(mem) return {type:mem.type,pct:mem.pct||'',dis:!!mem.type,src:'去年的选择'};
+  for(const [code,re] of KW) if(re.test(acct)) return {type:code,pct:'',dis:true,src:'按科目名字'};
+  return {type:'',pct:'',dis:false,src:''};
+}
+async function rememberAccts(){
+  const c=client(); if(!c||!S.cur||isLocked()) return;
+  const map=Object.assign({},c.acctMap||{}); let ch=false;
+  (S.cur.biz.pl||[]).forEach(l=>{ if(!l.dec) return; const k=acctKey(l.acct); if(!k) return; const v={acct:l.acct,type:l.dis?(l.type||'OTHER'):'',pct:l.pct||''}; if(JSON.stringify(map[k])!==JSON.stringify(v)){ map[k]=v; ch=true; } });
+  if(!ch) return; const body=JSON.parse(JSON.stringify(c)); delete body.id; body.acctMap=map; await put('taxclients/'+c.id, body);
+}
+function plNum(v){ let t=String(v==null?'':v).trim(); if(!t) return ''; const neg=/^\(.*\)$/.test(t)||t.startsWith('-'); t=t.replace(/[^\d.]/g,''); const x=parseFloat(t); return isFinite(x)?String(neg?-x:x):''; }
+function plFind(acct){ const k=acctKey(acct); return S.cur.biz.pl.find(l=>acctKey(l.acct)===k); }
+function plAdd(acct){ let l=plFind(acct); if(l) return l; const sg=plSuggest(acct); l={acct,amt:'',type:sg.type,pct:sg.pct,dis:sg.dis,dec:false,reason:'',sugSrc:sg.src,details:[]}; S.cur.biz.pl.push(l); return l; }
+function plParse(text,mode){
+  let n1=0, n2=0;
+  String(text||'').split(/\r?\n/).forEach(line=>{ const c=line.split('\t').map(x=>x.trim()); if(c.length<2||!c[0]) return;
+    if(mode==='pl'){ const a=plNum(c[1]); if(a==='') return; const l=plAdd(c[0]); if(!(l.details||[]).length) l.amt=a; n1++; }
+    else { const a=plNum(c[c.length-1]); if(a==='') return; const l=plAdd(c[0]); l.details=l.details||[]; l.details.push({date:c[1]||'',ref:c[2]||'',desc:c.length>4?c[3]:'',amt:a,dis:!!l.dis,noDoc:false}); n2++; } });
+  return n1+n2;
+}
+const plOpen={};
+function renderPL(){
+  const box=$('plPanel'); if(!box||!S.cur) return; const types=(rulesFor(S.ya)||{}).addbackTypes||[];
+  const rowsH=S.cur.biz.pl.map((l,i)=>{ const det=l.details||[], amt=det.length?det.reduce((q,d)=>q+N(d.amt),0):N(l.amt), open=!!plOpen[i];
+    const sug=l.sugSrc&&!l.dec&&l.dis?`<span class="pill warn" title="${esc(l.sugSrc)}">建议</span>`:(l.dec?'<span class="pill ok">已确认</span>':'');
+    let h=`<tr><td><button class="btn sm" data-plopen="${i}" title="明细">${open?'▾':'▸'}</button></td><td><input data-pl="acct" data-i="${i}" value="${esc(l.acct||'')}" style="min-width:150px"></td>
+      <td><input class="amt" data-pl="amt" data-i="${i}" value="${det.length?amt.toFixed(2):esc(l.amt??'')}" ${det.length?'readonly':''} inputmode="decimal" style="width:100px"></td>
+      <td style="text-align:center"><input type="checkbox" data-pl="dis" data-i="${i}" ${l.dis?'checked':''}></td>
+      <td><select data-pl="type" data-i="${i}" style="min-width:170px"><option value="">（可扣除）</option>${types.map(k=>`<option value="${esc(k.code)}" ${k.code===l.type?'selected':''}>${esc(k.name)}</option>`).join('')}</select></td>
+      <td><input class="amt" data-pl="pct" data-i="${i}" value="${esc(l.pct??'')}" placeholder="${(types.find(k=>k.code===l.type)||{pct:''}).pct}" style="width:56px"></td>
+      <td class="r mono" id="plAdd${i}">—</td><td><input data-pl="reason" data-i="${i}" value="${esc(l.reason||'')}" placeholder="原因 / 参考" style="min-width:120px"></td>
+      <td>${sug} <button class="btn sm" data-plok="${i}" title="确认这一行">✓</button></td><td><button class="btn sm" data-pldel="${i}" aria-label="删除">×</button></td></tr>`;
+    if(open){ h+=`<tr><td></td><td colspan="9"><div class="tbl-wrap"><table class="edit"><thead><tr><th>日期</th><th>单号</th><th>说明</th><th class="r">金额</th><th>加回</th><th>没有正式单据</th><th></th></tr></thead><tbody>`+
+      (det.map((d,j)=>`<tr><td><input data-pd="date" data-i="${i}" data-j="${j}" value="${esc(d.date||'')}" style="width:100px"></td><td><input data-pd="ref" data-i="${i}" data-j="${j}" value="${esc(d.ref||'')}" style="width:100px"></td><td><input data-pd="desc" data-i="${i}" data-j="${j}" value="${esc(d.desc||'')}" style="min-width:160px"></td><td><input class="amt" data-pd="amt" data-i="${i}" data-j="${j}" value="${esc(d.amt??'')}" style="width:100px"></td><td style="text-align:center"><input type="checkbox" data-pd="dis" data-i="${i}" data-j="${j}" ${d.dis?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-pd="noDoc" data-i="${i}" data-j="${j}" ${d.noDoc?'checked':''}></td><td><button class="btn sm" data-pddel="${i}" data-j="${j}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">没有明细（直接用上面的金额）</td></tr>')+
+      `</tbody></table></div><div class="row" style="margin-top:6px"><button class="btn sm" data-pdadd="${i}">+ 一笔</button></div></td></tr>`; }
+    return h; }).join('')||'<tr><td colspan="10" class="empty">还没有 P&amp;L 费用明细：可以下面「贴上」或「+ 科目」；不用明细的话，直接填上面的「总开销」。</td></tr>';
+  box.innerHTML=`<div class="tbl-wrap"><table class="edit" style="min-width:1050px"><thead><tr><th></th><th>科目</th><th class="r">金额</th><th>不可扣除</th><th>类别</th><th class="r">加回 %</th><th class="r">加回</th><th>原因 / 参考</th><th>状态</th><th></th></tr></thead><tbody>${rowsH}</tbody></table></div>
+    <div class="row" style="margin-top:8px"><button class="btn sm" id="plAddRow">+ 科目</button><button class="btn sm" id="plPastePl">从 Excel 贴上 P&amp;L（科目 → 金额）</button><button class="btn sm" id="plPasteGl">从 Excel 贴上 GL 明细（科目 → 日期 → 单号 → 说明 → 金额）</button><button class="btn sm" id="plResug">重新建议（没确认的）</button><button class="btn sm pri" id="plOkAll">全部确认</button></div>
+    <div id="plPasteWrap" hidden style="margin-top:8px"><textarea id="plPasteBox" rows="5" class="mono" placeholder="每行一笔，用 Tab 分开（直接从 Excel 复制）"></textarea><div class="row" style="margin-top:6px"><button class="btn sm pri" id="plPasteGo">加入</button></div></div>`;
+}
+let plMode='pl';
+function plDraw(){ renderPL(); touch(); recalc(); applyLock(); }
+$('t-ret').addEventListener('click',e=>{
+  const g=(sel)=>e.target.closest(sel), t=e.target;
+  if(g('[data-plopen]')){ const i=+g('[data-plopen]').dataset.plopen; plOpen[i]=!plOpen[i]; renderPL(); applyLock(); return; }
+  if(g('[data-plok]')){ const l=S.cur.biz.pl[+g('[data-plok]').dataset.plok]; l.dec=true; plDraw(); return; }
+  if(g('[data-pldel]')){ S.cur.biz.pl.splice(+g('[data-pldel]').dataset.pldel,1); plDraw(); return; }
+  if(g('[data-pddel]')){ const b=g('[data-pddel]'); S.cur.biz.pl[+b.dataset.pddel].details.splice(+b.dataset.j,1); plDraw(); return; }
+  if(g('[data-pdadd]')){ const l=S.cur.biz.pl[+g('[data-pdadd]').dataset.pdadd]; l.details=l.details||[]; l.details.push({date:'',ref:'',desc:'',amt:'',dis:!!l.dis,noDoc:false}); plDraw(); return; }
+  if(t.id==='plAddRow'){ S.cur.biz.pl.push({acct:'',amt:'',type:'',pct:'',dis:false,dec:false,reason:'',details:[]}); plDraw(); return; }
+  if(t.id==='plPastePl'||t.id==='plPasteGl'){ plMode=t.id==='plPastePl'?'pl':'gl'; $('plPasteWrap').hidden=false; $('plPasteBox').value=''; $('plPasteBox').placeholder=plMode==='pl'?'科目 [Tab] 金额':'科目 [Tab] 日期 [Tab] 单号 [Tab] 说明 [Tab] 金额'; $('plPasteBox').focus(); return; }
+  if(t.id==='plPasteGo'){ const n=plParse($('plPasteBox').value,plMode); if(!n) return toast('没有读到可以加入的行（要用 Tab 分开，最后一栏是金额）'); toast('加入 '+n+' 行，系统已按建议勾好，请逐行确认'); plDraw(); return; }
+  if(t.id==='plResug'){ S.cur.biz.pl.forEach(l=>{ if(l.dec) return; const sg=plSuggest(l.acct); l.type=sg.type; l.pct=sg.pct; l.dis=sg.dis; l.sugSrc=sg.src; (l.details||[]).forEach(d=>{ d.dis=sg.dis; }); }); plDraw(); return; }
+  if(t.id==='plOkAll'){ if(!confirm('把所有科目都标成「已确认」（现在的勾选和类别当作你的决定，也会记住给下一年）？')) return; S.cur.biz.pl.forEach(l=>{ l.dec=true; }); plDraw(); return; }
+  if(g('[data-nodoc-all]')){ S.cur.biz.pl.forEach(l=>(l.details||[]).forEach(d=>{ if(d.noDoc&&!d.dis){ d.dis=true; if(!l.type){ l.type='OTHER'; } l.dis=true; } })); plDraw(); return; }
+});
+$('t-ret').addEventListener('input',e=>{
+  const el=e.target;
+  if(el.dataset.pl){ const l=S.cur.biz.pl[+el.dataset.i], k=el.dataset.pl;
+    if(k==='dis'){ l.dis=el.checked; (l.details||[]).forEach(d=>{ d.dis=l.dis; }); if(l.dis&&!l.type) l.type='OTHER'; l.dec=true; plDraw(); return; }
+    if(k==='type'){ l.type=el.value; l.dis=!!el.value; l.pct=''; (l.details||[]).forEach(d=>{ d.dis=l.dis; }); l.dec=true; plDraw(); return; }
+    l[k]=el.value; if(k==='pct'||k==='reason') l.dec=true; if(k==='acct'&&!l.dec){ const sg=plSuggest(l.acct); l.type=sg.type; l.pct=sg.pct; l.dis=sg.dis; l.sugSrc=sg.src; }
+    touch(); recalc(); return; }
+  if(el.dataset.pd){ const d=S.cur.biz.pl[+el.dataset.i].details[+el.dataset.j], k=el.dataset.pd; d[k]=el.type==='checkbox'?el.checked:el.value; if(k==='dis'||k==='noDoc'||k==='amt'){ const l=S.cur.biz.pl[+el.dataset.i]; if(k==='dis'&&el.checked&&!l.type){ l.type='OTHER'; } l.dis=(l.details||[]).some(x=>x.dis); if(k==='dis') l.dec=true; plDraw(); return; } touch(); recalc(); }
+});
+/* the figures that follow the typing: the add-back of each line, the template A - H, the no-document box */
+function plAfterCalc(){
+  const R=S.R; if(!R||!R.hasBiz||!$('plPanel')) return;
+  (R.plLines||[]).forEach((x,i)=>{ const c=$('plAdd'+i); if(c) c.textContent=m0(x.add); });
+  const nd=$('noDocBox');
+  if(nd){ const open=(R.noDoc||[]).filter(d=>!d.dis);
+    nd.innerHTML=(R.noDoc||[]).length?`<div class="notice" style="margin:10px 0">没有正式单据的费用：${R.noDoc.length} 笔，合计 RM ${money(R.noDocTotal)}；还没加回的 ${open.length} 笔。 <button class="btn sm" data-nodoc-all="1">把这些都加回</button></div>`:''; }
+  const tpl=$('adjTpl'); if(tpl){
+    const r=(a,b,v,c)=>`<tr class="${c||''}"><td class="code">${a}</td><td>${b}</td><td class="r mono">${money(v)}</td></tr>`;
+    tpl.innerHTML=`<div class="tbl-wrap"><table><tbody>`+r('A','会计净利 / (亏损)（来自 P&amp;L）',R.netProfit)+(R.otherBiz?r('','加：CP58 等业务收入',R.otherBiz,'sub'):'')+r('B','加：Disallowed expenses（P&amp;L 科目 '+money(R.addbackPL)+' + 手动 '+money(R.addbackManual)+'）',R.addbackTotal)+r('C','减：不属于业务的收入 / 免税收入',R.deductC)+r('D','减：另外可扣的费用',R.deductD)+(R.ca.bc?r('','加：Balancing charge',R.ca.bc,'sub'):'')+r('E','Adjusted income = A + B − C − D',R.adjusted,'tot')+r('F','减：Capital allowance（本年 '+money(R.ca.total)+' + b/f '+money(R.caBF)+'，用 '+money(R.caUsed)+'）',R.caUsed)+r('G','Statutory business income = E − F',R.statBiz,'tot')+r('H','Adjusted loss（E 是负数时，转到主版模抵总收入）',R.curLoss)+`</tbody></table></div>`; }
+  const en=$('expNote'); if(en) en.textContent=(R.plLines||[]).length?'（现在用 P&L 费用明细的合计 RM '+money(R.plExpenses)+'）':'';
+}
+const _recalc2=recalc; recalc=function(){ _recalc2(); plAfterCalc(); };
 
 /* ---------- boot ---------- */
 function onClients(rows){ S.clients=rows; renderPickers(); renderClients(); if(!S.cur || S.cur.cid!==S.cid) loadReturn(); else { if(S.tab==='assets') renderCA(); recalc(); } }

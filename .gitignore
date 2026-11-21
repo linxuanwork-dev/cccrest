@@ -1,3 +1,8 @@
 .tools/
 node_modules/
 .env
+
+# local only
+.claude/
+MINIFISH-*.pdf
+WEALTHY-*.pdf

@@ -6,10 +6,10 @@ const clip = (v, n) => (v == null ? null : String(v).slice(0, n));
 
 async function write(db, e) {
   await (db || pool).query(
-    `INSERT INTO audit_log (who, user_id, company_id, module, record, action, field, before, after, reason)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    `INSERT INTO audit_log (who, user_id, company_id, module, record, action, field, before, after, reason, source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [clip(e.who, 120) || 'system', e.userId || null, e.companyId || null, clip(e.module, 60), clip(e.record, 200), clip(e.action, 40),
-      clip(e.field, 120), clip(e.before, 2000), clip(e.after, 2000), clip(e.reason, 500)]
+      clip(e.field, 120), clip(e.before, 2000), clip(e.after, 2000), clip(e.reason, 500), clip(e.source, 100)]
   );
 }
 

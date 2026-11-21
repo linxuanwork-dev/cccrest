@@ -83,14 +83,22 @@ router.put('/company-branches/:companyId', ...guard, async (req, res) => {
   res.json({ ok: true });
 });
 
-// the audit log, newest first (filters: company, module)
+// the audit log, newest first. Filters: company, module, who, action, record (part of it), from / to (dates), source (e.g. activity_log), limit (up to 1000)
 router.get('/audit-log', ...guard, async (req, res) => {
   const where = []; const args = [];
-  if (req.query.company) { args.push(parseInt(req.query.company, 10) || 0); where.push('company_id = $' + args.length); }
-  if (req.query.module) { args.push(String(req.query.module)); where.push('module = $' + args.length); }
-  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+  const add = (cond, v) => { args.push(v); where.push(cond.replace('?', '$' + args.length)); };
+  const like = (v) => String(v).replace(/[\%_]/g, '\$&');   // the text is searched as text: % and _ are not wildcards
+  if (req.query.company) add('company_id = ?', parseInt(req.query.company, 10) || 0);
+  if (req.query.module) add('module = ?', String(req.query.module));
+  if (req.query.who) add('who ILIKE ?', '%' + like(req.query.who) + '%');
+  if (req.query.action) add('action = ?', String(req.query.action));
+  if (req.query.record) add('record ILIKE ?', '%' + like(req.query.record) + '%');
+  if (req.query.source) add('source LIKE ?', like(req.query.source) + '%');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || ''))) add('at >= ?::date', req.query.from);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || ''))) add("at < (?::date + 1)", req.query.to);
+  const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 100));
   const { rows } = await pool.query(
-    `SELECT id, at, who, company_id, module, record, action, field, before, after, reason FROM audit_log ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY id DESC LIMIT ${limit}`, args);
+    `SELECT id, at, who, company_id, module, record, action, field, before, after, reason, source FROM audit_log ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY id DESC LIMIT ${limit}`, args);
   res.json(rows);
 });
 

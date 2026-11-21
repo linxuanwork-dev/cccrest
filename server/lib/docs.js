@@ -104,11 +104,29 @@ async function userNameFor(req) {
   return req._docUserName;
 }
 
+// Every document event is also written to the one audit_log (phase 1, step 5): one row for each changed field. The audit rows are never merged:
+// the history above keeps one entry for a run of edits, the audit_log keeps every change.
+async function auditDocEvent(req, companyId, docType, docRef, event, details, eventId) {
+  try {
+    const who = await userNameFor(req);
+    const list = Array.isArray(details) && details.length ? details : [null];
+    for (const d of list) {
+      await require('./auditLog').write(pool, {
+        who: who || 'system', userId: req.user.sub, companyId, module: docType, record: docRef || '', action: event,
+        field: d && d.field, before: d && d.from, after: d && d.to, source: eventId ? 'document_events:' + eventId : null
+      });
+    }
+  } catch (err) {
+    console.error('audit_log write failed (document event):', err.message);   // the history is complete; the work that was done is not undone
+  }
+}
+
 async function logEvent(req, companyId, docType, docRef, event, details) {
-  await pool.query(
-    'INSERT INTO document_events (company_id, doc_type, doc_ref, event, details, user_id, user_name) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)',
+  const { rows } = await pool.query(
+    'INSERT INTO document_events (company_id, doc_type, doc_ref, event, details, user_id, user_name) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7) RETURNING id',
     [companyId, docType, docRef || '', event, JSON.stringify(details || []), req.user.sub, await userNameFor(req)]
   );
+  await auditDocEvent(req, companyId, docType, docRef, event, details, rows[0].id);
 }
 
 // ---- field-level "what changed" for create / update history ----
@@ -154,6 +172,7 @@ async function logUpdate(req, companyId, docType, docRef, changes) {
     const merged = mergeChanges(rows[0].details, changes);
     if (!merged.length) await pool.query('DELETE FROM document_events WHERE id = $1', [rows[0].id]);
     else await pool.query('UPDATE document_events SET details = $1::jsonb, created_at = now() WHERE id = $2', [JSON.stringify(merged), rows[0].id]);
+    await auditDocEvent(req, companyId, docType, docRef, 'updated', changes, rows[0].id);   // this edit is its own audit row, whatever the history merged it into
     return;
   }
   await logEvent(req, companyId, docType, docRef, 'updated', changes);

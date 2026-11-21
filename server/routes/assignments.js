@@ -195,14 +195,12 @@ router.patch('/assignment-requests/:id', requireRole('admin'), async (req, res) 
 
     const { rows: companyRows } = await client.query('SELECT name FROM companies WHERE id = $1', [request.company_id]);
     const requestedNames = await namesForIds(request.requested_staff_ids);
-    await client.query(
-      'INSERT INTO activity_log (actor_user_id, action, target, details) VALUES ($1,$2,$3,$4)',
-      [
-        req.user.sub,
-        `${status} assignment`,
-        companyRows[0].name,
-        `Staff: ${requestedNames.join(', ')}` + (status === 'Approved' ? ' — locked, requester can no longer edit' : '')
-      ]
+    await logActivity(
+      req.user.sub,
+      `${status} assignment`,
+      companyRows[0].name,
+      `Staff: ${requestedNames.join(', ')}` + (status === 'Approved' ? ' — locked, requester can no longer edit' : ''),
+      client
     );
 
     await client.query('COMMIT');

@@ -4,6 +4,7 @@ const fs = require('fs');
 const { pool } = require('../db');
 const { requireAuth, requireRole } = require('../auth');
 const { logActivity } = require('../lib/activity');
+const auditLog = require('../lib/auditLog');
 
 const router = express.Router();
 
@@ -55,7 +56,15 @@ const stable = (v) => (Array.isArray(v) ? '[' + v.map(stable).join(',') + ']' : 
 const sameExcept = (a, b, skip) => { const strip = (o) => { const c = Object.assign({}, o); skip.forEach((k) => delete c[k]); return stable(c); }; return strip(a) === strip(b); };
 async function userName(id) { const { rows } = await pool.query('SELECT display_name, login_id FROM users WHERE id = $1', [id]); return rows[0] ? (rows[0].display_name || rows[0].login_id || '') : ''; }
 async function audit(req, coll, id, action, changes, reason) {
-  await pool.query('INSERT INTO tax_audit (user_id, user_name, coll, doc_id, action, changes, reason) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)', [req.user.sub, await userName(req.user.sub), coll, id, action, JSON.stringify(changes || []), String(reason || '').slice(0, 500)]);
+  const name = await userName(req.user.sub);
+  const { rows } = await pool.query('INSERT INTO tax_audit (user_id, user_name, coll, doc_id, action, changes, reason) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING id', [req.user.sub, name, coll, id, action, JSON.stringify(changes || []), String(reason || '').slice(0, 500)]);
+  // also in the one audit_log (phase 1, step 5): one row for each changed field
+  try {
+    const list = Array.isArray(changes) && changes.length ? changes : [null];
+    for (const c of list) {
+      await auditLog.write(pool, { who: name || 'system', userId: req.user.sub, module: 'tax', record: coll + '/' + id, action, field: c && c.path, before: c && c.before, after: c && c.after, reason, source: 'tax_audit:' + rows[0].id });
+    }
+  } catch (err) { console.error('audit_log write failed (tax):', err.message); }
 }
 
 router.get('/tax/audit', ...guard, async (req, res) => {

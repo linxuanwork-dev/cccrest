@@ -4,6 +4,8 @@ const { scopeToCompany, requireAuth } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
+const STAT = require('../lib/statutory');
+const statutoryStore = require('../lib/statutoryStore');
 const { renderLetterheadHeader, renderTable, PDFDocument } = require('../lib/pdf');
 
 const router = express.Router();
@@ -12,24 +14,17 @@ function round2(n) {
   return Math.round(Number(n) * 100) / 100;
 }
 
-// Suggested EPF/SOCSO/EIS using commonly-published flat percentages — an
-// estimate to review, not a guarantee against the current official KWSP/
-// PERKESO tables. PCB is intentionally left out: it depends on personal
-// reliefs this system doesn't capture, so it's always a manual entry.
+// Suggested EPF/SOCSO/EIS using flat percentages (the numbers are the statutory rules in force, see lib/statutory.js estimate()) - an
+// estimate to review, not a guarantee against the current official KWSP/PERKESO tables. PCB is intentionally left out: it depends on
+// personal reliefs this system doesn't capture, so it's always a manual entry.
 function suggestStatutory(wage) {
-  const epfEmployee = round2(wage * 0.11);
-  const epfEmployer = round2(wage * (wage <= 5000 ? 0.13 : 0.12));
-  const capped = Math.min(wage, 6000);
-  const socsoEmployee = round2(capped * 0.005);
-  const socsoEmployer = round2(capped * 0.0175);
-  const eisEmployee = round2(capped * 0.002);
-  const eisEmployer = round2(capped * 0.002);
-  return { epfEmployee, epfEmployer, socsoEmployee, socsoEmployer, eisEmployee, eisEmployer };
+  return STAT.estimate(wage, new Date().toISOString().slice(0, 7));
 }
 
 router.get('/companies/:companyId/payroll/suggest', requireAuth, scopeToCompany, requirePage('payroll', 1), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { employeeId, allowances } = req.query;
+  await statutoryStore.ready();
   const { rows } = await pool.query(
     'SELECT basic_salary FROM employees WHERE id = $1 AND company_id = $2',
     [employeeId, req.params.companyId]

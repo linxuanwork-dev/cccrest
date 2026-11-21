@@ -958,7 +958,7 @@ function renderPay(){
     PL_COLS.forEach(([lab,k,ed])=>{
       if(!r.c){tr.append(el("td",{class:"n",text:"—"}));return}
       const v=k==="advance"?r.adv:r.c[k];tot[k]=(tot[k]||0)+(Number(v)||0);
-      if(k==="skbbkEmployee"&&r.emp&&!r.final&&m>=STAT.SKBBK_FROM&&!/FOREIGN/i.test(r.emp.nationality||"")){
+      if(k==="skbbkEmployee"&&r.emp&&!r.final&&m>=STAT.skbbkFrom(m)&&!/FOREIGN/i.test(r.emp.nationality||"")){
         const td=el("td",{class:"n"},n2(v)+" "),cb=el("input",{type:"checkbox",style:"width:auto;vertical-align:middle","aria-label":r.name+" SKBBK 不扣"});
         cb.checked=!!r.emp.skbbkOptOut;const lab=el("label",{class:"sub",style:"white-space:nowrap;margin-left:4px"},cb," 不扣");lab.title="这个员工选择不参加 SKBBK（8 月 31 日前已提交，或新会员不想参加）";
         cb.onchange=async()=>{cb.disabled=true;try{await ATT.http("POST","/employees/"+r.emp.id+"/skbbk",{optOut:cb.checked});await loadEmps()}catch(e){cb.checked=!cb.checked;alert((e&&e.message)||e)}cb.disabled=false};

@@ -39,6 +39,7 @@ app.use('/api', enforcePasswordChange);
 app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/companies'));
 app.use('/api', require('./routes/companySettings'));
+app.use('/api', require('./routes/statutoryRules'));
 app.use('/api', require('./routes/staff'));
 app.use('/api', require('./routes/assignments'));
 app.use('/api', require('./routes/activity'));
@@ -82,6 +83,8 @@ migrate()
   .then(async () => {
     const n = await flagDefaultPasswords(pool);
     if (n) console.log('Accounts that must change a default password:', n);
+    // the statutory payroll rules in force (with the built-in rules as the fallback if this fails)
+    try { await require('./lib/statutoryStore').refresh(); } catch (err) { console.error('Statutory rules not loaded, using the built-in rules:', err.message); }
     app.listen(PORT, () => {
       console.log(`CREST server listening on port ${PORT}`);
     });

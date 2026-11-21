@@ -6,6 +6,7 @@ const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
 const STAT = require('../lib/statutory');
+const statutoryStore = require('../lib/statutoryStore');
 const { buildPayslipPdf } = require('../lib/payslipPdf');
 const { buildTablePdf } = require('../lib/tablePdf');
 const { buildSalarySummaryPdf } = require('../lib/salarySummaryPdf');
@@ -75,13 +76,13 @@ router.put('/attendance/companies/:id', requireRole('admin'), async (req, res) =
 router.get('/attendance/app', requireAuth, (req, res) => { res.sendFile(PAGE); });
 
 // The payroll rules (EPF / SOCSO / SKBBK / EIS and the pay lines) are one file used by the server and by the page: the page gets it as a script.
-let STAT_JS = null;
-router.get('/attendance/statutory.js', requireAuth, (req, res) => {
-  if (!STAT_JS) {
-    const fs = require('fs');
-    STAT_JS = 'window.STAT_TABLES=' + JSON.stringify(require('../lib/statutoryTables')) + ';\n' + fs.readFileSync(path.join(__dirname, '..', 'lib', 'statutory.js'), 'utf8');
-  }
-  res.type('application/javascript').send(STAT_JS);
+// The numbers in it are the rules in force (statutory_rules, with effective dates): the page gets the approved versions together with the file.
+router.get('/attendance/statutory.js', requireAuth, async (req, res) => {
+  const fs = require('fs');
+  await statutoryStore.ready();
+  const rules = statutoryStore.withDefaults(await statutoryStore.approvedList());
+  const js = 'window.STAT_RULES=' + JSON.stringify(rules) + ';\n' + fs.readFileSync(path.join(__dirname, '..', 'lib', 'statutory.js'), 'utf8');
+  res.type('application/javascript').send(js);
 });
 
 const BASE = '/companies/:companyId/attendance';
@@ -150,6 +151,7 @@ router.post(BASE + '/employees/:id/skbbk', ...guard(3), async (req, res) => {
 // here with the same rules as the page (lib/statutory.js), the person's details come from the HR employee master.
 router.post(BASE + '/payslips', ...guard(3), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
+  await statutoryStore.ready();
   const b = req.body || {}, month = String(b.month || ''), list = Array.isArray(b.slips) ? b.slips : [];
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !list.length || list.length > 80) return bad(res, 'Invalid request');
   const ids = [...new Set(list.map((x) => Number(x && x.empId)).filter((n) => Number.isInteger(n) && n > 0))];

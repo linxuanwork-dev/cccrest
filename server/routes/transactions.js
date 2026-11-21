@@ -7,6 +7,7 @@ const docs = require('../lib/docs');
 const T = require('../core/transactions');
 const F = require('../core/formats');
 const readers = require('../core/readers');
+const Bank = require('../core/bank');
 const branchesLib = require('../lib/branches');
 
 const router = express.Router();
@@ -43,7 +44,7 @@ const dateStr = (d) => (d ? (d.toISOString ? d.toISOString().slice(0, 10) : Stri
 const out = (t) => ({
   id: t.id, internalNo: t.internal_no, date: dateStr(t.tx_date), type: t.type, counterparty: t.counterparty || '', billNo: (t.data && t.data.no) || '', ref: t.source_ref || '', amount: Number(t.amount), status: t.status,
   contactCode: t.contact_code || '', account: t.account || '', bukkuNo: t.bukku_no || '', openExceptions: t.open_exceptions || 0, approvedBy: t.approved_by || '', approvedAt: t.approved_at || null, exportedAt: t.exported_at || null,
-  legacyExport: !!(t.data && t.data.legacyExport)
+  legacyExport: !!(t.data && t.data.legacyExport), direction: t.direction || '', bankAccount: t.bank_account || '', kind: (t.data && t.data.kind) || ''
 });
 const sendFile = async (res, format, table, baseName) => {
   const f = await F.render(format, table);
@@ -105,7 +106,7 @@ router.get(BASE + '/exceptions', ...guard(1), async (req, res) => {
 router.get(BASE + '/template', ...guard(1), async (req, res) => {
   const kind = req.query.kind === 'bank' ? 'bank' : 'purchase'; const format = req.query.format === 'csv' ? 'csv' : 'xlsx';
   const t = kind === 'bank'
-    ? { title: 'Bank money-in template', header: ['Date', 'Payer', 'Credit', 'Reference'], rows: [['2026-11-03', 'EXAMPLE PAYER', 1500, 'INV 1234']], sheet: 'Bank' }
+    ? { title: 'Bank statement template', header: ['Date', 'Payer', 'Credit', 'Debit', 'Reference', 'Bank Account'], rows: [['2026-11-03', 'EXAMPLE PAYER', 1500, '', 'INV 1234', 'PBB 1234'], ['2026-11-04', 'EXAMPLE SUPPLIER SDN BHD', '', 800, 'IBG PAYMENT INV-001', 'PBB 1234']], sheet: 'Bank' }
     : { title: 'Purchase bill template', header: ['Date', 'Supplier', 'Contact Code', 'Bill No.', 'Reference', 'Description', 'Account', 'Item', 'Qty', 'Unit Price', 'Tax', 'Tags'], rows: [['2026-11-03', 'EXAMPLE SDN BHD', 'C-E0001', 'INV-001', '', 'Stationery', '6000', 'Paper A4', 2, 12.5, '', ''], ['2026-11-03', 'EXAMPLE SDN BHD', 'C-E0001', 'INV-001', '', '', '6000', 'Pens', 1, 8, '', '']], sheet: 'Purchases' };
   const f = await F.render(format, Object.assign({}, t, { title: undefined, company: undefined }));
   const name = 'TEMPLATE-' + kind.toUpperCase() + '.' + f.ext;
@@ -125,19 +126,45 @@ router.post(BASE + '/import', ...guard(2), express.raw({ type: '*/*', limit: '15
   const name = String(req.query.name || 'file'); const actor = await actorOf(req);
   if (/\.pdf$/i.test(name) || req.body.slice(0, 4).toString() === '%PDF') {
     const r = await readers.readPdf(req.body, name, { branches: await branchesLib.list(cid(req)) });
-    if (r.kind === 'bank_statement') return res.json(Object.assign({ kind: 'bank' }, await inTx((db) => T.importBankLines(db, cid(req), r.rows.map((x) => ({ date: x.date, amount: x.amount, payer: x.payer, ref: x.ref, time: x.time })), actor, name, 'PBB statement ' + (r.statementDate || '')))));
+    if (r.kind === 'bank_statement') return res.json(Object.assign({ kind: 'bank' }, await inTx((db) => T.importBankLines(db, cid(req), r.rows.map((x) => ({ date: x.date, amount: x.amount, direction: 'in', payer: x.payer, ref: x.ref, time: x.time, account: String(req.query.account || '') || (r.bank ? r.bank + ' ' + (r.account || '') : '') })), actor, name, 'PBB statement ' + (r.statementDate || '')))));
     return res.json(Object.assign({ kind: 'purchase' }, await inTx((db) => T.importHqBill(db, cid(req), r.bill, actor, name))));
   }
   const table = await readers.readTable(req.body, name);
   const kind = req.query.kind === 'bank' ? 'bank' : 'purchase';
-  res.json(Object.assign({ kind }, await inTx((db) => (kind === 'bank' ? T.importBankTable(db, cid(req), table, actor, name) : T.importPurchaseTable(db, cid(req), table, actor, name)))));
+  res.json(Object.assign({ kind }, await inTx((db) => (kind === 'bank' ? T.importBankTable(db, cid(req), table, actor, name, String(req.query.account || '')) : T.importPurchaseTable(db, cid(req), table, actor, name)))));
 });
+
+
+// ---------- bank matching ----------
+router.get(BASE + '/bank/outstanding', ...guard(1), async (req, res) => res.json(await Bank.outstanding(pool, cid(req), req.query.side === 'in' ? 'sales' : 'purchase')));
+router.get(BASE + '/bank/prompts', ...guard(1), async (req, res) => res.json(await Bank.prompts(pool, cid(req), { days: parseInt(req.query.days, 10) || 7 })));
+// the bank report: every line, what it is matched to, what is left (?format=xlsx|csv|pdf gives it as a file)
+router.get(BASE + '/bank/report', ...guard(1), async (req, res) => {
+  const rows = await Bank.bankReport(pool, cid(req), { status: req.query.status, month: req.query.month, direction: req.query.direction });
+  if (!req.query.format) return res.json(rows);
+  const info = await docs.companyInfo(cid(req));
+  const total = (d) => Math.round(rows.filter((r) => r.direction === d).reduce((s, r) => s + r.amount, 0) * 100) / 100;
+  await sendFile(res, req.query.format, { company: info.name, title: 'Bank report', subtitle: rows.length + ' lines · money in ' + total('in').toFixed(2) + ' · money out ' + total('out').toFixed(2),
+    header: ['Internal No.', 'Date', 'Bank account', 'In / Out', 'Payer / Payee', 'Reference', 'Amount', 'Status', 'Kind', 'Matched to', 'Bank charge', 'Left'],
+    rows: rows.map((r) => [r.internalNo, r.date, r.account, r.direction === 'out' ? 'Out' : 'In', r.payer, r.ref, r.amount, r.status, r.kind, r.matchedTo, r.fee, r.left]), sheet: 'Bank report' },
+    info.PREFIX + '-BANK-REPORT-' + new Date().toISOString().slice(0, 10).replace(/-/g, ''));
+});
+router.post(BASE + '/bank/confirm-suggestions', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.confirmSuggestions(db, cid(req), idList(req.body && req.body.ids), a, req.body && req.body.minConfidence))); });
+router.post(BASE + '/transfer', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.pairTransfer(db, cid(req), parseInt(req.body && req.body.outId, 10), parseInt(req.body && req.body.inId, 10), a, req.body && req.body.note))); });
+router.post(BASE + '/unmatch', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.unmatch(db, cid(req), parseInt(req.body && req.body.matchId, 10), a, req.body && req.body.reason))); });
+router.get(BASE + '/:id/suggestions', ...guard(1), async (req, res) => res.json(await Bank.suggest(pool, cid(req), parseInt(req.params.id, 10))));
+router.get(BASE + '/:id/transfer-candidates', ...guard(1), async (req, res) => res.json(await Bank.transferCandidates(pool, cid(req), parseInt(req.params.id, 10))));
+router.post(BASE + '/:id/match', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.matchBank(db, cid(req), parseInt(req.params.id, 10), req.body || {}, a))); });
+router.post(BASE + '/:id/bank-kind', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(out(await inTx((db) => Bank.setKind(db, cid(req), parseInt(req.params.id, 10), req.body || {}, a)))); });
 
 router.get(BASE + '/:id', ...guard(1), async (req, res) => {
   const id = parseInt(req.params.id, 10); const tx = await T.getTx(pool, cid(req), id);
   const exc = (await pool.query('SELECT id, type, detail, resolved, resolved_by, resolved_at, resolve_note, created_at FROM exceptions WHERE transaction_id = $1 ORDER BY id', [id])).rows;
   const hist = (await pool.query("SELECT at, who, action, field, before, after, reason FROM audit_log WHERE module = 'transactions' AND company_id = $1 AND record = $2 ORDER BY id", [cid(req), tx.internal_no])).rows;
-  res.json({ transaction: Object.assign(out(tx), { lines: tx.lines, data: tx.data }), exceptions: exc, history: hist });
+  const matches = (await pool.query(
+    `SELECT m.id, m.applied, m.method, m.note, m.voided, m.void_reason, m.created_by, m.created_at, b.internal_no AS bank_no, o.internal_no AS other_no, o.counterparty AS other_name, b.tx_date AS bank_date
+       FROM matches m JOIN transactions b ON b.id = m.bank_tx_id JOIN transactions o ON o.id = m.other_tx_id WHERE m.company_id = $1 AND (m.bank_tx_id = $2 OR m.other_tx_id = $2) ORDER BY m.id`, [cid(req), id])).rows;
+  res.json({ transaction: Object.assign(out(tx), { lines: tx.lines, data: tx.data, direction: tx.direction || '', bankAccount: tx.bank_account || '' }), exceptions: exc, history: hist, matches });
 });
 
 router.post(BASE + '/:id/classify', ...guard(2), async (req, res) => {

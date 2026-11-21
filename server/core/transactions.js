@@ -79,7 +79,7 @@ async function findIssues(db, tx, ctx) {
       if (dup) issues.push(['duplicate_no', 'The same supplier and bill number are already in ' + dup.internal_no]);
     }
   }
-  if (tx.type === 'bank' && !(Number(tx.amount) > 0)) issues.push(['bad_amount', 'A bank line with money in must have an amount above 0']);
+  if (tx.type === 'bank' && !(Number(tx.amount) > 0)) issues.push(['bad_amount', 'A bank line must have an amount above 0']);
   return issues;
 }
 
@@ -240,37 +240,49 @@ async function importPurchaseTable(db, companyId, table, actor, fileName) {
 }
 
 // money-in lines of a bank statement (an Excel / CSV table or a Public Bank PDF): "pending" = money came in, the source is not known yet
-async function importBankLines(db, companyId, lines, actor, fileName, label) {
+async function importBankLines(db, companyId, lines, actor, fileName, label) {   // lines: [{ date, amount (above 0), direction 'in' | 'out', payer, ref, time, account }]
   const imp = (await db.query("INSERT INTO imports (company_id, module, month, file_name, row_count, created_by) VALUES ($1,'bank',$2,$3,$4,$5) RETURNING id",
     [companyId, (lines[0] && lines[0].date ? lines[0].date.slice(0, 7) : null), fileName || label || null, lines.length, (actor && actor.name) || null])).rows[0].id;
   const made = [];
   for (const l of lines) {
     const internalNo = await nextInternalNo(db, companyId, l.date);
     const tx = (await db.query(
-      `INSERT INTO transactions (company_id, tx_date, type, amount, counterparty, source_ref, import_id, internal_no, status, data, origin)
-       VALUES ($1,$2,'bank',$3,$4,$5,$6,$7,'imported',$8::jsonb,$9) RETURNING *`,
-      [companyId, l.date || null, r2(l.amount), l.payer || null, l.ref || null, imp, internalNo, JSON.stringify({ time: l.time || '', file: fileName || null }), 'file:' + imp + ':' + made.length])).rows[0];
-    await audit(db, actor, companyId, tx, 'imported', { after: 'bank money in ' + tx.amount + ' from ' + (l.payer || '?') });
+      `INSERT INTO transactions (company_id, tx_date, type, amount, counterparty, source_ref, import_id, internal_no, status, data, origin, direction, bank_account)
+       VALUES ($1,$2,'bank',$3,$4,$5,$6,$7,'imported',$8::jsonb,$9,$10,$11) RETURNING *`,
+      [companyId, l.date || null, r2(l.amount), l.payer || null, l.ref || null, imp, internalNo, JSON.stringify({ time: l.time || '', file: fileName || null }), 'file:' + imp + ':' + made.length, l.direction === 'out' ? 'out' : 'in', l.account || null])).rows[0];
+    await audit(db, actor, companyId, tx, 'imported', { after: 'bank money ' + (tx.direction === 'out' ? 'out ' : 'in ') + tx.amount + (tx.direction === 'out' ? ' to ' : ' from ') + (l.payer || '?') });
     await runChecks(db, tx.id, null);
     await move(db, tx, 'pending', actor, 'money came in, the source is not known yet');
     made.push(tx.id);
   }
   return { importId: imp, created: made.length, ids: made };
 }
-async function importBankTable(db, companyId, table, actor, fileName) {
-  const idx = mapColumns(table.header, 'bank');
-  for (const need of ['date', 'amount']) if (idx[need] === undefined) throw fail(422, 'The column "' + need + '" was not found. The first row must be the header: Date, Payer, Credit (amount), Reference.');
+async function importBankTable(db, companyId, table, actor, fileName, bankAccount) {
+  const h = table.header.map(norm);
+  const find = (names) => h.findIndex((x) => names.includes(x));
+  const idx = {
+    date: find(['date', 'transactiondate', 'postingdate', '日期']), payer: find(['payer', 'name', 'description', 'payername', 'counterparty', 'payee', '付款人', '收款人']),
+    credit: find(['credit', 'moneyin', 'deposit', 'in', '收入']), debit: find(['debit', 'moneyout', 'withdrawal', 'out', '支出']), amount: find(['amount', '金额']),
+    ref: find(['reference', 'ref', 'remark', 'remarks', 'note']), account: find(['bankaccount', 'account', 'bank', '户口'])
+  };
+  if (idx.date < 0 || (idx.credit < 0 && idx.debit < 0 && idx.amount < 0)) throw fail(422, 'The columns were not found. The first row must be the header: Date, Payer, Credit (money in), Debit (money out), Reference, Bank Account (or one Amount column: money in above 0, money out below 0).');
   const lines = []; const problems = [];
   table.rows.forEach((r, i) => {
-    const date = toIsoDate(r[idx.date]); const amount = num(r[idx.amount]);
-    if (!String(r[idx.date] || '').trim() && !String(r[idx.amount] || '').trim()) return;
-    if (!date) { problems.push('Row ' + (i + 2) + ': the date "' + r[idx.date] + '" is not a date'); return; }
-    if (!Number.isFinite(amount)) { problems.push('Row ' + (i + 2) + ': the amount is not a number'); return; }
-    if (amount <= 0) return;   // only money in
-    lines.push({ date, amount, payer: idx.payer === undefined ? '' : String(r[idx.payer] || '').trim(), ref: idx.ref === undefined ? '' : String(r[idx.ref] || '').trim() });
+    const raw = (k) => (idx[k] >= 0 ? r[idx[k]] : '');
+    if (!String(raw('date')).trim() && ![idx.credit, idx.debit, idx.amount].some((c) => c >= 0 && String(r[c] || '').trim())) return;
+    const date = toIsoDate(raw('date'));
+    if (!date) { problems.push('Row ' + (i + 2) + ': the date "' + raw('date') + '" is not a date'); return; }
+    let amount = NaN, direction = 'in';
+    const cr = idx.credit >= 0 && String(raw('credit')).trim() !== '' ? num(raw('credit')) : NaN, db_ = idx.debit >= 0 && String(raw('debit')).trim() !== '' ? num(raw('debit')) : NaN;
+    if (Number.isFinite(cr) && cr !== 0) { amount = Math.abs(cr); direction = cr < 0 && idx.debit < 0 ? 'out' : 'in'; }
+    else if (Number.isFinite(db_) && db_ !== 0) { amount = Math.abs(db_); direction = 'out'; }
+    else if (idx.amount >= 0 && String(raw('amount')).trim() !== '') { const a = num(raw('amount')); if (Number.isFinite(a) && a !== 0) { amount = Math.abs(a); direction = a < 0 ? 'out' : 'in'; } }
+    else if (idx.credit >= 0 && idx.debit < 0 && idx.amount < 0) return;   // the old one-column template: a line without money in is skipped
+    if (!Number.isFinite(amount)) { if ((Number.isFinite(cr) && cr === 0) || (Number.isFinite(db_) && db_ === 0)) return; problems.push('Row ' + (i + 2) + ': the amount is not a number'); return; }
+    lines.push({ date, amount, direction, payer: idx.payer < 0 ? '' : String(raw('payer') || '').trim(), ref: idx.ref < 0 ? '' : String(raw('ref') || '').trim(), account: (idx.account >= 0 && String(raw('account')).trim()) || bankAccount || '' });
   });
-  if (problems.length) throw fail(422, problems.slice(0, 8).join('\n'));
-  if (!lines.length) throw fail(422, 'No money-in lines were found');
+  if (problems.length) throw fail(422, problems.slice(0, 8).join(String.fromCharCode(10)));
+  if (!lines.length) throw fail(422, 'No bank lines with money in or out were found');
   return importBankLines(db, companyId, lines, actor, fileName);
 }
 // a QC GROUP HQ bill read from a PDF -> one purchase transaction
@@ -337,7 +349,7 @@ async function approve(db, companyId, ids, actor) {
   }
   const months = txs.map((t) => (t.tx_date ? String(t.tx_date.toISOString ? t.tx_date.toISOString() : t.tx_date).slice(0, 7) : null)).filter(Boolean).sort();
   const appr = (await db.query("INSERT INTO approvals (company_id, month, module, tx_ids, approved_by, user_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
-    [companyId, months[0] || null, 'purchase', txs.map((t) => t.id), actor.name || 'unknown', actor.userId || null])).rows[0].id;
+    [companyId, months[0] || null, txs.every((t) => t.type === 'purchase') ? 'purchase' : txs.every((t) => t.type === 'bank') ? 'bank' : 'mixed', txs.map((t) => t.id), actor.name || 'unknown', actor.userId || null])).rows[0].id;
   for (const tx of txs) {
     const bukkuNo = tx.type === 'purchase' ? String((tx.data && tx.data.no) || '') : tx.bukku_no;
     await db.query("UPDATE transactions SET status = 'approved', approved_by = $2, approved_at = now(), bukku_no = $3, updated_at = now() WHERE id = $1", [tx.id, actor.name || null, bukkuNo || null]);
@@ -403,6 +415,7 @@ async function releaseExport(db, companyId, ids) {   // the file could not be ma
 }
 
 module.exports = {
+  audit, fail, isMgrRole, r2, num, normName,
   STATUSES, NEXT, can, nextInternalNo, purchaseContext, findIssues, runChecks, move,
   syncPurchaseBills, importPurchaseTable, importBankTable, importBankLines, importHqBill, mapColumns, toIsoDate,
   classify, submit, sendBack, approve, reopen, resolveException, exportPurchaseBills, recordExportFile, releaseExport, getTx

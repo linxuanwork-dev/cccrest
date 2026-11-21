@@ -71,6 +71,7 @@ td.r,th.r{text-align:right}
     <nav id="tabs" role="tablist">
       <button role="tab" data-tab="settings" aria-selected="true">公司设定</button>
       <button role="tab" data-tab="tx">标准交易</button>
+      <button role="tab" data-tab="bank">银行配对</button>
       <button role="tab" data-tab="branches">分店</button>
       <button role="tab" data-tab="rules">法规规则</button>
       <button role="tab" data-tab="audit">修改记录</button>
@@ -78,6 +79,39 @@ td.r,th.r{text-align:right}
   </div>
 </header>
 <main class="wrap">
+
+<!-- ================= bank matching ================= -->
+<section id="t-bank" hidden>
+  <div class="panel">
+    <div class="ph"><h2>银行配对</h2><label class="row">公司 <select id="kCo" style="width:auto;min-width:240px"></select></label></div>
+    <p class="hint">银行每一笔钱进钱出，都要有交代：对上它付的单（一笔可以付好几张单，一张单可以分几次付）、或者选它是什么（直接支出、其他收入……）、或者和另一个户口的转账配成一对。系统只会「建议」（金额、名字、单号、日期），<b>要人确认</b>；配对过一次的付款人名字，系统会记住。配好的不能改，批准后锁定。</p>
+    <div class="row">
+      <label class="btn" style="cursor:pointer">导入银行对账单（Excel / CSV / PDF）<input type="file" id="kFile" accept=".xlsx,.csv,.txt,.pdf" hidden></label>
+      <input id="kAcct" placeholder="银行户口名称，例如 PBB 1234" style="width:220px">
+      <button class="btn sm" data-ktpl="xlsx">模板 Excel</button><button class="btn sm" data-ktpl="csv">模板 CSV</button>
+    </div>
+    <p class="hint" style="margin:6px 0 0">文件第一行要有表头：Date、Payer、Credit（进）、Debit（出）、Reference、Bank Account；或者只有一栏 Amount（进为正、出为负）。PDF 只读 Public Bank 的进账；扫描件读不了。</p>
+    <div id="kMsg" style="margin-top:8px"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>银行明细</h2>
+      <div class="row"><select id="kDir" style="width:auto"><option value="">进和出</option><option value="in">只看进</option><option value="out">只看出</option></select>
+      <select id="kStatus" style="width:auto"><option value="pending,imported">还没交代的</option><option value="">全部状态</option><option value="matched,classified">已配对 / 已分类</option><option value="in_review">待审核</option><option value="approved,exported">已批准</option></select>
+      <input id="kMonth" type="month" style="width:auto">
+      <span class="row">下载报告：<button class="btn sm" data-kdl="xlsx">Excel</button><button class="btn sm" data-kdl="csv">CSV</button><button class="btn sm" data-kdl="pdf">PDF</button></span></div>
+    </div>
+    <div class="row" style="margin-bottom:8px">选中的：<button class="btn sm pri" id="kConfirm">确认系统建议（很有把握的）</button><button class="btn sm" id="kSubmit">送去审核</button><button class="btn sm pri" id="kApprove">批准</button></div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="kAll"></th><th>编号</th><th>日期</th><th>户口</th><th>进 / 出</th><th>付款人 / 收款人</th><th>参考</th><th class="r">金额</th><th>状态</th><th>配到 / 种类</th><th class="r">还差</th><th></th></tr></thead><tbody id="kBody"></tbody></table></div>
+  </div>
+  <div class="panel" id="kDetail" hidden>
+    <div class="ph"><h2 id="kDetTitle">配对</h2><button class="btn sm" id="kDetClose">关闭</button></div>
+    <div id="kDetBody"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>要看一下的</h2><button class="btn sm" id="kPromptsGo">重新检查</button></div>
+    <div id="kPrompts"></div>
+  </div>
+</section>
 
 <!-- ================= standard transactions ================= -->
 <section id="t-tx" hidden>
@@ -233,8 +267,8 @@ const coName = id => { const c = COMPANIES.find(x => x.id === id); return c ? c.
 /* ---------- tabs ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
-  ['settings','tx','branches','rules','audit'].forEach(x => $('t-' + x).hidden = x !== t);
-  if (t === 'settings') loadSettings(); if (t === 'tx') loadTx(); if (t === 'branches') loadBranches(); if (t === 'rules') loadRules(); if (t === 'audit' && !$('aBody').children.length) loadAudit();
+  ['settings','tx','bank','branches','rules','audit'].forEach(x => $('t-' + x).hidden = x !== t);
+  if (t === 'settings') loadSettings(); if (t === 'tx') loadTx(); if (t === 'bank') loadBank(); if (t === 'branches') loadBranches(); if (t === 'rules') loadRules(); if (t === 'audit' && !$('aBody').children.length) loadAudit();
 }
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
 
@@ -463,13 +497,86 @@ $('xDetail').addEventListener('click', async e => {
   const r = e.target.closest('[data-xreopen]'); if (r) { const why = prompt('重新打开，请写原因：', ''); if (!why || why.trim().length < 3) return toast('没有打开：要写原因'); try { await api('POST', xBase() + '/reopen', { id: +r.dataset.xreopen, reason: why.trim() }); toast('已重新打开'); openTx(+r.dataset.xreopen); loadTx(); } catch (err) { toast(err.message); } }
 });
 
+/* ---------- bank matching ---------- */
+const kBase = () => '/companies/' + $('kCo').value + '/transactions';
+const K_KIND = { credit_purchase: '付供应商的单', cash_bill: '现金账单', direct_expense: '直接支出', subcon: 'Subcon / 个人收款人', internal_transfer: '内部转账', director: '老板 / 董事', suspense: 'Suspense（先放着）', credit_sales: '客户付的单', daily_sales: '当天销售', other_income: '其他收入', matched: '已配对' };
+let K_ROWS = [], K_CUR = null;
+const fm = v => Number(v).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function kQuery(){ const p = new URLSearchParams(); if ($('kDir').value) p.set('direction', $('kDir').value); if ($('kStatus').value) p.set('status', $('kStatus').value); if ($('kMonth').value) p.set('month', $('kMonth').value); return p; }
+async function loadBank(){
+  if (!$('kCo').value) { $('kBody').innerHTML = '<tr><td colspan="12" class="empty">先选一家公司</td></tr>'; $('kPrompts').innerHTML = ''; return; }
+  try {
+    K_ROWS = await api('GET', kBase() + '/bank/report?' + kQuery().toString());
+    $('kBody').innerHTML = K_ROWS.map(r => '<tr><td><input type="checkbox" data-kid="' + r.id + '"></td><td class="mono">' + esc(r.internalNo) + '</td><td class="mono">' + esc(r.date) + '</td><td class="mono">' + esc(r.account) + '</td><td>' + (r.direction === 'out' ? '<span class="pill warn">出</span>' : '<span class="pill ok">进</span>') + '</td><td>' + esc(r.payer) + '</td><td class="small">' + esc(r.ref) + '</td><td class="r mono">' + fm(r.amount) + '</td><td><span class="pill ' + (X_CLS[r.status] || '') + '">' + esc(X_STATUS[r.status] || r.status) + '</span></td><td>' + esc(K_KIND[r.kind] || r.kind) + (r.matchedTo ? '<div class="small mono">' + esc(r.matchedTo) + '</div>' : '') + (r.fee ? '<div class="small">手续费 ' + fm(r.fee) + '</div>' : '') + '</td><td class="r mono ' + (r.left ? 'chg' : '') + '">' + (r.left ? fm(r.left) : '') + '</td><td class="act"><button class="btn sm" data-kopen="' + r.id + '">配对 / 交代</button></td></tr>').join('') || '<tr><td colspan="12" class="empty">没有银行明细。上面可以导入对账单。</td></tr>';
+    const pr = await api('GET', kBase() + '/bank/prompts');
+    $('kPrompts').innerHTML = pr.length ? '<table style="min-width:0"><tbody>' + pr.slice(0, 60).map(x => '<tr><td><span class="pill warn">' + esc({ bank_unmatched: '没交代', in_suspense: 'Suspense', bill_unpaid: '单没付' }[x.type] || x.type) + '</span></td><td class="mono">' + esc(x.internalNo) + '</td><td>' + esc(x.text) + '</td></tr>').join('') + '</tbody></table>' : '<div class="hint">没有要特别看的。</div>';
+  } catch (e) { $('kBody').innerHTML = '<tr><td colspan="12" class="empty">' + esc(e.message) + '</td></tr>'; }
+}
+$('kCo').addEventListener('change', loadBank); ['kDir', 'kStatus', 'kMonth'].forEach(i => $(i).addEventListener('change', loadBank)); $('kPromptsGo').addEventListener('click', loadBank);
+$('kAll').addEventListener('change', e => document.querySelectorAll('#kBody [data-kid]').forEach(c => c.checked = e.target.checked));
+const kSel = () => [...document.querySelectorAll('#kBody [data-kid]:checked')].map(c => +c.dataset.kid);
+async function kDo(label, fn){ try { const r = await fn(); say('kMsg', label + ' ✓', 'ok'); toast(label + ' ✓'); loadBank(); return r; } catch (e) { say('kMsg', e.message, 'warn'); toast(e.message); } }
+$('kFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (!$('kCo').value) return say('kMsg', '先选一家公司', 'warn');
+  try {
+    const r = await fetch('/api' + kBase() + '/import?kind=bank&name=' + encodeURIComponent(f.name) + '&account=' + encodeURIComponent($('kAcct').value.trim()), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: await f.arrayBuffer() });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    say('kMsg', '已导入 ' + j.created + ' 笔银行明细，等着交代', 'ok'); toast('已导入 ' + j.created + ' 笔'); loadBank();
+  } catch (err) { $('kMsg').innerHTML = '<div class="notice bad" style="white-space:pre-wrap">' + esc(err.message) + '</div>'; }
+});
+document.querySelector('#t-bank').addEventListener('click', async e => {
+  const t = e.target.closest('[data-ktpl]'); if (t) return download('GET', kBase() + '/template?kind=bank&format=' + t.dataset.ktpl, null, 'template-bank.' + t.dataset.ktpl).catch(err => toast(err.message));
+  const d = e.target.closest('[data-kdl]'); if (d) { const p = kQuery(); p.set('format', d.dataset.kdl); return download('GET', kBase() + '/bank/report?' + p.toString(), null, 'bank-report.' + d.dataset.kdl).catch(err => toast(err.message)); }
+  const o = e.target.closest('[data-kopen]'); if (o) return openBank(+o.dataset.kopen);
+});
+$('kConfirm').addEventListener('click', () => { const ids = kSel(); if (!ids.length) return toast('先勾选（只会处理很有把握、而且刚好对上整笔金额的）'); kDo('确认系统建议', async () => { const r = await api('POST', kBase() + '/bank/confirm-suggestions', { ids }); say('kMsg', '已配对 ' + r.matched.length + ' 笔；没动的 ' + r.skipped.length + ' 笔（' + [...new Set(r.skipped.map(x => x.reason))].join('、') + '）', 'ok'); }); });
+$('kSubmit').addEventListener('click', () => { const ids = kSel(); if (!ids.length) return toast('先勾选'); kDo('送去审核', () => api('POST', kBase() + '/submit', { ids })); });
+$('kApprove').addEventListener('click', () => { const ids = kSel(); if (!ids.length) return toast('先勾选'); if (!confirm('批准这 ' + ids.length + ' 笔银行明细？批准后配对锁定，只有 Owner 能重新打开。')) return; kDo('批准', () => api('POST', kBase() + '/approve', { ids })); });
+async function openBank(id){
+  try {
+    const [det, sug] = await Promise.all([api('GET', kBase() + '/' + id), api('GET', kBase() + '/' + id + '/suggestions')]);
+    const t = det.transaction, dirOut = t.direction !== 'in'; K_CUR = { id, t, out: dirOut ? await api('GET', kBase() + '/bank/outstanding') : [], left: sug.bank.left };
+    $('kDetTitle').textContent = t.internalNo + ' · ' + (dirOut ? '出 ' : '进 ') + fm(t.amount) + ' · ' + (t.counterparty || '') + ' · ' + (X_STATUS[t.status] || t.status);
+    const locked = ['approved', 'exported'].includes(t.status);
+    let h = '<div class="hint">日期 ' + esc(t.date) + ' · 户口 ' + esc(t.bankAccount) + ' · 参考 ' + esc(t.ref) + ' · 还差 <b>' + fm(sug.bank.left) + '</b></div>';
+    h += '<h3 style="margin:12px 0 6px;font-size:13px">已配的</h3>' + (det.matches.filter(m => !m.voided).map(m => '<div class="row" style="margin:3px 0"><span class="mono">' + esc(m.bank_no) + ' → ' + esc(m.other_no) + '</span> ' + esc(m.other_name || '') + ' <b>' + fm(m.applied) + '</b> ' + (m.note ? '<span class="small">' + esc(m.note) + '</span>' : '') + (locked ? '' : '<button class="btn sm danger" data-kunmatch="' + m.id + '">撤销</button>') + '</div>').join('') || '<div class="hint">还没有</div>');
+    if (!locked && sug.bank.left > 0.004) {
+      h += '<h3 style="margin:12px 0 6px;font-size:13px">系统的建议</h3>' + (sug.suggestions.map((s, i) => '<div style="margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px"><span class="pill ' + (s.level === 'high' ? 'ok' : s.level === 'medium' ? 'warn' : '') + '">把握 ' + s.confidence + '</span> ' + esc(s.contact) + '：' + s.allocations.map(a => esc(a.billNo || a.internalNo) + ' ' + fm(a.amount)).join(' + ') + (Math.abs(s.diff) > 0.004 ? ' <span class="pill warn">还差 ' + fm(s.diff) + '</span>' : '') + '<div class="small">' + s.reasons.map(esc).join('；') + '</div><button class="btn sm pri" data-kuse="' + i + '">采用这个建议</button></div>').join('') || '<div class="hint">系统没有找到有把握的建议。</div>');
+      K_CUR.sug = sug.suggestions;
+      if (dirOut) {
+        h += '<h3 style="margin:12px 0 6px;font-size:13px">自己选要付的单</h3><div class="tbl"><table style="min-width:0"><thead><tr><th></th><th>供应商</th><th>单号</th><th>日期</th><th class="r">还没付</th><th class="r">这笔付</th></tr></thead><tbody>' + K_CUR.out.map((d, i) => '<tr><td><input type="checkbox" data-kdoc="' + i + '"></td><td>' + esc(d.counterparty) + '</td><td class="mono">' + esc(d.billNo || d.internalNo) + '</td><td class="mono">' + esc(d.date) + '</td><td class="r mono">' + fm(d.outstanding) + '</td><td class="r"><input data-kamt="' + i + '" value="' + d.outstanding + '" style="width:110px;text-align:right"></td></tr>').join('') + '</tbody></table></div>' +
+          '<div class="row" style="margin-top:6px"><label class="row">银行手续费 <input id="kFee" value="0" style="width:90px;text-align:right"></label><label class="row">备注 <input id="kNote" style="width:240px"></label><button class="btn pri" id="kMatchGo">配对</button></div>';
+      }
+      h += '<h3 style="margin:12px 0 6px;font-size:13px">不是付单，是别的</h3><div class="fields"><label class="f"><span>种类</span><select id="kKind">' + ['direct_expense', 'cash_bill', 'subcon', 'director', 'suspense', 'other_income'].filter(k => dirOut ? k !== 'other_income' : ['director', 'suspense', 'other_income'].includes(k)).map(k => '<option value="' + k + '">' + esc(K_KIND[k]) + '</option>').join('') + '</select></label><label class="f"><span>Account</span><input id="kAccount"></label><label class="f"><span>Contact code（现金账单 / subcon）</span><input id="kContact"></label><label class="f"><span>收款人 IC / 护照（subcon）</span><input id="kIc"></label><label class="f wide"><span>备注</span><input id="kKnote"></label></div><div class="row" style="margin-top:6px"><button class="btn" id="kKindGo">保存这个交代</button></div>';
+      h += '<h3 style="margin:12px 0 6px;font-size:13px">内部转账（和另一个户口配成一对）</h3><div id="kTrf" class="hint">读取中…</div>';
+    }
+    h += '<div id="kDetMsg" style="margin-top:8px"></div>';
+    $('kDetBody').innerHTML = h; $('kDetail').hidden = false; $('kDetail').scrollIntoView({ behavior: 'smooth' });
+    if (!locked && sug.bank.left > 0.004) api('GET', kBase() + '/' + id + '/transfer-candidates').then(c => { K_CUR.trf = c; $('kTrf').innerHTML = c.length ? c.map((x, i) => '<div class="row" style="margin:3px 0"><span class="mono">' + esc(x.internalNo) + '</span> ' + esc(x.date) + ' ' + fm(x.amount) + ' ' + esc(x.counterparty) + ' <span class="small">' + esc(x.bankAccount) + '</span><button class="btn sm" data-ktrf="' + i + '">配成转账</button></div>').join('') : '没有金额和日期都对得上的另一个户口的明细。'; }).catch(() => {});
+  } catch (e) { toast(e.message); }
+}
+$('kDetClose').addEventListener('click', () => $('kDetail').hidden = true);
+const kMsg2 = (t, c) => { $('kDetMsg').innerHTML = '<span class="pill ' + (c || '') + '">' + esc(t) + '</span>'; };
+$('kDetail').addEventListener('click', async e => {
+  if (!K_CUR) return; const id = K_CUR.id;
+  const reload = () => { loadBank(); openBank(id); };
+  const us = e.target.closest('[data-kuse]'); if (us) { const s = K_CUR.sug[+us.dataset.kuse]; try { await api('POST', kBase() + '/' + id + '/match', { allocations: s.allocations.map(a => ({ txId: a.txId, amount: a.amount })), suggested: true }); toast('已配对'); reload(); } catch (err) { kMsg2(err.message, 'warn'); } return; }
+  const un = e.target.closest('[data-kunmatch]'); if (un) { const why = prompt('撤销这个配对，请写原因：', ''); if (!why || why.trim().length < 3) return toast('没有撤销：要写原因'); try { await api('POST', kBase() + '/unmatch', { matchId: +un.dataset.kunmatch, reason: why.trim() }); toast('已撤销'); reload(); } catch (err) { kMsg2(err.message, 'warn'); } return; }
+  if (e.target.id === 'kMatchGo') {
+    const allocations = [...document.querySelectorAll('[data-kdoc]:checked')].map(c => { const i = +c.dataset.kdoc; return { txId: K_CUR.out[i].id, amount: +document.querySelector('[data-kamt="' + i + '"]').value }; });
+    try { await api('POST', kBase() + '/' + id + '/match', { allocations, fee: +$('kFee').value || 0, note: $('kNote').value }); toast('已配对'); reload(); } catch (err) { kMsg2(err.message, 'warn'); } return;
+  }
+  if (e.target.id === 'kKindGo') { try { await api('POST', kBase() + '/' + id + '/bank-kind', { kind: $('kKind').value, account: $('kAccount').value, contact_code: $('kContact').value, payee_ic: $('kIc').value, note: $('kKnote').value }); toast('已交代'); reload(); } catch (err) { kMsg2(err.message, 'warn'); } return; }
+  const tr = e.target.closest('[data-ktrf]'); if (tr) { const x = K_CUR.trf[+tr.dataset.ktrf]; const outId = K_CUR.t.direction === 'out' ? id : x.id, inId = K_CUR.t.direction === 'out' ? x.id : id; try { const r = await api('POST', kBase() + '/transfer', { outId, inId }); toast('已配成转账 ' + r.transferNo); reload(); } catch (err) { kMsg2(err.message, 'warn'); } }
+});
+
 /* ---------- start ---------- */
 (async () => {
   try { COMPANIES = await api('GET', '/companies'); } catch (e) { toast('读不到公司清单：' + e.message); }
   COMPANIES.sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const opts = COMPANIES.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   $('sCo').innerHTML = '<option value="">选择公司…</option>' + opts; $('bCo').innerHTML = '<option value="">选择公司…</option>' + opts;
-  $('aCo').innerHTML = '<option value="">全部</option>' + opts; $('xCo').innerHTML = '<option value="">选择公司…</option>' + opts;
+  $('aCo').innerHTML = '<option value="">全部</option>' + opts; $('xCo').innerHTML = '<option value="">选择公司…</option>' + opts; $('kCo').innerHTML = '<option value="">选择公司…</option>' + opts;
   $('sFrom').value = '';
 })();
 })();

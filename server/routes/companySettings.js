@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const { pool } = require('../db');
 const { requireAuth, requireRole, scopeToCompany } = require('../auth');
 const branchesLib = require('../lib/branches');
@@ -52,6 +53,15 @@ router.get('/companies/:companyId/branches', requireAuth, scopeToCompany, async 
   const rows = await branchesLib.list(parseInt(req.params.companyId, 10));
   res.json(rows.map((b) => ({ code: b.code, name: b.name, merchantId: b.merchant_id, sortOrder: b.sort_order })));
 });
+
+// all branches of a company, also the switched-off ones, with the extra data (Owner only: for the admin page)
+router.get('/company-branches/:companyId', ...guard, async (req, res) => {
+  const id = parseInt(req.params.companyId, 10); if (!id) return res.status(400).json({ error: 'Bad company' });
+  res.json(await branchesLib.list(id, null, { includeInactive: true }));
+});
+
+// the admin page (company settings, branches, statutory rules, audit log): Owner only
+router.get('/admin-console/app', ...guard, (req, res) => { res.sendFile(path.join(__dirname, '..', 'assets', 'admin', 'app.html')); });
 
 // add or change a branch (Owner only; the reason and the before / after go to the audit_log)
 router.put('/company-branches/:companyId', ...guard, async (req, res) => {

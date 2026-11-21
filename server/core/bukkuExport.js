@@ -67,4 +67,27 @@ function buildPurchaseBillWorkbook({ bills, suppliers, defaultAccount, today }) 
   return wb;
 }
 
-module.exports = { buildPurchaseBillWorkbook, HEADER, NOTES, COL_WIDTHS, normName, dmy, numOrText };
+
+/* ---------- Money Out ("TEMPLATE FOR MONEY OUT(S)", the template Bukku gave: the instructions, the header and the formats are the template file itself) ----------
+   lines: [{ contactCode, legalName, no, ref, date 'YYYY-MM-DD', paymentAccount, tags, description, account, itemDescription, amount }] (one line item each).
+   The workbook is the template (server/assets/bukku-money-out-template.xlsx) with the lines written from row 26; the empty rows below are dropped. */
+const path = require('path');
+const MONEY_OUT_TEMPLATE = path.join(__dirname, '..', 'assets', 'bukku-money-out-template.xlsx');
+const MONEY_OUT_FIRST_ROW = 26;
+async function buildMoneyOutWorkbook({ lines }) {
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(MONEY_OUT_TEMPLATE);
+  const ws = wb.worksheets[0];
+  lines.forEach((l, i) => {
+    const r = ws.getRow(MONEY_OUT_FIRST_ROW + i);
+    const put = (col, v, text) => { const c = r.getCell(col); c.value = v; if (text && v !== '') c.numFmt = '@'; };
+    put(2, l.contactCode || '', true); put(3, l.legalName || '', true); put(4, l.no || '', true); put(5, l.ref || '', true); put(6, dmy(l.date), true);
+    put(9, numOrText(l.paymentAccount)); put(10, l.tags || ''); put(11, l.description || ''); put(12, numOrText(l.account)); put(13, l.itemDescription || '');
+    const amt = r.getCell(14); amt.value = Number(l.amount); amt.numFmt = '#,##0.00';
+    r.commit();
+  });
+  const last = MONEY_OUT_FIRST_ROW + lines.length;
+  if (ws.rowCount >= last) ws.spliceRows(last, ws.rowCount - last + 1);
+  return wb;
+}
+
+module.exports = { buildPurchaseBillWorkbook, buildMoneyOutWorkbook, HEADER, NOTES, COL_WIDTHS, normName, dmy, numOrText };

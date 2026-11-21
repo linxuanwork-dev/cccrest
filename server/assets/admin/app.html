@@ -100,12 +100,20 @@ td.r,th.r{text-align:right}
       <input id="kMonth" type="month" style="width:auto">
       <span class="row">下载报告：<button class="btn sm" data-kdl="xlsx">Excel</button><button class="btn sm" data-kdl="csv">CSV</button><button class="btn sm" data-kdl="pdf">PDF</button></span></div>
     </div>
-    <div class="row" style="margin-bottom:8px">选中的：<button class="btn sm pri" id="kConfirm">确认系统建议（很有把握的）</button><button class="btn sm" id="kSubmit">送去审核</button><button class="btn sm pri" id="kApprove">批准</button></div>
+    <div class="row" style="margin-bottom:8px">选中的：<button class="btn sm pri" id="kConfirm">确认系统建议（很有把握的）</button><button class="btn sm" id="kSubmit">送去审核</button><button class="btn sm pri" id="kApprove">批准</button>
+      <span class="row">导出 Bukku 付款文件（Money Out）：<button class="btn sm" data-kmo="xlsx">Excel</button><button class="btn sm" data-kmo="csv">CSV</button><button class="btn sm" data-kmo="pdf">PDF（清单）</button></span></div>
+    <p class="hint" style="margin:0 0 8px">Money Out 文件只放已批准的「直接支出 / Suspense / 老板或董事 / Subcon」。付供应商的单要用 Bukku 的 Purchase Payments 文件（还没加），现金账单要用 Cash Purchase 文件（还没加）。Bukku 会按文件里的顺序给单号，所以文件按日期排；更早的明细还没交代，就不能导出（先交代，或先放 Suspense）。</p>
     <div class="tbl"><table><thead><tr><th><input type="checkbox" id="kAll"></th><th>编号</th><th>日期</th><th>户口</th><th>进 / 出</th><th>付款人 / 收款人</th><th>参考</th><th class="r">金额</th><th>状态</th><th>配到 / 种类</th><th class="r">还差</th><th></th></tr></thead><tbody id="kBody"></tbody></table></div>
   </div>
   <div class="panel" id="kDetail" hidden>
     <div class="ph"><h2 id="kDetTitle">配对</h2><button class="btn sm" id="kDetClose">关闭</button></div>
     <div id="kDetBody"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>银行户口对照（对账单上的名称 → Bukku 的 account 代号）</h2></div>
+    <p class="hint">导出 Bukku 文件时「Payment Account」要用 Bukku 的 account 代号（例如 1000-11）。每个银行户口设一次；每次改动都要写原因，会记进修改记录。</p>
+    <div class="tbl"><table style="min-width:0"><thead><tr><th>户口名称</th><th class="r">明细数</th><th>Bukku account 代号</th><th></th></tr></thead><tbody id="kAccts"></tbody></table></div>
+    <div class="row" style="margin-top:6px"><input id="kAcctNew" placeholder="新的户口名称" style="width:200px"><input id="kAcctNewCode" placeholder="代号" style="width:120px"><input id="kAcctReason" placeholder="原因（必填）" style="width:240px"><button class="btn sm" id="kAcctSave">保存</button><span id="kAcctMsg"></span></div>
   </div>
   <div class="panel">
     <div class="ph"><h2>要看一下的</h2><button class="btn sm" id="kPromptsGo">重新检查</button></div>
@@ -268,7 +276,7 @@ const coName = id => { const c = COMPANIES.find(x => x.id === id); return c ? c.
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   ['settings','tx','bank','branches','rules','audit'].forEach(x => $('t-' + x).hidden = x !== t);
-  if (t === 'settings') loadSettings(); if (t === 'tx') loadTx(); if (t === 'bank') loadBank(); if (t === 'branches') loadBranches(); if (t === 'rules') loadRules(); if (t === 'audit' && !$('aBody').children.length) loadAudit();
+  if (t === 'settings') loadSettings(); if (t === 'tx') loadTx(); if (t === 'bank') { loadBank(); loadBankAccounts(); } if (t === 'branches') loadBranches(); if (t === 'rules') loadRules(); if (t === 'audit' && !$('aBody').children.length) loadAudit();
 }
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
 
@@ -278,7 +286,10 @@ const KNOWN = [
   ['merchant_report', '"ol_tng"', '这家公司的商户报告显示哪一张专用卡片'],
   ['short_name', '"OL"', '文件名里用的公司简称'],
   ['eno_preselect', 'true', '设定页「Company E No.」一打开就选这家公司'],
-  ['dm_invoice', '{ invoicePattern, itemDescription, prices }', 'Didik Mulia 的 Registration & Modul 发票：单号格式、货品说明、价格']
+  ['dm_invoice', '{ invoicePattern, itemDescription, prices }', 'Didik Mulia 的 Registration & Modul 发票：单号格式、货品说明、价格'],
+  ['money_out_number', '"PV-{YY}{MM}-[3DIGIT]"', 'Bukku Money Out 文件的单号格式：{YY} {MM} {YYYY} 由系统填，[3DIGIT] 留给 Bukku 按顺序编；不设就用 Bukku 自己的默认单号'],
+  ['suspense_account', '"9007-99"', '银行明细「先放 Suspense」用的 account'],
+  ['director_account', '"3000-01"', '银行明细「老板 / 董事」用的 account']
 ];
 $('knownKeys').innerHTML = KNOWN.map(k => '<option value="' + esc(k[0]) + '">').join('');
 $('knownBody').innerHTML = KNOWN.map(k => '<tr><td class="mono">' + esc(k[0]) + '</td><td class="mono">' + esc(k[1]) + '</td><td>' + esc(k[2]) + '</td></tr>').join('');
@@ -568,6 +579,26 @@ $('kDetail').addEventListener('click', async e => {
   }
   if (e.target.id === 'kKindGo') { try { await api('POST', kBase() + '/' + id + '/bank-kind', { kind: $('kKind').value, account: $('kAccount').value, contact_code: $('kContact').value, payee_ic: $('kIc').value, note: $('kKnote').value }); toast('已交代'); reload(); } catch (err) { kMsg2(err.message, 'warn'); } return; }
   const tr = e.target.closest('[data-ktrf]'); if (tr) { const x = K_CUR.trf[+tr.dataset.ktrf]; const outId = K_CUR.t.direction === 'out' ? id : x.id, inId = K_CUR.t.direction === 'out' ? x.id : id; try { const r = await api('POST', kBase() + '/transfer', { outId, inId }); toast('已配成转账 ' + r.transferNo); reload(); } catch (err) { kMsg2(err.message, 'warn'); } }
+});
+
+
+async function loadBankAccounts(){
+  if (!$('kCo').value) { $('kAccts').innerHTML = ''; return; }
+  try {
+    const rows = await api('GET', kBase() + '/bank/accounts');
+    $('kAccts').innerHTML = rows.map(b => '<tr><td class="mono">' + esc(b.label) + '</td><td class="r">' + b.lines + '</td><td><input data-kacc="' + esc(b.label) + '" value="' + esc(b.account) + '" style="width:140px" placeholder="例如 1000-11"></td><td><button class="btn sm" data-kaccsave="' + esc(b.label) + '">保存</button></td></tr>').join('') || '<tr><td colspan="4" class="empty">还没有银行明细，导入对账单之后这里会出现户口名称</td></tr>';
+  } catch (e) { $('kAccts').innerHTML = '<tr><td colspan="4" class="empty">' + esc(e.message) + '</td></tr>'; }
+}
+async function saveBankAccount(label, code){
+  const why = $('kAcctReason').value.trim(); if (why.length < 3) return say('kAcctMsg', '请写原因（至少几个字）', 'warn');
+  try { await api('PUT', kBase() + '/bank/accounts', { label, account: code, reason: why }); say('kAcctMsg', '已保存，并记进修改记录', 'ok'); loadBankAccounts(); } catch (e) { say('kAcctMsg', e.message, 'warn'); }
+}
+$('kCo').addEventListener('change', loadBankAccounts);
+$('kAcctSave').addEventListener('click', () => { const l = $('kAcctNew').value.trim(); if (!l) return say('kAcctMsg', '请填户口名称', 'warn'); saveBankAccount(l, $('kAcctNewCode').value.trim()); });
+$('kAccts').addEventListener('click', e => { const b = e.target.closest('[data-kaccsave]'); if (!b) return; const l = b.dataset.kaccsave; saveBankAccount(l, document.querySelector('[data-kacc="' + CSS.escape(l) + '"]').value.trim()); });
+document.querySelector('#t-bank').addEventListener('click', e => {
+  const m = e.target.closest('[data-kmo]'); if (!m) return; const ids = kSel(); if (!ids.length) return toast('先勾选要导出的（要是已批准的）');
+  kDo('导出 Bukku Money Out（' + m.dataset.kmo + '）', () => download('POST', kBase() + '/bank/export-money-out', { ids, format: m.dataset.kmo }, 'money-out.' + m.dataset.kmo));
 });
 
 /* ---------- start ---------- */

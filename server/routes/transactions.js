@@ -149,6 +149,37 @@ router.get(BASE + '/bank/report', ...guard(1), async (req, res) => {
     rows: rows.map((r) => [r.internalNo, r.date, r.account, r.direction === 'out' ? 'Out' : 'In', r.payer, r.ref, r.amount, r.status, r.kind, r.matchedTo, r.fee, r.left]), sheet: 'Bank report' },
     info.PREFIX + '-BANK-REPORT-' + new Date().toISOString().slice(0, 10).replace(/-/g, ''));
 });
+// the Bukku account code of each bank account (the label on the statement -> the code in Bukku)
+router.get(BASE + '/bank/accounts', ...guard(1), async (req, res) => res.json(await Bank.bankAccounts(pool, cid(req))));
+router.put(BASE + '/bank/accounts', ...guard(2), async (req, res) => {
+  const a = await actorOf(req); if (!['admin', 'manager'].includes(a.role)) return res.status(403).json({ error: 'Only the Owner or a Manager can set the Bukku account of a bank account' });
+  await inTx((db) => Bank.setBankAccount(db, cid(req), req.body && req.body.label, req.body && req.body.account, a, req.body && req.body.reason)); res.json({ ok: true });
+});
+// the Bukku Money Out file of approved money-out lines (direct expense, suspense, director, subcon): Excel (the Bukku template), CSV or a PDF list
+router.post(BASE + '/bank/export-money-out', ...guard(2), async (req, res) => {
+  const format = ['xlsx', 'csv', 'pdf'].includes(req.body && req.body.format) ? req.body.format : 'xlsx';
+  const a = await actorOf(req); const r = await inTx((db) => Bank.exportMoneyOut(db, cid(req), idList(req.body && req.body.ids), a));
+  try {
+    const dates = r.lines.map((l) => l.date).sort(); const months = dates.map((d) => d.slice(0, 7).replace('-', '_'));
+    const span = months.length ? (months[0] === months[months.length - 1] ? months[0] : months[0] + '_' + months[months.length - 1]) : 'NO_DATE';
+    const info = await docs.companyInfo(cid(req));
+    const base = await docs.fileBase('bank_money_out', cid(req), { SPAN: span }, info.PREFIX + '-BUKKU-MONEY_OUT-' + span);
+    let file;
+    if (format === 'xlsx') { docs.stampWorkbook(r.workbook, docs.stampText(await docs.userNameFor(req))); file = { buffer: Buffer.from(await r.workbook.xlsx.writeBuffer()), mime: F.FORMATS.xlsx.mime, ext: 'xlsx' }; }
+    else if (format === 'csv') file = { buffer: Buffer.from(await r.workbook.csv.writeBuffer({ sheetName: 'Worksheet' })), mime: F.FORMATS.csv.mime, ext: 'csv' };
+    else file = await F.render('pdf', { company: info.name, title: 'Bank payments for Bukku (Money Out)', subtitle: r.lines.length + ' lines',
+      header: ['Date', 'Contact', 'No.', 'Reference', 'Payment account', 'Account', 'Item', 'Amount'],
+      rows: r.lines.map((l) => [l.date, l.legalName || l.contactCode, l.no, l.ref, String(l.paymentAccount || ''), String(l.account || ''), l.itemDescription, l.amount]),
+      total: ['Total', '', '', '', '', '', '', Math.round(r.lines.reduce((s, l) => s + l.amount, 0) * 100) / 100] });
+    const name = base + '.' + file.ext;
+    await inTx((db) => T.recordExportFile(db, cid(req), r.txs, name));
+    await docs.logEvent(req, cid(req), 'bank_money_out', name, 'generated', [{ field: 'lines', from: '', to: String(r.txs.length) }]);
+    res.setHeader('Content-Type', file.mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader('X-File-Name', encodeURIComponent(name));
+    res.send(file.buffer);
+  } catch (err) { await T.releaseExport(pool, cid(req), r.txs).catch(() => {}); throw err; }
+});
 router.post(BASE + '/bank/confirm-suggestions', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.confirmSuggestions(db, cid(req), idList(req.body && req.body.ids), a, req.body && req.body.minConfidence))); });
 router.post(BASE + '/transfer', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.pairTransfer(db, cid(req), parseInt(req.body && req.body.outId, 10), parseInt(req.body && req.body.inId, 10), a, req.body && req.body.note))); });
 router.post(BASE + '/unmatch', ...guard(2), async (req, res) => { const a = await actorOf(req); res.json(await inTx((db) => Bank.unmatch(db, cid(req), parseInt(req.body && req.body.matchId, 10), a, req.body && req.body.reason))); });

@@ -5,6 +5,8 @@
 // Money out is matched to purchase bills. Money in is matched to sales documents (they come with the Sales part: until then money in is given a meaning by hand).
 const T = require('./transactions');
 const settings = require('../lib/settings');
+const auditLog = require('../lib/auditLog');
+const { buildMoneyOutWorkbook } = require('./bukkuExport');
 
 const { audit, fail, isMgrRole, r2, normName } = T;
 
@@ -293,4 +295,62 @@ async function bankReport(db, companyId, filters) {
   });
 }
 
-module.exports = { KINDS, TARGET, nameKey, nameScore, outstanding, suggest, matchBank, confirmSuggestions, unmatch, setKind, transferCandidates, pairTransfer, prompts, bankReport };
+/* ---------- the Bukku Money Out file (direct expenses, suspense, director, subcon) ---------- */
+// the kinds that are one Money Out each. A payment of bills needs Bukku's Purchase Payments file, a cash bill the Cash Purchase file (not added yet).
+const MONEY_OUT_KINDS = ['direct_expense', 'suspense', 'director', 'subcon'];
+
+// the Bukku account code of each bank account label (the label on the statement -> the code in Bukku), kept in account_mappings
+async function bankAccounts(db, companyId) {
+  const labels = (await db.query("SELECT bank_account AS label, count(*)::int AS n FROM transactions WHERE company_id = $1 AND type = 'bank' AND bank_account IS NOT NULL AND bank_account <> '' GROUP BY bank_account ORDER BY bank_account", [companyId])).rows;
+  const maps = (await db.query("SELECT source_name, target_account FROM account_mappings WHERE company_id = $1 AND kind = 'bank_account'", [companyId])).rows;
+  const by = new Map(maps.map((m) => [m.source_name, m.target_account]));
+  const all = new Set([...labels.map((l) => l.label), ...maps.map((m) => m.source_name)]);
+  return [...all].sort().map((label) => ({ label, account: by.get(label) || '', lines: (labels.find((l) => l.label === label) || { n: 0 }).n }));
+}
+async function setBankAccount(db, companyId, label, account, actor, reason) {
+  label = String(label || '').trim(); account = String(account || '').trim();
+  if (!label) throw fail(400, 'The bank account name is required');
+  if (String(reason || '').trim().length < 3) throw fail(400, 'A reason is required');
+  const before = (await db.query("SELECT target_account FROM account_mappings WHERE company_id = $1 AND kind = 'bank_account' AND source_name = $2", [companyId, label])).rows[0];
+  await db.query("INSERT INTO account_mappings (company_id, kind, source_name, target_account, note) VALUES ($1,'bank_account',$2,$3,$4) ON CONFLICT (company_id, kind, source_name) DO UPDATE SET target_account = EXCLUDED.target_account, note = EXCLUDED.note",
+    [companyId, label, account || null, String(reason).trim()]);
+  await auditLog.write(db, { who: (actor && actor.name) || 'system', userId: actor && actor.userId, companyId, module: 'account_mappings', record: 'bank_account: ' + label, action: before ? 'update' : 'create', field: 'target_account', before: before ? before.target_account : null, after: account, reason });
+}
+
+const fillNo = (pattern, date) => String(pattern).replace(/\{(YYYY|YY|MM)\}/g, (m, k) => ({ YYYY: String(date).slice(0, 4), YY: String(date).slice(2, 4), MM: String(date).slice(5, 7) }[k]));
+
+/* Approved money-out lines -> the rows of the Bukku Money Out file. The batch is checked (and claimed in one statement, so two people can not both export it):
+   - only approved, money-out, of the kinds above; every bank account has its Bukku code (bankAccounts)
+   - the numbering rule: Bukku runs the numbers in the order of the file, so the file is in date order, and no earlier line may still be without a meaning
+     (give it a meaning, or put it in suspense, and the numbers can go on). */
+async function exportMoneyOut(db, companyId, ids, actor) {
+  if (!isMgrRole(actor)) throw fail(403, 'Only the Owner or a Manager can export');
+  if (!ids.length) throw fail(400, 'Nothing selected');
+  const txs = (await db.query('SELECT * FROM transactions WHERE company_id = $1 AND id = ANY($2::int[]) ORDER BY tx_date, id', [companyId, ids])).rows;
+  if (txs.length !== new Set(ids).size) throw fail(404, 'Some bank lines were not found');
+  const wrong = txs.filter((t) => t.type !== 'bank' || t.direction !== 'out' || t.status !== 'approved' || !MONEY_OUT_KINDS.includes(t.data && t.data.kind));
+  if (wrong.length) {
+    const needsOther = wrong.some((t) => ['credit_purchase', 'cash_bill'].includes(t.data && t.data.kind));
+    throw fail(409, 'Only approved money-out lines of the kinds ' + MONEY_OUT_KINDS.join(', ') + ' can go into the Money Out file: ' + wrong.slice(0, 5).map((t) => t.internal_no + ' (' + t.status + (t.data && t.data.kind ? ', ' + t.data.kind : '') + ')').join(', ')
+      + (needsOther ? '. Payments of bills and cash bills need other Bukku files (Purchase Payments, Cash Purchase): not added yet.' : ''));
+  }
+  const codes = new Map((await bankAccounts(db, companyId)).map((b) => [b.label, b.account]));
+  const missing = [...new Set(txs.map((t) => t.bank_account || '(no bank account)').filter((l) => !codes.get(l)))];
+  if (missing.length) throw fail(409, 'The Bukku account code of the bank account is not set for: ' + missing.join(', ') + '. Set it first (Bank accounts).');
+  const lastDate = String(txs[txs.length - 1].tx_date).slice(0, 10);
+  const earlier = (await db.query(
+    "SELECT internal_no, tx_date FROM transactions WHERE company_id = $1 AND type = 'bank' AND direction = 'out' AND status IN ('imported', 'pending') AND tx_date <= $2::date ORDER BY tx_date, id LIMIT 5", [companyId, lastDate])).rows;
+  if (earlier.length) throw fail(409, 'These earlier money-out lines still have no meaning, so the numbers can not go on: ' + earlier.map((e) => e.internal_no + ' (' + String(e.tx_date).slice(0, 10) + ')').join(', ') + '. Classify them, or put them in suspense.');
+  const pattern = await settings.get(companyId, 'money_out_number', null, db);
+  const claimed = await db.query("UPDATE transactions SET status = 'exported', exported_at = now(), updated_at = now() WHERE company_id = $1 AND id = ANY($2::int[]) AND status = 'approved' RETURNING id", [companyId, txs.map((t) => t.id)]);
+  if (claimed.rows.length !== txs.length) throw fail(409, 'Some were just exported by someone else: refresh and try again');
+  for (const t of txs) await audit(db, actor, companyId, t, 'exported', { field: 'status', before: 'approved', after: 'exported', reason: 'Bukku Money Out file' });
+  const lines = txs.map((t) => {
+    const date = String(t.tx_date).slice(0, 10); const d = t.data || {}; const text = d.note || [t.counterparty, t.source_ref].filter(Boolean).join(' ') || 'Bank payment';
+    return { contactCode: t.contact_code || '', legalName: d.contactName || '', no: pattern ? fillNo(pattern, date) : '', ref: t.source_ref || '', date, paymentAccount: codes.get(t.bank_account), tags: '', description: text, account: t.account, itemDescription: text, amount: Number(t.amount), internalNo: t.internal_no };
+  });
+  const workbook = await buildMoneyOutWorkbook({ lines });
+  return { workbook, txs: txs.map((t) => t.id), lines };
+}
+
+module.exports = { MONEY_OUT_KINDS, bankAccounts, setBankAccount, exportMoneyOut, KINDS, TARGET, nameKey, nameScore, outstanding, suggest, matchBank, confirmSuggestions, unmatch, setKind, transferCandidates, pairTransfer, prompts, bankReport };

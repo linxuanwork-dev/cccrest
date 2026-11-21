@@ -7,7 +7,7 @@ const { requireAuth, scopeToCompany } = require('../auth');
 const { requirePage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const docs = require('../lib/docs');
-const rules = require('../lib/dmInvoiceRules');
+const rulesLib = require('../lib/dmInvoiceRules');
 
 const router = express.Router();
 
@@ -106,6 +106,7 @@ router.post('/companies/:companyId/dm-invoice/extract', requireAuth, scopeToComp
     return res.status(422).json({ error: err.message });
   }
 
+  const rules = await rulesLib.forCompany(req.params.companyId);
   const branch = extracted.branch;
   if (!rules.BRANCHES.includes(branch)) {
     return res.status(422).json({ error: `Could not determine a valid branch (got "${branch}") — please check the PDF.` });
@@ -145,7 +146,8 @@ router.post('/companies/:companyId/dm-invoice/extract', requireAuth, scopeToComp
 router.post('/companies/:companyId/dm-invoice/generate', requireAuth, scopeToCompany, requirePage('sales', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { branch, year, month, rows } = req.body || {};
-  if (!rules.BRANCHES.includes(branch)) return res.status(400).json({ error: 'branch must be TDA, TST, or BBU' });
+  const rules = await rulesLib.forCompany(req.params.companyId);
+  if (!rules.BRANCHES.includes(branch)) return res.status(400).json({ error: 'branch must be ' + rules.BRANCHES.join(', ') });
   if (!year || !month) return res.status(400).json({ error: 'year and month are required' });
   if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: 'At least one row is required' });
   for (const row of rows) {
@@ -228,7 +230,8 @@ router.get('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCom
 router.post('/companies/:companyId/dm-invoice/customers', requireAuth, scopeToCompany, requirePage('sales', 2), async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ error: 'Not allowed' });
   const { branch, name, customerCode } = req.body || {};
-  if (!rules.BRANCHES.includes(branch)) return res.status(400).json({ error: 'branch must be TDA, TST, or BBU' });
+  const rules = await rulesLib.forCompany(req.params.companyId);
+  if (!rules.BRANCHES.includes(branch)) return res.status(400).json({ error: 'branch must be ' + rules.BRANCHES.join(', ') });
   if (!name || !customerCode) return res.status(400).json({ error: 'name and customerCode are required' });
 
   const { rows } = await pool.query(
@@ -248,6 +251,7 @@ router.patch('/companies/:companyId/dm-invoice/customers/:customerId', requireAu
   );
   if (!before[0]) return res.status(404).json({ error: 'Not found' });
 
+  const rules = await rulesLib.forCompany(req.params.companyId);
   const body = req.body || {};
   const branch = rules.BRANCHES.includes(body.branch) ? body.branch : before[0].branch;
   const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : before[0].name;
@@ -301,6 +305,7 @@ router.post('/companies/:companyId/dm-invoice/customers/import', requireAuth, sc
     return res.status(422).json({ error: 'Could not find Branch, Name, and Customer Code columns — check the header row.' });
   }
 
+  const rules = await rulesLib.forCompany(req.params.companyId);
   let added = 0;
   let updated = 0;
   const skipped = [];

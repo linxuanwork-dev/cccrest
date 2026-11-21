@@ -9,6 +9,7 @@ const bukkuApi = require('./bukkuApi').bukku;
 const { logActivity } = require('../lib/activity');
 const tuitionLang = require('../lib/tuitionLang');
 const hqBill = require('../lib/hqBill');
+const branchesLib = require('../lib/branches');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -211,10 +212,13 @@ router.get(BASE + '/bukku-payments', ...guard(2), async (req, res) => {
   });
 });
 
+// the branch codes of the company (the branches list); the old three while a company has none
+async function branchCodes(cid) { const c = await branchesLib.codes(cid); return c.length ? c : ['BBU', 'TST', 'TDA']; }
+
 router.get(BASE, ...guard(1), async (req, res) => {
   const s = await loadSettings(req.params.companyId);
   if (!s) return res.status(404).json({ error: 'Not found' });
-  res.json({ enabled: s.enabled, name: s.name, uid: String(req.user.sub), mgr: isMgr(req), admin: !!(req.user && req.user.role === 'admin'), canWrite: !!(req.pageAccess && req.pageAccess.level >= 2) });
+  res.json({ branches: await branchCodes(req.params.companyId), enabled: s.enabled, name: s.name, uid: String(req.user.sub), mgr: isMgr(req), admin: !!(req.user && req.user.role === 'admin'), canWrite: !!(req.pageAccess && req.pageAccess.level >= 2) });
 });
 
 // Everything the page shows, in one request. The page asks again every few seconds with the revision it has and gets "same" back
@@ -341,7 +345,7 @@ router.post(BASE + '/hq-parse', ...guard(2), express.raw({ type: '*/*', limit: '
   if (!Buffer.isBuffer(req.body) || !req.body.length) return bad(res, 'Invalid request');
   let text;
   try { text = (await require('pdf-parse/lib/pdf-parse.js')(req.body)).text; } catch (e) { return bad(res, '读不到这个 PDF。 Cannot read this PDF.'); }
-  const bill = hqBill.parseBill(text, String(req.query.name || ''));
+  const bill = hqBill.parseBill(text, String(req.query.name || ''), await branchesLib.list(req.params.companyId));
   if (!bill.items.length) return bad(res, '这个 PDF 里找不到账单的行（要 QC GROUP 的 HQ 单）。 No bill lines found: it must be a QC GROUP HQ bill.');
   res.json(bill);
 });
@@ -372,7 +376,7 @@ router.get(BASE + '/mt-users', ...guard(3), async (req, res) => {
 router.post(BASE + '/mt-users', ...guard(3), async (req, res) => {
   if (!await enabledSettings(req, res)) return;
   const b = req.body || {}, branch = String(b.branch || ''), mt = String(b.mt || '').trim().toUpperCase();
-  if (!['BBU', 'TST', 'TDA'].includes(branch) || !mt || mt.length > 80) return bad(res, 'Invalid request');
+  if (!(await branchCodes(req.params.companyId)).includes(branch) || !mt || mt.length > 80) return bad(res, 'Invalid request');
   let username = String(b.username || '').trim().toLowerCase();
   if (!username) username = slug(mt) + '.' + branch.toLowerCase();
   if (!/^[a-z0-9._-]{3,40}$/.test(username)) return bad(res, '用户名只能用英文字母、数字、点、横线，3 到 40 个字。');
@@ -403,7 +407,8 @@ router.post(BASE + '/mt-users/:id/reset', ...guard(3), async (req, res) => {
 
 router.post(BASE + '/mt-users/move', ...guard(3), async (req, res) => {
   const b = req.body || {}, mt = String(b.mt || ''), from = String(b.from || ''), to = String(b.to || '');
-  if (!mt || !['BBU', 'TST', 'TDA'].includes(from) || !['BBU', 'TST', 'TDA'].includes(to)) return bad(res, 'Invalid request');
+  const okBranches = await branchCodes(req.params.companyId);
+  if (!mt || !okBranches.includes(from) || !okBranches.includes(to)) return bad(res, 'Invalid request');
   try {
     const r = await pool.query('UPDATE tuition_mt_users SET branch = $4 WHERE company_id = $1 AND branch = $2 AND mt = $3', [req.params.companyId, from, mt, to]);
     res.json({ moved: r.rowCount });

@@ -15,12 +15,22 @@ function parseDate(text) {
   return mo ? m[3] + '-' + String(mo).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0') : '';
 }
 
+// the branches the bill can be for: from the company's branches list (code and the words on the bill's address). These are the old values, used when none are given.
+const DEFAULT_BRANCHES = [{ code: 'BBU', addressMatch: ['BANDAR BARU UDA'] }, { code: 'TST', addressMatch: [] }, { code: 'TDA', addressMatch: [] }];
+// [{ code, extra: { addressMatch: [...] } }] (the rows of the branches table) -> [{ code, addressMatch }]
+function branchList(rows) {
+  const l = (rows || []).filter((b) => b && b.code).map((b) => ({ code: String(b.code).toUpperCase(), addressMatch: ((b.extra && b.extra.addressMatch) || b.addressMatch || []).map((x) => String(x).toUpperCase()) }));
+  return l.length ? l : DEFAULT_BRANCHES;
+}
+
 // which branch the bill is for: from the file name (DM-BBU-...) first, then from the address on the bill
-function guessBranch(text, fileName) {
-  const f = String(fileName || '').toUpperCase().match(/(?:^|[^A-Z])(BBU|TST|TDA)(?:[^A-Z]|$)/);
+function guessBranch(text, fileName, branches) {
+  const list = branchList(branches);
+  const codes = list.map((b) => b.code.replace(/[^A-Z0-9]/g, '')).filter(Boolean);
+  const f = codes.length ? String(fileName || '').toUpperCase().match(new RegExp('(?:^|[^A-Z])(' + codes.join('|') + ')(?:[^A-Z]|$)')) : null;
   if (f) return f[1];
   const t = String(text).toUpperCase();
-  if (t.includes('BANDAR BARU UDA')) return 'BBU';
+  for (const b of list) if (b.addressMatch.some((w) => w && t.includes(w))) return b.code;
   return '';
 }
 
@@ -37,10 +47,10 @@ function classify(title, fields) {
   return fields && fields.client ? 'other' : 'stock';
 }
 
-function parseBill(text, fileName) {
+function parseBill(text, fileName, branches) {
   const raw = String(text || '').replace(/\r/g, '');
   const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
-  const out = { invoiceNo: '', date: '', due: 0, total: 0, billTo: '', branch: guessBranch(raw, fileName), items: [] };
+  const out = { invoiceNo: '', date: '', due: 0, total: 0, billTo: '', branch: guessBranch(raw, fileName, branches), items: [] };
   let m;
   if ((m = raw.match(/Invoice Number:\s*([A-Za-z0-9-]+)/))) out.invoiceNo = m[1];
   out.date = parseDate(raw);

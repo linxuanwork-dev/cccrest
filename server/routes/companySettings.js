@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
-const { requireAuth, requireRole } = require('../auth');
+const { requireAuth, requireRole, scopeToCompany } = require('../auth');
+const branchesLib = require('../lib/branches');
 const settings = require('../lib/settings');
 const auditLog = require('../lib/auditLog');
 
@@ -44,6 +45,42 @@ router.put('/company-settings/:companyId', ...guard, async (req, res) => {
   } finally { client.release(); }
   const now = await settings.effective([id], null);
   res.json({ ok: true, inForce: now[id] });
+});
+
+// the branches of a company, for the pages (anyone who may open the company)
+router.get('/companies/:companyId/branches', requireAuth, scopeToCompany, async (req, res) => {
+  const rows = await branchesLib.list(parseInt(req.params.companyId, 10));
+  res.json(rows.map((b) => ({ code: b.code, name: b.name, merchantId: b.merchant_id, sortOrder: b.sort_order })));
+});
+
+// add or change a branch (Owner only; the reason and the before / after go to the audit_log)
+router.put('/company-branches/:companyId', ...guard, async (req, res) => {
+  const id = parseInt(req.params.companyId, 10); if (!id) return res.status(400).json({ error: 'Bad company' });
+  const b = req.body || {}; const code = String(b.code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9_-]{0,19}$/.test(code)) return res.status(400).json({ error: 'Branch code: letters, digits, - and _ (up to 20)' });
+  if (String(b.reason || '').trim().length < 3) return res.status(400).json({ error: 'A reason is required' });
+  const found = await pool.query('SELECT 1 FROM companies WHERE id = $1', [id]);
+  if (!found.rows[0]) return res.status(404).json({ error: 'Company not found' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const before = (await client.query('SELECT code, name, merchant_id, active, sort_order, extra FROM branches WHERE company_id = $1 AND code = $2', [id, code])).rows[0] || null;
+    const next = {
+      name: String(b.name != null ? b.name : (before ? before.name : code)).trim() || code,
+      merchant_id: b.merchantId != null ? String(b.merchantId) : (before ? before.merchant_id : null),
+      active: b.active != null ? !!b.active : (before ? before.active : true),
+      sort_order: Number.isFinite(+b.sortOrder) && b.sortOrder !== '' && b.sortOrder != null ? +b.sortOrder : (before ? before.sort_order : 0),
+      extra: b.extra && typeof b.extra === 'object' ? b.extra : (before ? before.extra : {})
+    };
+    await client.query(
+      `INSERT INTO branches (company_id, code, name, merchant_id, active, sort_order, extra) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
+       ON CONFLICT (company_id, code) DO UPDATE SET name = EXCLUDED.name, merchant_id = EXCLUDED.merchant_id, active = EXCLUDED.active, sort_order = EXCLUDED.sort_order, extra = EXCLUDED.extra`,
+      [id, code, next.name, next.merchant_id, next.active, next.sort_order, JSON.stringify(next.extra)]);
+    await auditLog.write(client, { who: await auditLog.userName(client, req.user.sub), userId: req.user.sub, companyId: id, module: 'branches', record: code,
+      action: before ? 'update' : 'create', field: 'branch', before: before ? JSON.stringify(before) : null, after: JSON.stringify(next), reason: b.reason });
+    await client.query('COMMIT');
+  } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+  res.json({ ok: true });
 });
 
 // the audit log, newest first (filters: company, module)

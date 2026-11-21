@@ -5987,9 +5987,22 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   });
 
   // ---- Manage Customer Codes modal ----
+  // the branches of the company come from its branches list (the three options in the page are only the start value if that can not be read)
+  function dmLoadBranches(done){
+    var companyId = companyIdByPanel('didik_mulia');
+    if(!companyId) return done();
+    api('/companies/' + companyId + '/branches').then(function(rows){
+      if(rows && rows.length){
+        var sel = document.getElementById('dm-customers-branch-filter'), keep = sel.value;
+        sel.innerHTML = rows.map(function(b){ return '<option value="' + b.code + '">' + b.code + '</option>'; }).join('');
+        if(rows.some(function(b){ return b.code === keep; })) sel.value = keep;
+      }
+      done();
+    }).catch(function(){ done(); });
+  }
   document.getElementById('dm-invoice-manage-btn').addEventListener('click', function(){
     document.getElementById('dm-customers-modal-backdrop').hidden = false;
-    renderDmCustomersList();
+    dmLoadBranches(renderDmCustomersList);
   });
   function closeDmCustomersModal(){ document.getElementById('dm-customers-modal-backdrop').hidden = true; }
   document.getElementById('dm-customers-modal-close').addEventListener('click', closeDmCustomersModal);

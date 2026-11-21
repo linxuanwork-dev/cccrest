@@ -404,7 +404,7 @@ router.post(BASE + '/pdf-parse', ...guard(2), express.raw({ type: '*/*', limit: 
   if (!sup) return bad(res, '找不到供应商 QC GROUP，这个功能只能读 QC GROUP 的 HQ 单。 Supplier QC GROUP not found: only QC GROUP HQ bills can be read.');
   let text;
   try { text = (await require('pdf-parse/lib/pdf-parse.js')(req.body)).text; } catch (e) { return bad(res, '读不到这个 PDF。 Cannot read this PDF.'); }
-  const bill = require('../lib/hqBill').parseBill(text, String(req.query.name || ''));
+  const bill = require('../lib/hqBill').parseBill(text, String(req.query.name || ''), await require('../lib/branches').list(cid));
   if (!bill.items.length) return bad(res, '这个 PDF 里找不到账单的行（要 QC GROUP 的 HQ 单）。 No bill lines found: it must be a QC GROUP HQ bill.');
   // the Account of each line: the same settings as the Tuition & Allowance HQ bills (registration / module / other)
   let pa = { registration: '6000', seasonal: '6000-01', module: '6001', other: '6002' };

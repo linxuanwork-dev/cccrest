@@ -31,17 +31,17 @@
 | `index.html`（约 7446–7459 行） | `RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.'`、`DM_INVOICE_COMPANY = 'DIDIK MULIA SDN. BHD.'`；`SALES_SUMMARY_OVERRIDES` 按公司名决定 Sales 页显示哪一个专用面板（Own Laundry、Didik Mulia、Madam Lua、UK Lua、Uncle Koh）；`MERCHANT_REPORT_OVERRIDES` |
 | `index.html`（约 7125–7143 行） | 「Company E No.」的功能只对名字以 `SK SPRAY PPF` 开头的公司生效 |
 | `index.html` | `FEATURE_PANELS` 页面清单；各页注释里写着"只给 Didik Mulia / Own Laundry"的限制 |
-| `server/lib/hqBill.js` | HQ 账单：QC GROUP → Didik Mulia 的分校 |
+| `server/lib/hqBill.js` | HQ 账单：QC GROUP → Didik Mulia 的分店 |
 | `server/routes/mtClaim.js`、`tuitionAllowance.js` | MT Claim 登入、补习中心逻辑，直接写 Didik Mulia |
 | `tools/folder-watcher/config.example.json` | 文件夹对应哪家公司 |
 | `server/seed.js`、`seed-data/` | 初始公司和客户资料 |
 
-### B. 单号前缀、分校、account、contact 写死
+### B. 单号前缀、分店、account、contact 写死
 
 | 位置 | 写死的内容 |
 | --- | --- |
-| `server/lib/dmInvoiceRules.js` | 分校 `TDA` / `TST` / `BBU`；account `5000-01`（注册费）、`5000-03`（模块费）；单号格式 `IV-分校-R/M年月-序号`；货品说明格式 |
-| `server/routes/tuitionAllowance.js`、`assets/tuition/app.html` | 分校 BBU / TST / TDA（共约 20 处）、MT allowance 的算法 |
+| `server/lib/dmInvoiceRules.js` | 分店 `TDA` / `TST` / `BBU`；account `5000-01`（注册费）、`5000-03`（模块费）；单号格式 `IV-分店-R/M年月-序号`；货品说明格式 |
+| `server/routes/tuitionAllowance.js`、`assets/tuition/app.html` | 分店 BBU / TST / TDA（共约 20 处）、MT allowance 的算法 |
 | `server/lib/ukTngReportRules.js` | outlet `UKD` / `UKTN` / `UKTU` / `UKHP` / `UNCLE_KOH`、前缀、account `1000-01` |
 | `server/lib/olTngReportRules.js` | 只写了 TNG 的交易类型（`DUITNOW_QR_TNGD` 等），没有写死公司或 outlet；这个报告只有 Own Laundry 用，是 `index.html` 按公司名控制的 |
 | `server/routes/purchaseBukku.js` | 默认 account `6000-01` |
@@ -69,7 +69,7 @@
 
 1. **新表**（迁移 057 起）：`company_settings`（key、value、生效日期、谁改的）、`branches`（统一分店 / outlet）、`account_mappings`、`sources`、统一的 `audit_log`（不能改、不能删）。
 2. **先搬公司名字写死的部分**：`index.html` 里按公司名称决定显示哪个面板的那些，改成读 `company_settings`（例如 `sales_panel = didik_mulia / own_laundry / daily_sales`）。公司改名也不会坏掉。这一项最安全，因为只是页面显示。
-3. **再搬分校 / outlet / 前缀 / account**：Didik Mulia 的分校和 account、TNG 的 outlet，先建成 `branches` 和设定，程序改读设定，输出的文件要和现在逐字一样。
+3. **再搬分店 / outlet / 前缀 / account**：Didik Mulia 的分店和 account、TNG 的 outlet，先建成 `branches` 和设定，程序改读设定，输出的文件要和现在逐字一样。
 4. **法规规则版本**：把 EPF、SOCSO、EIS 搬进"法规规则"，按生效日期做版本，用现有的薪资结果对比，必须一样。
 5. **审计**：把 `activity_log`、`document_events` 的新记录同时写进统一的 `audit_log`，旧的暂时不动。
 6. **Row-level security**：放到阶段 2 之前单独评估，因为它要改每一个数据库连接，改动面大。

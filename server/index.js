@@ -55,6 +55,7 @@ app.use('/api', require('./routes/dailySales'));
 app.use('/api', require('./routes/companyUsers'));
 app.use('/api', require('./routes/accounts'));
 app.use('/api', require('./routes/purchaseBukku'));
+app.use('/api', require('./routes/transactions'));
 app.use('/api', require('./routes/stockCount'));
 app.use('/api', require('./routes/tngReport'));
 app.use('/api', require('./routes/accountCheck'));

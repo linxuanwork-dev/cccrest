@@ -70,13 +70,55 @@ td.r,th.r{text-align:right}
     <div class="top"><b>管理画面</b><small>只有 Owner 能看到 · 每一次修改都要写原因，并且记进修改记录</small></div>
     <nav id="tabs" role="tablist">
       <button role="tab" data-tab="settings" aria-selected="true">公司设定</button>
-      <button role="tab" data-tab="branches">分校</button>
+      <button role="tab" data-tab="tx">标准交易</button>
+      <button role="tab" data-tab="branches">分店</button>
       <button role="tab" data-tab="rules">法规规则</button>
       <button role="tab" data-tab="audit">修改记录</button>
     </nav>
   </div>
 </header>
 <main class="wrap">
+
+<!-- ================= standard transactions ================= -->
+<section id="t-tx" hidden>
+  <div class="panel">
+    <div class="ph"><h2>标准交易（采购单先接进来）</h2><label class="row">公司 <select id="xCo" style="width:auto;min-width:240px"></select></label></div>
+    <p class="hint">每一笔交易都走同一条路：已导入 → 已分类 → 待审核 → 已批准 → 已导出。员工读入、分类、送去审核、写备注关异常；Owner 和 Manager 批准和导出；<b>只有 Owner 能把已批准的重新打开</b>（要写原因）。系统自己找出的问题会变成「异常」，一定要有人写备注才能关掉，有异常的不能批准。每一步都记进修改记录。</p>
+    <div class="row" id="xBadges" style="margin-bottom:10px"></div>
+    <div class="row">
+      <button class="btn pri" id="xSync">读入采购单页面</button>
+      <label class="btn" style="cursor:pointer">导入文件（Excel / CSV / PDF）<input type="file" id="xFile" accept=".xlsx,.csv,.txt,.pdf" hidden></label>
+      <select id="xKind" style="width:auto"><option value="purchase">文件是：采购单</option><option value="bank">文件是：银行收款（只读进账）</option></select>
+      <span class="hint" style="margin:0">PDF 只能读：Public Bank 对账单、QC GROUP HQ 账单。扫描件读不了，请改用 Excel / CSV 或手动输入。</span>
+    </div>
+    <div class="row" style="margin-top:8px">模板：
+      <button class="btn sm" data-tpl="purchase:xlsx">采购单 Excel</button><button class="btn sm" data-tpl="purchase:csv">采购单 CSV</button>
+      <button class="btn sm" data-tpl="bank:xlsx">银行 Excel</button><button class="btn sm" data-tpl="bank:csv">银行 CSV</button>
+    </div>
+    <div id="xMsg" style="margin-top:8px"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>清单</h2>
+      <div class="row"><input id="xQ" placeholder="搜寻：供应商、编号、单号" style="width:220px"><select id="xStatus" style="width:auto"><option value="">全部状态</option></select><label class="row"><input type="checkbox" id="xOpen"> 只看有异常的</label>
+      <span class="row">下载清单：<button class="btn sm" data-dl="xlsx">Excel</button><button class="btn sm" data-dl="csv">CSV</button><button class="btn sm" data-dl="pdf">PDF</button></span></div>
+    </div>
+    <div class="row" style="margin-bottom:8px">选中的：
+      <button class="btn sm" id="xSubmit">送去审核</button>
+      <button class="btn sm pri" id="xApprove">批准</button>
+      <button class="btn sm" id="xBack">退回修改</button>
+      <span class="row">导出 Bukku 文件：<button class="btn sm" data-ex="xlsx">Excel</button><button class="btn sm" data-ex="csv">CSV</button><button class="btn sm" data-ex="pdf">PDF（清单）</button></span>
+    </div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="xAll"></th><th>编号</th><th>日期</th><th>类型</th><th>供应商 / 付款人</th><th>单号</th><th class="r">金额</th><th>状态</th><th class="r">异常</th><th>Bukku 单号</th><th></th></tr></thead><tbody id="xBody"></tbody></table></div>
+  </div>
+  <div class="panel" id="xDetail" hidden>
+    <div class="ph"><h2 id="xDetTitle">详细</h2><button class="btn sm" id="xDetClose">关闭</button></div>
+    <div id="xDetBody"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>未处理的异常</h2><span class="row">下载：<button class="btn sm" data-edl="xlsx">Excel</button><button class="btn sm" data-edl="csv">CSV</button><button class="btn sm" data-edl="pdf">PDF</button></span></div>
+    <div class="tbl"><table><thead><tr><th>交易</th><th>供应商 / 付款人</th><th class="r">金额</th><th>异常</th><th>系统发现的</th><th></th></tr></thead><tbody id="xExc"></tbody></table></div>
+  </div>
+</section>
 
 <!-- ================= company settings ================= -->
 <section id="t-settings">
@@ -105,19 +147,19 @@ td.r,th.r{text-align:right}
 <!-- ================= branches ================= -->
 <section id="t-branches" hidden>
   <div class="panel">
-    <div class="ph"><h2>分校 / Outlet</h2><label class="row">公司 <select id="bCo" style="width:auto;min-width:240px"></select></label></div>
-    <p class="hint">每个模块用的分校清单（发票、MT 登入、HQ 账单、补习中心页面）都来自这里。停用的分校不会再出现在选单里，已有的资料不受影响。</p>
+    <div class="ph"><h2>分店 / Outlet</h2><label class="row">公司 <select id="bCo" style="width:auto;min-width:240px"></select></label></div>
+    <p class="hint">每个模块用的分店清单（发票、MT 登入、HQ 账单、补习中心页面）都来自这里。停用的分店不会再出现在选单里，已有的资料不受影响。</p>
     <div class="tbl"><table><thead><tr><th>代号</th><th>名称</th><th>Merchant ID</th><th>顺序</th><th>状态</th><th>其他资料</th><th></th></tr></thead><tbody id="bBody"></tbody></table></div>
   </div>
   <div class="panel">
-    <div class="ph"><h2>新增 / 修改分校</h2></div>
+    <div class="ph"><h2>新增 / 修改分店</h2></div>
     <div class="fields">
       <label class="f"><span>代号（大写字母、数字，例如 BBU）</span><input id="bCode"></label>
       <label class="f"><span>名称</span><input id="bName"></label>
       <label class="f"><span>Merchant ID（选填）</span><input id="bMerchant"></label>
       <label class="f"><span>顺序（小的排前面）</span><input id="bSort" type="number"></label>
       <label class="f"><span>状态</span><select id="bActive"><option value="1">使用中</option><option value="0">停用</option></select></label>
-      <label class="f wide"><span>其他资料（JSON，选填。HQ 账单要靠地址认出这个分校时，写 {"addressMatch":["地址里的字"]}）</span><textarea id="bExtra" rows="2">{}</textarea></label>
+      <label class="f wide"><span>其他资料（JSON，选填。HQ 账单要靠地址认出这个分店时，写 {"addressMatch":["地址里的字"]}）</span><textarea id="bExtra" rows="2">{}</textarea></label>
       <label class="f wide"><span>原因（必填）</span><input id="bReason"></label>
     </div>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="bSave">保存</button><button class="btn" id="bClear">清空</button><span id="bMsg"></span></div>
@@ -191,8 +233,8 @@ const coName = id => { const c = COMPANIES.find(x => x.id === id); return c ? c.
 /* ---------- tabs ---------- */
 function setTab(t){
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
-  ['settings','branches','rules','audit'].forEach(x => $('t-' + x).hidden = x !== t);
-  if (t === 'settings') loadSettings(); if (t === 'branches') loadBranches(); if (t === 'rules') loadRules(); if (t === 'audit' && !$('aBody').children.length) loadAudit();
+  ['settings','tx','branches','rules','audit'].forEach(x => $('t-' + x).hidden = x !== t);
+  if (t === 'settings') loadSettings(); if (t === 'tx') loadTx(); if (t === 'branches') loadBranches(); if (t === 'rules') loadRules(); if (t === 'audit' && !$('aBody').children.length) loadAudit();
 }
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
 
@@ -243,7 +285,7 @@ async function loadBranches(){
   try {
     const rows = await api('GET', '/company-branches/' + id);
     window.__bRows = rows;
-    $('bBody').innerHTML = rows.map(b => '<tr><td class="mono"><b>' + esc(b.code) + '</b></td><td>' + esc(b.name) + '</td><td class="mono">' + esc(b.merchant_id || '') + '</td><td class="mono">' + esc(b.sort_order) + '</td><td>' + (b.active ? '<span class="pill ok">使用中</span>' : '<span class="pill">停用</span>') + '</td><td class="val">' + esc(JSON.stringify(b.extra || {})) + '</td><td><button class="btn sm" data-edit-b="' + esc(b.code) + '">修改</button></td></tr>').join('') || '<tr><td colspan="7" class="empty">这家公司还没有分校</td></tr>';
+    $('bBody').innerHTML = rows.map(b => '<tr><td class="mono"><b>' + esc(b.code) + '</b></td><td>' + esc(b.name) + '</td><td class="mono">' + esc(b.merchant_id || '') + '</td><td class="mono">' + esc(b.sort_order) + '</td><td>' + (b.active ? '<span class="pill ok">使用中</span>' : '<span class="pill">停用</span>') + '</td><td class="val">' + esc(JSON.stringify(b.extra || {})) + '</td><td><button class="btn sm" data-edit-b="' + esc(b.code) + '">修改</button></td></tr>').join('') || '<tr><td colspan="7" class="empty">这家公司还没有分店</td></tr>';
   } catch (e) { $('bBody').innerHTML = '<tr><td colspan="7" class="empty">' + esc(e.message) + '</td></tr>'; }
 }
 $('bCo').addEventListener('change', loadBranches);
@@ -354,13 +396,80 @@ $('aCsv').addEventListener('click', () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'audit-log-' + todayStr() + '.csv'; document.body.appendChild(a); a.click(); a.remove();
 });
 
+/* ---------- standard transactions ---------- */
+const X_STATUS = { imported: '已导入', matched: '已配对', pending: '待确认', missing_doc: '缺单据', classified: '已分类', in_review: '待审核', approved: '已批准', exported: '已导出' };
+const X_CLS = { imported: '', matched: '', pending: 'warn', missing_doc: 'warn', classified: 'cur', in_review: 'warn', approved: 'ok', exported: 'ok' };
+const xBase = () => '/companies/' + $('xCo').value + '/transactions';
+let X_ROWS = [];
+async function download(method, path, body, fallbackName){
+  const r = await fetch('/api' + path, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) { let m = 'HTTP ' + r.status; try { m = (await r.json()).error || m; } catch (e) { /* none */ } throw new Error(m); }
+  const blob = await r.blob(); let name = fallbackName;
+  const h = r.headers.get('X-File-Name'); if (h) name = decodeURIComponent(h);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+function xQuery(){ const p = new URLSearchParams(); if ($('xStatus').value) p.set('status', $('xStatus').value); if ($('xQ').value.trim()) p.set('q', $('xQ').value.trim()); if ($('xOpen').checked) p.set('open', '1'); return p; }
+async function loadTx(){
+  if (!$('xCo').value) { $('xBody').innerHTML = '<tr><td colspan="11" class="empty">先选一家公司</td></tr>'; $('xBadges').innerHTML = ''; $('xExc').innerHTML = ''; return; }
+  try {
+    const [sum, rows, exc] = await Promise.all([api('GET', xBase() + '/summary'), api('GET', xBase() + '?' + xQuery().toString()), api('GET', xBase() + '/exceptions')]);
+    X_ROWS = rows;
+    $('xBadges').innerHTML = sum.byStatus.map(b => '<span class="pill ' + (X_CLS[b.status] || '') + '">' + esc(X_STATUS[b.status] || b.status) + ' ' + b.n + '</span>').join(' ') + (sum.openExceptions ? ' <span class="pill warn">未处理异常 ' + sum.openExceptions + '</span>' : '');
+    $('xBody').innerHTML = rows.map(t => '<tr><td><input type="checkbox" data-xid="' + t.id + '"></td><td class="mono">' + esc(t.internalNo) + '</td><td class="mono">' + esc(t.date) + '</td><td>' + esc(t.type === 'purchase' ? '采购单' : t.type === 'bank' ? '银行' : t.type) + '</td><td>' + esc(t.counterparty) + '</td><td class="mono">' + esc(t.billNo || t.ref) + '</td><td class="r mono">' + esc((t.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })) + '</td><td><span class="pill ' + (X_CLS[t.status] || '') + '">' + esc(X_STATUS[t.status] || t.status) + '</span>' + (t.legacyExport ? ' <span class="pill">旧流程已导出</span>' : '') + '</td><td class="r">' + (t.openExceptions ? '<span class="pill warn">' + t.openExceptions + '</span>' : '') + '</td><td class="mono">' + esc(t.bukkuNo) + '</td><td class="act"><button class="btn sm" data-xd="' + t.id + '">详细</button></td></tr>').join('') || '<tr><td colspan="11" class="empty">还没有交易。按「读入采购单页面」或「导入文件」。</td></tr>';
+    $('xExc').innerHTML = exc.map(e => '<tr><td class="mono">' + esc(e.internal_no) + '</td><td>' + esc(e.counterparty || '') + '</td><td class="r mono">' + esc(Number(e.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })) + '</td><td class="mono">' + esc(e.type) + '</td><td>' + esc(e.detail || '') + '</td><td><button class="btn sm" data-xclose="' + e.id + '">写备注关掉</button></td></tr>').join('') || '<tr><td colspan="6" class="empty">没有未处理的异常</td></tr>';
+  } catch (e) { $('xBody').innerHTML = '<tr><td colspan="11" class="empty">' + esc(e.message) + '</td></tr>'; }
+}
+$('xStatus').innerHTML = '<option value="">全部状态</option>' + Object.keys(X_STATUS).map(k => '<option value="' + k + '">' + X_STATUS[k] + '</option>').join('');
+['xCo', 'xStatus', 'xOpen'].forEach(i => $(i).addEventListener('change', loadTx)); $('xQ').addEventListener('keydown', e => { if (e.key === 'Enter') loadTx(); });
+$('xAll').addEventListener('change', e => document.querySelectorAll('#xBody [data-xid]').forEach(c => c.checked = e.target.checked));
+const xSel = () => [...document.querySelectorAll('#xBody [data-xid]:checked')].map(c => +c.dataset.xid);
+async function xDo(label, fn){ try { const r = await fn(); say('xMsg', label + ' ✓', 'ok'); toast(label + ' ✓'); loadTx(); return r; } catch (e) { say('xMsg', e.message, 'warn'); toast(e.message); } }
+$('xSync').addEventListener('click', () => { if (!$('xCo').value) return say('xMsg', '先选一家公司', 'warn'); xDo('读入采购单页面', async () => { const r = await api('POST', xBase() + '/sync'); say('xMsg', '读入完成：新增 ' + r.created + '、更新 ' + r.updated + '、没变 ' + r.unchanged + '、已锁定 ' + r.locked + '；旧流程已导出的 ' + r.legacyExported + ' 张；目前未处理异常 ' + r.exceptions + ' 个', 'ok'); }); });
+$('xFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (!$('xCo').value) return say('xMsg', '先选一家公司', 'warn');
+  try {
+    const r = await fetch('/api' + xBase() + '/import?kind=' + $('xKind').value + '&name=' + encodeURIComponent(f.name), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: await f.arrayBuffer() });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    say('xMsg', '已导入 ' + j.created + ' 笔（' + (j.kind === 'bank' ? '银行收款，等着确认来源' : '采购单') + '）', 'ok'); toast('已导入 ' + j.created + ' 笔'); loadTx();
+  } catch (err) { $('xMsg').innerHTML = '<div class="notice bad" style="white-space:pre-wrap">' + esc(err.message) + '</div>'; }
+});
+document.querySelector('#t-tx').addEventListener('click', async e => {
+  const t = e.target.closest('[data-tpl]'); if (t) { const [k, f] = t.dataset.tpl.split(':'); return download('GET', xBase() + '/template?kind=' + k + '&format=' + f, null, 'template.' + f).catch(err => toast(err.message)); }
+  const d = e.target.closest('[data-dl]'); if (d) { const p = xQuery(); p.set('format', d.dataset.dl); return download('GET', xBase() + '?' + p.toString(), null, 'transactions.' + d.dataset.dl).catch(err => toast(err.message)); }
+  const ed = e.target.closest('[data-edl]'); if (ed) return download('GET', xBase() + '/exceptions?format=' + ed.dataset.edl, null, 'exceptions.' + ed.dataset.edl).catch(err => toast(err.message));
+  const ex = e.target.closest('[data-ex]'); if (ex) { const ids = xSel(); if (!ids.length) return toast('先勾选要导出的（要是已批准的）'); return xDo('导出 Bukku 文件（' + ex.dataset.ex + '）', () => download('POST', xBase() + '/export', { ids, format: ex.dataset.ex }, 'bukku.' + ex.dataset.ex)); }
+  const dt = e.target.closest('[data-xd]'); if (dt) return openTx(+dt.dataset.xd);
+  const cl = e.target.closest('[data-xclose]'); if (cl) { const n = prompt('关掉这个异常，请写备注（说明你查过什么、为什么没问题）：', ''); if (!n || n.trim().length < 3) return toast('没有关掉：要写备注'); return xDo('关掉异常', () => api('POST', xBase() + '/exceptions/' + cl.dataset.xclose + '/resolve', { note: n.trim() })); }
+});
+$('xSubmit').addEventListener('click', () => { const ids = xSel(); if (!ids.length) return toast('先勾选'); xDo('送去审核', () => api('POST', xBase() + '/submit', { ids })); });
+$('xApprove').addEventListener('click', () => { const ids = xSel(); if (!ids.length) return toast('先勾选'); if (!confirm('批准这 ' + ids.length + ' 笔？批准后锁定，只有 Owner 能重新打开。')) return; xDo('批准', () => api('POST', xBase() + '/approve', { ids })); });
+$('xBack').addEventListener('click', () => { const ids = xSel(); if (!ids.length) return toast('先勾选'); const why = prompt('退回修改，请写原因：', ''); if (!why || why.trim().length < 3) return toast('没有退回：要写原因'); xDo('退回', () => api('POST', xBase() + '/send-back', { ids, reason: why.trim() })); });
+async function openTx(id){
+  try {
+    const j = await api('GET', xBase() + '/' + id); const t = j.transaction;
+    $('xDetTitle').textContent = t.internalNo + ' · ' + (X_STATUS[t.status] || t.status);
+    const money = v => Number(v).toLocaleString('en-MY', { minimumFractionDigits: 2 });
+    $('xDetBody').innerHTML = '<div class="fields"><div class="f"><span>供应商 / 付款人</span><b>' + esc(t.counterparty) + '</b></div><div class="f"><span>日期</span><b>' + esc(t.date) + '</b></div><div class="f"><span>单号 / 参考</span><b>' + esc(t.billNo || t.ref) + '</b></div><div class="f"><span>金额</span><b>' + money(t.amount) + '</b></div><div class="f"><span>Contact code</span><b>' + esc(t.contactCode) + '</b></div><div class="f"><span>Bukku 单号</span><b>' + esc(t.bukkuNo) + '</b></div></div>' +
+      '<div class="row" style="margin:8px 0"><button class="btn sm" data-xcls="' + t.id + '">设 contact code / account</button>' + (t.status === 'approved' ? '<button class="btn sm danger" data-xreopen="' + t.id + '">重新打开（Owner，要写原因）</button>' : '') + '</div>' +
+      '<h3 style="margin:12px 0 6px;font-size:13px">明细</h3><div class="tbl"><table style="min-width:0"><thead><tr><th>Account</th><th>说明</th><th class="r">数量</th><th class="r">单价</th></tr></thead><tbody>' + (t.lines || []).map(l => '<tr><td class="mono">' + esc(l.account || '') + '</td><td>' + esc(l.desc || '') + '</td><td class="r">' + esc(l.qty) + '</td><td class="r mono">' + money(l.price) + '</td></tr>').join('') + '</tbody></table></div>' +
+      '<h3 style="margin:12px 0 6px;font-size:13px">异常</h3>' + (j.exceptions.map(e => '<div>' + (e.resolved ? '<span class="pill ok">已关</span>' : '<span class="pill warn">未处理</span>') + ' <span class="mono">' + esc(e.type) + '</span> ' + esc(e.detail || '') + (e.resolved ? ' —— ' + esc(e.resolved_by || '') + '：' + esc(e.resolve_note || '') : '') + '</div>').join('') || '<div class="hint">没有</div>') +
+      '<h3 style="margin:12px 0 6px;font-size:13px">这一笔的全部记录</h3><div class="tbl"><table style="min-width:0"><thead><tr><th>时间</th><th>谁</th><th>动作</th><th>栏位</th><th>改前</th><th>改后</th><th>原因</th></tr></thead><tbody>' + j.history.map(h => '<tr><td class="mono" style="white-space:nowrap">' + esc(new Date(h.at).toLocaleString('en-GB')) + '</td><td>' + esc(h.who) + '</td><td>' + esc(h.action) + '</td><td class="mono">' + esc(h.field || '') + '</td><td class="val">' + esc(h.before || '') + '</td><td class="val">' + esc(h.after || '') + '</td><td>' + esc(h.reason || '') + '</td></tr>').join('') + '</tbody></table></div>';
+    $('xDetail').hidden = false; $('xDetail').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) { toast(e.message); }
+}
+$('xDetClose').addEventListener('click', () => $('xDetail').hidden = true);
+$('xDetail').addEventListener('click', async e => {
+  const c = e.target.closest('[data-xcls]'); if (c) { const code = prompt('Contact code（不改就留空）：', ''); const acc = prompt('Account（会填进还没有 account 的明细；不改就留空）：', ''); const body = {}; if (code) body.contact_code = code; if (acc) body.account = acc; if (!Object.keys(body).length) return; try { await api('POST', xBase() + '/' + c.dataset.xcls + '/classify', body); toast('已更新'); openTx(+c.dataset.xcls); loadTx(); } catch (err) { toast(err.message); } }
+  const r = e.target.closest('[data-xreopen]'); if (r) { const why = prompt('重新打开，请写原因：', ''); if (!why || why.trim().length < 3) return toast('没有打开：要写原因'); try { await api('POST', xBase() + '/reopen', { id: +r.dataset.xreopen, reason: why.trim() }); toast('已重新打开'); openTx(+r.dataset.xreopen); loadTx(); } catch (err) { toast(err.message); } }
+});
+
 /* ---------- start ---------- */
 (async () => {
   try { COMPANIES = await api('GET', '/companies'); } catch (e) { toast('读不到公司清单：' + e.message); }
   COMPANIES.sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const opts = COMPANIES.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   $('sCo').innerHTML = '<option value="">选择公司…</option>' + opts; $('bCo').innerHTML = '<option value="">选择公司…</option>' + opts;
-  $('aCo').innerHTML = '<option value="">全部</option>' + opts;
+  $('aCo').innerHTML = '<option value="">全部</option>' + opts; $('xCo').innerHTML = '<option value="">选择公司…</option>' + opts;
   $('sFrom').value = '';
 })();
 })();

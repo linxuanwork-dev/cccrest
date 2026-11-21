@@ -35,7 +35,7 @@ module.exports = {
   '「系统」= 到盘点日期为止，HQ 进货 − 开给学生 − Fast Track − 已有的调整。「实际」填你数到的数量；没数的留空，不会动。同一个月再盘一次，会取代上一次盘点产生的调整。': ['System = up to the count date: HQ purchases - invoiced to students - Fast Track - adjustments already made. Fill the quantity you counted in Actual; leave the ones not counted empty, they are not touched. Counting the same month again replaces the adjustments of the previous count.', 'Sistem = hingga tarikh kiraan: pembelian HQ - diinvois kepada murid - Fast Track - pelarasan sedia ada. Isi kuantiti yang anda kira dalam Sebenar; yang tidak dikira biarkan kosong, tidak diubah. Mengira bulan yang sama sekali lagi akan menggantikan pelarasan kiraan sebelumnya.'],
   '实际': ['Actual', 'Sebenar'],
   '差': ['Diff', 'Beza'],
-  '这个分校还没有库存记录': ['This branch has no stock record yet', 'Cawangan ini belum ada rekod stok'],
+  '这个分店还没有库存记录': ['This branch has no stock record yet', 'Cawangan ini belum ada rekod stok'],
   '系统里还没有的货品（名字）': ['Items not in the system yet (name)', 'Barang yang belum ada dalam sistem (nama)'],
   '＋ 加这个货品': ['+ Add this item', '+ Tambah barang ini'],
   '保存盘点': ['Save count', 'Simpan kiraan'],

@@ -133,6 +133,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       <button role="tab" data-tab="ret" aria-selected="true">报税计算</button>
       <button role="tab" data-tab="assets">资产 · 资本津贴</button>
       <button role="tab" data-tab="report">报告 / 底稿</button>
+      <button role="tab" data-tab="remind">提醒</button>
       <button role="tab" data-tab="clients">客户</button>
       <button role="tab" data-tab="rules">税务规则</button>
       <button role="tab" data-tab="audit">修改记录</button>
@@ -264,6 +265,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
             <label class="f"><span>CP500 / 自行分期已缴</span><input class="amt" data-k="cp500" inputmode="decimal"></label>
             <label class="f"><span>去年欠缴（+）/ 多缴（−）</span><input class="amt" data-k="prevAdj" inputmode="decimal"></label>
           </div>
+          <label class="f" style="margin-top:12px"><span>资料收齐了吗（提醒页会显示）</span><select data-k="docsReady"><option value="">还没收齐</option><option value="yes">已收齐</option></select></label>
           <label class="f" style="margin-top:12px"><span>备注（会印在底稿）</span><textarea data-k="notes" rows="3"></textarea></label>
         </div>
       </div>
@@ -309,7 +311,26 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
       <button class="btn" id="xlsBtn">下载 Excel</button>
       <button class="btn pri" id="printBtn">下载 PDF</button>
     </div>
+    <div class="panel noprint" id="packBox" style="max-width:900px;margin:0 auto 12px">
+      <div class="ph"><h2>分开输出（每一份单独下载）</h2><button class="btn sm pri" id="zipBtn">下载全套 ZIP（各份 PDF + Excel）</button></div>
+      <div id="packBody"></div>
+      <div class="small muted" id="packNote" style="margin-top:6px"></div>
+    </div>
     <div class="paper" id="paper"></div>
+  </section>
+
+  <!-- ============ REMINDERS ============ -->
+  <section id="t-remind" hidden>
+    <div class="panel">
+      <div class="ph"><h2>提醒 · 合规日历 <span class="muted" id="rmYA"></span></h2></div>
+      <p class="small muted" style="margin:0 0 10px">所有客户这一个 YA 的报税进度：截止日（照税务规则里的日期，以 LHDN 当年公布为准）、状态、资料收齐了没有、还没处理的提示。点一行就跳到那位客户的报税页。</p>
+      <div class="tbl-wrap"><table><thead><tr><th>客户</th><th>表格</th><th>截止日</th><th class="r">还剩</th><th>状态</th><th>资料收齐</th><th class="r">提示</th><th class="r">余额</th></tr></thead><tbody id="rmBody"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>CP500 分期日期（下一年）</h2></div>
+      <p class="small muted" style="margin:0 0 10px">有生意收入的客户，下一年要按 CP500 分期缴税。金额是估算（今年应缴税额减 PCB，再平分），日期按税务规则里 cp500.dues 的设定，没设定就用 3、5、7、9、11 月和下一个 1 月的 15 号。请对照 LHDN 寄来的 CP500 通知核对。</p>
+      <div class="tbl-wrap"><table><thead><tr><th>客户</th><th class="r">每期（估算）</th><th>期数</th><th>日期</th></tr></thead><tbody id="rmCp"></tbody></table></div>
+    </div>
   </section>
 
   <!-- ============ CLIENTS ============ -->
@@ -402,6 +423,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /* the data store of this page: small documents kept by the CC CREST server (Owner only), read again every 8 seconds and after each save */
 window.TAXDB=(function(){
@@ -703,6 +725,79 @@ function checks(R, ret, prevR, client, rules) {
   return out;
 }
 
+/* The master computation rows (spec section 5, rows 1 - 15), the carry-forward table, the receipt checklist, the reminders. */
+function masterRows(R) {
+  const r = []; const add = (no, label, src, v, cls) => r.push({ no, label, src, v, cls: cls || '' });
+  add('1', '生意法定收入（含合伙份额，已扣资本津贴和亏损 b/f）', R.hasBiz ? 'HK-1 / Form P' : 'Form P', R.statBizNet);
+  add('2', '受雇法定收入（工资 + 津贴 + BIK − 免税部分）', 'EA', R.empIncome);
+  add('3', '租金、利息、股息、其他收入（减免税部分）', '各收入来源明细', r2(R.rental + R.interest + R.otherInc));
+  add('4', 'Aggregate income = 1 + 2 + 3', '', R.aggregate, 'tot');
+  add('5', '减：当年生意亏损', 'HK-1 / Form P', R.curLossUsed);
+  add('6', '减：核准捐款、政府捐款', '捐款收据', r2(R.donCapped + R.donGov));
+  add('7', 'Total income = 4 − 5 − 6', '', R.totalIncome, 'tot');
+  add('8', '减：Reliefs（每项已按上限封顶）', '扣除额明细', R.rel.total);
+  add('9', 'Chargeable income = 7 − 8', '', R.chargeable, 'tot');
+  add('10', '按税率表算出的所得税', '税务规则 YA' + R.ya, R.taxGross);
+  add('11', '减：Rebate（本人、配偶、Zakat、其他）', '税务规则 + 单据', r2(R.rebSelf + R.rebSpouse + R.rebZakat + R.rebOther));
+  add('12', 'Tax payable = 10 − 11', '', R.taxPayable, 'tot');
+  add('13', '减：已缴 PCB / MTD', 'EA', R.pcb);
+  add('14', '减：CP500 已缴分期', '单据', R.cp500);
+  if (R.prevAdj) add('14a', R.prevAdj > 0 ? '加：去年欠缴' : '减：去年多缴', '去年的评税', Math.abs(R.prevAdj));
+  add('15', R.balance >= 0 ? '应补缴 = 12 − 13 − 14' + (R.prevAdj ? ' ± 14a' : '') : '（应退税）= 12 − 13 − 14' + (R.prevAdj ? ' ± 14a' : ''), '', Math.abs(R.balance), 'tot');
+  return r;
+}
+function carryRows(R) {
+  const r = [];
+  if (R.hasBiz) {
+    r.push(['未用完的资本津贴 c/f', R.caCF, 'tot'], ['↳ 来自本年', R.caCFCur], ['↳ 来自 b/f', R.caCFBF]);
+  }
+  r.push(['生意亏损 c/f', R.lossCF, 'tot'], ['↳ b/f 还没用完的', r2(R.lossBF - R.lossBFUsed)], ['↳ 本年新增、没抵完的', r2(R.curLoss - R.curLossUsed)]);
+  if (R.hasBiz && R.ca) {
+    r.push(['资产剩余 RE（TWDV）c/f 合计', R.ca.reClose, 'tot']);
+    R.ca.items.filter(x => x.row.twdvClose > 0).forEach(x => r.push(['↳ ' + (x.a.desc || x.a.ref || '') + '（' + x.a.cls + '）', x.row.twdvClose]));
+  }
+  return r;
+}
+function receiptRows(R, ret, rules) {
+  const defs = rules.reliefs || []; const rows = []; const t = v => String(v || '').trim();
+  const put = (item, claim, ref, need) => rows.push({ item, claim: r2(claim), ref: t(ref), status: need ? (t(ref) ? '有' : '缺') : '客户资料' });
+  (R.rel?.lines || []).forEach(l => { if (!(l.claim > 0)) return; const it = defs.find(x => x.code === l.code) || {}; put((it.no || l.code) + ' ' + (it.name || ''), l.claim, ret.relRef?.[l.code], l.type === 'amt'); });
+  if (n(ret.don?.capped) + n(ret.don?.gov) > 0) put('核准捐款', R.donCapped + R.donGov, ret.don?.ref, true);
+  if (R.empIncome > 0) put('受雇收入 EA', R.empIncome, [ret.emp?.employer, ret.emp?.ref].filter(Boolean).join(' '), true);
+  (R.partners || []).forEach(x => put('合伙 ' + (x.name || ''), x.income - x.ca, x.ref, true));
+  (R.rentals || []).forEach(x => put('租金 ' + (x.prop || ''), x.net, x.ref, true));
+  (R.invests || []).forEach(x => put((x.type || '') + ' ' + (x.source || ''), x.net, x.ref, true));
+  (R.others || []).forEach(x => put((x.type || '') + ' ' + (x.source || ''), x.amt, x.ref, true));
+  return rows;
+}
+
+/* Compliance reminders: deadline, status, documents complete, open warnings, CP500 dates, for every client of one YA. */
+const DEF_CP500_DUES = ['03-15', '05-15', '07-15', '09-15', '11-15', '01-15'];
+function parseDue(text) {
+  const ds = [...String(text || '').matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g)].map(m => new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])));
+  return { form: ds[0] || null, efile: ds[1] || ds[0] || null };
+}
+function cp500Dates(ya, rules) {
+  const X = ya + 1;
+  return (rules.cp500?.dues || DEF_CP500_DUES).map(d => { const [mm, dd] = String(d).split('-').map(Number); return new Date(Date.UTC(mm === 1 ? X + 1 : X, mm - 1, dd)); });
+}
+function reminders(ya, clients, returns, rulesFor, today) {
+  const rules = rulesFor(ya); const t0 = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  return (clients || []).map(c => {
+    const ret = returns[c.id + '_' + ya]; const form = ret?.form || c.form || 'B';
+    const due = parseDue(rules.deadlines?.[form]); const target = due.efile || due.form;
+    const days = target ? Math.round((target.getTime() - t0) / 86400000) : null;
+    const status = ret ? (ret.status || 'draft') : 'none';
+    let R = null, ck = [];
+    if (ret) { try { R = compute(ret, c, rules, rulesFor); const pr = returns[c.id + '_' + (ya - 1)]; const pR = pr ? compute(pr, c, rulesFor(ya - 1), rulesFor) : null; ck = checks(R, ret, pR, c, rules); } catch (e) { /* the row still shows */ } }
+    const warnN = R ? (R.warns || []).length + ck.filter(x => x.lvl === 'warn').length : 0;
+    let level = 'ok';
+    if (status === 'filed') level = 'done'; else if (days != null) level = days < 0 ? 'late' : days <= 14 ? 'soon' : days <= 45 ? 'near' : 'ok';
+    const cp = R?.cp500Est ? { per: R.cp500Est.per, count: R.cp500Est.count, dates: cp500Dates(ya, rules) } : null;
+    return { cid: c.id, name: c.name, form, status, started: !!ret, docsReady: ret?.docsReady === 'yes', due: due.form, efile: due.efile, days, level, warnN, balance: R ? R.balance : null, cp };
+  });
+}
+
 /* Full computation. ret = return doc, client = client doc */
 function compute(ret, client, rules, rulesFor) {
   const ya = parseInt(ret.ya); const resident = ret.resident !== false;
@@ -813,7 +908,7 @@ function compute(ret, client, rules, rulesFor) {
   return R;
 }
 
-return { compute, taxOnIncome, reliefs, caForYA, assetSchedule, checks, n, r2 };
+return { compute, taxOnIncome, reliefs, caForYA, assetSchedule, checks, masterRows, carryRows, receiptRows, reminders, parseDue, cp500Dates, n, r2 };
 })();
 
 
@@ -861,6 +956,7 @@ function setTab(t){
   document.querySelectorAll('main > section').forEach(s=>s.hidden = s.id!=='t-'+t);
   if(t==='report') renderReport();
   if(t==='audit') renderAudit();
+  if(t==='remind') renderRemind();
   if(t==='assets') renderAssets();
   if(t==='rules') renderRules();
   window.scrollTo(0,0);
@@ -1141,6 +1237,9 @@ function renderReport(){
   <div><b>税务号码 TIN</b><span class="mono">${esc(c.tin||'')}</span></div><div><b>评税年 / 基期</b>YA${S.ya} · 1/1/${S.ya} – 31/12/${S.ya}</div>
   ${R.hasBiz?`<div><b>生意</b>${esc(cur.biz.name||'')}</div><div><b>MSIC / 期间</b>${esc(cur.biz.msic||'')} ${esc(cur.biz.period||'')}</div>`:''}
   <div><b>记录保存 ${esc(fc.rk||'')}</b>${cur.rk==='2'?'2 – 不合规':'1 – 合规'}</div><div><b>截止日期</b>${esc(rules.deadlines?.[cur.form]||'')}</div></div>`;
+  if(!isLocked()) h+='<div class="small" style="color:#b45309;margin-bottom:4px">草稿：这份报税资料还没有批准锁定。</div>';
+  h+=`<h4>Tax computation 主版模（第 1 – 15 行）</h4>`;
+  h+=T('<th>行</th><th>项目</th><th>来源</th><th class="r">RM</th>',TAX.masterRows(R).map(x=>`<tr class="${x.cls}"><td class="code">${esc(x.no)}</td><td>${esc(x.label)}</td><td class="small">${esc(x.src)}</td><td class="r mono">${money(x.v)}</td></tr>`).join(''));
   h+=`<h4>1. e-Filing 对照（Borang ${esc(cur.form)} ${S.ya}）</h4>`;
   let s='';
   if(R.hasBiz){ s+=tr(fc.biz,'生意法定收入（来自 HK-1）',R.statBiz); if(R.lossBFUsed) s+=tr(fc.lossBF,'生意亏损 b/f',R.lossBFUsed); }
@@ -1192,6 +1291,8 @@ function renderReport(){
   h+=T('<th class="code">项目</th><th>扣除项目</th><th class="r">收据/人数</th><th class="r">可扣</th><th>收据参考</th>',
     R.rel.lines.map(l=>{ const it=(rules.reliefs||[]).find(x=>x.code===l.code)||{}; return `<tr><td class="code">${esc(pre+(it.no||l.code))}</td><td>${esc(it.name||l.code)}${l.note?'<div class="small">'+esc(l.note)+'</div>':''}</td><td class="r mono">${l.type==='count'?l.input+' 位':l.type==='auto'?'自动':money(l.input)}</td><td class="r mono">${money(l.claim)}</td><td class="small">${esc(cur.relRef?.[l.code]||'')}</td></tr>`;}).join('')+
     `<tr class="tot"><td></td><td>合计 → ${esc(fc.rel||'')}</td><td></td><td class="r mono">${money(R.rel.total)}</td><td></td></tr>`);
+  h+=`<h4>${n}.1 单据清单（有申报的项目，收据参考有没有填）</h4>`;
+  h+=T('<th>项目</th><th class="r">金额</th><th>收据 / 凭证参考</th><th>状态</th>',TAX.receiptRows(R,cur,rules).map(x=>`<tr><td>${esc(x.item)}</td><td class="r mono">${money(x.claim)}</td><td class="small">${esc(x.ref)}</td><td>${x.status==='缺'?'<b>缺</b>':esc(x.status)}</td></tr>`).join('')||'<tr><td colspan="4">没有申报的项目</td></tr>');
   h+=`<h4>${n+1}. 税额计算（ITA 附表 1）</h4>`;
   h+=T('<th>级距</th><th class="r">税率</th><th class="r">税额</th>',R.taxSteps.map(x=>`<tr><td class="mono">${money(x.from)} – ${money(x.to)}</td><td class="r mono">${x.rate}%</td><td class="r mono">${money(x.amt)}</td></tr>`).join('')+`<tr class="tot"><td>应课税收入 ${money(R.chargeable)}</td><td></td><td class="r mono">${money(R.taxGross)}</td></tr>`);
   let k=n+2;
@@ -1204,11 +1305,68 @@ function renderReport(){
     h+=`<h4>${k++}. CP500 估算（下一年）</h4>`;
     h+=T('<th>项目</th><th class="r">RM</th>',cpLines(R.cp500Est).map(x=>`<tr><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td></tr>`).join(''));
     if(R.cp500Est.warn) h+=`<div class="small">${esc(R.cp500Est.warn)}</div>`; }
+  h+=`<h4>${k++}. 结转表 Carry-forward（自动带到下一年）</h4>`;
+  h+=T('<th>项目</th><th class="r">RM</th>',TAX.carryRows(R).map(x=>`<tr class="${x[2]||''}"><td>${esc(x[0])}</td><td class="r mono">${money(x[1])}</td></tr>`).join(''));
   h+=`<h4>${k}. 资料来源与备注</h4><div>${R.empIncome?'EA：'+esc(cur.emp.employer||'')+' '+esc(cur.emp.ref||'')+'<br>':''}${cur.don?.ref?'捐款收据：'+esc(cur.don.ref)+'<br>':''}${esc(cur.notes||'').replace(/\n/g,'<br>')||'—'}</div>`;
   h+=`<div class="sign"><div>制表 Prepared by<br>${esc(cur.prepBy||'')}<br>日期：</div><div>复核 Reviewed by<br>${esc(cur.revBy||'')}<br>日期：</div><div>纳税人确认 Taxpayer<br>${esc(c.name)}<br>日期：</div></div>`;
   h+=`<div class="foot">计算依据：ITA 1967 s33、s39、s43、s44、附表 1、附表 3；${esc(rules.sources||'')}。<br>本底稿与所有收据、账目、发票须按 ITA s82 / s82A 保存至提交年份结束后 7 年，供 LHDN 查账。${cur.filedOn?'e-Filing 提交：'+esc(cur.filedOn)+' '+esc(cur.filedRef||''):''}<br>列印日期：${new Date().toLocaleDateString('en-GB')}</div>`;
-  $('paper').innerHTML=h;
+  $('paper').innerHTML=wrapParts(h); renderPack();
 }
+/* the working paper is cut into parts so each part can be downloaded on its own */
+const PART_NAMES={computation:'税务计算（主版模、税额、合并评税、CP500）',adjustment:'业务收入调整（含 disallowed expenses）',ca:'资本津贴与资产登记',reliefs:'扣除额与单据清单',efiling:'e-Filing 填表对照',carry:'结转表'};
+const PART_CODE={computation:'1-Computation',adjustment:'2-Adjustment',ca:'3-CapitalAllowance',reliefs:'4-Reliefs',efiling:'5-eFiling',carry:'6-CarryForward'};
+const PART_SHEETS={computation:['Computation','Joint assessment','CP500','Checks'],adjustment:['HK-1','P&L disallowed'],ca:['HK-1.2 CA','Asset register'],reliefs:['Relief','Receipts'],efiling:['e-Filing'],carry:['Carry-forward']};
+function partOfHeading(t){
+  if(/e-Filing 对照|收入来源明细/.test(t)) return 'efiling';
+  if(/生意法定收入计算/.test(t)) return 'adjustment';
+  if(/资产登记与资本津贴|资本津贴逐件|按类别小计|^\d+\.\d+ 结转到下一年/.test(t)) return 'ca';
+  if(/扣除额明细|单据清单/.test(t)) return 'reliefs';
+  if(/结转表/.test(t)) return 'carry';
+  return 'computation';
+}
+function wrapParts(h){
+  const i=h.indexOf('<h4>'); if(i<0) return h;
+  let out=h.slice(0,i);
+  h.slice(i).split('<h4>').slice(1).forEach(ch=>{ const t=ch.slice(0,ch.indexOf('</h4>')).replace(/<[^>]+>/g,''); out+='<div data-part="'+partOfHeading(t)+'"><h4>'+ch+'</div>'; });
+  return out;
+}
+function hasPart(pt){ return !!$('paper').querySelector('[data-part="'+pt+'"]'); }
+function renderPack(){
+  const box=$('packBody'); if(!box) return;
+  box.innerHTML=Object.keys(PART_NAMES).map(pt=>`<div class="row" style="justify-content:space-between;padding:4px 0;border-top:1px solid var(--line)"><span>${esc(PART_NAMES[pt])}${hasPart(pt)?'':' <span class="small muted">（这个表格没有这一份）</span>'}</span><span class="row"><button class="btn sm" data-pk="pdf:${pt}" ${hasPart(pt)?'':'disabled'}>PDF</button><button class="btn sm" data-pk="xls:${pt}" ${hasPart(pt)?'':'disabled'}>Excel</button></span></div>`).join('');
+  $('packNote').textContent=isLocked()?'已批准锁定：这是正式版。文件名：'+fbase()+'-1-Computation 等。':'还没批准锁定：现在出的是草稿，文件内会印「草稿」。文件名：'+fbase()+'-1-Computation 等。';
+}
+function partElement(pt){
+  const el=$('paper').cloneNode(true); el.removeAttribute('id');
+  el.querySelectorAll('[data-part]').forEach(x=>{ if(x.dataset.part!==pt) x.remove(); });
+  el.querySelectorAll('h4').forEach(h=>{ h.textContent=h.textContent.replace(/^\d+(\.\d+)*\.?\s+/,''); });
+  const h1=el.querySelector('h1'); if(h1) h1.textContent+=' · '+PART_NAMES[pt].split('（')[0];
+  return el;
+}
+async function pdfBytes(el){
+  const buf=await html2pdf().set({margin:[10,10,12,10],image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','h4','.sign']}}).from(el).outputPdf('arraybuffer');
+  return new Uint8Array(buf);
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-pk]'); if(!b) return; const [kind,pt]=b.dataset.pk.split(':');
+  if(!hasPart(pt)) return; b.disabled=true; const old=b.textContent; b.textContent='…';
+  try{
+    if(kind==='pdf'){ if(typeof html2pdf==='undefined') throw new Error('PDF 模组没载入'); await saveFile(fbase()+'-'+PART_CODE[pt]+'.pdf', await pdfBytes(partElement(pt))); }
+    else await exportXls(pt);
+  }catch(err){ console.error(err); toast('生成失败：'+(err.message||err)); }
+  b.disabled=false; b.textContent=old;
+});
+$('zipBtn').addEventListener('click',async()=>{
+  if(typeof JSZip==='undefined'||typeof html2pdf==='undefined'||typeof XLSX==='undefined') return toast('PDF / ZIP / Excel 模组没载入');
+  const b=$('zipBtn'); b.disabled=true; const old=b.textContent; b.textContent='生成中…';
+  try{
+    renderReport(); const z=new JSZip();
+    for(const pt of Object.keys(PART_NAMES)){ if(!hasPart(pt)) continue; z.file(fbase()+'-'+PART_CODE[pt]+'.pdf', await pdfBytes(partElement(pt))); }
+    const x=await exportXls(null,true); if(x) z.file(fbase()+'-Workbook.xlsx', x);
+    await saveFile(fbase()+'.zip', await z.generateAsync({type:'uint8array'}));
+  }catch(err){ console.error(err); toast('生成失败：'+(err.message||err)); }
+  b.disabled=false; b.textContent=old;
+});
 async function saveFile(fname, bytes){
   const url=URL.createObjectURL(new Blob([bytes])), a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
@@ -1222,8 +1380,8 @@ $('printBtn').addEventListener('click', async ()=>{
   }catch(e){ console.error(e); toast('PDF 生成失败'); }
   b.disabled=false; b.textContent='下载 PDF';
 });
-$('xlsBtn').addEventListener('click', async ()=>{
-  const d=reportData(); if(!d) return; if(typeof XLSX==='undefined') return toast('Excel 模组没载入');
+async function exportXls(part, ret){
+  const d=reportData(); if(!d) return null; if(typeof XLSX==='undefined'){ toast('Excel 模组没载入'); return null; }
   const {c,R,rules,fc}=d; const cur=S.cur; const pre=fc.relPrefix||'';
   const wb=XLSX.utils.book_new();
   const sum=[['所得税计算底稿 YA'+S.ya,'','Form '+cur.form],['纳税人',c.name],['IC',c.ic||''],['TIN',c.tin||''],[],['项目','说明','RM']];
@@ -1272,9 +1430,19 @@ $('xlsBtn').addEventListener('click', async ()=>{
   R.rel.lines.forEach(l=>{ const it=(rules.reliefs||[]).find(x=>x.code===l.code)||{}; rl.push([pre+(it.no||l.code),it.name||l.code,l.input,l.claim,cur.relRef?.[l.code]||'']); });
   rl.push(['','合计','',R.rel.total]);
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rl),'Relief');
-  const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-  await saveFile(fbase()+'.xlsx', new Uint8Array(data));
-});
+  const cmp=[['行','项目','来源','RM']]; TAX.masterRows(R).forEach(x=>cmp.push([x.no,x.label,x.src,x.v])); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cmp),'Computation');
+  const rc=[['项目','金额','收据 / 凭证参考','状态']]; TAX.receiptRows(R,cur,rules).forEach(x=>rc.push([x.item,x.claim,x.ref,x.status])); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rc),'Receipts');
+  const cf=[['项目','RM']]; TAX.carryRows(R).forEach(x=>cf.push([x[0],x[1]])); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cf),'Carry-forward');
+  if(part){
+    const keep=PART_SHEETS[part]||[]; wb.SheetNames=wb.SheetNames.filter(nm=>keep.includes(nm)); Object.keys(wb.Sheets).forEach(k=>{ if(!keep.includes(k)) delete wb.Sheets[k]; });
+    if(!wb.SheetNames.length){ toast('这一份没有内容'); return null; }
+  }
+  const data=new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array'}));
+  if(ret) return data;
+  await saveFile(fbase()+(part?'-'+PART_CODE[part]:'')+'.xlsx', data);
+  return data;
+}
+$('xlsBtn').addEventListener('click',()=>exportXls());
 
 /* ---------- clients ---------- */
 let editingC=null;
@@ -1643,6 +1811,23 @@ const _recalc4=recalc; recalc=function(){ _recalc4(); try{ const R=S.R; if(!R||!
   renderJoint(R); renderCp(R); S.checks=runChecks(R,S.cur,S.ya);
   if(S.checks.length) $('warnBox').insertAdjacentHTML('beforeend','<div class="small muted" style="margin-top:10px">系统检查</div>'+S.checks.map(x=>'<div class="notice" style="margin-top:6px">'+(x.lvl==='info'?'ℹ ':'')+esc(x.text)+'</div>').join(''));
 }catch(e){ console.error(e); } };
+
+/* ---------- reminders: compliance calendar ---------- */
+const fmtD=d=>d?String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear():'—';
+const stName={none:'还没开始',draft:'草稿',review:'待复核',reviewed:'已批准',filed:'已提交 e-Filing'};
+function renderRemind(){
+  const body=$('rmBody'); if(!body) return; $('rmYA').textContent='YA'+S.ya;
+  if(!S.ya||!rulesFor(S.ya)){ body.innerHTML='<tr><td colspan="8" class="empty">选一个 YA，并且要有税务规则</td></tr>'; $('rmCp').innerHTML=''; return; }
+  const rows=TAX.reminders(S.ya,S.clients,S.returns,rulesFor,new Date());
+  const order={late:0,soon:1,near:2,ok:3,done:4}; rows.sort((a,b)=>(order[a.level]-order[b.level])||((a.days??9e9)-(b.days??9e9))||String(a.name).localeCompare(String(b.name)));
+  const left=x=>x.level==='done'?'—':x.days==null?'—':x.days<0?'<span class="pill warn">已过 '+(-x.days)+' 天</span>':x.days+' 天';
+  body.innerHTML=rows.map(x=>`<tr data-rm="${esc(x.cid)}" style="cursor:pointer"><td>${esc(x.name)}</td><td>${esc(x.form)}</td><td class="mono small">${fmtD(x.due)}${x.efile&&x.efile!==x.due?' · e-Filing '+fmtD(x.efile):''}</td><td class="r ${x.level==='soon'?'warnline':''}">${left(x)}</td><td><span class="pill ${x.status==='filed'||x.status==='reviewed'?'ok':x.status==='review'?'warn':'draft'}">${esc(stName[x.status]||x.status)}</span></td><td>${!x.started?'—':x.docsReady?'已收齐':'<span class="warnline">还没收齐</span>'}</td><td class="r">${x.started?(x.warnN?'<span class="warnline">'+x.warnN+'</span>':'0'):'—'}</td><td class="r mono">${x.balance==null?'—':money(x.balance)}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">还没有客户</td></tr>';
+  const cps=rows.filter(x=>x.cp);
+  $('rmCp').innerHTML=cps.map(x=>`<tr><td>${esc(x.name)}</td><td class="r mono">${money(x.cp.per)}</td><td>${x.cp.count} 期</td><td class="mono small">${x.cp.dates.map(fmtD).join(' · ')}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">这个 YA 没有客户有生意收入</td></tr>';
+}
+$('rmBody').addEventListener('click',e=>{ const tr=e.target.closest('[data-rm]'); if(!tr) return; $('cSel').value=tr.dataset.rm; $('cSel').dispatchEvent(new Event('change',{bubbles:true})); setTab('ret'); });
+document.addEventListener('change',e=>{ if(S.tab==='remind'&&(e.target.id==='ySel'||e.target.id==='cSel')) setTimeout(renderRemind,50); });
+setInterval(()=>{ if(S.tab==='remind') renderRemind(); },8000);
 
 /* ---------- boot ---------- */
 function onClients(rows){ S.clients=rows; renderPickers(); renderClients(); if(!S.cur || S.cur.cid!==S.cid) loadReturn(); else { if(S.tab==='assets') renderCA(); recalc(); } }

@@ -35,6 +35,7 @@ app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(attachUser);
 app.use('/api', enforcePasswordChange);
+app.use('/api', require('./lib/rls').middleware);   // RLS_MODE=enforce: the rest of the request runs as the role cccrest_app (not the Owner)
 
 app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/companies'));
@@ -81,6 +82,7 @@ const PORT = process.env.PORT || 3000;
 
 migrate()
   .then(async () => {
+    await require('./lib/rls').selfCheck(pool);   // with RLS_MODE=enforce the role must work, otherwise the start fails
     const n = await flagDefaultPasswords(pool);
     if (n) console.log('Accounts that must change a default password:', n);
     // the statutory payroll rules in force (with the built-in rules as the fallback if this fails)

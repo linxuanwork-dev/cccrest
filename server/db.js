@@ -19,6 +19,9 @@ const pool = new Pool({
   ssl: useSSL ? { rejectUnauthorized: false } : false
 });
 
+// row-level security (RLS_MODE=enforce, see lib/rls.js): without it, or outside a signed-in request, the pool works exactly as before
+require('./lib/rls').wrapPool(pool);
+
 module.exports = {
   pool,
   query: (text, params) => pool.query(text, params)

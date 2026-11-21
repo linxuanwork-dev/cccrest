@@ -6,6 +6,7 @@ const { requireAnyPage } = require('../lib/access');
 const { logActivity } = require('../lib/activity');
 const { slugify } = require('../lib/mockGen');
 const docs = require('../lib/docs');
+const settings = require('../lib/settings');
 
 const router = express.Router();
 const PERIOD = '2026-08';
@@ -47,12 +48,18 @@ function baseCompanyQuery(whereClause) {
   `;
 }
 
+// the settings the page needs for each company (which Sales page, short name ...), as in force today
+async function withSettings(rows) {
+  const all = await settings.effective(rows.map((r) => r.id), null, { keys: settings.PUBLIC_KEYS });
+  return rows.map((r) => Object.assign({}, r, { settings: all[r.id] || {} }));
+}
+
 router.get('/companies', requireAuth, async (req, res) => {
   const { role, sub: userId, staffId, companyId } = req.user;
 
   if (role === 'admin') {
     const { rows } = await pool.query(baseCompanyQuery(''));
-    return res.json(rows);
+    return res.json(await withSettings(rows));
   }
   if (role === 'staff') {
     const { rows } = await pool.query(
@@ -60,10 +67,10 @@ router.get('/companies', requireAuth, async (req, res) => {
       [staffId]
     );
     // Each staff member is told their own levels on each company, so the app can hide pages they have no access to.
-    return res.json(rows.map((r) => {
+    return res.json(await withSettings(rows.map((r) => {
       const me = (r.staff_detail || []).find((s) => s.id === staffId);
       return Object.assign({}, r, { my_access: me ? { permissions: me.permissions, canApprove: me.canApprove } : null });
-    }));
+    })));
   }
   if (role === 'manager') {
     const { rows } = await pool.query(
@@ -74,11 +81,11 @@ router.get('/companies', requireAuth, async (req, res) => {
       )`),
       [userId]
     );
-    return res.json(rows);
+    return res.json(await withSettings(rows));
   }
   if (role === 'client') {
     const { rows } = await pool.query(baseCompanyQuery('WHERE c.id = $1'), [companyId]);
-    return res.json(rows);
+    return res.json(await withSettings(rows));
   }
   res.status(403).json({ error: 'Not allowed' });
 });

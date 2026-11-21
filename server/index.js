@@ -38,6 +38,7 @@ app.use('/api', enforcePasswordChange);
 
 app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/companies'));
+app.use('/api', require('./routes/companySettings'));
 app.use('/api', require('./routes/staff'));
 app.use('/api', require('./routes/assignments'));
 app.use('/api', require('./routes/activity'));

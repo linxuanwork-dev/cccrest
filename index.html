@@ -4316,8 +4316,8 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
         document.getElementById('recon-context-name').textContent = cust.name;
         document.getElementById('recon-context-staff').textContent = cust.staff.join(', ');
         document.getElementById('recon-context').classList.add('visible');
-        selectCompany(cust.name, { navigate: cust.name !== RECON_ONLY_COMPANY });
-        if(cust.name === RECON_ONLY_COMPANY){
+        selectCompany(cust.name, { navigate: salesPanelOf(cust.name) !== 'own_laundry' });
+        if(salesPanelOf(cust.name) === 'own_laundry'){
           var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
           if(salesNav) salesNav.click();
         }
@@ -4376,6 +4376,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
           status: c.status || 'Not Started',
           updated: formatDate(c.updated_at),
           enabledFeatures: c.enabled_features,
+          settings: c.settings || {},
           staffDetail: c.staff_detail || [],
           myAccess: c.my_access || null
         };
@@ -4418,6 +4419,8 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   var CURRENT_PERIOD = { yyyy: '2026', mm: '08' };
 
   function shortNameFor(company){
+    var set = companySetting(company, 'short_name');
+    if(set) return set;
     var key = company.trim().toUpperCase().replace(/\s+/g, ' ');
     for(var full in COMPANY_SHORT_NAMES){
       if(full.trim().toUpperCase().replace(/\s+/g, ' ') === key) return COMPANY_SHORT_NAMES[full];
@@ -4450,14 +4453,14 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     // Every company's Sales Summary picker/drill-in panel (if any) gets hidden
     // first, then only the current company's own override (if it has one) is
     // shown — keeps each company's panel fully independent of the others.
-    Object.keys(SALES_SUMMARY_OVERRIDES).forEach(function(companyName){
-      document.getElementById(SALES_SUMMARY_OVERRIDES[companyName].pickerId).hidden = true;
+    Object.keys(SALES_PANELS).forEach(function(k){
+      document.getElementById(SALES_PANELS[k].pickerId).hidden = true;
     });
     document.getElementById('dm-invoice-card').hidden = true;
     document.getElementById('dsi-card').hidden = true;
     document.getElementById('dsi-records').hidden = true;
 
-    var override = SALES_SUMMARY_OVERRIDES[normCompany(currentCompany)];
+    var override = SALES_PANELS[salesPanelOf(currentCompany)];
     if(override){
       document.getElementById(override.pickerId).hidden = false;
       if(override.onShow) override.onShow();
@@ -5994,7 +5997,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   document.getElementById('dm-customers-modal-backdrop').addEventListener('click', function(e){ if(e.target === this) closeDmCustomersModal(); });
 
   function renderDmCustomersList(){
-    var companyId = customerRecordId(DM_INVOICE_COMPANY);
+    var companyId = companyIdByPanel('didik_mulia');
     if(!companyId) return;
     var branch = document.getElementById('dm-customers-branch-filter').value;
     var tbody = document.getElementById('dm-customers-tbody');
@@ -6019,7 +6022,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   document.getElementById('dm-customers-branch-filter').addEventListener('change', renderDmCustomersList);
 
   document.getElementById('dm-customer-add-btn').addEventListener('click', function(){
-    var companyId = customerRecordId(DM_INVOICE_COMPANY);
+    var companyId = companyIdByPanel('didik_mulia');
     if(!companyId) return;
     var branch = document.getElementById('dm-customers-branch-filter').value;
     var name = document.getElementById('dm-customer-new-name').value.trim();
@@ -6047,7 +6050,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     document.getElementById('dm-customers-import-input').click();
   });
   document.getElementById('dm-customers-import-input').addEventListener('change', function(){
-    var companyId = customerRecordId(DM_INVOICE_COMPANY);
+    var companyId = companyIdByPanel('didik_mulia');
     if(!companyId || !this.files[0]) return;
     var formData = new FormData();
     formData.append('file', this.files[0]);
@@ -6093,7 +6096,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
     var sub = document.getElementById('merchant-sub');
     var tbody = document.getElementById('merchant-tbody');
 
-    var override = MERCHANT_REPORT_OVERRIDES[currentCompany];
+    var override = merchantReportOf(currentCompany) === 'ol_tng';
     document.getElementById('ol-tng-card').hidden = !override;
     document.getElementById('merchant-normal-section').hidden = !!override;
     if(override){
@@ -6487,7 +6490,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   }
 
   document.getElementById('home-upload-btn').addEventListener('click', function(){
-    if(currentCompany !== RECON_ONLY_COMPANY) return;
+    if(salesPanelOf(currentCompany) !== 'own_laundry') return;
     var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
     if(salesNav) salesNav.click();
   });
@@ -7140,7 +7143,7 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
       sel.innerHTML = rows.map(function(r){ return '<option value="' + r.id + '">' + pfEsc(r.name) + (r.employerENo ? '  ✓' : '') + '</option>'; }).join('');
       if(keep && rows.some(function(r){ return String(r.id) === keep; })) sel.value = keep;
       else {
-        var first = rows.filter(function(r){ return /^SK SPRAY PPF/i.test(r.name); })[0];
+        var first = rows.filter(function(r){ var v = companySetting(r.name, 'eno_preselect'); return v === undefined ? /^SK SPRAY PPF/i.test(r.name) : v === true; })[0];
         if(first) sel.value = String(first.id);
       }
       enoShow();
@@ -7443,30 +7446,45 @@ html,body{overscroll-behavior-x:none}/* a sideways swipe / drag past the end of 
   // Own Laundry Sdn Bhd's payment gateway setup — no other company has this.
   // Company names are matched case/whitespace-insensitively (e.g. the DB has "MADAM LUA  WANTONMEE" with two spaces).
   function normCompany(name){ return String(name || '').replace(/\s+/g, ' ').trim().toUpperCase(); }
-  var RECON_ONLY_COMPANY = 'OWN LAUNDRY SDN. BHD.';
-  var DM_INVOICE_COMPANY = 'DIDIK MULIA SDN. BHD.';
-  // Every company can have its own distinct Sales Summary picker in place of
-  // the generic sales table — add an entry here (company name -> the id of
-  // its picker element) plus the matching picker HTML/logic to give another
-  // company its own panel. Companies with no entry just see the normal table.
-  var SALES_SUMMARY_OVERRIDES = {};
-  SALES_SUMMARY_OVERRIDES[RECON_ONLY_COMPANY] = { pickerId: 'sales-outlet-picker' };
-  SALES_SUMMARY_OVERRIDES[DM_INVOICE_COMPANY] = { pickerId: 'dm-sales-picker' };
-  // Madam Lua + UK Lua: monthly daily-sales entry -> Bukku sales invoice (branches are loaded from the server).
-  SALES_SUMMARY_OVERRIDES[normCompany('MADAM LUA WANTONMEE')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
-  SALES_SUMMARY_OVERRIDES[normCompany('UK LUA WANTONMEE ENTERPRISE')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
-  // Uncle Koh: the monthly invoices to its three stores (Madam Lua, UK Lua Heng Park, UK Lua Tong Nam) are made the same way
-  SALES_SUMMARY_OVERRIDES[normCompany('UNCLE KOH NOODLE RESTAURANT')] = { pickerId: 'dsi-picker', onShow: dsiLoadBranches };
-
-  var MERCHANT_REPORT_OVERRIDES = {};
-  MERCHANT_REPORT_OVERRIDES[RECON_ONLY_COMPANY] = { cardId: 'ol-tng-card' };
+  // What a company gets is a company setting (they arrive with /api/companies and are changed in the audit-logged settings):
+  //   sales_panel (own_laundry / didik_mulia / daily_sales), merchant_report (ol_tng), short_name, eno_preselect.
+  // The company names below are the OLD way (names written in the page). They are used only while a company has no setting for the key.
+  var LEGACY_SALES_PANEL = {};
+  LEGACY_SALES_PANEL['OWN LAUNDRY SDN. BHD.'] = 'own_laundry';
+  LEGACY_SALES_PANEL['DIDIK MULIA SDN. BHD.'] = 'didik_mulia';
+  LEGACY_SALES_PANEL[normCompany('MADAM LUA WANTONMEE')] = 'daily_sales';
+  LEGACY_SALES_PANEL[normCompany('UK LUA WANTONMEE ENTERPRISE')] = 'daily_sales';
+  LEGACY_SALES_PANEL[normCompany('UNCLE KOH NOODLE RESTAURANT')] = 'daily_sales';
+  // Each kind of Sales Summary panel: the id of its picker element (plus what to load when it is shown).
+  var SALES_PANELS = {
+    own_laundry: { pickerId: 'sales-outlet-picker' },
+    didik_mulia: { pickerId: 'dm-sales-picker' },
+    daily_sales: { pickerId: 'dsi-picker', onShow: dsiLoadBranches }   // monthly daily-sales entry -> Bukku sales invoice (branches come from the server)
+  };
+  /* ==== company settings helpers (tested by extraction) ==== */
+  function companySetting(name, key){ var rec = customerRecord(name); return rec && rec.settings ? rec.settings[key] : undefined; }
+  function salesPanelOf(name){
+    var k = companySetting(name, 'sales_panel');
+    if(k === undefined) k = LEGACY_SALES_PANEL[normCompany(name)];
+    return k || null;
+  }
+  function merchantReportOf(name){
+    var k = companySetting(name, 'merchant_report');
+    if(k === undefined && normCompany(name) === 'OWN LAUNDRY SDN. BHD.') k = 'ol_tng';
+    return k || null;
+  }
+  function companyIdByPanel(panel){
+    var rec = COMPANIES.filter(function(c){ return salesPanelOf(c.name) === panel; })[0];
+    return rec ? rec.id : null;
+  }
+  /* ==== end company settings helpers ==== */
   // If Dwi Danga Sales Summary is currently showing (only reachable via the
   // Sales Summary nav item for Own Laundry) and the company changes away
   // from Own Laundry without a fresh nav click, re-route back to the normal
   // Sales Summary view instead of leaving inapplicable content on screen.
   function updateReconNavVisibility(){
     var reconPanel = document.getElementById('panel-recon');
-    if(reconPanel && !reconPanel.hidden && currentCompany !== RECON_ONLY_COMPANY){
+    if(reconPanel && !reconPanel.hidden && salesPanelOf(currentCompany) !== 'own_laundry'){
       var salesNav = document.querySelector('.nav-item[data-panel="panel-sales"]');
       if(salesNav) salesNav.click();
     }
